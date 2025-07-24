@@ -12,150 +12,145 @@ from erpnext.accounts.doctype.loyalty_program.loyalty_program import (
 )
 from frappe.utils.caching import redis_cache
 
-
 def get_customer_groups(pos_profile):
-	customer_groups = []
-	if pos_profile.get("customer_groups"):
-		# Get items based on the item groups defined in the POS profile
-		for data in pos_profile.get("customer_groups"):
-			customer_groups.extend(
-				[
-					"%s" % frappe.db.escape(d.get("name"))
-					for d in get_child_nodes("Customer Group", data.get("customer_group"))
-				]
-			)
+    customer_groups = []
+    if pos_profile.get("customer_groups"):
+        # Lấy các nhóm khách hàng dựa trên cấu hình của POS profile
+        for data in pos_profile.get("customer_groups"):
+            customer_group_names = [
+                "%s" % frappe.db.escape(d.get("name"))
+                for d in get_child_nodes("Customer Group", data.get("customer_group"))
+            ]
+            customer_groups.extend(customer_group_names)
 
-	return list(set(customer_groups))
+    return list(set(customer_groups))  # Trả về một danh sách không trùng lặp
 
 
 def get_child_nodes(group_type, root):
-	lft, rgt = frappe.db.get_value(group_type, root, ["lft", "rgt"])
-	return frappe.get_all(
-		group_type,
-		filters={"lft": [">=", lft], "rgt": ["<=", rgt]},
-		fields=["name", "lft", "rgt"],
-		order_by="lft",
-	)
+    try:
+        lft, rgt = frappe.db.get_value(group_type, root, ["lft", "rgt"])
+        if lft is None or rgt is None:
+            return []  # Trả về danh sách rỗng nếu không có giá trị lft/rgt hợp lệ
+
+        return frappe.get_all(
+            group_type,
+            filters={"lft": [">=", lft], "rgt": ["<=", rgt]},
+            fields=["name", "lft", "rgt"],
+            order_by="lft"
+        )
+    except Exception as e:
+        frappe.log_error(f"Error in get_child_nodes: {str(e)}", "POS Awesome")
+        return []  # Trả về danh sách rỗng trong trường hợp lỗi
 
 
 def get_customer_group_condition(pos_profile):
-	cond = "disabled = 0"
-	customer_groups = get_customer_groups(pos_profile)
-	if customer_groups:
-		cond = " customer_group in (%s)" % (", ".join(["%s"] * len(customer_groups)))
-
-	return cond % tuple(customer_groups)
+    cond = "disabled = 0"
+    customer_groups = get_customer_groups(pos_profile)
+    if customer_groups:
+        # Điều chỉnh cách tạo điều kiện để tránh lỗi khi không có nhóm khách hàng
+        cond = " customer_group in ({})".format(", ".join(["%s"] * len(customer_groups)))
+    return cond % tuple(customer_groups)
 
 
 @frappe.whitelist()
 def get_customer_names(pos_profile):
-	_pos_profile = json.loads(pos_profile)
-	ttl = _pos_profile.get("posa_server_cache_duration")
-	if ttl:
-		ttl = int(ttl) * 60
+    _pos_profile = json.loads(pos_profile)
+    ttl = _pos_profile.get("posa_server_cache_duration")
+    ttl = int(ttl) * 60 if ttl else 1800  # Đảm bảo tính chính xác thời gian cache
 
-	@redis_cache(ttl=ttl or 1800)
-	def __get_customer_names(pos_profile):
-		return _get_customer_names(pos_profile)
+    @redis_cache(ttl=ttl)
+    def __get_customer_names(pos_profile):
+        return _get_customer_names(pos_profile)
 
-	def _get_customer_names(pos_profile):
-		pos_profile = json.loads(pos_profile)
-		filters = {"disabled": 0}
+    def _get_customer_names(pos_profile):
+        pos_profile = json.loads(pos_profile)
+        filters = {"disabled": 0}
+        customer_groups = get_customer_groups(pos_profile)
+        if customer_groups:
+            filters["customer_group"] = ["in", customer_groups]
 
-		customer_groups = get_customer_groups(pos_profile)
-		if customer_groups:
-			filters["customer_group"] = ["in", customer_groups]
+        customers = frappe.get_all(
+            "Customer",
+            filters=filters,
+            fields=["name", "mobile_no", "email_id", "tax_id", "customer_name", "primary_address"],
+            order_by="name"
+        )
+        return customers
 
-		customers = frappe.get_all(
-			"Customer",
-			filters=filters,
-			fields=[
-				"name",
-				"mobile_no",
-				"email_id",
-				"tax_id",
-				"customer_name",
-				"primary_address",
-			],
-			order_by="name",
-		)
-		return customers
-
-	if _pos_profile.get("posa_use_server_cache"):
-		return __get_customer_names(pos_profile)
-	else:
-		return _get_customer_names(pos_profile)
+    if _pos_profile.get("posa_use_server_cache"):
+        return __get_customer_names(pos_profile)
+    else:
+        return _get_customer_names(pos_profile)
 
 
 @frappe.whitelist()
 def get_customer_info(customer):
-	customer = frappe.get_doc("Customer", customer)
+    customer_doc = frappe.get_doc("Customer", customer)
+    res = {
+        "loyalty_points": None,
+        "conversion_factor": None,
+        "email_id": customer_doc.email_id,
+        "mobile_no": customer_doc.mobile_no,
+        "image": customer_doc.image,
+        "loyalty_program": customer_doc.loyalty_program,
+        "customer_price_list": customer_doc.default_price_list,
+        "customer_group": customer_doc.customer_group,
+        "customer_type": customer_doc.customer_type,
+        "territory": customer_doc.territory,
+        "birthday": customer_doc.posa_birthday,
+        "gender": customer_doc.gender,
+        "tax_id": customer_doc.tax_id,
+        "posa_discount": customer_doc.posa_discount,
+        "name": customer_doc.name,
+        "customer_name": customer_doc.customer_name,
+        "customer_group_price_list": frappe.get_value("Customer Group", customer_doc.customer_group, "default_price_list")
+    }
 
-	res = {"loyalty_points": None, "conversion_factor": None}
+    if customer_doc.loyalty_program:
+        lp_details = get_loyalty_program_details_with_points(
+            customer_doc.name,
+            customer_doc.loyalty_program,
+            silent=True,
+            include_expired_entry=False,
+        )
+        res["loyalty_points"] = lp_details.get("loyalty_points")
+        res["conversion_factor"] = lp_details.get("conversion_factor")
 
-	res["email_id"] = customer.email_id
-	res["mobile_no"] = customer.mobile_no
-	res["image"] = customer.image
-	res["loyalty_program"] = customer.loyalty_program
-	res["customer_price_list"] = customer.default_price_list
-	res["customer_group"] = customer.customer_group
-	res["customer_type"] = customer.customer_type
-	res["territory"] = customer.territory
-	res["birthday"] = customer.posa_birthday
-	res["gender"] = customer.gender
-	res["tax_id"] = customer.tax_id
-	res["posa_discount"] = customer.posa_discount
-	res["name"] = customer.name
-	res["customer_name"] = customer.customer_name
-	res["customer_group_price_list"] = frappe.get_value(
-		"Customer Group", customer.customer_group, "default_price_list"
-	)
-
-	if customer.loyalty_program:
-		lp_details = get_loyalty_program_details_with_points(
-			customer.name,
-			customer.loyalty_program,
-			silent=True,
-			include_expired_entry=False,
-		)
-		res["loyalty_points"] = lp_details.get("loyalty_points")
-		res["conversion_factor"] = lp_details.get("conversion_factor")
-
-	addresses = frappe.db.sql(
-		"""
-        SELECT
-            address.name as address_name,
-            address.address_line1,
-            address.address_line2,
-            address.city,
-            address.state,
-            address.country,
-            address.address_type
+    # Lấy địa chỉ giao hàng mới nhất của khách hàng
+    addresses = frappe.db.sql(
+        """
+        SELECT address.name as address_name,
+               address.address_line1,
+               address.address_line2,
+               address.city,
+               address.state,
+               address.country,
+               address.address_type
         FROM `tabAddress` address
         INNER JOIN `tabDynamic Link` link
-            ON (address.name = link.parent)
-        WHERE
-            link.link_doctype = 'Customer'
-            AND link.link_name = %s
-            AND address.disabled = 0
-            AND address.address_type = 'Shipping'
+            ON address.name = link.parent
+        WHERE link.link_doctype = 'Customer'
+        AND link.link_name = %s
+        AND address.disabled = 0
+        AND address.address_type = 'Shipping'
         ORDER BY address.creation DESC
         LIMIT 1
         """,
-		(customer.name,),
-		as_dict=True,
-	)
+        (customer_doc.name,),
+        as_dict=True,
+    )
 
-	if addresses:
-		addr = addresses[0]
-		res["address_line1"] = addr.address_line1 or ""
-		res["address_line2"] = addr.address_line2 or ""
-		res["city"] = addr.city or ""
-		res["state"] = addr.state or ""
-		res["country"] = addr.country or ""
+    if addresses:
+        addr = addresses[0]
+        res.update({
+            "address_line1": addr.address_line1 or "",
+            "address_line2": addr.address_line2 or "",
+            "city": addr.city or "",
+            "state": addr.state or "",
+            "country": addr.country or ""
+        })
 
-	return res
-
+    return res
 
 @frappe.whitelist()
 def create_customer(
