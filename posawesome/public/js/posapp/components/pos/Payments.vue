@@ -1456,17 +1456,20 @@ export default {
 				request: {
 					DocNo: this.invoice_doc.name,
 					Cashier: this.invoice_doc.cashier || "",
-					Products: this.invoice_doc.items.map(item => ({
-						Name: item.item_name,
-						Qty: String(item.qty),      // Đảm bảo kiểu chuỗi
-						Price: String(item.price)   // Đảm bảo kiểu chuỗi
-					})),
+					Products: [
+						{
+							Name:  this.invoice_doc.items[0].item_name, 
+							Qty: String(this.invoice_doc.total_qty || "0"),
+							Price: String(this.invoice_doc.total || "0")
+						}
+					],
+
 					Total: String(this.invoice_doc.total || ""),
 					ServiceFee: String(this.invoice_doc.service_fee || "0"),
 					Discount: String(this.invoice_doc.discount_amount || "0"),
-					GrandTotal: String(this.invoice_doc.grand_total || ""),
-					Cash: String(this.invoice_doc.paid_amount || ""),
-					Statistics: String(this.invoice_doc.statistics || "")
+					GrandTotal: String(this.invoice_doc.grand_total || "0"),
+					Cash: String(this.invoice_doc.paid_amount || "0"),
+					Statistics: String(this.invoice_doc.grand_total || "0")
 				}
 			};
 
