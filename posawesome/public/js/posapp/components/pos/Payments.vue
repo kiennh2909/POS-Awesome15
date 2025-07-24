@@ -1453,19 +1453,21 @@ export default {
 		async load_print_page() {
 			// Chuẩn bị dữ liệu gửi đi
 			const body = {
-				DocNo: this.invoice_doc.name,
-				Cashier: this.invoice_doc.cashier || "",
-				Products: this.invoice_doc.items.map(item => ({
-					Name: item.item_name,
-					Qty: item.qty,
-					Price: item.price
-				})),
-				Total: this.invoice_doc.total || "",
-				ServiceFee: this.invoice_doc.service_fee || "0",
-				Discount: this.invoice_doc.discount_amount || "0",
-				GrandTotal: this.invoice_doc.grand_total || "",
-				Cash: this.invoice_doc.paid_amount || "",
-				Statistics: this.invoice_doc.statistics || ""
+				request: {
+					DocNo: this.invoice_doc.name,
+					Cashier: this.invoice_doc.cashier || "",
+					Products: this.invoice_doc.items.map(item => ({
+						Name: item.item_name,
+						Qty: String(item.qty),      // Đảm bảo kiểu chuỗi
+						Price: String(item.price)   // Đảm bảo kiểu chuỗi
+					})),
+					Total: String(this.invoice_doc.total || ""),
+					ServiceFee: String(this.invoice_doc.service_fee || "0"),
+					Discount: String(this.invoice_doc.discount_amount || "0"),
+					GrandTotal: String(this.invoice_doc.grand_total || ""),
+					Cash: String(this.invoice_doc.paid_amount || ""),
+					Statistics: String(this.invoice_doc.statistics || "")
+				}
 			};
 
 			// Gửi dữ liệu tới API Gateway
