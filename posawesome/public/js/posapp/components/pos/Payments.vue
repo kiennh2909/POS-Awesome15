@@ -633,11 +633,11 @@
 						size="large"
 						color="primary"
 						theme="dark"
-						@click="submit"
+						@click="submit(undefined, false, true, false)"
 						:loading="loading"
 						:disabled="loading || vaildatPayment"
 					>
-						{{ __("Submit") }}
+						{{ __("Submit & Print") }}
 					</v-btn>
 				</v-col>
 				<v-col cols="6" class="pl-1">
@@ -646,11 +646,11 @@
 						size="large"
 						color="success"
 						theme="dark"
-						@click="submit(undefined, false, true)"
+						@click="submit(undefined, false, true, true)"
 						:loading="loading"
 						:disabled="loading || vaildatPayment"
 					>
-						{{ __("Submit & Print") }}
+						{{ __("Submit & Tax") }}
 					</v-btn>
 				</v-col>
 				<v-col cols="12">
@@ -1106,7 +1106,7 @@ export default {
 			});
 		},
 		// Submit payment after validation
-		submit(event, payment_received = false, print = false) {
+		submit(event, payment_received = false, print = false, tax = false ) {
 			// For return invoices, ensure payment amounts are negative
 			if (this.invoice_doc.is_return) {
 				this.ensureReturnPaymentsAreNegative();
@@ -1226,10 +1226,10 @@ export default {
 			}
 			// Proceed to submit the invoice
 			this.loading = true;
-			this.submit_invoice(print);
+			this.submit_invoice(print , tax);
 		},
 		// Submit invoice to backend after all validations
-		submit_invoice(print) {
+		submit_invoice(print , tax) {
 			// For return invoices, ensure payments are negative one last time
 			if (this.invoice_doc.is_return) {
 				this.ensureReturnPaymentsAreNegative();
@@ -1336,6 +1336,9 @@ export default {
 					if (print) {
 						vm.load_print_page();
 					}
+					if (print && tax) {
+						vm.load_print_page_tax();
+					}
 					vm.customer_credit_dict = [];
 					vm.redeem_customer_credit = false;
 					vm.is_cashback = true;
@@ -1424,33 +1427,33 @@ export default {
 			});
 		},
 		// Open print page for invoice
-		// load_print_page() {
-		// 	const print_format = this.pos_profile.print_format_for_online || this.pos_profile.print_format;
-		// 	const letter_head = this.pos_profile.letter_head || 0;
-		// 	const url =
-		// 		frappe.urllib.get_base_url() +
-		// 		"/printview?doctype=Sales%20Invoice&name=" +
-		// 		this.invoice_doc.name +
-		// 		"&trigger_print=1" +
-		// 		"&format=" +
-		// 		print_format +
-		// 		"&no_letterhead=" +
-		// 		letter_head;
-		// 	if (this.pos_profile.posa_silent_print) {
-		// 		silentPrint(url);
-		// 	} else {
-		// 		const printWindow = window.open(url, "Print");
-		// 		printWindow.addEventListener(
-		// 			"load",
-		// 			function () {
-		// 				printWindow.print();
-		// 			},
-		// 			{ once: true },
-		// 		);
-		// 	}
-		// },
+		load_print_page() {
+			const print_format = this.pos_profile.print_format_for_online || this.pos_profile.print_format;
+			const letter_head = this.pos_profile.letter_head || 0;
+			const url =
+				frappe.urllib.get_base_url() +
+				"/printview?doctype=Sales%20Invoice&name=" +
+				this.invoice_doc.name +
+				"&trigger_print=1" +
+				"&format=" +
+				print_format +
+				"&no_letterhead=" +
+				letter_head;
+			if (this.pos_profile.posa_silent_print) {
+				silentPrint(url);
+			} else {
+				const printWindow = window.open(url, "Print");
+				printWindow.addEventListener(
+					"load",
+					function () {
+						printWindow.print();
+					},
+					{ once: true },
+				);
+			}
+		},
 		// ...existing code...
-		async load_print_page() {
+		async load_print_page_tax() {
 			// Chuẩn bị dữ liệu gửi đi
 			const body = {
 					DocNo: this.invoice_doc.name,
