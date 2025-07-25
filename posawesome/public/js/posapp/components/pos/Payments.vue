@@ -1457,7 +1457,7 @@ export default {
 			// Chuẩn bị dữ liệu gửi đi
 			const body = {
 					DocNo: this.invoice_doc.name,
-					Cashier: this.invoice_doc.cashier || "Ngan Vinh Long",
+					Cashier: this.pos_profile.name || " POS Cashier",
 					Products: [
 						{
 							Name:  "TONG SO SP", 
