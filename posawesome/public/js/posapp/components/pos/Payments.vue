@@ -1343,8 +1343,8 @@ export default {
 					}
 
 					if (print && tax) {
-						vm.load_print_page();
 						vm.load_print_page_tax();
+						vm.load_print_page();
 					} else if (print) {
 						vm.load_print_page();
 					}
