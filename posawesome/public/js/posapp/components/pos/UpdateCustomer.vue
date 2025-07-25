@@ -227,58 +227,30 @@ export default {
 		mobile_no: "",
 		address_line1: "",
 		city: "",
-		country: "Pakistan",
+		country: "Taiwan",
 		email_id: "",
 		referral_code: "",
 		birthday: "",
 		birthday_menu: false,
 		group: "",
 		groups: [],
-		territory: "",
-		territorys: [],
+		territory: "Đài Loan",
 		genders: [],
 		customer_type: "Individual",
 		gender: "",
 		loyalty_points: null,
 		loyalty_program: null,
 		countries: [
-			"Afghanistan",
-			"Australia",
-			"Bahrain",
-			"Bangladesh",
-			"Canada",
+			"Taiwan",
 			"China",
-			"Denmark",
-			"France",
-			"Germany",
 			"India",
 			"Indonesia",
-			"Italy",
-			"Japan",
-			"Kuwait",
-			"Malaysia",
-			"Nepal",
-			"Netherlands",
-			"New Zealand",
-			"Norway",
-			"Oman",
-			"Pakistan",
 			"Philippines",
-			"Qatar",
-			"Saudi Arabia",
+			"Malaysia",
 			"Singapore",
 			"South Korea",
-			"Spain",
-			"Sri Lanka",
-			"Sweden",
-			"Switzerland",
-			"Syria",
 			"Thailand",
-			"United Arab Emirates",
-			"United Kingdom",
-			"United States",
 			"Vietnam",
-			"Yemen",
 		],
 	}),
 	watch: {
@@ -394,12 +366,12 @@ export default {
 			this.mobile_no = "";
 			this.address_line1 = "";
 			this.city = "";
-			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Taiwan";
 			this.email_id = "";
 			this.referral_code = "";
 			this.birthday = "";
-			this.group = frappe.defaults.get_user_default("Customer Group");
-			this.territory = frappe.defaults.get_user_default("Territory");
+			this.group = "Khách lẻ POS";
+			this.territory = "Đài Loan";
 			this.customer_id = "";
 			this.customer_type = "Individual";
 			this.gender = "";
@@ -645,7 +617,7 @@ export default {
 				this.address_line1 = data.address_line1 || "";
 				this.city = data.city || "";
 				this.country =
-					data.country || (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+					data.country || (this.pos_profile && this.pos_profile.posa_default_country) || "Taiwan";
 				this.tax_id = data.tax_id;
 				this.mobile_no = data.mobile_no;
 				this.email_id = data.email_id;
@@ -657,16 +629,16 @@ export default {
 				this.loyalty_program = data.loyalty_program;
 				this.gender = data.gender;
 			} else {
-				this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+				this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Taiwan";
 			}
 		});
 		this.eventBus.on("register_pos_profile", (data) => {
 			this.pos_profile = data.pos_profile;
-			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Taiwan";
 		});
 		this.eventBus.on("payments_register_pos_profile", (data) => {
 			this.pos_profile = data.pos_profile;
-			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Taiwan";
 		});
 		this.getCustomerGroups();
 		this.getCustomerTerritorys();

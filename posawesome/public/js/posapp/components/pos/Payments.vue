@@ -1333,13 +1333,11 @@ export default {
 						vm.loading = false;
 						return;
 					}
-					if (print) {
-						if (tax) {
-							vm.load_print_page_tax();
-						} else {
-							vm.load_print_page();
-						}
-						
+
+					if (print && tax) {
+						vm.load_print_page_tax();
+					} else if (print) {
+						vm.load_print_page();
 					}
 					vm.customer_credit_dict = [];
 					vm.redeem_customer_credit = false;
@@ -1454,12 +1452,12 @@ export default {
 				);
 			}
 		},
-		// ...existing code...
-		load_print_page_tax() {
+
+		async load_print_page_tax() {
 			// Chuẩn bị dữ liệu gửi đi
 			const body = {
 					DocNo: this.invoice_doc.name,
-					Cashier: this.invoice_doc.cashier || "NVL",
+					Cashier: this.invoice_doc.cashier || "Ngan Vinh Long",
 					Products: [
 						{
 							Name:  "TONG SO SP", 
