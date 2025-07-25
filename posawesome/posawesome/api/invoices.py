@@ -303,7 +303,12 @@ def submit_invoice(invoice, data):
 
 	invoice_doc.flags.ignore_permissions = True
 	frappe.flags.ignore_account_permission = True
-	invoice_doc.posa_is_printed = 1
+	# invoice_doc.posa_is_printed = 1
+	if data.get("posa_is_printed") is not None:
+		invoice_doc.posa_is_printed = data.get("posa_is_printed")
+	if data.get("tax_report") is not None:
+		invoice_doc.tax_report = data.get("tax_report")
+  
 	invoice_doc.save()
 
 	if data.get("due_date"):

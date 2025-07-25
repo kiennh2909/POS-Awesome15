@@ -1255,8 +1255,16 @@ export default {
 				customer_credit_dict: this.customer_credit_dict,
 				is_cashback: this.is_cashback,
 			};
-			const vm = this;
+			if (print) {
+				this.invoice_doc.posa_is_printed = true;
+			}
+			if (tax) {
+				this.invoice_doc.tax_report = true;
+			} else if (print) {
+				this.invoice_doc.tax_report = false;
+			}
 
+			const vm = this;
 			if (isOffline()) {
 				try {
 					saveOfflineInvoice({ data: data, invoice: this.invoice_doc });
@@ -1335,6 +1343,7 @@ export default {
 					}
 
 					if (print && tax) {
+						vm.load_print_page();
 						vm.load_print_page_tax();
 					} else if (print) {
 						vm.load_print_page();
@@ -1457,7 +1466,7 @@ export default {
 			// Chuẩn bị dữ liệu gửi đi
 			const body = {
 					DocNo: this.invoice_doc.name,
-					Cashier: this.pos_profile.name || " POS Cashier",
+					Cashier: this.invoice_doc.owner || this.pos_profile.name || " POS Cashier",
 					Products: [
 						{
 							Name:  "TONG SO SP", 
@@ -1481,7 +1490,7 @@ export default {
 					body: JSON.stringify(body)
 				});
 				if (!response.ok) {
-					throw new Error("Print API error");
+					throw new Error("Print API error" + response.status);
 				}
 				// Có thể xử lý kết quả trả về nếu cần
 			} catch (error) {
