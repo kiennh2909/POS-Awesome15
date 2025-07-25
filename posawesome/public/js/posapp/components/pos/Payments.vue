@@ -1334,10 +1334,12 @@ export default {
 						return;
 					}
 					if (print) {
-						vm.load_print_page();
-					}
-					if (print && tax) {
-						vm.load_print_page_tax();
+						if (tax) {
+							vm.load_print_page_tax();
+						} else {
+							vm.load_print_page();
+						}
+						
 					}
 					vm.customer_credit_dict = [];
 					vm.redeem_customer_credit = false;
@@ -1457,7 +1459,7 @@ export default {
 			// Chuẩn bị dữ liệu gửi đi
 			const body = {
 					DocNo: this.invoice_doc.name,
-					Cashier: this.invoice_doc.cashier || "Kien_Nguoi_ban",
+					Cashier: this.invoice_doc.cashier || "",
 					Products: [
 						{
 							Name:  "TONG SO SP", 
