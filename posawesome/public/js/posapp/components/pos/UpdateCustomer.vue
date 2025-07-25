@@ -366,12 +366,12 @@ export default {
 			this.mobile_no = "";
 			this.address_line1 = "";
 			this.city = "";
-			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Taiwan";
+			this.country = (this.pos_profile.posa_default_country) || "Taiwan";
 			this.email_id = "";
 			this.referral_code = "";
 			this.birthday = "";
-			this.group = "Khách lẻ POS";
-			this.territory = "Đài Loan";
+			this.group = frappe.defaults.get_user_default("Customer Group");
+			this.territory = frappe.defaults.get_user_default("Territory")
 			this.customer_id = "";
 			this.customer_type = "Individual";
 			this.gender = "";

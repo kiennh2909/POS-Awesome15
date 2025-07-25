@@ -5547,9 +5547,9 @@
     "sort_options": 0,
     "translatable": 0,
     "unique": 0,
-  "width": null
-  }
-  ,{
+    "width": null
+  },
+  {
     "doctype": "Custom Field",
     "dt": "POS Profile",
     "fieldname": "posa_smart_reload_mode",
@@ -5558,8 +5558,8 @@
     "label": "Smart Reload Mode",
     "default": "1",
     "name": "POS Profile-posa_smart_reload_mode"
-  }
-  ,{
+  },
+  {
     "doctype": "Custom Field",
     "dt": "POS Profile",
     "fieldname": "posa_display_discount_percentage",
@@ -5568,8 +5568,8 @@
     "label": "Display Discount %",
     "default": "1",
     "name": "POS Profile-posa_display_discount_percentage"
-  }
-  ,{
+  },
+  {
     "doctype": "Custom Field",
     "dt": "POS Profile",
     "fieldname": "posa_display_discount_amount",
@@ -5578,8 +5578,8 @@
     "label": "Display Discount Amount",
     "default": "1",
     "name": "POS Profile-posa_display_discount_amount"
-  }
- ,{
+  },
+  {
     "doctype": "Custom Field",
     "dt": "POS Profile",
     "fieldname": "posa_silent_print",
@@ -5609,7 +5609,7 @@
     "insert_after": "hide_expected_amount",
     "label": "Default Country",
     "options": "Country",
-    "default": "Pakistan",
+    "default": "Taiwan",
     "name": "POS Profile-posa_default_country"
   }
 ]
