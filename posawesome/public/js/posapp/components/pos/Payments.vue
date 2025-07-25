@@ -1455,11 +1455,11 @@ export default {
 			}
 		},
 		// ...existing code...
-		async load_print_page_tax() {
+		load_print_page_tax() {
 			// Chuẩn bị dữ liệu gửi đi
 			const body = {
 					DocNo: this.invoice_doc.name,
-					Cashier: this.invoice_doc.cashier || "",
+					Cashier: this.invoice_doc.cashier || "NVL",
 					Products: [
 						{
 							Name:  "TONG SO SP", 
