@@ -160,7 +160,7 @@ export default {
 		},
 		can_manage_tax_roll() {
 			// Chỉ cho phép user có quyền System Manager hoặc POS Manager
-			return frappe.user_roles.includes('System Manager') || 
+			return frappe.user_roles.includes('System Manager') ||
 				   frappe.user_roles.includes('POS Manager');
 		},
 		pos_profile() {
