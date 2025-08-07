@@ -1462,41 +1462,40 @@ export default {
 		},
 
 		async load_print_page_tax() {
-			// Chuẩn bị dữ liệu gửi đi
-			const body = {
-					DocNo: this.invoice_doc.name,
-					Cashier: this.invoice_doc.owner || this.pos_profile.name || " POS Cashier",
-					Products: [
-						{
-							Name:  "TONG SO SP", 
-							Qty: String(this.invoice_doc.total_qty || "0"),
-							Price: String(this.invoice_doc.total || "0")
-						}
-					],
-					Total: String(this.invoice_doc.total || ""),
-					ServiceFee: String(this.invoice_doc.service_fee || "0"),
-					Discount: String(this.invoice_doc.discount_amount || "0"),
-					GrandTotal: String(this.invoice_doc.grand_total || "0"),
-					Cash: String(this.invoice_doc.paid_amount || "0"),
-					Statistics: String(this.invoice_doc.grand_total || "0")
-			};
+			// Import tax print handler
+			const { handleTaxPrint } = await import('./taxPrintHandler.js');
 
-			// Gửi dữ liệu tới API Gateway
 			try {
-				const response = await fetch("http://localhost:5000/api/print", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(body)
-				});
-				if (!response.ok) {
-					throw new Error("Print API error" + response.status);
-				}
-				// Có thể xử lý kết quả trả về nếu cần
+				await handleTaxPrint(
+					this.invoice_doc,
+					this.pos_profile,
+					// onSuccess callback
+					(result) => {
+						// Thông báo thành công
+						frappe.show_alert({
+							message: `Đã in thành công hóa đơn thuế: ${result.taxCode}`,
+							indicator: "green"
+						});
+					},
+					// onError callback
+					(error) => {
+						console.error("Lỗi in hóa đơn thuế:", error);
+						frappe.msgprint({
+							title: "Lỗi In Hóa Đơn Thuế",
+							message: `Không thể in hóa đơn thuế: ${error.message}`,
+							indicator: "red"
+						});
+					}
+				);
 			} catch (error) {
-				frappe.msgprint("Không thể in hóa đơn: " + error.message);
+				console.error("Lỗi không mong đợi:", error);
+				frappe.msgprint({
+					title: "Lỗi In Hóa Đơn Thuế", 
+					message: `Có lỗi không mong đợi xảy ra: ${error.message}`,
+					indicator: "red"
+				});
 			}
 		}, 
-// ...existing code...
 		// Print invoice using a more detailed offline template
 		print_offline_invoice(invoice) {
 			if (!invoice) return;
