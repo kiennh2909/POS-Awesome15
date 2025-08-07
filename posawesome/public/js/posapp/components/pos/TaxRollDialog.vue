@@ -76,7 +76,6 @@
                       :rules="[rules.required, rules.prefix]"
                       outlined
                       dense
-                      :disabled="selected_action !== 'new_roll'"
                     ></v-text-field>
                   </v-col>
                   <v-col cols="6">
@@ -87,18 +86,25 @@
                       :rules="[rules.required, rules.number]"
                       outlined
                       dense
-                      :disabled="selected_action !== 'new_roll'"
                     ></v-text-field>
                   </v-col>
                   <v-col cols="6">
-                    <div class="text-caption grey--text">Số hiện tại</div>
-                    <div class="text-h6">{{ new_start_number || 'N/A' }}</div>
+                    <v-text-field
+                      v-model="new_current_number"
+                      label="Số hiện tại"
+                      type="number"
+                      outlined
+                      dense
+                    ></v-text-field>
                   </v-col>
                   <v-col cols="6">
-                    <div class="text-caption grey--text">Tình trạng</div>
-                    <v-chip color="green" small text-color="white">
-                      Đang hoạt động
-                    </v-chip>
+                    <v-select
+                      v-model="new_status"
+                      :items="status_options"
+                      label="Tình trạng"
+                      outlined
+                      dense
+                    ></v-select>
                   </v-col>
                   <v-col cols="12">
                     <div class="text-caption grey--text">Thời gian cập nhật</div>
@@ -161,10 +167,17 @@ export default {
       current_tax_info: {},
       new_prefix: "",
       new_start_number: "",
+      new_current_number: "",
+      new_status: "Active",
       selected_action: "update_current",
       action_options: [
         { text: "Cập nhật cuộn hiện tại", value: "update_current" },
         { text: "Thay cuộn mới", value: "new_roll" }
+      ],
+      status_options: [
+        { text: "Đang hoạt động", value: "Active" },
+        { text: "Đã kết thúc", value: "Finished" },
+        { text: "Không hoạt động", value: "Inactive" }
       ],
       rules: {
         required: v => !!v || 'Trường này bắt buộc',
@@ -178,7 +191,7 @@ export default {
       if (this.selected_action === "update_current") {
         return true; // Có thể cập nhật cuộn hiện tại
       } else if (this.selected_action === "new_roll") {
-        return this.new_prefix && this.new_start_number;
+        return this.new_prefix && this.new_start_number && this.new_current_number;
       }
       return false;
     }
@@ -226,11 +239,15 @@ export default {
       if (this.selected_action === "update_current") {
         // Reset form khi chọn cập nhật cuộn hiện tại
         this.new_prefix = this.current_tax_info.tax_roll_code || "";
-        this.new_start_number = "";
+        this.new_start_number = this.current_tax_info.tax_start_number || "";
+        this.new_current_number = this.current_tax_info.tax_current_counter || "";
+        this.new_status = this.current_tax_info.tax_roll_status || "Active";
       } else if (this.selected_action === "new_roll") {
         // Để trống để người dùng nhập mới
         this.new_prefix = "";
         this.new_start_number = "";
+        this.new_current_number = "";
+        this.new_status = "Active";
       }
     },
 
@@ -294,6 +311,8 @@ export default {
       this.show_dialog = false;
       this.new_prefix = "";
       this.new_start_number = "";
+      this.new_current_number = "";
+      this.new_status = "Active";
       this.selected_action = "update_current";
     },
 
