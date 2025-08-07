@@ -38,6 +38,18 @@
             <span class="font-weight-bold">{{ tax_code_display }}</span>
           </v-chip>
 
+          <!-- No Tax Code Warning (only show if management allowed but no tax code) -->
+          <v-chip
+            v-else-if="can_manage_tax_roll && !tax_code_display"
+            color="warning"
+            variant="outlined"
+            size="small"
+            class="tax-chip mr-2"
+          >
+            <v-icon start size="small">mdi-alert</v-icon>
+            <span class="font-weight-bold">Chưa thiết lập</span>
+          </v-chip>
+
           <!-- Tax Status Indicator -->
           <v-chip
             v-if="tax_code_display"
@@ -166,22 +178,41 @@ export default {
 		},
 		pos_profile() {
 			// Thử nhiều cách để lấy pos_profile
-			if (this.$store.state.pos_profile?.name) {
+			if (this.$store?.state?.pos_profile?.name) {
 				return this.$store.state.pos_profile.name;
 			}
 			if (this.posProfile?.name) {
 				return this.posProfile.name;
 			}
-			// Fallback từ props
+			// Fallback từ frappe boot
+			if (frappe?.boot?.pos_profile?.name) {
+				return frappe.boot.pos_profile.name;
+			}
+			// Fallback từ global window
+			if (window.posProfile?.name) {
+				return window.posProfile.name;
+			}
 			return null;
 		},
 	},
-	mounted() {
+	async mounted() {
+		// Chờ một chút để đảm bảo store đã load
+		await this.$nextTick();
+		
+		// Load tax display ngay lập tức
 		this.load_tax_code_display();
+		
 		// Set up interval để refresh định kỳ
 		this.tax_refresh_interval = setInterval(() => {
 			this.load_tax_code_display();
 		}, 30000); // Refresh mỗi 30 giây
+
+		// Listen for pos_profile_registered event
+		frappe.realtime.on("pos_profile_registered", () => {
+			setTimeout(() => {
+				this.load_tax_code_display();
+			}, 1000);
+		});
 	},
 	beforeUnmount() {
 		if (this.tax_refresh_interval) {
@@ -210,10 +241,26 @@ export default {
 			console.log("Loading tax display for profile:", profile_name);
 			
 			if (!profile_name) {
-				console.log("No pos_profile found, skipping tax display load");
+				console.log("No pos_profile found, trying to fetch from ensurePosProfile");
+				// Thử load từ utils
+				try {
+					const { ensurePosProfile } = await import('../../utils/pos_profile.js');
+					const profile = await ensurePosProfile();
+					if (profile?.name) {
+						console.log("Loaded profile from ensurePosProfile:", profile.name);
+						this.load_tax_info_for_profile(profile.name);
+						return;
+					}
+				} catch (e) {
+					console.error("Failed to load from ensurePosProfile:", e);
+				}
 				return;
 			}
 
+			this.load_tax_info_for_profile(profile_name);
+		},
+
+		async load_tax_info_for_profile(profile_name) {
 			try {
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.tax_roll.get_current_tax_info",
@@ -224,22 +271,33 @@ export default {
 
 				console.log("Tax info response:", response.message);
 
-				if (response.message && response.message.current_display) {
-					this.tax_code_display = response.message.current_display;
-					console.log("Tax display updated:", this.tax_code_display);
-				} else {
-					// Nếu không có current_display, thử tạo từ các trường riêng lẻ
+				if (response.message) {
 					const info = response.message;
-					if (info && info.tax_roll_code && info.tax_current_counter) {
+					
+					// Ưu tiên current_display
+					if (info.current_display) {
+						this.tax_code_display = info.current_display;
+						console.log("Tax display from current_display:", this.tax_code_display);
+					} 
+					// Tạo từ các trường riêng lẻ
+					else if (info.tax_roll_code && (info.tax_current_counter || info.tax_current_counter === 0)) {
 						this.tax_code_display = `${info.tax_roll_code} ${info.tax_current_counter}`;
 						console.log("Tax display created manually:", this.tax_code_display);
+					}
+					// Fallback nếu chỉ có tax_roll_code
+					else if (info.tax_roll_code) {
+						this.tax_code_display = `${info.tax_roll_code} 1`;
+						console.log("Tax display fallback:", this.tax_code_display);
+					}
+					else {
+						console.log("No tax info available");
+						this.tax_code_display = "";
 					}
 				}
 			} catch (error) {
 				console.error("Error loading tax code display:", error);
-				// Log thêm thông tin để debug
-				console.error("Profile name:", profile_name);
-				console.error("Store state:", this.$store.state);
+				// Không hiển thị gì nếu có lỗi
+				this.tax_code_display = "";
 			}
 		},
 
