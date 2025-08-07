@@ -1461,17 +1461,56 @@ export default {
 			}
 		},
 
+		// async load_print_page_tax() {
+		// 	// Import tax print handler
+		// 	const { handleTaxPrint } = await import('./taxPrintHandler.js');
+
+		// 	try {
+		// 		await handleTaxPrint(
+		// 			this.invoice_doc,
+		// 			this.pos_profile,
+		// 			// onSuccess callback
+		// 			(result) => {
+		// 				// Thông báo thành công
+		// 				frappe.show_alert({
+		// 					message: `Đã in thành công hóa đơn thuế: ${result.taxCode}`,
+		// 					indicator: "green"
+		// 				});
+		// 			},
+		// 			// onError callback
+		// 			(error) => {
+		// 				console.error("Lỗi in hóa đơn thuế:", error);
+		// 				frappe.msgprint({
+		// 					title: "Lỗi In Hóa Đơn Thuế",
+		// 					message: `Không thể in hóa đơn thuế: ${error.message}`,
+		// 					indicator: "red"
+		// 				});
+		// 			}
+		// 		);
+		// 	} catch (error) {
+		// 		console.error("Lỗi không mong đợi:", error);
+		// 		frappe.msgprint({
+		// 			title: "Lỗi In Hóa Đơn Thuế", 
+		// 			message: `Có lỗi không mong đợi xảy ra: ${error.message}`,
+		// 			indicator: "red"
+		// 		});
+		// 	}
+		// }, 
+
 		async load_print_page_tax() {
 			// Import tax print handler
 			const { handleTaxPrint } = await import('./taxPrintHandler.js');
 
+			// === CẢI TIẾN: Thêm trạng thái chờ ===
+			this.loading = true; // Giả sử component có một biến data 'loading'
+			// Vô hiệu hóa các nút khác nếu cần
+			
 			try {
 				await handleTaxPrint(
 					this.invoice_doc,
 					this.pos_profile,
 					// onSuccess callback
 					(result) => {
-						// Thông báo thành công
 						frappe.show_alert({
 							message: `Đã in thành công hóa đơn thuế: ${result.taxCode}`,
 							indicator: "green"
@@ -1494,8 +1533,14 @@ export default {
 					message: `Có lỗi không mong đợi xảy ra: ${error.message}`,
 					indicator: "red"
 				});
+			} finally {
+				// === CẢI TIẾN: Luôn tắt trạng thái chờ sau khi hoàn tất ===
+				this.loading = false;
+				// Bật lại các nút khác
 			}
-		}, 
+		},
+
+
 		// Print invoice using a more detailed offline template
 		print_offline_invoice(invoice) {
 			if (!invoice) return;
