@@ -122,7 +122,7 @@ frappe.PosApp.posapp = class {
 			console.warn("Could not load tax info:", error);
 		}
 	}
-	setup_header() {
+	async setup_header() {
 		// Load app data
 		await this.load_pos_data();
 
