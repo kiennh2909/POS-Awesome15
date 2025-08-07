@@ -24,26 +24,48 @@
 			<span class="font-weight-light">POS</span><span>Awesome</span>
 		</v-toolbar-title>
 
-		<!-- Tax Code Display -->
-        <v-chip
-          v-if="tax_code_display"
-          color="primary"
-          text-color="white"
-          class="mx-2"
-        >
-          <v-icon left small>mdi-receipt</v-icon>
-          {{ tax_code_display }}
-        </v-chip>
+		<!-- Tax Code Display Section -->
+        <div v-if="tax_code_display || can_manage_tax_roll" class="tax-section mx-2 d-flex align-center">
+          <!-- Tax Code Display -->
+          <v-chip
+            v-if="tax_code_display"
+            color="success"
+            variant="elevated"
+            size="small"
+            class="tax-chip mr-2"
+          >
+            <v-icon start size="small">mdi-receipt-text</v-icon>
+            <span class="font-weight-bold">{{ tax_code_display }}</span>
+          </v-chip>
 
-        <!-- Tax Roll Management Button -->
-        <v-btn
-          v-if="can_manage_tax_roll"
-          icon
-          @click="show_tax_roll_dialog = true"
-          title="Quản lý cuộn hóa đơn thuế"
-        >
-          <v-icon>mdi-cog</v-icon>
-        </v-btn>
+          <!-- Tax Status Indicator -->
+          <v-chip
+            v-if="tax_code_display"
+            color="green"
+            variant="outlined"
+            size="x-small"
+            class="status-chip mr-2"
+          >
+            <v-icon start size="x-small">mdi-check-circle</v-icon>
+            Hoạt động
+          </v-chip>
+
+          <!-- Tax Roll Management Button -->
+          <v-btn
+            v-if="can_manage_tax_roll"
+            icon
+            size="small"
+            variant="outlined"
+            color="primary"
+            @click="show_tax_roll_dialog = true"
+            class="tax-management-btn"
+          >
+            <v-icon size="small">mdi-cog</v-icon>
+            <v-tooltip activator="parent" location="bottom">
+              Quản lý cuộn hóa đơn thuế
+            </v-tooltip>
+          </v-btn>
+        </div>
 
         <v-spacer></v-spacer>
 
@@ -80,10 +102,10 @@
 		<slot name="menu"></slot>
 
 		<TaxRollDialog
-			v-model="show_tax_roll_dialog"
+			:show="show_tax_roll_dialog"
 			:pos_profile="pos_profile"
-			@update:modelValue="show_tax_roll_dialog = $event"
-			@tax-roll-updated="handle_tax_roll_updated"
+			@close="show_tax_roll_dialog = false"
+			@updated="handle_tax_roll_updated"
 		/>
 	</v-app-bar>
 </template>
@@ -264,6 +286,44 @@ export default {
 	}
 }
 
+/* Tax Section Styling */
+.tax-section {
+	background: rgba(76, 175, 80, 0.05);
+	border: 1px solid rgba(76, 175, 80, 0.2);
+	border-radius: 20px;
+	padding: 4px 8px;
+	transition: all 0.3s ease;
+}
+
+.tax-section:hover {
+	background: rgba(76, 175, 80, 0.1);
+	transform: translateY(-1px);
+}
+
+.tax-chip {
+	font-size: 0.75rem !important;
+	height: 24px !important;
+	box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3) !important;
+}
+
+.status-chip {
+	font-size: 0.625rem !important;
+	height: 20px !important;
+	border-color: #4CAF50 !important;
+	color: #4CAF50 !important;
+}
+
+.tax-management-btn {
+	border-color: rgba(25, 118, 210, 0.5) !important;
+	transition: all 0.3s ease;
+}
+
+.tax-management-btn:hover {
+	background-color: rgba(25, 118, 210, 0.1) !important;
+	border-color: #1976D2 !important;
+	transform: scale(1.05);
+}
+
 /* Dark theme adjustments */
 :deep(.dark-theme) .navbar-enhanced,
 :deep(.v-theme--dark) .navbar-enhanced {
@@ -275,6 +335,12 @@ export default {
 	background-color: var(--surface-primary, #1e1e1e) !important;
 	border-bottom: 2px solid var(--border-color, rgba(255, 255, 255, 0.12)) !important;
 	color: var(--text-primary, #ffffff) !important;
+}
+
+:deep(.dark-theme) .tax-section,
+:deep(.v-theme--dark) .tax-section {
+	background: rgba(76, 175, 80, 0.1) !important;
+	border-color: rgba(76, 175, 80, 0.3) !important;
 }
 
 :deep(.dark-theme) .navbar-enhanced:hover,

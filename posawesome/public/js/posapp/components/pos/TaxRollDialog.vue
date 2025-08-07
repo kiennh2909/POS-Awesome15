@@ -121,6 +121,9 @@
       </v-card-text>
 
       <v-card-actions>
+        <v-btn color="grey" text @click="close_dialog">
+          Close
+        </v-btn>
         <v-spacer></v-spacer>
         <v-btn color="grey" text @click="close_dialog">
           Hủy bỏ
