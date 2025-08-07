@@ -1,4 +1,3 @@
-
 <template>
   <v-dialog v-model="show_dialog" max-width="700px" persistent>
     <v-card>
@@ -6,7 +5,7 @@
         <v-icon left>mdi-receipt</v-icon>
         Cập Nhật Thay Thế Cuộn Giấy In
       </v-card-title>
-      
+
       <v-card-text>
         <v-container>
           <!-- Dropdown Hành động -->
@@ -206,7 +205,7 @@ export default {
           }
         });
         this.current_tax_info = response.message || {};
-        
+
         // Điền sẵn thông tin cho session thay thế
         if (this.current_tax_info.tax_roll_code) {
           this.new_prefix = this.current_tax_info.tax_roll_code;
@@ -233,7 +232,7 @@ export default {
       this.loading = true;
       try {
         let response;
-        
+
         if (this.selected_action === "update_current") {
           // Logic cập nhật cuộn hiện tại
           response = await frappe.call({
