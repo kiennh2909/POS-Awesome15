@@ -3,21 +3,21 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
   try {
     // === BƯỚC 0: KIỂM TRA DỮ LIỆU CẦN THIẾT ===
     const apiUrl = pos_profile.custom_print_api_url || "http://0.0.0.0:5000/api/print";
-    const protectKey = pos_profile.custom_protect_key;
+    const protectKey = pos_profile.custom_protect_key || "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 
     // Validation chi tiết hơn
     const validationErrors = [];
-    
+
     if (!protectKey) validationErrors.push("ProtectKey chưa được cấu hình");
     if (!pos_profile.tax_roll_code) validationErrors.push("Tax Roll Code chưa được thiết lập");
     if (!pos_profile.tax_current_counter && pos_profile.tax_current_counter !== 0) validationErrors.push("Tax Current Counter chưa được thiết lập");
     if (!pos_profile.tax_start_number && pos_profile.tax_start_number !== 0) validationErrors.push("Tax Start Number chưa được thiết lập");
-    
+
     if (validationErrors.length > 0) {
       const errorMessage = `Lỗi cấu hình POS Profile:\n${validationErrors.map(e => `• ${e}`).join('\n')}\n\nVui lòng thiết lập đầy đủ trong TaxRollDialog.`;
       throw new Error(errorMessage);
     }
-    
+
     console.log(`POS Profile Validation Passed:`, {
       tax_roll_code: pos_profile.tax_roll_code,
       tax_current_counter: pos_profile.tax_current_counter,
@@ -29,10 +29,10 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
     // === BƯỚC 4a & 4b: KIỂM TRA VÀ XÁC ĐỊNH FLAG ===
     const nextTaxCodeNumber = pos_profile.tax_current_counter;
     const taxCode = `${pos_profile.tax_roll_code}${nextTaxCodeNumber}`;
-    
+
     // Bước 2.2 & 3.2: Xác định Flag dựa trên so sánh counter
     let flag = "CONTINUE"; // Mặc định cho hóa đơn thứ 2, 3, 4...
-    
+
     if (pos_profile.tax_current_counter === pos_profile.tax_start_number) {
       // Bước 2.2: Đây là hóa đơn đầu tiên của cuộn mới
       flag = "REPLACE";
@@ -46,14 +46,14 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       flag = "CONTINUE";
       console.log(`Giai Đoạn 3: Hóa đơn tiếp theo - Flag = CONTINUE`);
     }
-    
+
     console.log(`Tax Print Analysis:
     - Current Counter: ${pos_profile.tax_current_counter}
     - Start Number: ${pos_profile.tax_start_number}
     - Tax Code: ${taxCode}
     - Flag: ${flag}
     - Logic: ${pos_profile.tax_current_counter} === ${pos_profile.tax_start_number} ? ${pos_profile.tax_current_counter === pos_profile.tax_start_number}`);
-    
+
     // === BƯỚC 2.2 & 3.2: CHUẨN BỊ PAYLOAD GỬI ĐẾN API PROXY ===
     const body = {
       taxCode: taxCode,
@@ -82,7 +82,7 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       flag: body.flag,
       docNo: body.docNo
     });
-    
+
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
@@ -93,17 +93,17 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
     });
 
     const responseText = await response.text();
-    
+
     console.log(`API Proxy Response:`, {
       status: response.status,
       ok: response.ok,
       body: responseText.substring(0, 200) + (responseText.length > 200 ? '...' : '')
     });
-    
+
     if (!response.ok) {
       // Xử lý lỗi chi tiết hơn cho từng trường hợp
       let errorMessage = `Lỗi từ máy chủ in (${response.status})`;
-      
+
       if (response.status === 401 || response.status === 403) {
         errorMessage = "Không có quyền truy cập máy chủ in. Vui lòng kiểm tra ProtectKey.";
       } else if (response.status === 400) {
@@ -113,10 +113,10 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       } else {
         errorMessage += `: ${responseText}`;
       }
-      
+
       throw new Error(errorMessage);
     }
-    
+
     // === BƯỚC 2.4 & 3.4: XỬ LÝ KẾT QUẢ THÀNH CÔNG ===
     console.log(`${flag === "REPLACE" ? "Giai Đoạn 2.4" : "Giai Đoạn 3.4"}: Print API Response:`, responseText);
 
@@ -134,20 +134,20 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
     if (updateResponse.message.success) {
       const newCounter = updateResponse.message.new_counter;
       const nextDisplay = updateResponse.message.next_display;
-      
+
       console.log(`${flag === "REPLACE" ? "Bước 2.4" : "Bước 3.4"} - Backend Updates:`, {
         old_counter: pos_profile.tax_current_counter,
         new_counter: newCounter,
         next_display: nextDisplay,
         invoice_updated: invoice.name
       });
-      
+
       // b. Cập nhật POS Profile local (Bước 2.4 & 3.4)
       pos_profile.tax_current_counter = newCounter;
-      
+
       // c. Cập nhật header display real-time (Bước 2.4 & 3.4)
       updateHeaderTaxDisplay(nextDisplay);
-      
+
       // d. Gọi callback thành công
       if (onSuccess) {
         onSuccess({
@@ -160,15 +160,15 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       }
 
       // e. Thông báo thành công cho người dùng (Bước 2.4 & 3.4)
-      const successMessage = flag === "REPLACE" 
+      const successMessage = flag === "REPLACE"
         ? `✅ Giai Đoạn 2 hoàn thành: In thành công hóa đơn đầu tiên ${taxCode}`
         : `✅ Giai Đoạn 3 hoàn thành: In thành công hóa đơn tiếp theo ${taxCode}`;
-        
+
       frappe.show_alert({
         message: successMessage,
         indicator: "green"
       });
-      
+
       console.log(`🎉 Tax Print Complete:
       - Printed: ${taxCode} 
       - Next: ${nextDisplay}
@@ -178,11 +178,11 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
 
   } catch (error) {
     console.error("Tax Print Error:", error);
-    
+
     if (onError) {
       onError(error);
     }
-    
+
     frappe.msgprint({
       title: "Lỗi In Hóa Đơn Thuế",
       message: `Không thể in hóa đơn thuế: ${error.message}`,
@@ -200,7 +200,7 @@ export function updateHeaderTaxDisplay(newDisplay) {
       navbar.__vue__.update_tax_display(newDisplay);
     }
   }
-  
+
   // Hoặc sử dụng event bus
   if (window.posEventBus) {
     window.posEventBus.$emit('tax-display-updated', newDisplay);
