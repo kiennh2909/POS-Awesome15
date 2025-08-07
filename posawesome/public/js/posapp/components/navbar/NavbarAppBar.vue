@@ -310,11 +310,38 @@ export default {
 			}
 		},
 
-		handle_tax_roll_updated(data) {
+		async handle_tax_roll_updated(data) {
+			console.log("Tax roll updated event received:", data);
+			
+			// Bước 1.4: Cập nhật giao diện sau khi nhận phản hồi thành công
 			if (data && data.tax_code_display) {
 				this.tax_code_display = data.tax_code_display;
 			}
-			this.load_tax_code_display(); // Refresh display
+			
+			// Đồng bộ pos_profile với dữ liệu mới từ backend
+			if (data.pos_profile && this.$store && this.$store.state.pos_profile) {
+				const updatedProfile = await this.sync_pos_profile_data(data.pos_profile);
+				if (updatedProfile) {
+					// Cập nhật store với dữ liệu mới
+					Object.assign(this.$store.state.pos_profile, {
+						tax_roll_code: updatedProfile.tax_roll_code,
+						tax_start_number: updatedProfile.tax_start_number,
+						tax_current_counter: updatedProfile.tax_current_counter,
+						tax_roll_status: updatedProfile.tax_roll_status
+					});
+				}
+			}
+			
+			// Refresh display từ backend để đảm bảo đồng bộ
+			await this.load_tax_code_display();
+			
+			// Hiển thị thông báo thành công cho Bước 1.4
+			if (data.action === 'new_roll') {
+				frappe.show_alert({
+					message: `Đã khởi tạo cuộn mới thành công: ${data.new_prefix} ${data.new_start_number}`,
+					indicator: "green"
+				});
+			}
 		},
 
 		update_tax_display(new_display) {
@@ -347,6 +374,26 @@ export default {
 					this.pos_profile.tax_current_counter = parseInt(parts[1]);
 				}
 			}
+		},
+
+		// Bước 1.4: Đồng bộ dữ liệu pos_profile từ backend
+		async sync_pos_profile_data(profile_name) {
+			try {
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.tax_roll.get_current_tax_info",
+					args: {
+						pos_profile: profile_name
+					}
+				});
+				
+				if (response.message) {
+					console.log("POS Profile synchronized:", response.message);
+					return response.message;
+				}
+			} catch (error) {
+				console.error("Error syncing pos_profile data:", error);
+			}
+			return null;
 		}
 	},
 	emits: ["nav-click", "go-desk", "show-offline-invoices"],

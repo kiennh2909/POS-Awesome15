@@ -32,7 +32,12 @@ def update_tax_roll(pos_profile, new_prefix, new_start_number, action="new_roll"
     return {
         "success": True,
         "message": _("Đã cập nhật cuộn hóa đơn thuế thành công"),
-        "tax_code_display": f"{new_prefix} {new_start_number}"
+        "tax_code_display": f"{new_prefix} {new_start_number}",
+        "tax_roll_code": new_prefix,
+        "tax_start_number": int(new_start_number),
+        "tax_current_counter": int(new_start_number),
+        "tax_roll_status": "Active",
+        "pos_profile_name": pos_profile
     }
 
 @frappe.whitelist()

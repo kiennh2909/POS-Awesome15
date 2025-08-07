@@ -243,7 +243,7 @@ export default {
             }
           });
         } else if (this.selected_action === "new_roll") {
-          // Logic thay cuộn mới
+          // Logic thay cuộn mới - Bước 1.2
           response = await frappe.call({
             method: "posawesome.posawesome.api.tax_roll.update_tax_roll",
             args: {
@@ -256,9 +256,25 @@ export default {
         }
 
         if (response.message.success) {
+          // Bước 1.4: Cập nhật giao diện
           this.$toast.success(response.message.message);
-          this.$emit('updated', response.message);
+          
+          // Emit event với thông tin đầy đủ để cập nhật header bar
+          this.$emit('updated', {
+            ...response.message,
+            pos_profile: this.pos_profile,
+            action: this.selected_action,
+            new_prefix: this.new_prefix,
+            new_start_number: this.new_start_number
+          });
+          
+          // Reload current tax info để đồng bộ
+          await this.load_current_tax_info();
+          
           this.close_dialog();
+          
+          // Log kết quả thành công
+          console.log(`Tax Roll Setup Complete: ${response.message.tax_code_display || this.new_prefix + ' ' + this.new_start_number}`);
         }
       } catch (error) {
         console.error("Error saving changes:", error);
