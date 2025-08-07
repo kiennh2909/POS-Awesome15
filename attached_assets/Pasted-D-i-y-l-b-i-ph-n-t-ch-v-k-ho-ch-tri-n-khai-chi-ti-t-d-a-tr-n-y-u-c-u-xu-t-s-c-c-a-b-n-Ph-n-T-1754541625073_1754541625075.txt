@@ -1,0 +1,162 @@
+Dưới đây là bài phân tích và kế hoạch triển khai chi tiết dựa trên yêu cầu xuất sắc của bạn.
+Phân Tích & Xác Nhận Logic
+Logic của bạn là hoàn toàn chính xác. Nó biến POS Profile trong ERPNext thành "nguồn chân lý" (source of truth) duy nhất cho chuỗi số hóa đơn, và POSAwesome đóng vai trò là giao diện để đọc và cập nhật trạng thái này. API Proxy chỉ đơn giản là thực thi các lệnh dựa trên thông tin mà POSAwesome cung cấp.
+Đây là một mô hình rất mạnh mẽ. Dưới đây là kế hoạch triển khai chi tiết cho từng phần.
+Kế Hoạch Triển Khai Toàn Diện
+Phần 1: Cấu Hình ERPNext (Backend)
+Bạn cần tùy chỉnh (Customize) Doctype POS Profile và thêm các trường sau:
+Fieldname	Label	Type	Description
+tax_roll_code	Tax Roll Prefix	Data	Tiền tố của cuộn hóa đơn (ví dụ: "PW", "BZ", "CZ").
+tax_start_number	Tax Start Number	Int	Số bắt đầu của cuộn hóa đơn mới.
+tax_current_counter	Tax Current Counter	Int	Số tiếp theo sẽ được in. Đây là trường trạng thái quan trọng nhất.
+tax_roll_status	Tax Roll Status	Select	Trạng thái của cuộn. Options: "Active", "Finished". Chỉ có 1 cuộn "Active".
+tax_update_time	Last Updated On	Datetime	Thời gian cập nhật gần nhất (chỉ đọc).
+tax_update_by_cashier	Last Updated By	Link	Link tới User đã cập nhật (chỉ đọc).
+Server Script (Tùy chọn nhưng khuyến khích):
+Tạo một Server Script cho POS Profile để đảm bảo rằng tại một thời điểm, chỉ có một cuộn có tax_roll_status là "Active" cho mỗi Company.
+Phần 2: Giao Diện POSAwesome (Frontend)
+2.1. Form Quản Lý Cuộn Hóa Đơn (Tax Roll Management)
+Tạo một Dialog (hoặc một trang riêng) cho phép người dùng có quyền (ví dụ: quản lý cửa hàng) cập nhật thông tin cuộn hóa đơn.
+Các trường nhập liệu:
+New Prefix (ví dụ: "PW")
+New Start Number (ví dụ: 688)
+Nút "Bắt Đầu Cuộn Mới":
+Khi nhấn, nó sẽ gọi API của Frappe/ERPNext để cập nhật POS Profile hiện tại với:
+tax_roll_code = "PW"
+tax_start_number = 688
+tax_current_counter = 688 (Quan trọng: Số hiện tại chính là số bắt đầu)
+tax_roll_status = "Active"
+Sau khi cập nhật thành công, làm mới (reload) dữ liệu POS Profile trên POSAwesome.
+2.2. Hiển Thị Trên Header Bar
+Khi POSAwesome khởi động, nó phải fetch dữ liệu POS Profile đầy đủ.
+Trên Header Bar, hiển thị: [tax_roll_code] [tax_current_counter]. Ví dụ: PW 688.
+2.3. Logic Khi Nhấn Nút In (Quan trọng nhất)
+Đây là hàm async bạn cần viết, tôi sẽ cung cấp mã nguồn tham khảo đầy đủ bên dưới.
+Mã Nguồn Tham Khảo cho POSAwesome (JavaScript)
+Dưới đây là phiên bản hoàn thiện của hàm xử lý in, kết hợp tất cả các logic bạn đã mô tả.
+Hãy thay thế hàm load_print_page_tax cũ của bạn bằng hàm này.
+code
+JavaScript
+async handle_tax_print() {
+    // === BƯỚC 0: LẤY CÁC DỮ LIỆU CẦN THIẾT ===
+    // Giả sử this.invoice_doc là hóa đơn hiện tại và this.pos_profile là cấu hình POS đã được load
+    const invoice = this.invoice_doc;
+    const profile = this.pos_profile;
+
+    const apiUrl = profile.custom_print_api_url || "http://localhost:5000/api/print";
+    const protectKey = profile.custom_protect_key;
+
+    if (!protectKey || !profile.tax_roll_code || !profile.tax_current_counter) {
+        frappe.msgprint("Lỗi cấu hình: Vui lòng thiết lập đầy đủ thông tin cuộn hóa đơn và ProtectKey trong POS Profile.");
+        return;
+    }
+
+    // === BƯỚC 4a & 4b: KIỂM TRA VÀ XÁC ĐỊNH FLAG ===
+    // Số hóa đơn tiếp theo sẽ được in
+    const nextTaxCodeNumber = profile.tax_current_counter;
+    const taxCode = `${profile.tax_roll_code}${nextTaxCodeNumber}`;
+    
+    let flag = "CONTINUE"; // Mặc định
+    if (profile.tax_current_counter === profile.tax_start_number) {
+        flag = "REPLACE";
+        frappe.show_alert("Bắt đầu in trên cuộn hóa đơn mới.");
+    }
+    
+    // === BƯỚC 4c: CHUẨN BỊ PAYLOAD GỬI ĐẾN API PROXY ===
+    const body = {
+        taxCode: taxCode,
+        internalCode: invoice.name,
+        flag: flag, // Gửi cờ đã được xác định
+
+        // Các thông tin khác của hóa đơn
+        docNo: invoice.name,
+        customerName: invoice.customer,
+        requestTime: new Date().toISOString(),
+        cashier: invoice.owner,
+        products: invoice.items.map(item => ({
+            name: item.item_name,
+            qty: String(item.qty || "0"),
+            price: String(item.rate || "0")
+        })),
+        total: String(invoice.total || "0"),
+        discount: String(invoice.discount_amount || "0"),
+        grandTotal: String(invoice.grand_total || "0"),
+        // ... các trường khác
+    };
+
+    // === BƯỚC 4c (tiếp): GỌI API PROXY ===
+    try {
+        const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Protect-Print-Key": protectKey
+            },
+            body: JSON.stringify(body)
+        });
+
+        const responseText = await response.text();
+        if (!response.ok) {
+            throw new Error(`Lỗi từ máy chủ in (${response.status}): ${responseText}`);
+        }
+        
+        // === BƯỚC 5: XỬ LÝ KHI IN THÀNH CÔNG ===
+        console.log("Print API Response:", responseText);
+
+        // a. Cập nhật Tax Code vào hóa đơn ERPNext
+        await frappe.db.set_value("POS Invoice", invoice.name, "tax_code", taxCode);
+        
+        // b. Cập nhật (tăng) số đếm trong POS Profile
+        const newCounter = profile.tax_current_counter + 1;
+        await frappe.db.set_value("POS Profile", profile.name, "tax_current_counter", newCounter);
+        
+        // c. Cập nhật lại UI
+        // Cập nhật profile trên local để UI thay đổi ngay lập tức
+        this.pos_profile.tax_current_counter = newCounter; 
+        // Gọi hàm để vẽ lại header bar
+        this.update_header_tax_display(); 
+
+        // d. Thông báo cho người dùng
+        frappe.show_alert({
+            message: `Đã in thành công hóa đơn thuế: ${taxCode}`,
+            indicator: "green"
+        });
+
+    } catch (error) {
+        console.error("Tax Print Error:", error);
+        frappe.msgprint(`Không thể in hóa đơn thuế: ${error.message}`);
+    }
+},
+
+update_header_tax_display() {
+    const tax_display_element = document.querySelector('.tax-code-display'); // Thay bằng selector thật
+    if (tax_display_element && this.pos_profile) {
+        tax_display_element.innerText = `${this.pos_profile.tax_roll_code} ${this.pos_profile.tax_current_counter}`;
+    }
+}
+Tổng Kết Luồng Hoạt Động
+Quản lý: Người quản lý vào form "Tax Roll Management" trên POSAwesome, nhập Prefix (PW) và Số bắt đầu (688), nhấn "Bắt Đầu Cuộn Mới".
+Cập nhật Backend: POSAwesome gọi API, cập nhật POS Profile trong ERPNext:
+tax_roll_code = "PW"
+tax_start_number = 688
+tax_current_counter = 688
+Hiển thị UI: Header Bar của POSAwesome hiển thị: PW 688.
+In Hóa Đơn Đầu Tiên: Thu ngân hoàn tất một giao dịch và nhấn nút in thuế.
+Hàm handle_tax_print được gọi.
+Nó kiểm tra profile.tax_current_counter (688) == profile.tax_start_number (688) -> Đúng.
+flag được gán là "REPLACE".
+Nó gửi request đến API Proxy với taxCode: "PW688" và flag: "REPLACE".
+API Proxy nhận được, thấy cờ "REPLACE", bỏ qua kiểm tra sequence và in thành công, trả về 200 OK.
+Cập Nhật Sau Khi In:
+POSAwesome nhận được 200 OK.
+Nó cập nhật trường tax_code của hóa đơn vừa tạo trong ERPNext thành "PW688".
+Nó cập nhật POS Profile: tax_current_counter được tăng lên thành 689.
+Nó cập nhật Header Bar trên UI để hiển thị: PW 689.
+Một popup "In thành công..." hiện ra.
+In Hóa Đơn Thứ Hai:
+Thu ngân nhấn nút in thuế cho giao dịch tiếp theo.
+Hàm handle_tax_print được gọi.
+Nó kiểm tra profile.tax_current_counter (689) == profile.tax_start_number (688) -> Sai.
+flag được gán là "CONTINUE".
+Nó gửi request đến API Proxy với taxCode: "PW689" và flag: "CONTINUE".
+API Proxy nhận được, thấy flag không phải "REPLACE", thực hiện kiểm tra sequence (689 có phải là 688+1 không? -> Đúng), in thành công.
