@@ -14,10 +14,12 @@
               <v-select
                 v-model="selected_action"
                 :items="action_options"
+                item-title="text"
+                item-value="value"
                 label="Hành động"
-                outlined
-                dense
-                @change="onActionChange"
+                variant="outlined"
+                class="mb-4"
+                return-object
               ></v-select>
             </v-col>
           </v-row>
@@ -44,7 +46,7 @@
                   </v-col>
                   <v-col cols="6" md="3">
                     <div class="text-caption grey--text">Tình trạng</div>
-                    <v-chip 
+                    <v-chip
                       :color="getStatusColor(current_tax_info.tax_roll_status)"
                       small
                       text-color="white"
@@ -127,8 +129,8 @@
         <v-btn color="grey" text @click="close_dialog">
           Hủy bỏ
         </v-btn>
-        <v-btn 
-          color="primary" 
+        <v-btn
+          color="primary"
           @click="save_changes"
           :loading="loading"
           :disabled="!canSave"
@@ -258,7 +260,7 @@ export default {
         if (response.message.success) {
           // Bước 1.4: Cập nhật giao diện
           this.$toast.success(response.message.message);
-          
+
           // Emit event với thông tin đầy đủ để cập nhật header bar
           this.$emit('updated', {
             ...response.message,
@@ -267,12 +269,12 @@ export default {
             new_prefix: this.new_prefix,
             new_start_number: this.new_start_number
           });
-          
+
           // Reload current tax info để đồng bộ
           await this.load_current_tax_info();
-          
+
           this.close_dialog();
-          
+
           // Log kết quả thành công
           console.log(`Tax Roll Setup Complete: ${response.message.tax_code_display || this.new_prefix + ' ' + this.new_start_number}`);
         }
@@ -294,10 +296,10 @@ export default {
     formatDateTime(datetime) {
       if (!datetime) return "";
       const date = new Date(datetime);
-      const time = date.toLocaleTimeString('vi-VN', { 
-        hour: '2-digit', 
+      const time = date.toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: false 
+        hour12: false
       });
       const dateStr = date.toLocaleDateString('vi-VN');
       return `${time} - ${dateStr}`;
@@ -305,10 +307,10 @@ export default {
 
     getCurrentTime() {
       const now = new Date();
-      const time = now.toLocaleTimeString('vi-VN', { 
-        hour: '2-digit', 
+      const time = now.toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: false 
+        hour12: false
       });
       const dateStr = now.toLocaleDateString('vi-VN');
       return `${time} - ${dateStr}`;
