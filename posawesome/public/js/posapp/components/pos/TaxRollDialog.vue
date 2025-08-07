@@ -19,7 +19,6 @@
                 label="Hành động"
                 variant="outlined"
                 class="mb-4"
-                return-object
               ></v-select>
             </v-col>
           </v-row>
@@ -182,6 +181,11 @@ export default {
         return this.new_prefix && this.new_start_number;
       }
       return false;
+    }
+  },
+  watch: {
+    selected_action(newVal) {
+      this.onActionChange();
     }
   },
   watch: {
