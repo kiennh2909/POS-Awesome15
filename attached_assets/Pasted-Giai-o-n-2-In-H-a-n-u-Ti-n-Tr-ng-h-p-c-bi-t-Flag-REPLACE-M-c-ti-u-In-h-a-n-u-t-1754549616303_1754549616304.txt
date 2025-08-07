@@ -1,0 +1,50 @@
+Giai Đoạn 2: In Hóa Đơn Đầu Tiên (Trường hợp đặc biệt: Flag = "REPLACE")
+Mục tiêu: In hóa đơn đầu tiên của cuộn mới, bỏ qua kiểm tra tính liên tục.
+Bước 2.1 (Hành động của Thu ngân):
+Hoàn tất một giao dịch bán hàng.
+Nhấn nút "In Hóa Đơn Thuế".
+Bước 2.2 (Xử lý của POSAwesome - handle_tax_print):
+Đọc Trạng Thái: Hàm được gọi, nó đọc trạng thái từ this.pos_profile:
+tax_current_counter = 688
+tax_start_number = 688
+Xác Định Cờ (Flag): Thực hiện phép so sánh: if (profile.tax_current_counter === profile.tax_start_number) -> if (688 === 688). Kết quả là true.
+Gán Cờ: Biến flag được gán giá trị là "REPLACE".
+Tạo Payload: Xây dựng đối tượng JSON để gửi đi, trong đó có các trường quan trọng:
+taxCode: "PW688"
+flag: "REPLACE"
+... và các dữ liệu hóa đơn khác.
+Gửi Yêu Cầu: Gọi fetch để gửi payload này đến API Proxy, kèm theo header bảo mật X-Protect-Print-Key.
+Bước 2.3 (Xử lý của API Proxy - PrintController.Post):
+Nhận và Xác thực: API nhận request, kiểm tra X-Protect-Print-Key hợp lệ.
+Kiểm Tra Cờ: Đọc request.Flag. Thấy giá trị là "REPLACE".
+Bỏ Qua Kiểm Tra Sequence: Vì flag là "REPLACE", khối if kiểm tra cờ sẽ thực thi và bỏ qua hoàn toàn việc gọi hàm ValidateTaxCodeSequenceAsync.
+Xử Lý In: Tiếp tục các bước còn lại: lưu trạng thái chờ vào DB local của Proxy, kiểm tra máy in, tạo dữ liệu in, và gửi lệnh in đến máy in vật lý.
+Phản hồi: Máy in in thành công. API Proxy cập nhật DB local, đồng bộ lên hệ thống thuế, và trả về StatusCode 200 OK cho POSAwesome.
+Bước 2.4 (Xử lý Kết Quả Thành Công - POSAwesome):
+Nhận Phản Hồi: fetch nhận được 200 OK.
+Cập Nhật Hóa Đơn: Gọi API ERPNext (frappe.db.set_value) để cập nhật trường tax_code của POS Invoice vừa tạo thành "PW688".
+Tăng Số Đếm: Gọi API ERPNext lần nữa để cập nhật POS Profile. tax_current_counter được tăng lên: 688 + 1 = 689.
+Cập Nhật Giao Diện: Cập nhật biến local this.pos_profile.tax_current_counter = 689. Header Bar ngay lập tức hiển thị số tiếp theo: PW 689.
+Thông Báo: Một popup hiện lên: "Đã in thành công hóa đơn thuế: PW688".
+Giai Đoạn 3: In Hóa Đơn Thứ Hai (Trường hợp bình thường: Flag = "CONTINUE")
+Mục tiêu: In hóa đơn tiếp theo và đảm bảo tính liên tục của chuỗi số.
+Bước 3.1 (Hành động của Thu ngân): Hoàn tất giao dịch tiếp theo và nhấn "In Hóa Đơn Thuế".
+Bước 3.2 (Xử lý của POSAwesome - handle_tax_print):
+Đọc Trạng Thái: tax_current_counter = 689, tax_start_number = 688.
+Xác Định Cờ: So sánh: if (689 === 688). Kết quả là false.
+Gán Cờ: Biến flag giữ nguyên giá trị mặc định là "CONTINUE".
+Tạo Payload: Xây dựng JSON với:
+taxCode: "PW689"
+flag: "CONTINUE"
+Gửi Yêu Cầu: Gửi request đến API Proxy.
+Bước 3.3 (Xử lý của API Proxy - PrintController.Post):
+Nhận và Xác thực: Request hợp lệ.
+Kiểm Tra Cờ: Đọc request.Flag. Thấy giá trị không phải là "REPLACE".
+Thực Hiện Kiểm Tra Sequence: Hàm ValidateTaxCodeSequenceAsync được gọi với taxCode = "PW689".
+Logic Kiểm Tra: Hàm này truy vấn DB local của Proxy để tìm MAX(last_tax_code) của prefix = 'PW' đã được in thành công. Kết quả là 688. Nó kiểm tra xem 689 có bằng 688 + 1 không. -> Đúng. Validation thành công.
+Xử Lý In và Phản hồi: Quá trình in và trả về 200 OK diễn ra như bình thường.
+Bước 3.4 (Xử lý Kết Quả Thành Công - POSAwesome):
+Cập nhật POS Invoice mới với tax_code = "PW689".
+Cập nhật POS Profile với tax_current_counter = 690.
+Header Bar hiển thị: PW 690.
+Popup thông báo thành công.
