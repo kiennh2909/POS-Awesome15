@@ -65,10 +65,10 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       TaxCode: taxCode,
       InternalCode: invoice.name,
 
-      CustomerName: invoice.customer,
-      CustomerInfo: invoice.customer_name || `${invoice.customer}, ${invoice.tax_id || ''}`,
-      Cashier: invoice.owner,
-      CashierName: invoice.owner,
+      CustomerName: String(invoice.customer || invoice.customer_name || invoice.title),
+      CustomerInfo: String(invoice.customer_name || `${invoice.customer}, ${invoice.tax_id || ''}`),
+      Cashier: String(invoice.owner || invoice.modified_by),
+      CashierName: String(invoice.owner || invoice.modified_by),
 
       Products: [{
         Name: "商品總數 (SP)",
@@ -77,7 +77,6 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       }],
 
       OriginalContent: "Summary Only",
-
       Total: String(invoice.total || "0"),
       TotalAmount: String(invoice.total || "0"),
       ServiceFee: String(invoice.total_commission || "0"),
@@ -86,12 +85,12 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       GrandTotal: String(invoice.grand_total || "0"),
       Cash: String(invoice.paid_amount || "0"),
       Statistics: String(invoice.grand_total || "0"),
-
+      ErrorMessage: " ",
       StatusReason: "Valid",
       TaxStatus: "valid",
       Currency: String(invoice.currency || "TWD"),
       PrinterName: String(pos_profile.name || "PRINTER_NAME"),
-      PosTerminal: pos_profile.name,
+      PosTerminal: String(pos_profile.name || pos_profile.warehouse || "POS Terminal"),
 
       RequestTime: new Date().toISOString()
     };
