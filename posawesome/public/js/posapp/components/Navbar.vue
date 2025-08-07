@@ -39,6 +39,7 @@
 					:network-online="networkOnline"
 					:server-online="serverOnline"
 					:is-dark="isDark"
+					:is-fullscreen="isFullscreen"
 					@close-shift="openCloseShift"
 					@print-last-invoice="printLastInvoice"
 					@sync-invoices="syncPendingInvoices"
@@ -46,6 +47,7 @@
 					@clear-cache="clearCache"
 					@show-about="showAboutDialog = true"
 					@toggle-theme="toggleTheme"
+					@toggle-fullscreen="toggleFullscreen"
 					@logout="logOut"
 				/>
 			</template>
@@ -166,6 +168,7 @@ export default {
 			snackText: "",
 			snackColor: "success",
 			snackTimeout: 3000,
+			isFullscreen: false,
 		};
 	},
 	computed: {
@@ -176,6 +179,11 @@ export default {
 	mounted() {
 		this.initializeNavbar();
 
+		// Listen for fullscreen changes
+		document.addEventListener('fullscreenchange', () => {
+			this.isFullscreen = !!document.fullscreenElement;
+		});
+
 		if (this.eventBus) {
 			this.eventBus.on("show_message", this.showMessage);
 			this.eventBus.on("freeze", this.handleFreeze);
@@ -184,6 +192,11 @@ export default {
 		}
 	},
 	unmounted() {
+		// Remove fullscreen event listener
+		document.removeEventListener('fullscreenchange', () => {
+			this.isFullscreen = !!document.fullscreenElement;
+		});
+
 		if (this.eventBus) {
 			this.eventBus.off("show_message", this.showMessage);
 			this.eventBus.off("freeze", this.handleFreeze);
@@ -261,6 +274,21 @@ export default {
 		},
 		toggleTheme() {
 			this.$emit("toggle-theme");
+		},
+		toggleFullscreen() {
+			if (!document.fullscreenElement) {
+				document.documentElement.requestFullscreen().then(() => {
+					this.isFullscreen = true;
+				}).catch(err => {
+					console.error("Error attempting to enable fullscreen:", err);
+				});
+			} else {
+				document.exitFullscreen().then(() => {
+					this.isFullscreen = false;
+				}).catch(err => {
+					console.error("Error attempting to exit fullscreen:", err);
+				});
+			}
 		},
 		logOut() {
 			this.$emit("logout");

@@ -53,6 +53,8 @@
 					</div>
 				</v-list-item>
 
+				<!-- Hidden sync and offline features -->
+				<!-- 
 				<v-list-item @click="$emit('sync-invoices')" class="menu-item-compact info-action">
 					<template v-slot:prepend>
 						<div class="menu-icon-wrapper-compact info-icon">
@@ -86,6 +88,26 @@
 									: __("Work without server connection")
 							}}
 						</v-list-item-subtitle>
+					</div>
+				</v-list-item>
+				-->
+
+				<!-- Full Screen toggle -->
+				<v-list-item @click="$emit('toggle-fullscreen')" class="menu-item-compact info-action">
+					<template v-slot:prepend>
+						<div class="menu-icon-wrapper-compact info-icon">
+							<v-icon color="white" size="16">{{
+								isFullscreen ? "mdi-fullscreen-exit" : "mdi-fullscreen"
+							}}</v-icon>
+						</div>
+					</template>
+					<div class="menu-content-compact">
+						<v-list-item-title class="menu-item-title-compact">{{
+							isFullscreen ? __("Exit Full Screen") : __("Full Screen")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="menu-item-subtitle-compact">{{
+							__("Toggle fullscreen mode")
+						}}</v-list-item-subtitle>
 					</div>
 				</v-list-item>
 
@@ -179,6 +201,7 @@ export default {
 		networkOnline: Boolean,
 		serverOnline: Boolean,
 		isDark: Boolean,
+		isFullscreen: Boolean,
 	},
 	emits: [
 		"close-shift",
@@ -188,6 +211,7 @@ export default {
 		"clear-cache",
 		"show-about",
 		"toggle-theme",
+		"toggle-fullscreen",
 		"logout",
 	],
 };
