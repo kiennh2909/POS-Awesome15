@@ -24,7 +24,28 @@
 			<span class="font-weight-light">POS</span><span>Awesome</span>
 		</v-toolbar-title>
 
-		<v-spacer />
+		<!-- Tax Code Display -->
+        <v-chip
+          v-if="tax_code_display"
+          color="primary"
+          text-color="white"
+          class="mx-2"
+        >
+          <v-icon left small>mdi-receipt</v-icon>
+          {{ tax_code_display }}
+        </v-chip>
+
+        <!-- Tax Roll Management Button -->
+        <v-btn
+          v-if="can_manage_tax_roll"
+          icon
+          @click="show_tax_roll_dialog = true"
+          title="Quản lý cuộn hóa đơn thuế"
+        >
+          <v-icon>mdi-cog</v-icon>
+        </v-btn>
+
+        <v-spacer></v-spacer>
 
 		<!-- Enhanced connectivity status indicator - Always visible -->
 		<slot name="status-indicator"></slot>
@@ -57,12 +78,25 @@
 
 		<!-- Menu component slot -->
 		<slot name="menu"></slot>
+
+		<TaxRollDialog
+			v-model="show_tax_roll_dialog"
+			:pos_profile="pos_profile"
+			@update:modelValue="show_tax_roll_dialog = $event"
+			@tax-roll-updated="handle_tax_roll_updated"
+		/>
 	</v-app-bar>
 </template>
 
 <script>
+import { useNavbar } from '../../composables/useNavbar'
+import TaxRollDialog from '../pos/TaxRollDialog.vue'
+
 export default {
 	name: "NavbarAppBar",
+	components: {
+		TaxRollDialog
+	},
 	props: {
 		posProfile: {
 			type: Object,
@@ -73,6 +107,12 @@ export default {
 			default: 0,
 		},
 		isDark: Boolean,
+	},
+	data() {
+		return {
+			show_tax_roll_dialog: false,
+			tax_code_display: "",
+		}
 	},
 	computed: {
 		appBarColor() {
@@ -95,6 +135,48 @@ export default {
 			}
 
 			return "User";
+		},
+		can_manage_tax_roll() {
+			// Chỉ cho phép user có quyền System Manager hoặc POS Manager
+			return frappe.user_roles.includes('System Manager') || 
+				   frappe.user_roles.includes('POS Manager');
+		},
+		pos_profile() {
+			return this.$store.state.pos_profile?.name;
+		},
+	},
+	mounted() {
+		this.load_tax_code_display();
+	},
+	methods: {
+		async load_tax_code_display() {
+			if (!this.pos_profile) return;
+
+			try {
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.tax_roll.get_current_tax_info",
+					args: {
+						pos_profile: this.pos_profile
+					}
+				});
+
+				if (response.message && response.message.current_display) {
+					this.tax_code_display = response.message.current_display;
+				}
+			} catch (error) {
+				console.error("Error loading tax code display:", error);
+			}
+		},
+
+		handle_tax_roll_updated(data) {
+			if (data && data.tax_code_display) {
+				this.tax_code_display = data.tax_code_display;
+			}
+			this.load_tax_code_display(); // Refresh display
+		},
+
+		update_tax_display(new_display) {
+			this.tax_code_display = new_display;
 		},
 	},
 	emits: ["nav-click", "go-desk", "show-offline-invoices"],

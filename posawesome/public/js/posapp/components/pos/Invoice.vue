@@ -239,11 +239,37 @@
 			@open-returns="open_returns"
 			@print-draft="print_draft_invoice"
 			@show-payment="show_payment"
-		/>
+		>
+			<!-- Add Print and Tax Print Buttons here -->
+			<template #actions>
+				<v-btn
+					color="success"
+					@click="print_invoice"
+					:disabled="!can_print"
+				>
+					<v-icon left>mdi-printer</v-icon>
+					{{ __("Print") }}
+				</v-btn>
+
+				<!-- Tax Print Button -->
+				<v-btn
+					v-if="show_tax_print_button"
+					color="primary"
+					@click="print_tax_invoice"
+					:disabled="!can_print || tax_print_loading"
+					:loading="tax_print_loading"
+					class="ml-2"
+				>
+					<v-icon left>mdi-receipt</v-icon>
+					{{ __("In Thuế") }}
+				</v-btn>
+			</template>
+		</InvoiceSummary>
 	</div>
 </template>
 
 <script>
+import { evntBus } from "../../bus";
 import format from "../../format";
 import Customer from "./Customer.vue";
 import DeliveryCharges from "./DeliveryCharges.vue";
@@ -262,6 +288,7 @@ import offerMethods from "./invoiceOfferMethods";
 import shortcutMethods from "./invoiceShortcuts";
 import invoiceItemMethods from "./invoiceItemMethods";
 import { isOffline, saveCustomerBalance, getCachedCustomerBalance } from "../../../offline";
+import { handleTaxPrint, updateHeaderTaxDisplay } from "./taxPrintHandler";
 
 export default {
 	name: "POSInvoice",
@@ -317,6 +344,7 @@ export default {
 			available_columns: [], // All available columns
 			show_column_selector: false, // Column selector dialog visibility
 			invoiceHeight: null,
+			tax_print_loading: false, // Loading state for tax print button
 		};
 	},
 
@@ -333,6 +361,22 @@ export default {
 		...invoiceComputed,
 		isDarkTheme() {
 			return this.$theme.current === "dark";
+		},
+		// Show tax print button if POS profile allows and invoice is not a return
+		show_tax_print_button() {
+			return (
+				this.pos_profile &&
+				this.pos_profile.posa_enable_tax_print &&
+				!this.isReturnInvoice
+			);
+		},
+		// Check if the invoice can be printed (e.g., has items, is not a return unless specifically allowed)
+		can_print() {
+			return (
+				this.items &&
+				this.items.length > 0 &&
+				(this.invoiceType !== "Return" || this.pos_profile.posa_allow_return_printing)
+			);
 		},
 	},
 
@@ -1013,6 +1057,65 @@ export default {
 				item.idx = index + 1;
 			});
 		},
+
+		async print_tax_invoice() {
+			if (!this.invoice_doc || !this.pos_profile) {
+				this.eventBus.emit("show_message", {
+					title: __("Missing invoice data or POS profile."),
+					color: "error",
+				});
+				return;
+			}
+
+			if (!this.pos_profile.posa_enable_tax_print) {
+				this.eventBus.emit("show_message", {
+					title: __("Tax printing is not enabled in POS Profile."),
+					color: "warning",
+				});
+				return;
+			}
+
+			this.tax_print_loading = true;
+
+			try {
+				await handleTaxPrint(
+					this.invoice_doc,
+					this.pos_profile,
+					// onSuccess callback
+					(result) => {
+						// Update header display with the next invoice number
+						updateHeaderTaxDisplay(result.nextDisplay);
+
+						// Update local POS profile state with the new counter
+						this.$store.commit('updatePosProfile', {
+							tax_current_counter: result.newCounter
+						});
+
+						this.eventBus.emit("show_message", {
+							title: __("Tax invoice printed successfully."),
+							color: "success",
+						});
+						this.tax_print_loading = false;
+					},
+					// onError callback
+					(error) => {
+						console.error("Error printing tax invoice:", error);
+						this.eventBus.emit("show_message", {
+							title: error.message || __("Failed to print tax invoice."),
+							color: "error",
+						});
+						this.tax_print_loading = false;
+					}
+				);
+			} catch (e) {
+				console.error("Unexpected error in print_tax_invoice:", e);
+				this.eventBus.emit("show_message", {
+					title: __("An unexpected error occurred."),
+					color: "error",
+				});
+				this.tax_print_loading = false;
+			}
+		},
 	},
 
 	mounted() {
@@ -1149,7 +1252,7 @@ export default {
 		this.eventBus.on("reset_posting_date", () => {
 			this.posting_date = frappe.datetime.nowdate();
 		});
-               this.eventBus.on("calc_uom", this.calc_uom);
+        this.eventBus.on("calc_uom", this.calc_uom);
 		this.eventBus.on("item-drag-start", (item) => {
 			this.showDropFeedback(true);
 		});
