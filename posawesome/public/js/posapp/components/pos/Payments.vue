@@ -1380,15 +1380,136 @@ export default {
 		// Set full amount for a payment method (or negative for returns)
 
 
-		// Thay thế hàm submit_invoice cũ của bạn bằng hàm này
+		// // Thay thế hàm submit_invoice cũ của bạn bằng hàm này
+		// submit_invoice(print, tax) {
+		// 	// Bước 1: Chuẩn bị dữ liệu và xử lý các trường hợp đặc biệt (trả hàng, offline)
+		// 	if (this.invoice_doc.is_return) {
+		// 		this.ensureReturnPaymentsAreNegative();
+		// 	}
+			
+		// 	// Chuẩn bị dữ liệu bổ sung để gửi lên server
+		// 	let data = {
+		// 		total_change: !this.invoice_doc.is_return ? -this.diff_payment : 0,
+		// 		paid_change: !this.invoice_doc.is_return ? this.paid_change : 0,
+		// 		credit_change: -this.credit_change,
+		// 		redeemed_customer_credit: this.redeemed_customer_credit,
+		// 		customer_credit_dict: this.customer_credit_dict,
+		// 		is_cashback: this.is_cashback,
+		// 	};
+
+		// 	if (print) this.invoice_doc.posa_is_printed = true;
+			
+		// 	// Đánh dấu hóa đơn này là hóa đơn thuế để xử lý backend nếu cần
+		// 	if (tax) {
+		// 		this.invoice_doc.tax_report = true; 
+		// 	}
+
+		// 	const vm = this; // Giữ lại 'this' để dùng trong callback
+
+		// 	// // Xử lý trường hợp OFFLINE - disable đi 
+		// 	// if (isOffline()) {
+		// 	// 	try {
+		// 	// 		saveOfflineInvoice({ data: data, invoice: this.invoice_doc });
+		// 	// 		this.eventBus.emit("pending_invoices_changed", getPendingOfflineInvoiceCount());
+		// 	// 		vm.eventBus.emit("show_message", {
+		// 	// 			title: __("Invoice saved offline"),
+		// 	// 			color: "warning",
+		// 	// 		});
+		// 	// 		if (print) {
+		// 	// 			this.print_offline_invoice(this.invoice_doc);
+		// 	// 		}
+		// 	// 		// Dọn dẹp sau khi lưu offline
+		// 	// 		vm.eventBus.emit("clear_invoice");
+		// 	// 		vm.back_to_invoice();
+		// 	// 		vm.loading = false;
+		// 	// 		return;
+		// 	// 	} catch (error) {
+		// 	// 		vm.eventBus.emit("show_message", {
+		// 	// 			title: __("Cannot Save Offline Invoice: ") + (error.message || __("Unknown error")),
+		// 	// 			color: "error",
+		// 	// 		});
+		// 	// 		vm.loading = false;
+		// 	// 		return;
+		// 	// 	}
+		// 	// }
+
+		// 	// Bước 2: Gửi hóa đơn chính lên server ERPNext
+		// 	frappe.call({
+		// 		method:
+		// 			this.invoiceType === "Order" && this.pos_profile.posa_create_only_sales_order
+		// 				? "posawesome.posawesome.api.sales_orders.submit_sales_order"
+		// 				: "posawesome.posawesome.api.invoices.submit_invoice",
+		// 		args: {
+		// 			data: data,
+		// 			invoice: this.invoice_doc,
+		// 			order: this.invoice_doc,
+		// 		},
+		// 		callback: async function (r) {
+		// 			vm.loading = false; // Luôn tắt loading ở đầu callback
+
+		// 			// Xử lý lỗi từ server
+		// 			if (r.exc || !r.message || !r.message.name) {
+		// 				console.error("Error submitting invoice:", r.exc || "Invalid response from server");
+		// 				vm.eventBus.emit("show_message", {
+		// 					title: __("Error submitting invoice: ") + (r.exc || "Invalid response"),
+		// 					color: "error",
+		// 				});
+		// 				return;
+		// 			}
+					
+		// 			// Bước 3: Lấy đối tượng hóa đơn hoàn chỉnh từ phản hồi của server
+		// 			const completed_invoice = r.message;
+
+		// 			// Thông báo thành công cho hóa đơn chính
+		// 			vm.eventBus.emit("show_message", {
+		// 				title: __("Invoice {0} is Submitted", [completed_invoice.name]),
+		// 				color: "success",
+		// 			});
+		// 			frappe.utils.play_sound("submit");
+
+		// 			// Cập nhật các trạng thái cần thiết
+		// 			vm.eventBus.emit("set_last_invoice", completed_invoice.name);
+		// 			updateLocalStock(completed_invoice.items || []);
+
+		// 			// Bước 4: Thực hiện in (nếu có) VỚI DỮ LIỆU ĐÃ HOÀN CHỈNH
+		// 			try {
+		// 				if (print && tax) {
+		// 					await vm.load_print_page_tax(completed_invoice);
+		// 				} else if (print) {
+		// 					vm.load_print_page(completed_invoice);
+		// 				}
+		// 			} catch (printError) {
+		// 				// Nếu quá trình in lỗi, thông báo cho người dùng nhưng không dừng luồng
+		// 				console.error("Printing process failed after submission:", printError);
+		// 				vm.eventBus.emit("show_message", {
+		// 					title: __("Invoice submitted, but printing failed: ") + printError.message,
+		// 					color: "error",
+		// 				});
+		// 			}
+					
+		// 			// Bước 5: Dọn dẹp form để chuẩn bị cho giao dịch tiếp theo
+		// 			// Luôn thực hiện bước này sau khi tất cả các hành động khác đã hoàn tất.
+		// 			vm.customer_credit_dict = [];
+		// 			vm.redeem_customer_credit = false;
+		// 			vm.is_cashback = true;
+		// 			vm.is_credit_return = false;
+		// 			vm.sales_person = "";
+		// 			vm.addresses = [];
+		// 			vm.eventBus.emit("clear_invoice");
+		// 			vm.back_to_invoice();
+		// 		},
+		// 	});
+		// },
+
 		submit_invoice(print, tax) {
-			// Bước 1: Chuẩn bị dữ liệu và xử lý các trường hợp đặc biệt (trả hàng, offline)
+			// === BƯỚC 1: CHUẨN BỊ DỮ LIỆU ===
+			// Xử lý trường hợp trả hàng
 			if (this.invoice_doc.is_return) {
 				this.ensureReturnPaymentsAreNegative();
 			}
 			
-			// Chuẩn bị dữ liệu bổ sung để gửi lên server
-			let data = {
+			// Chuẩn bị dữ liệu thanh toán bổ sung để gửi lên server
+			const data = {
 				total_change: !this.invoice_doc.is_return ? -this.diff_payment : 0,
 				paid_change: !this.invoice_doc.is_return ? this.paid_change : 0,
 				credit_change: -this.credit_change,
@@ -1397,43 +1518,17 @@ export default {
 				is_cashback: this.is_cashback,
 			};
 
+			// Đánh dấu các cờ in ấn
 			if (print) this.invoice_doc.posa_is_printed = true;
+			if (tax) this.invoice_doc.tax_report = true;
+
+			const vm = this;
 			
-			// Đánh dấu hóa đơn này là hóa đơn thuế để xử lý backend nếu cần
-			if (tax) {
-				this.invoice_doc.tax_report = true; 
-			}
+			// Tạo một bản sao đầy đủ của hóa đơn trước khi gửi đi.
+			// Điều này rất quan trọng để giữ lại chi tiết hóa đơn cho việc in ấn sau này.
+			const original_invoice_doc = { ...this.invoice_doc };
 
-			const vm = this; // Giữ lại 'this' để dùng trong callback
-
-			// // Xử lý trường hợp OFFLINE - disable đi 
-			// if (isOffline()) {
-			// 	try {
-			// 		saveOfflineInvoice({ data: data, invoice: this.invoice_doc });
-			// 		this.eventBus.emit("pending_invoices_changed", getPendingOfflineInvoiceCount());
-			// 		vm.eventBus.emit("show_message", {
-			// 			title: __("Invoice saved offline"),
-			// 			color: "warning",
-			// 		});
-			// 		if (print) {
-			// 			this.print_offline_invoice(this.invoice_doc);
-			// 		}
-			// 		// Dọn dẹp sau khi lưu offline
-			// 		vm.eventBus.emit("clear_invoice");
-			// 		vm.back_to_invoice();
-			// 		vm.loading = false;
-			// 		return;
-			// 	} catch (error) {
-			// 		vm.eventBus.emit("show_message", {
-			// 			title: __("Cannot Save Offline Invoice: ") + (error.message || __("Unknown error")),
-			// 			color: "error",
-			// 		});
-			// 		vm.loading = false;
-			// 		return;
-			// 	}
-			// }
-
-			// Bước 2: Gửi hóa đơn chính lên server ERPNext
+			// === BƯỚC 2: GỬI HÓA ĐƠN CHÍNH LÊN SERVER ERNEXT (LUỒNG ONLINE) ===
 			frappe.call({
 				method:
 					this.invoiceType === "Order" && this.pos_profile.posa_create_only_sales_order
@@ -1441,8 +1536,8 @@ export default {
 						: "posawesome.posawesome.api.invoices.submit_invoice",
 				args: {
 					data: data,
-					invoice: this.invoice_doc,
-					order: this.invoice_doc,
+					invoice: original_invoice_doc,
+					order: original_invoice_doc,
 				},
 				callback: async function (r) {
 					vm.loading = false; // Luôn tắt loading ở đầu callback
@@ -1457,29 +1552,30 @@ export default {
 						return;
 					}
 					
-					// Bước 3: Lấy đối tượng hóa đơn hoàn chỉnh từ phản hồi của server
-					const completed_invoice = r.message;
-
-					// Thông báo thành công cho hóa đơn chính
+					// === BƯỚC 3: KẾT HỢP DỮ LIỆU ĐỂ TẠO ĐỐI TƯỢNG HÓA ĐƠN HOÀN CHỈNH ===
+					// Lấy TÊN HÓA ĐƠN từ phản hồi của server và kết hợp với dữ liệu gốc
+					const invoice_to_print = {
+						...original_invoice_doc,
+						name: r.message.name
+					};
+					
+					// Thông báo thành công và cập nhật các trạng thái
 					vm.eventBus.emit("show_message", {
-						title: __("Invoice {0} is Submitted", [completed_invoice.name]),
+						title: __("Invoice {0} is Submitted", [invoice_to_print.name]),
 						color: "success",
 					});
 					frappe.utils.play_sound("submit");
+					vm.eventBus.emit("set_last_invoice", invoice_to_print.name);
+					updateLocalStock(invoice_to_print.items || []);
 
-					// Cập nhật các trạng thái cần thiết
-					vm.eventBus.emit("set_last_invoice", completed_invoice.name);
-					updateLocalStock(completed_invoice.items || []);
-
-					// Bước 4: Thực hiện in (nếu có) VỚI DỮ LIỆU ĐÃ HOÀN CHỈNH
+					// === BƯỚC 4: THỰC HIỆN IN (NẾU CÓ) VỚI DỮ LIỆU ĐÃ HOÀN CHỈNH ===
 					try {
 						if (print && tax) {
-							await vm.load_print_page_tax(completed_invoice);
+							await vm.load_print_page_tax(invoice_to_print);
 						} else if (print) {
-							vm.load_print_page(completed_invoice);
+							vm.load_print_page(invoice_to_print);
 						}
 					} catch (printError) {
-						// Nếu quá trình in lỗi, thông báo cho người dùng nhưng không dừng luồng
 						console.error("Printing process failed after submission:", printError);
 						vm.eventBus.emit("show_message", {
 							title: __("Invoice submitted, but printing failed: ") + printError.message,
@@ -1487,8 +1583,7 @@ export default {
 						});
 					}
 					
-					// Bước 5: Dọn dẹp form để chuẩn bị cho giao dịch tiếp theo
-					// Luôn thực hiện bước này sau khi tất cả các hành động khác đã hoàn tất.
+					// === BƯỚC 5: DỌN DẸP FORM ĐỂ CHUẨN BỊ CHO GIAO DỊCH MỚI ===
 					vm.customer_credit_dict = [];
 					vm.redeem_customer_credit = false;
 					vm.is_cashback = true;
@@ -1500,6 +1595,7 @@ export default {
 				},
 			});
 		},
+
 
 		// Thay thế hàm load_print_page_tax cũ của bạn bằng hàm này
 		async load_print_page_tax(invoice_to_print) { // <-- Sửa để nhận tham số
