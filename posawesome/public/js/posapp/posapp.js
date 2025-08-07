@@ -98,5 +98,37 @@ frappe.PosApp.posapp = class {
 				.catch((err) => console.error("SW registration failed", err));
 		}
 	}
-	setup_header() {}
+	async load_tax_info() {
+		try {
+			const response = await frappe.call({
+				method: "posawesome.posawesome.api.tax_roll.get_current_tax_info",
+				args: {
+					pos_profile: this.pos_profile.name
+				}
+			});
+
+			if (response.message) {
+				// Cập nhật pos_profile với thông tin tax
+				Object.assign(this.pos_profile, {
+					tax_roll_code: response.message.tax_roll_code,
+					tax_start_number: response.message.tax_start_number,
+					tax_current_counter: response.message.tax_current_counter,
+					tax_roll_status: response.message.tax_roll_status
+				});
+
+				console.log("Tax info loaded:", response.message.current_display);
+			}
+		} catch (error) {
+			console.warn("Could not load tax info:", error);
+		}
+	}
+	setup_header() {
+		// Load app data
+		await this.load_pos_data();
+
+		// Load tax info if pos_profile is available
+		if (this.pos_profile && this.pos_profile.name) {
+			await this.load_tax_info();
+		}
+	}
 };

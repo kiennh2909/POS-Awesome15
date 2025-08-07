@@ -244,11 +244,11 @@
 			<template #actions>
 				<v-btn
 					color="success"
-					@click="print_invoice"
+					@click="submit_invoice"
 					:disabled="!can_print"
 				>
 					<v-icon left>mdi-printer</v-icon>
-					{{ __("Print") }}
+					{{ __("Submit") }}
 				</v-btn>
 
 				<!-- Tax Print Button -->
@@ -288,7 +288,7 @@ import offerMethods from "./invoiceOfferMethods";
 import shortcutMethods from "./invoiceShortcuts";
 import invoiceItemMethods from "./invoiceItemMethods";
 import { isOffline, saveCustomerBalance, getCachedCustomerBalance } from "../../../offline";
-import { handleTaxPrint, updateHeaderTaxDisplay } from "./taxPrintHandler";
+import { updateHeaderTaxDisplay } from "./taxPrintHandler";
 
 export default {
 	name: "POSInvoice",

@@ -22,6 +22,8 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       });
     }
     
+    console.log(`Tax Print Debug: taxCode=${taxCode}, flag=${flag}, current=${pos_profile.tax_current_counter}, start=${pos_profile.tax_start_number}`);
+    
     // === BƯỚC 4c: CHUẨN BỊ PAYLOAD GỬI ĐẾN API PROXY ===
     const body = {
       taxCode: taxCode,
@@ -75,7 +77,10 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       // b. Cập nhật POS Profile local
       pos_profile.tax_current_counter = updateResponse.message.new_counter;
       
-      // c. Gọi callback thành công
+      // c. Cập nhật header display
+      updateHeaderTaxDisplay(updateResponse.message.next_display);
+      
+      // d. Gọi callback thành công
       if (onSuccess) {
         onSuccess({
           taxCode: taxCode,
@@ -84,11 +89,13 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
         });
       }
 
-      // d. Thông báo cho người dùng
+      // e. Thông báo cho người dùng
       frappe.show_alert({
         message: `Đã in thành công hóa đơn thuế: ${taxCode}`,
         indicator: "green"
       });
+      
+      console.log(`Tax Print Success: ${taxCode} -> Next: ${updateResponse.message.next_display}`);
     }
 
   } catch (error) {

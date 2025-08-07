@@ -194,14 +194,23 @@ export default {
 			}
 			return null;
 		},
+		tax_display() {
+			if (this.pos_profile && this.pos_profile.tax_roll_code && this.pos_profile.tax_current_counter) {
+				return `${this.pos_profile.tax_roll_code} ${this.pos_profile.tax_current_counter}`;
+			}
+			return '';
+		},
+		show_tax_management() {
+			return this.can_manage_tax_roll && this.pos_profile;
+		}
 	},
 	async mounted() {
 		// Chờ một chút để đảm bảo store đã load
 		await this.$nextTick();
-		
+
 		// Load tax display ngay lập tức
 		this.load_tax_code_display();
-		
+
 		// Set up interval để refresh định kỳ
 		this.tax_refresh_interval = setInterval(() => {
 			this.load_tax_code_display();
@@ -239,7 +248,7 @@ export default {
 		async load_tax_code_display() {
 			const profile_name = this.pos_profile;
 			console.log("Loading tax display for profile:", profile_name);
-			
+
 			if (!profile_name) {
 				console.log("No pos_profile found, trying to fetch from ensurePosProfile");
 				// Thử load từ utils
@@ -273,7 +282,7 @@ export default {
 
 				if (response.message) {
 					const info = response.message;
-					
+
 					// Ưu tiên current_display
 					if (info.current_display) {
 						this.tax_code_display = info.current_display;
@@ -311,6 +320,34 @@ export default {
 		update_tax_display(new_display) {
 			this.tax_code_display = new_display;
 		},
+		open_tax_roll_dialog() {
+			this.show_tax_roll_dialog = true;
+		},
+
+		on_tax_roll_updated(result) {
+			// Cập nhật pos_profile với thông tin mới
+			if (result.tax_code_display || result.current_display) {
+				const display = result.tax_code_display || result.current_display;
+				const parts = display.split(' ');
+				if (parts.length >= 2) {
+					this.pos_profile.tax_roll_code = parts[0];
+					this.pos_profile.tax_current_counter = parseInt(parts[1]);
+				}
+			}
+
+			this.$toast.success("Đã cập nhật thông tin cuộn thuế");
+		},
+
+		// Method to update display when counter changes
+		update_tax_display(newDisplay) {
+			if (newDisplay) {
+				const parts = newDisplay.split(' ');
+				if (parts.length >= 2) {
+					this.pos_profile.tax_roll_code = parts[0];
+					this.pos_profile.tax_current_counter = parseInt(parts[1]);
+				}
+			}
+		}
 	},
 	emits: ["nav-click", "go-desk", "show-offline-invoices"],
 };
