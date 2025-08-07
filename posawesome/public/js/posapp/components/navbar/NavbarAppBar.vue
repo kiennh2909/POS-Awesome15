@@ -134,6 +134,7 @@ export default {
 		return {
 			show_tax_roll_dialog: false,
 			tax_code_display: "",
+			tax_refresh_interval: null,
 		}
 	},
 	computed: {
@@ -164,29 +165,81 @@ export default {
 				   frappe.user_roles.includes('POS Manager');
 		},
 		pos_profile() {
-			return this.$store.state.pos_profile?.name;
+			// Thử nhiều cách để lấy pos_profile
+			if (this.$store.state.pos_profile?.name) {
+				return this.$store.state.pos_profile.name;
+			}
+			if (this.posProfile?.name) {
+				return this.posProfile.name;
+			}
+			// Fallback từ props
+			return null;
 		},
 	},
 	mounted() {
 		this.load_tax_code_display();
+		// Set up interval để refresh định kỳ
+		this.tax_refresh_interval = setInterval(() => {
+			this.load_tax_code_display();
+		}, 30000); // Refresh mỗi 30 giây
+	},
+	beforeUnmount() {
+		if (this.tax_refresh_interval) {
+			clearInterval(this.tax_refresh_interval);
+		}
+	},
+	watch: {
+		pos_profile: {
+			handler(newVal) {
+				if (newVal) {
+					this.load_tax_code_display();
+				}
+			},
+			immediate: true
+		},
+		'$store.state.pos_profile': {
+			handler() {
+				this.load_tax_code_display();
+			},
+			deep: true
+		}
 	},
 	methods: {
 		async load_tax_code_display() {
-			if (!this.pos_profile) return;
+			const profile_name = this.pos_profile;
+			console.log("Loading tax display for profile:", profile_name);
+			
+			if (!profile_name) {
+				console.log("No pos_profile found, skipping tax display load");
+				return;
+			}
 
 			try {
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.tax_roll.get_current_tax_info",
 					args: {
-						pos_profile: this.pos_profile
+						pos_profile: profile_name
 					}
 				});
 
+				console.log("Tax info response:", response.message);
+
 				if (response.message && response.message.current_display) {
 					this.tax_code_display = response.message.current_display;
+					console.log("Tax display updated:", this.tax_code_display);
+				} else {
+					// Nếu không có current_display, thử tạo từ các trường riêng lẻ
+					const info = response.message;
+					if (info && info.tax_roll_code && info.tax_current_counter) {
+						this.tax_code_display = `${info.tax_roll_code} ${info.tax_current_counter}`;
+						console.log("Tax display created manually:", this.tax_code_display);
+					}
 				}
 			} catch (error) {
 				console.error("Error loading tax code display:", error);
+				// Log thêm thông tin để debug
+				console.error("Profile name:", profile_name);
+				console.error("Store state:", this.$store.state);
 			}
 		},
 
