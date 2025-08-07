@@ -30,6 +30,16 @@ function debugLog(message, details) {
  * @param {function} onError - Callback được gọi khi có lỗi xảy ra.
  */
 export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
+  console.log(
+    "%c handleTaxPrint đang tiếp nhận truyền đối tượng sau vào handleTaxPrint:",
+    "color: green; font-weight: bold;",
+    this.invoice
+  );
+  console.log(
+    "%c handleTaxPrint đang tiếp nhận  đối tượng Pos-Profile sau vào handleTaxPrint:",
+    "color: green; font-weight: bold;",
+    this.pos_profile
+  );
   try {
     // === BƯỚC 0: KIỂM TRA CẤU HÌNH VÀ DỮ LIỆU CẦN THIẾT ===
     debugLog("Bước 0: Bắt đầu xác thực cấu hình.");

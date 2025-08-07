@@ -1343,6 +1343,11 @@ export default {
 					}
 
 					if (print && tax) {
+						    console.log(
+							"%c CHUẨN BỊ GỌI load_print_page_tax. Dữ liệu this.invoice_doc là:", 
+							"color: blue; font-weight: bold;", // Style để log nổi bật
+							this.invoice_doc 
+						);
 						vm.load_print_page_tax();
 					} else if (print) {
 						vm.load_print_page();
@@ -1504,6 +1509,18 @@ export default {
 			// === CẢI TIẾN: Thêm trạng thái chờ ===
 			this.loading = true; // Giả sử component có một biến data 'loading'
 			// Vô hiệu hóa các nút khác nếu cần
+			        // === DÒNG DEBUG 2: KIỂM TRA DỮ LIỆU ĐƯỢC TRUYỀN VÀO ===
+			console.log(
+				"%c load_print_page_tax đang truyền đối tượng sau vào handleTaxPrint:", 
+				"color: green; font-weight: bold;",
+				this.invoice_doc
+			);
+			console.log(
+				"%c load_print_page_tax đang truyền đối tượng Pos-Profile sau vào handleTaxPrint:", 
+				"color: green; font-weight: bold;",
+				this.pos_profile
+			);
+			
 			
 			try {
 				await handleTaxPrint(
