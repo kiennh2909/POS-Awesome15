@@ -148,3 +148,29 @@ def validate_tax_roll_config(prefix, start_number):
         "errors": errors,
         "preview": f"{prefix} {start_number}" if len(errors) == 0 else None
     }
+
+
+@frappe.whitelist()
+def get_current_tax_info(pos_profile):
+    """
+    Lấy thông tin mã thuế hiện tại để hiển thị
+    
+    Args:
+        pos_profile: Tên POS Profile
+    """
+    doc = frappe.get_doc("POS Profile", pos_profile)
+    
+    # Tạo mã thuế hiện tại
+    current_tax_code = None
+    if doc.get("tax_roll_code") and doc.get("tax_current_counter"):
+        current_tax_code = f"{doc.get('tax_roll_code')} {doc.get('tax_current_counter')}"
+    
+    return {
+        "tax_roll_code": doc.get("tax_roll_code"),
+        "tax_start_number": doc.get("tax_start_number"),
+        "tax_current_counter": doc.get("tax_current_counter"),
+        "tax_roll_status": doc.get("tax_roll_status"),
+        "tax_update_time": doc.get("tax_update_time"),
+        "current_tax_code": current_tax_code,
+        "display": current_tax_code
+    }
