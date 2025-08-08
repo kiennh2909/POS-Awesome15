@@ -12,6 +12,19 @@
         <v-divider></v-divider>
         
         <v-card-text>
+          <!-- POS Profile Validation Warning -->
+          <v-alert 
+            v-if="!isPosProfileValid" 
+            type="error"
+            outlined
+            class="mb-4"
+          >
+            <div class="d-flex align-center">
+              <v-icon left>mdi-alert-circle</v-icon>
+              <strong>Lỗi:</strong> POS Profile không hợp lệ hoặc chưa được chọn
+            </div>
+          </v-alert>
+
           <!-- Current Status Display -->
           <v-alert 
             v-if="currentTaxStatus" 
@@ -162,8 +175,15 @@ export default {
   },
 
   computed: {
+    isPosProfileValid() {
+      return this.posProfile && 
+             typeof this.posProfile === 'object' && 
+             this.posProfile.name && 
+             this.posProfile.name.trim() !== '';
+    },
+
     currentTaxStatus() {
-      if (!this.posProfile || !this.posProfile.tax_roll_code) {
+      if (!this.isPosProfileValid || !this.posProfile.tax_roll_code) {
         return null;
       }
       
@@ -174,7 +194,8 @@ export default {
     },
 
     isFormValid() {
-      return this.newRollConfig.prefix && 
+      return this.isPosProfileValid &&
+             this.newRollConfig.prefix && 
              this.newRollConfig.startNumber > 0 &&
              /^[A-Z]{2}$/.test(this.newRollConfig.prefix);
     },
@@ -232,20 +253,32 @@ export default {
       this.loading = true;
 
       try {
-        // Validate required parameters
-        if (!this.posProfile.name) {
-          throw new Error("POS Profile name is required");
+        // Enhanced POS Profile validation
+        if (!this.posProfile || typeof this.posProfile !== 'object') {
+          throw new Error("POS Profile data không hợp lệ");
+        }
+        
+        if (!this.posProfile.name || this.posProfile.name.trim() === '') {
+          throw new Error("Tên POS Profile không được để trống");
         }
         
         if (!this.newRollConfig.prefix || !this.newRollConfig.startNumber) {
-          throw new Error("Prefix and start number are required");
+          throw new Error("Prefix và số bắt đầu là bắt buộc");
         }
+
+        // Log for debugging
+        console.log("POS Profile data:", {
+          name: this.posProfile.name,
+          prefix: this.newRollConfig.prefix,
+          startNumber: this.newRollConfig.startNumber,
+          action: this.selectedAction
+        });
 
         const response = await frappe.call({
           method: "posawesome.posawesome.api.tax_roll.update_tax_roll",
           args: {
-            pos_profile: this.posProfile.name,
-            new_prefix: this.newRollConfig.prefix,
+            pos_profile: this.posProfile.name.trim(),
+            new_prefix: this.newRollConfig.prefix.toUpperCase().trim(),
             new_start_number: parseInt(this.newRollConfig.startNumber),
             action: this.selectedAction
           }

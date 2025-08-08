@@ -15,10 +15,23 @@ def update_tax_roll(pos_profile, new_prefix, new_start_number, action="new_roll"
         new_start_number: Số bắt đầu
         action: "new_roll" hoặc "update"
     """
+    # Enhanced validation
+    if not pos_profile:
+        frappe.throw(_("POS Profile name is required"))
+    
+    pos_profile = str(pos_profile).strip()
+    if not pos_profile:
+        frappe.throw(_("POS Profile name cannot be empty"))
+    
     if not frappe.has_permission("POS Profile", "write"):
         frappe.throw(_("Không có quyền cập nhật POS Profile"))
     
+    # Check if POS Profile exists
+    if not frappe.db.exists("POS Profile", pos_profile):
+        frappe.throw(_("POS Profile '{}' không tồn tại").format(pos_profile))
+    
     # Validate prefix format (exactly 2 uppercase letters)
+    new_prefix = str(new_prefix).upper().strip()
     if not re.match(r'^[A-Z]{2}$', new_prefix):
         frappe.throw(_("Prefix phải là đúng 2 ký tự in hoa (VD: PW, BZ, CZ)"))
     
