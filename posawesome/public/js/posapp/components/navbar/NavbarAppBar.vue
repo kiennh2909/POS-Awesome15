@@ -312,29 +312,29 @@ export default {
 
 		async handle_tax_roll_updated(data) {
 			console.log("Tax roll updated event received:", data);
-			
+
 			// Bước 1.4: Cập nhật giao diện sau khi nhận phản hồi thành công
 			if (data && data.tax_code_display) {
 				this.tax_code_display = data.tax_code_display;
 			}
-			
+
 			// Đồng bộ pos_profile với dữ liệu mới từ backend
 			if (data.pos_profile && this.$store && this.$store.state.pos_profile) {
 				const updatedProfile = await this.sync_pos_profile_data(data.pos_profile);
 				if (updatedProfile) {
 					// Cập nhật store với dữ liệu mới
 					Object.assign(this.$store.state.pos_profile, {
-						tax_roll_code: updatedProfile.tax_roll_code,
-						tax_start_number: updatedProfile.tax_start_number,
-						tax_current_counter: updatedProfile.tax_current_counter,
-						tax_roll_status: updatedProfile.tax_roll_status
+						tax_roll_code: updatedData.tax_roll_code,
+						tax_start_number: updatedData.tax_start_number,
+						tax_current_counter: updatedData.tax_current_counter,
+						tax_roll_status: updatedData.tax_roll_status
 					});
 				}
 			}
-			
+
 			// Refresh display từ backend để đảm bảo đồng bộ
 			await this.load_tax_code_display();
-			
+
 			// Hiển thị thông báo thành công cho Bước 1.4
 			if (data.action === 'new_roll') {
 				frappe.show_alert({
@@ -385,7 +385,7 @@ export default {
 						pos_profile: profile_name
 					}
 				});
-				
+
 				if (response.message) {
 					console.log("POS Profile synchronized:", response.message);
 					return response.message;

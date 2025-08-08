@@ -1,346 +1,300 @@
 
 <template>
-  <v-dialog v-model="dialog" persistent max-width="800px">
-    <v-card>
-      <v-card-title class="headline">
-        <v-icon left>mdi-receipt</v-icon>
-        Cập Nhật Thay Thế Cuộn Giấy In
-      </v-card-title>
-      
-      <v-card-text>
-        <!-- Action Selection -->
-        <v-row class="mb-4">
-          <v-col cols="12">
-            <v-select
-              v-model="selectedAction"
-              :items="actionOptions"
-              label="Hành động"
-              outlined
-              dense
-            ></v-select>
-          </v-col>
-        </v-row>
+  <div>
+    <!-- Dialog -->
+    <v-dialog v-model="dialog" max-width="600px" persistent>
+      <v-card>
+        <v-card-title class="headline">
+          <v-icon left>mdi-receipt</v-icon>
+          Quản Lý Cuộn Hóa Đơn Thuế
+        </v-card-title>
+        
+        <v-divider></v-divider>
+        
+        <v-card-text>
+          <!-- Current Status Display -->
+          <v-alert 
+            v-if="currentTaxStatus" 
+            :type="currentTaxStatus.status === 'Active' ? 'info' : 'warning'"
+            outlined
+            class="mb-4"
+          >
+            <div class="d-flex justify-space-between align-center">
+              <div>
+                <strong>Trạng thái hiện tại:</strong>
+                {{ currentTaxStatus.display }}
+              </div>
+              <v-chip 
+                :color="currentTaxStatus.status === 'Active' ? 'green' : 'orange'"
+                text-color="white"
+                small
+              >
+                {{ currentTaxStatus.status }}
+              </v-chip>
+            </div>
+          </v-alert>
 
-        <!-- Current Roll Information -->
-        <v-card outlined class="mb-4" v-if="currentRollInfo">
-          <v-card-subtitle>Session Cuộn Hiện Tại</v-card-subtitle>
-          <v-card-text>
-            <v-row>
-              <v-col cols="3">
-                <div class="text-subtitle2">Prefix</div>
-                <div class="text-h6">{{ currentRollInfo.tax_roll_code || 'N/A' }}</div>
-              </v-col>
-              <v-col cols="3">
-                <div class="text-subtitle2">Start</div>
-                <div class="text-h6">{{ currentRollInfo.tax_start_number || 'N/A' }}</div>
-              </v-col>
-              <v-col cols="3">
-                <div class="text-subtitle2">Số hiện tại</div>
-                <div class="text-h6">{{ currentRollInfo.tax_current_counter || 'N/A' }}</div>
-              </v-col>
-              <v-col cols="3">
-                <div class="text-subtitle2">Tình trạng</div>
-                <v-chip
-                  :color="getStatusColor(currentRollInfo.tax_roll_status)"
-                  small
-                >
-                  {{ getStatusText(currentRollInfo.tax_roll_status) }}
-                </v-chip>
-              </v-col>
-            </v-row>
-            <v-row class="mt-2">
-              <v-col cols="12">
-                <div class="text-caption">
-                  Thời gian cập nhật: {{ formatDateTime(currentRollInfo.tax_update_time) }}
-                </div>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
+          <!-- Action Selection -->
+          <v-radio-group 
+            v-model="selectedAction" 
+            class="mb-4"
+            @change="resetForm"
+          >
+            <v-radio
+              label="Thiết lập cuộn hóa đơn mới"
+              value="new_roll"
+              color="primary"
+            ></v-radio>
+            <v-radio
+              label="Cập nhật thông tin cuộn hiện tại"
+              value="update"
+              color="primary"
+            ></v-radio>
+          </v-radio-group>
 
-        <!-- New Roll Configuration -->
-        <v-card outlined v-if="selectedAction">
-          <v-card-subtitle>Session Thay Thế</v-card-subtitle>
-          <v-card-text>
+          <v-divider class="mb-4"></v-divider>
+
+          <!-- Form inputs -->
+          <v-form ref="taxRollForm" v-model="formValid">
             <v-row>
               <v-col cols="6">
                 <v-text-field
                   v-model="newRollConfig.prefix"
-                  label="Prefix"
+                  label="Prefix (2 ký tự)"
+                  placeholder="VD: PW, BZ, CZ"
                   outlined
                   dense
+                  maxlength="2"
                   :rules="[rules.required, rules.prefixFormat]"
+                  @input="newRollConfig.prefix = newRollConfig.prefix.toUpperCase()"
                 ></v-text-field>
               </v-col>
               <v-col cols="6">
                 <v-text-field
-                  v-model="newRollConfig.startNumber"
-                  label="Start"
-                  type="number"
+                  v-model.number="newRollConfig.startNumber"
+                  label="Số bắt đầu"
+                  placeholder="VD: 688"
                   outlined
                   dense
+                  type="number"
+                  min="1"
                   :rules="[rules.required, rules.positiveNumber]"
                 ></v-text-field>
               </v-col>
             </v-row>
-            <v-row>
-              <v-col cols="6">
-                <v-text-field
-                  v-model="newRollConfig.currentNumber"
-                  label="Số hiện tại"
-                  type="number"
-                  outlined
-                  dense
-                  readonly
-                ></v-text-field>
-              </v-col>
-              <v-col cols="6">
-                <v-select
-                  v-model="newRollConfig.status"
-                  :items="statusOptions"
-                  label="Tình trạng"
-                  outlined
-                  dense
-                ></v-select>
-              </v-col>
-            </v-row>
-            <v-row>
-              <v-col cols="12">
-                <div class="text-caption">
-                  Thời gian cập nhật: {{ formatDateTime(new Date()) }}
-                </div>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
+          </v-form>
 
-        <!-- Preview -->
-        <v-alert
-          v-if="previewText"
-          type="info"
-          outlined
-          class="mt-4"
-        >
-          <strong>Preview:</strong> {{ previewText }}
-        </v-alert>
-      </v-card-text>
+          <!-- Preview -->
+          <v-card v-if="isFormValid" outlined class="mt-4">
+            <v-card-subtitle class="pb-2">
+              <v-icon small left>mdi-eye</v-icon>
+              Xem trước
+            </v-card-subtitle>
+            <v-card-text class="pt-0">
+              <div class="d-flex align-center">
+                <v-chip color="primary" text-color="white" class="mr-2">
+                  {{ previewText }}
+                </v-chip>
+                <span class="text-caption text--secondary">
+                  ({{ selectedAction === 'new_roll' ? 'Cuộn mới' : 'Cập nhật' }})
+                </span>
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-card-text>
 
-      <v-card-actions>
-        <v-spacer></v-spacer>
-        <v-btn text @click="closeDialog">
-          CLOSE
-        </v-btn>
-        <v-btn text color="warning" @click="cancelChanges">
-          HỦY BỎ
-        </v-btn>
-        <v-btn 
-          color="primary" 
-          @click="saveChanges"
-          :loading="saving"
-          :disabled="!isFormValid"
-        >
-          SAVE
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+        <v-divider></v-divider>
+
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn 
+            text 
+            @click="closeDialog"
+            :disabled="loading"
+          >
+            Hủy
+          </v-btn>
+          <v-btn 
+            color="primary" 
+            @click="submitTaxRoll"
+            :disabled="!isFormValid"
+            :loading="loading"
+          >
+            {{ selectedAction === 'new_roll' ? 'Bắt Đầu Cuộn Mới' : 'Cập Nhật' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </div>
 </template>
 
 <script>
 export default {
-  name: "TaxRollDialog",
+  name: 'TaxRollDialog',
+  
+  props: {
+    show: {
+      type: Boolean,
+      default: false
+    },
+    posProfile: {
+      type: Object,
+      default: () => ({})
+    }
+  },
+
   data() {
     return {
       dialog: false,
-      saving: false,
-      selectedAction: "",
-      currentRollInfo: null,
+      loading: false,
+      formValid: false,
+      selectedAction: 'new_roll',
       newRollConfig: {
-        prefix: "",
-        startNumber: 1,
-        currentNumber: 1,
-        status: "Active"
+        prefix: '',
+        startNumber: 1
       },
-      actionOptions: [
-        { text: "Cập nhật cuộn hiện tại", value: "update_current" },
-        { text: "Thay thế bằng cuộn mới", value: "new_roll" },
-        { text: "Kết thúc cuộn hiện tại", value: "finish_current" }
-      ],
-      statusOptions: [
-        { text: "Đang hoạt động", value: "Active" },
-        { text: "Đã kết thúc", value: "Finished" },
-        { text: "Không hoạt động", value: "Inactive" }
-      ],
       rules: {
         required: value => !!value || "Trường này là bắt buộc",
-        prefixFormat: value => /^[A-Z]{1,4}$/.test(value) || "Prefix phải là 1-4 ký tự in hoa",
+        prefixFormat: value => /^[A-Z]{2}$/.test(value) || "Prefix phải là đúng 2 ký tự in hoa (VD: PW, BZ, CZ)",
         positiveNumber: value => value > 0 || "Số phải lớn hơn 0"
       }
     };
   },
+
   computed: {
-    isFormValid() {
-      if (!this.selectedAction) return false;
-      if (this.selectedAction === "update_current") return true;
+    currentTaxStatus() {
+      if (!this.posProfile || !this.posProfile.tax_roll_code) {
+        return null;
+      }
       
+      return {
+        display: `${this.posProfile.tax_roll_code} ${this.posProfile.tax_current_counter || 1}`,
+        status: this.posProfile.tax_roll_status || 'Inactive'
+      };
+    },
+
+    isFormValid() {
       return this.newRollConfig.prefix && 
              this.newRollConfig.startNumber > 0 &&
-             /^[A-Z]{1,4}$/.test(this.newRollConfig.prefix);
+             /^[A-Z]{2}$/.test(this.newRollConfig.prefix);
     },
+
     previewText() {
       if (!this.selectedAction || !this.newRollConfig.prefix || !this.newRollConfig.startNumber) {
-        return "";
+        return '';
       }
       return `${this.newRollConfig.prefix} ${this.newRollConfig.startNumber}`;
     }
   },
+
   watch: {
-    selectedAction(newVal) {
-      if (newVal === "update_current" && this.currentRollInfo) {
-        // Keep current roll settings
-        this.newRollConfig.prefix = this.currentRollInfo.tax_roll_code || "";
-        this.newRollConfig.startNumber = this.currentRollInfo.tax_start_number || 1;
-        this.newRollConfig.currentNumber = this.currentRollInfo.tax_current_counter || 1;
-      } else if (newVal === "new_roll") {
-        // Reset for new roll
-        this.newRollConfig.prefix = "";
-        this.newRollConfig.startNumber = 1;
-        this.newRollConfig.currentNumber = 1;
-        this.newRollConfig.status = "Active";
-      } else if (newVal === "finish_current" && this.currentRollInfo) {
-        // Set current roll as finished
-        this.newRollConfig.prefix = this.currentRollInfo.tax_roll_code || "";
-        this.newRollConfig.startNumber = this.currentRollInfo.tax_start_number || 1;
-        this.newRollConfig.currentNumber = this.currentRollInfo.tax_current_counter || 1;
-        this.newRollConfig.status = "Finished";
+    show(newVal) {
+      this.dialog = newVal;
+      if (newVal) {
+        this.initializeForm();
       }
     },
-    "newRollConfig.startNumber"(newVal) {
-      if (this.selectedAction === "new_roll") {
-        this.newRollConfig.currentNumber = newVal;
+
+    dialog(newVal) {
+      if (!newVal) {
+        this.$emit('close');
       }
     }
   },
+
   methods: {
-    openDialog(posProfile) {
-      this.currentRollInfo = posProfile;
-      this.dialog = true;
-      this.resetForm();
+    initializeForm() {
+      // Khởi tạo form với dữ liệu hiện tại nếu có
+      if (this.posProfile.tax_roll_code) {
+        this.newRollConfig.prefix = this.posProfile.tax_roll_code;
+        this.newRollConfig.startNumber = this.posProfile.tax_current_counter || 1;
+      } else {
+        this.resetForm();
+      }
     },
+
+    resetForm() {
+      this.newRollConfig = {
+        prefix: '',
+        startNumber: 1
+      };
+      if (this.$refs.taxRollForm) {
+        this.$refs.taxRollForm.resetValidation();
+      }
+    },
+
+    async submitTaxRoll() {
+      if (!this.isFormValid) {
+        this.$refs.taxRollForm.validate();
+        return;
+      }
+
+      this.loading = true;
+
+      try {
+        const response = await frappe.call({
+          method: "posawesome.posawesome.api.tax_roll.update_tax_roll",
+          args: {
+            pos_profile: this.posProfile.name,
+            new_prefix: this.newRollConfig.prefix,
+            new_start_number: this.newRollConfig.startNumber,
+            action: this.selectedAction
+          }
+        });
+
+        if (response.message && response.message.success) {
+          // Emit success event with updated data
+          this.$emit('tax-roll-updated', {
+            taxRollCode: response.message.tax_roll_code,
+            taxCurrentCounter: response.message.tax_current_counter,
+            taxStartNumber: response.message.tax_start_number,
+            taxRollStatus: response.message.tax_roll_status,
+            display: response.message.tax_code_display
+          });
+
+          // Show success message
+          frappe.show_alert({
+            message: response.message.message,
+            indicator: "green"
+          });
+
+          this.closeDialog();
+        } else {
+          throw new Error(response.message || "Có lỗi xảy ra khi cập nhật cuộn hóa đơn");
+        }
+
+      } catch (error) {
+        console.error("Tax Roll Update Error:", error);
+        frappe.msgprint({
+          title: "Lỗi",
+          message: error.message || "Không thể cập nhật cuộn hóa đơn thuế",
+          indicator: "red"
+        });
+      } finally {
+        this.loading = false;
+      }
+    },
+
     closeDialog() {
       this.dialog = false;
       this.resetForm();
-    },
-    resetForm() {
-      this.selectedAction = "";
-      this.newRollConfig = {
-        prefix: "",
-        startNumber: 1,
-        currentNumber: 1,
-        status: "Active"
-      };
-      this.saving = false;
-    },
-    cancelChanges() {
-      this.resetForm();
-    },
-    async saveChanges() {
-      if (!this.isFormValid) return;
-      
-      this.saving = true;
-      
-      try {
-        let response;
-        
-        if (this.selectedAction === "update_current") {
-          response = await frappe.call({
-            method: "posawesome.posawesome.api.tax_roll.update_current_tax_roll",
-            args: {
-              pos_profile: this.currentRollInfo.name,
-              action: "update_current"
-            }
-          });
-        } else {
-          response = await frappe.call({
-            method: "posawesome.posawesome.api.tax_roll.update_tax_roll",
-            args: {
-              pos_profile: this.currentRollInfo.name,
-              new_prefix: this.newRollConfig.prefix,
-              new_start_number: this.newRollConfig.startNumber,
-              action: this.selectedAction
-            }
-          });
-        }
-
-        if (response.message && response.message.success) {
-          // Update the current profile data
-          Object.assign(this.currentRollInfo, {
-            tax_roll_code: response.message.tax_roll_code,
-            tax_start_number: response.message.tax_start_number,
-            tax_current_counter: response.message.tax_current_counter,
-            tax_roll_status: response.message.tax_roll_status
-          });
-
-          // Emit success event
-          this.eventBus.emit("tax_roll_updated", response.message);
-          
-          this.eventBus.emit("show_message", {
-            title: "Thành công",
-            message: response.message.message,
-            color: "success"
-          });
-          
-          this.closeDialog();
-        } else {
-          throw new Error(response.message || "Có lỗi xảy ra khi cập nhật cuộn in");
-        }
-      } catch (error) {
-        console.error("Error updating tax roll:", error);
-        this.eventBus.emit("show_message", {
-          title: "Lỗi",
-          message: error.message || "Không thể cập nhật cuộn in",
-          color: "error"
-        });
-      } finally {
-        this.saving = false;
-      }
-    },
-    getStatusColor(status) {
-      const statusColors = {
-        Active: "success",
-        Finished: "warning",
-        Inactive: "error"
-      };
-      return statusColors[status] || "grey";
-    },
-    getStatusText(status) {
-      const statusTexts = {
-        Active: "Đang hoạt động",
-        Finished: "Đã kết thúc",
-        Inactive: "Không hoạt động"
-      };
-      return statusTexts[status] || status;
-    },
-    formatDateTime(dateTime) {
-      if (!dateTime) return "N/A";
-      const date = new Date(dateTime);
-      return date.toLocaleString("vi-VN");
+      this.loading = false;
     }
-  },
-  mounted() {
-    this.eventBus.on("open_tax_roll_dialog", (posProfile) => {
-      this.openDialog(posProfile);
-    });
-  },
-  beforeUnmount() {
-    this.eventBus.off("open_tax_roll_dialog");
   }
 };
 </script>
 
 <style scoped>
-.text-subtitle2 {
+.headline {
+  background: linear-gradient(45deg, #1976d2, #42a5f5);
+  color: white !important;
+}
+
+.v-chip {
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.6);
+}
+
+.text-caption {
+  font-style: italic;
 }
 </style>
