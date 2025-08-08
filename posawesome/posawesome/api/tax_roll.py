@@ -103,6 +103,31 @@ def update_current_tax_roll(pos_profile, action="update_current"):
 
     return {
         "success": True,
-        "message": _("Đã cập nhật thông tin cuộn hiện tại thành công"),
+        "message": _("Đã cập nhật thông tin cuộn thành công"),
+        "tax_roll_code": doc.tax_roll_code,
+        "tax_start_number": doc.tax_start_number,
+        "tax_current_counter": doc.tax_current_counter,
+        "tax_roll_status": doc.tax_roll_status,
+        "current_display": f"{doc.tax_roll_code} {doc.tax_current_counter}" if doc.tax_roll_code else ""
+    }
+
+@frappe.whitelist()
+def get_current_tax_info(pos_profile):
+    """
+    Lấy thông tin cuộn thuế hiện tại
+    """
+    if not frappe.has_permission("POS Profile", "read"):
+        frappe.throw(_("Không có quyền truy cập POS Profile"))
+
+    doc = frappe.get_doc("POS Profile", pos_profile)
+    
+    return {
+        "tax_roll_code": doc.get("tax_roll_code"),
+        "tax_start_number": doc.get("tax_start_number"),
+        "tax_current_counter": doc.get("tax_current_counter"),
+        "tax_roll_status": doc.get("tax_roll_status", "Active"),
+        "tax_update_time": doc.get("tax_update_time"),
+        "tax_update_by_cashier": doc.get("tax_update_by_cashier"),
+        "current_display": f"{doc.get('tax_roll_code', '')} {doc.get('tax_current_counter', '')}" if doc.get('tax_roll_code') else ""ng tin cuộn hiện tại thành công"),
         "current_display": f"{doc.tax_roll_code} {doc.tax_current_counter}" if doc.tax_roll_code else ""
     }

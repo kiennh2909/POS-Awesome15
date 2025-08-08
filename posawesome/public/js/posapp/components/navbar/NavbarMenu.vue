@@ -214,6 +214,14 @@ export default {
 		"toggle-fullscreen",
 		"logout",
 	],
+	methods: {
+		closing_shift() {
+			this.eventBus.emit("open_closing_dialog");
+		},
+		open_tax_roll_dialog() {
+			this.eventBus.emit("open_tax_roll_dialog", this.pos_profile);
+		},
+	},
 };
 </script>
 
