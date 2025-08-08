@@ -232,12 +232,21 @@ export default {
       this.loading = true;
 
       try {
+        // Validate required parameters
+        if (!this.posProfile.name) {
+          throw new Error("POS Profile name is required");
+        }
+        
+        if (!this.newRollConfig.prefix || !this.newRollConfig.startNumber) {
+          throw new Error("Prefix and start number are required");
+        }
+
         const response = await frappe.call({
           method: "posawesome.posawesome.api.tax_roll.update_tax_roll",
           args: {
             pos_profile: this.posProfile.name,
             new_prefix: this.newRollConfig.prefix,
-            new_start_number: this.newRollConfig.startNumber,
+            new_start_number: parseInt(this.newRollConfig.startNumber),
             action: this.selectedAction
           }
         });
