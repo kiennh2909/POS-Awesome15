@@ -240,6 +240,30 @@ export default {
 				this.load_tax_code_display();
 			}, 1000);
 		});
+
+		// Listen for tax display updates
+		if (window.posEventBus && typeof window.posEventBus.on === 'function') {
+			window.posEventBus.on('tax-display-updated', (newDisplay) => {
+				console.log("Received tax display update:", newDisplay);
+				this.tax_code_display = newDisplay;
+			});
+		}
+
+		// Listen for frappe realtime tax updates
+		frappe.realtime.on("tax_display_updated", (data) => {
+			if (data && data.display) {
+				console.log("Received realtime tax display update:", data.display);
+				this.tax_code_display = data.display;
+			}
+		});
+
+		// Listen for custom DOM events
+		document.addEventListener('taxDisplayUpdated', (event) => {
+			if (event.detail && event.detail.display) {
+				console.log("Received custom tax display update:", event.detail.display);
+				this.tax_code_display = event.detail.display;
+			}
+		});
 	},
 	beforeUnmount() {
 		if (this.tax_refresh_interval) {
@@ -336,6 +360,17 @@ export default {
 				this.tax_code_display = data.display;
 			}
 
+			// Cập nhật trực tiếp this.posProfile nếu có
+			if (data && this.posProfile) {
+				Object.assign(this.posProfile, {
+					tax_roll_code: data.taxRollCode,
+					tax_start_number: data.taxStartNumber,
+					tax_current_counter: data.taxCurrentCounter,
+					tax_roll_status: data.taxRollStatus
+				});
+				console.log("Updated this.posProfile:", this.posProfile);
+			}
+
 			// Cập nhật store nếu có
 			if (data && this.$store && this.$store.state.pos_profile) {
 				Object.assign(this.$store.state.pos_profile, {
@@ -346,21 +381,28 @@ export default {
 				});
 			}
 
-			// Refresh display từ backend để đảm bảo đồng bộ
-			await this.load_tax_code_display();
+			// Cập nhật global pos_profile nếu có
+			if (data && window.posProfile) {
+				Object.assign(window.posProfile, {
+					tax_roll_code: data.taxRollCode,
+					tax_start_number: data.taxStartNumber,
+					tax_current_counter: data.taxCurrentCounter,
+					tax_roll_status: data.taxRollStatus
+				});
+			}
 
-			console.log("Tax roll successfully updated");
+			console.log("Tax roll successfully updated in all locations");
 		},
 
 		update_tax_display(new_display) {
 			this.tax_code_display = new_display;
 		},
-		
+
 		open_tax_roll_dialog() {
 			this.show_tax_roll_dialog = true;
 		},
 
-		
+
 	},
 	emits: ["nav-click", "go-desk", "show-offline-invoices"],
 };

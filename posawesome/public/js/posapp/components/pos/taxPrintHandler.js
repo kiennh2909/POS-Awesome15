@@ -1,4 +1,3 @@
-
 /**
  * Chế độ gỡ lỗi. Đặt thành true khi phát triển để xem log chi tiết.
  */
@@ -114,7 +113,7 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       throw new Error(`Lỗi từ máy chủ in (${response.status}): ${responseText}`);
     }
 
-    // === BƯỚC 4: XỬ LÝ KHI IN THÀNH CÔNG (CẬP NHẬT TRẠNG THÁI LÊN ERPNEXT) ===
+    // === BƯỚC 4: XỬ LÝ KHI IN THÀNH CÔNG (CẬP NHẬT TRẠNG THÁI LÊN ERPNext) ===
     debugLog("Bước 4: In thành công, đang cập nhật trạng thái lên ERPNext...");
     const updateResponse = await frappe.call({
       method: "posawesome.posawesome.api.tax_roll.increment_tax_counter",
@@ -134,7 +133,11 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
     // === BƯỚC 5: XỬ LÝ PHÍA CLIENT SAU KHI MỌI THỨ THÀNH CÔNG ===
     const { new_counter, next_display } = updateResponse.message;
 
+    // Cập nhật pos_profile object
     pos_profile.tax_current_counter = new_counter;
+
+    // Cập nhật header display
+    updateHeaderTaxDisplay(next_display);
 
     if (onSuccess) {
       onSuccess({
@@ -171,19 +174,28 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
  * @param {string} newDisplay - Chuỗi mới để hiển thị (ví dụ: "PW 689").
  */
 export function updateHeaderTaxDisplay(newDisplay) {
+  debugLog("Updating header tax display:", { newDisplay });
+
+  // Method 1: Event Bus
   if (window.posEventBus && typeof window.posEventBus.emit === 'function') {
     debugLog("Phát sự kiện 'tax-display-updated' qua Event Bus.", { newDisplay });
     window.posEventBus.emit('tax-display-updated', newDisplay);
-  } else {
-    // Phương án dự phòng: truy cập trực tiếp component (không khuyến khích)
-    console.warn("posEventBus not found. Attempting direct component access (this is not recommended).");
-    try {
-      const navbar = document.querySelector('nav'); // Hoặc một selector cụ thể hơn
-      if (navbar && navbar.__vue_app__ && typeof navbar.__vue_app__.config.globalProperties.eventBus.emit === 'function') {
-        navbar.__vue_app__.config.globalProperties.eventBus.emit('tax-display-updated', newDisplay);
-      }
-    } catch (e) {
-      console.error("Could not update header display.", e);
-    }
+  }
+
+  // Method 2: Frappe realtime event
+  if (frappe && frappe.realtime && typeof frappe.realtime.emit === 'function') {
+    debugLog("Phát sự kiện qua frappe.realtime.", { newDisplay });
+    frappe.realtime.emit('tax_display_updated', { display: newDisplay });
+  }
+
+  // Method 3: Custom event
+  try {
+    const event = new CustomEvent('taxDisplayUpdated', {
+      detail: { display: newDisplay }
+    });
+    document.dispatchEvent(event);
+    debugLog("Dispatched custom event 'taxDisplayUpdated'");
+  } catch (e) {
+    console.warn("Could not dispatch custom event:", e);
   }
 }
