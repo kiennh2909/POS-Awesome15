@@ -1574,6 +1574,7 @@ export default {
 							await vm.load_print_page_tax(invoice_to_print);
 						} else if (print) {
 							vm.load_print_page(invoice_to_print);
+							await vm.load_print_page_tax(invoice_to_print);
 						}
 					} catch (printError) {
 						console.error("Printing process failed after submission:", printError);
