@@ -47,25 +47,20 @@
             </div>
           </v-alert>
 
-          <!-- Action Selection -->
-          <v-radio-group 
-            v-model="selectedAction" 
+          <!-- Info text -->
+          <v-alert 
+            type="info"
+            outlined
             class="mb-4"
-            @change="resetForm"
           >
-            <v-radio
-              label="Thiết lập cuộn hóa đơn mới"
-              value="new_roll"
-              color="primary"
-            ></v-radio>
-            <v-radio
-              label="Cập nhật thông tin cuộn hiện tại"
-              value="update"
-              color="primary"
-            ></v-radio>
-          </v-radio-group>
-
-          <v-divider class="mb-4"></v-divider>
+            <div class="d-flex align-center">
+              <v-icon left>mdi-information</v-icon>
+              <strong>Thiết lập cuộn hóa đơn mới</strong>
+            </div>
+            <div class="mt-2 text-caption">
+              Nhập thông tin để bắt đầu cuộn hóa đơn thuế mới
+            </div>
+          </v-alert>
 
           <!-- Form inputs -->
           <v-form ref="taxRollForm" v-model="formValid">
@@ -109,7 +104,7 @@
                   {{ previewText }}
                 </v-chip>
                 <span class="text-caption text--secondary">
-                  ({{ selectedAction === 'new_roll' ? 'Cuộn mới' : 'Cập nhật' }})
+                  (Cuộn mới)
                 </span>
               </div>
             </v-card-text>
@@ -133,7 +128,7 @@
             :disabled="!isFormValid"
             :loading="loading"
           >
-            {{ selectedAction === 'new_roll' ? 'Bắt Đầu Cuộn Mới' : 'Cập Nhật' }}
+            Bắt Đầu Cuộn Mới
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -161,7 +156,6 @@ export default {
       dialog: false,
       loading: false,
       formValid: false,
-      selectedAction: 'new_roll',
       newRollConfig: {
         prefix: '',
         startNumber: 1
@@ -201,7 +195,7 @@ export default {
     },
 
     previewText() {
-      if (!this.selectedAction || !this.newRollConfig.prefix || !this.newRollConfig.startNumber) {
+      if (!this.newRollConfig.prefix || !this.newRollConfig.startNumber) {
         return '';
       }
       return `${this.newRollConfig.prefix} ${this.newRollConfig.startNumber}`;
@@ -225,13 +219,8 @@ export default {
 
   methods: {
     initializeForm() {
-      // Khởi tạo form với dữ liệu hiện tại nếu có
-      if (this.posProfile.tax_roll_code) {
-        this.newRollConfig.prefix = this.posProfile.tax_roll_code;
-        this.newRollConfig.startNumber = this.posProfile.tax_current_counter || 1;
-      } else {
-        this.resetForm();
-      }
+      // Luôn reset form cho cuộn mới
+      this.resetForm();
     },
 
     resetForm() {
@@ -271,7 +260,7 @@ export default {
           name: this.posProfile.name,
           prefix: this.newRollConfig.prefix,
           startNumber: this.newRollConfig.startNumber,
-          action: this.selectedAction
+          action: 'new_roll'
         });
 
         const response = await frappe.call({
@@ -280,7 +269,7 @@ export default {
             pos_profile: this.posProfile.name.trim(),
             new_prefix: this.newRollConfig.prefix.toUpperCase().trim(),
             new_start_number: parseInt(this.newRollConfig.startNumber),
-            action: this.selectedAction
+            action: 'new_roll'
           }
         });
 
