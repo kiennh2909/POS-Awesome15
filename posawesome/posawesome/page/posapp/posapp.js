@@ -4,7 +4,7 @@ frappe.pages["posapp"].on_page_load = async function (wrapper) {
 
 	var page = frappe.ui.make_app_page({
 		parent: wrapper,
-		title: "POS Awesome",
+		title: "POS NVL",
 		single_column: true,
 	});
 
