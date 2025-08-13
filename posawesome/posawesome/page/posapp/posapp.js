@@ -31,42 +31,27 @@ frappe.pages["posapp"].on_page_load = async function (wrapper) {
 	frappe.realtime.on("pos_profile_registered", () => {
 		// Set default customer if configured
 		const setDefaultCustomer = () => {
+			console.log("=== DEBUG: setDefaultCustomer() called ===");
 			const posProfile = this.page.$PosApp.pos_profile;
+			console.log("POS Profile:", posProfile);
+			console.log("POS Profile default_customer:", posProfile?.default_customer);
+
 			if (posProfile && posProfile.default_customer) {
-				console.log("POS Profile has default customer configured:", posProfile.default_customer);
-				
-				// Multiple attempts to ensure default customer is set
-				const attemptSetDefault = (attempt = 1) => {
-					if (attempt > 5) {
-						console.error("Failed to set default customer after 5 attempts");
-						return;
-					}
-					
-					console.log(`Attempting to set default customer (attempt ${attempt})`);
-					
+				console.log("✅ POS Profile has default customer configured:", posProfile.default_customer);
+				console.log("Emitting pos_profile_updated event...");
+				// Emit event to notify Customer component about POS profile update
+				setTimeout(() => {
 					if (window.posEventBus) {
-						// First emit pos_profile_updated
+						console.log("🔄 Emitting pos_profile_updated via window.posEventBus");
 						window.posEventBus.emit("pos_profile_updated");
-						
-						// Then try to force set default customer
-						setTimeout(() => {
-							window.posEventBus.emit("force_set_default_customer", {
-								pos_profile: posProfile,
-								default_customer: posProfile.default_customer
-							});
-						}, 500);
-						
-						// If still not set, try again
-						setTimeout(() => {
-							attemptSetDefault(attempt + 1);
-						}, 2000);
 					} else {
-						setTimeout(() => attemptSetDefault(attempt), 500);
+						console.log("❌ window.posEventBus not available");
 					}
-				};
-				
-				attemptSetDefault();
+				}, 1000); // Wait for components to be ready
+			} else {
+				console.log("❌ No default customer configured or POS Profile not loaded");
 			}
+			console.log("=== END DEBUG: setDefaultCustomer() ===");
 		};
 
 		const update_totals_based_on_tax_inclusive = () => {

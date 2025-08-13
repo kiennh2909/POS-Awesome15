@@ -272,57 +272,46 @@ export default {
 
 		// Load default customer info from server
 		loadDefaultCustomerFromServer() {
-			console.log("=== LOADING DEFAULT CUSTOMER FROM SERVER ===");
-			if (!this.pos_profile) {
-				console.log("No POS profile available");
+			if (!this.pos_profile || !this.pos_profile.name) {
 				return;
 			}
-
-			const posProfileName = this.pos_profile.name || this.pos_profile.pos_profile;
-			if (!posProfileName) {
-				console.log("No POS profile name available");
-				return;
-			}
-
-			console.log("Loading default customer for POS Profile:", posProfileName);
 
 			frappe.call({
 				method: "posawesome.posawesome.api.utilities.get_default_customer",
 				args: {
-					pos_profile: posProfileName,
+					pos_profile: this.pos_profile.name,
 				},
 				callback: (r) => {
-					console.log("Server response:", r);
 					if (r.message) {
-						console.log("✅ Default customer info from server:", r.message);
+						console.log("Default customer info from server:", r.message);
 						// Add to customers list if not already present
 						const existingCustomer = this.customers.find(c => c.name === r.message.name);
 						if (!existingCustomer) {
 							this.customers.unshift(r.message);
-							console.log("✅ Added default customer to list:", r.message);
+							console.log("Added default customer to list:", r.message);
 						}
 						// Set as selected customer
 						this.customer = r.message.name;
 						this.internalCustomer = r.message.name;
-						this.tempSelectedCustomer = r.message.name;
 						this.eventBus.emit("update_customer", r.message.name);
-						console.log("✅ Default customer set from server:", r.message.customer_name);
-					} else {
-						console.log("❌ No default customer returned from server");
 					}
 				},
 				error: (err) => {
-					console.error("❌ Failed to load default customer from server:", err);
+					console.error("Failed to load default customer from server:", err);
 				}
 			});
-			console.log("=== END LOADING DEFAULT CUSTOMER FROM SERVER ===");
 		},
 
 		// Fetch customers list
 		get_customer_names() {
+			console.log("=== DEBUG: get_customer_names() called ===");
 			var vm = this;
+			console.log("Current customers.length:", this.customers.length);
+			console.log("POS Profile:", this.pos_profile);
+			
 			if (this.customers.length > 0) {
 				// If customers already loaded, just check for default customer
+				console.log("✅ Customers already loaded, checking for default customer");
 				vm.setDefaultCustomerIfConfigured();
 				return;
 			}
@@ -331,15 +320,16 @@ export default {
 			if (vm.pos_profile.posa_local_storage && getCustomerStorage().length) {
 				try {
 					vm.customers = getCustomerStorage();
-					console.log("Loaded customers from cache:", vm.customers.length);
+					console.log("✅ Loaded customers from cache:", vm.customers.length);
 					// Check for default customer after loading from cache
 					vm.setDefaultCustomerIfConfigured();
 				} catch (e) {
-					console.error("Failed to parse customer cache:", e);
+					console.error("❌ Failed to parse customer cache:", e);
 					vm.customers = [];
 				}
 			}
 
+			console.log("📡 Fetching customers from server...");
 			this.loadingCustomers = true;
 			frappe.call({
 				method: "posawesome.posawesome.api.customers.get_customer_names",
@@ -347,82 +337,92 @@ export default {
 					pos_profile: this.pos_profile.pos_profile,
 				},
 				callback: function (r) {
+					console.log("📡 Server response:", r);
 					if (r.message && r.message.length > 0) {
 						vm.customers = r.message;
-						console.log("Loaded customers from server:", vm.customers.length);
+						console.log("✅ Loaded customers from server:", vm.customers.length);
+						console.log("First few customers:", vm.customers.slice(0, 3));
 
 						if (vm.pos_profile.posa_local_storage) {
 							setCustomerStorage(r.message);
+							console.log("💾 Saved customers to local storage");
 						}
 
 						// Set default customer after loading customers from server
+						console.log("🔄 Setting default customer after server load...");
 						vm.$nextTick(() => {
 							vm.setDefaultCustomerIfConfigured();
 							// If default customer setting failed, try loading from server
 							if (!vm.customer && vm.pos_profile.default_customer) {
+								console.log("🔄 Default customer not set, trying loadDefaultCustomerFromServer...");
 								vm.loadDefaultCustomerFromServer();
 							}
 						});
+					} else {
+						console.log("❌ No customers received from server");
 					}
 					vm.loadingCustomers = false;
 				},
 				error: function (err) {
-					console.error("Failed to fetch customers:", err);
+					console.error("❌ Failed to fetch customers:", err);
 					vm.loadingCustomers = false;
 				},
 			});
+			console.log("=== END DEBUG: get_customer_names() ===");
 		},
 
 		// Method to set default customer if configured
 		setDefaultCustomerIfConfigured() {
-			console.log("=== SETTING DEFAULT CUSTOMER ===");
+			console.log("=== DEBUG: setDefaultCustomerIfConfigured() called ===");
 			console.log("POS Profile:", this.pos_profile);
-			console.log("Customers loaded:", this.customers.length);
+			console.log("POS Profile default_customer:", this.pos_profile?.default_customer);
 			console.log("Current customer:", this.customer);
+			console.log("Customers loaded:", this.customers.length);
 
-			if (!this.pos_profile) {
-				console.log("No POS Profile available");
-				return;
-			}
-
-			if (!this.pos_profile.default_customer) {
-				console.log("No default customer configured in POS Profile");
+			if (!this.pos_profile || !this.pos_profile.default_customer) {
+				console.log("❌ No default customer configured in POS Profile");
 				return;
 			}
 
 			if (this.customers.length === 0) {
-				console.log("No customers loaded yet, will try to load from server");
-				this.loadDefaultCustomerFromServer();
+				console.log("❌ No customers loaded yet, skipping default customer setting");
 				return;
 			}
 
 			// Skip if customer already selected (but allow empty string to be overridden)
 			if (this.customer && this.customer !== "" && this.customer !== null) {
-				console.log("Customer already selected:", this.customer);
+				console.log("❌ Customer already selected:", this.customer);
 				return;
 			}
 
 			const defaultCustomerId = this.pos_profile.default_customer;
-			console.log("Looking for default customer:", defaultCustomerId);
-			console.log("Available customers:", this.customers.map(c => ({name: c.name, customer_name: c.customer_name})));
+			console.log("🔍 Looking for default customer:", defaultCustomerId);
+			console.log("Available customers:", this.customers.map(c => ({ name: c.name, customer_name: c.customer_name })));
 			
 			const defaultCustomer = this.customers.find(c => c.name === defaultCustomerId);
 			if (defaultCustomer) {
-				console.log("✅ Found default customer in list:", defaultCustomer);
+				console.log("✅ Found default customer:", defaultCustomer);
+				console.log("Setting customer properties...");
+				
 				// Set all customer-related properties
 				this.customer = defaultCustomer.name;
 				this.internalCustomer = defaultCustomer.name;
 				this.tempSelectedCustomer = defaultCustomer.name;
 				
+				console.log("Customer properties set:");
+				console.log("- this.customer:", this.customer);
+				console.log("- this.internalCustomer:", this.internalCustomer);
+				console.log("- this.tempSelectedCustomer:", this.tempSelectedCustomer);
+				
 				// Emit update event
 				this.eventBus.emit("update_customer", defaultCustomer.name);
 				console.log("✅ Default customer applied successfully:", defaultCustomer.customer_name);
+				console.log("Event 'update_customer' emitted with:", defaultCustomer.name);
 			} else {
 				console.log("❌ Default customer not found in customer list:", defaultCustomerId);
-				console.log("Trying to load from server...");
-				this.loadDefaultCustomerFromServer();
+				console.log("All available customer names:", this.customers.map(c => c.name));
 			}
-			console.log("=== END SETTING DEFAULT CUSTOMER ===");
+			console.log("=== END DEBUG: setDefaultCustomerIfConfigured() ===");
 		},
 
 		new_customer() {
@@ -448,13 +448,17 @@ export default {
 
 		this.$nextTick(() => {
 			this.eventBus.on("register_pos_profile", (pos_profile) => {
+				console.log("=== EVENT: register_pos_profile ===");
 				console.log("POS Profile registered in Customer component:", pos_profile);
+				console.log("default_customer in profile:", pos_profile?.default_customer);
 				this.pos_profile = pos_profile;
 				this.get_customer_names();
 			});
 
 			this.eventBus.on("payments_register_pos_profile", (pos_profile) => {
+				console.log("=== EVENT: payments_register_pos_profile ===");
 				console.log("POS Profile registered from payments:", pos_profile);
+				console.log("default_customer in profile:", pos_profile?.default_customer);
 				this.pos_profile = pos_profile;
 				this.get_customer_names();
 			});
@@ -494,30 +498,13 @@ export default {
 
 			// Listen for POS profile updates to set default customer
 			this.eventBus.on("pos_profile_updated", () => {
+				console.log("=== EVENT: pos_profile_updated ===");
 				console.log("POS Profile updated, checking for default customer");
+				console.log("Current pos_profile:", this.pos_profile);
+				console.log("Current customers count:", this.customers.length);
 				this.$nextTick(() => {
 					this.setDefaultCustomerIfConfigured();
 				});
-			});
-
-			// Force set default customer event
-			this.eventBus.on("force_set_default_customer", (data) => {
-				console.log("Force setting default customer:", data);
-				if (data && data.pos_profile && data.default_customer) {
-					this.pos_profile = data.pos_profile;
-					
-					// If customers not loaded yet, fetch them first
-					if (this.customers.length === 0) {
-						this.get_customer_names();
-					} else {
-						this.setDefaultCustomerIfConfigured();
-					}
-					
-					// Also try loading from server if not found in local list
-					if (!this.customer || this.customer === "") {
-						this.loadDefaultCustomerFromServer();
-					}
-				}
 			});
 		});
 	},
