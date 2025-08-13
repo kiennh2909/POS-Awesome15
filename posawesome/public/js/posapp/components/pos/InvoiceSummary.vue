@@ -114,6 +114,8 @@
 						</v-btn>
 					</v-col>
 					<v-col cols="6" v-if="pos_profile.custom_allow_select_sales_order == 1">
+						<!-- SELECT S.O button commented out as requested -->
+						<!--
 						<v-btn
 							block
 							color="info"
@@ -124,6 +126,7 @@
 						>
 							{{ __("Select S.O") }}
 						</v-btn>
+						-->
 					</v-col>
 					<v-col cols="6">
 						<v-btn
