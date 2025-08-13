@@ -206,7 +206,6 @@
 						:addOne="add_one"
 						:toggleOffer="toggleOffer"
 						:changePriceListRate="change_price_list_rate"
-						:highlightedItemId="highlightedItemId"
 						@update:expanded="expanded = $event"
 						@reorder-items="handleItemReorder"
 						@add-item-from-drag="handleItemDrop"
@@ -346,8 +345,6 @@ export default {
 			show_column_selector: false, // Column selector dialog visibility
 			invoiceHeight: null,
 			tax_print_loading: false, // Loading state for tax print button
-			highlightedItemId: null, // ID of currently highlighted item
-			highlightTimeout: null, // Timeout for clearing highlight
 		};
 	},
 
@@ -434,37 +431,6 @@ export default {
 				title: __(`Item {0} added to invoice`, [item.item_name]),
 				color: "success",
 			});
-		},
-
-		// Highlight item when scanned or added
-		highlightItem(itemIdentifier) {
-			// Clear existing timeout
-			if (this.highlightTimeout) {
-				clearTimeout(this.highlightTimeout);
-			}
-
-			// Set highlighted item
-			this.highlightedItemId = itemIdentifier;
-
-			// Clear highlight after 3 seconds
-			this.highlightTimeout = setTimeout(() => {
-				this.highlightedItemId = null;
-			}, 3000);
-		},
-
-		// Override add_item to include highlighting
-		add_item_with_highlight(item) {
-			this.add_item(item);
-			
-			// Find the added item in the cart and highlight it
-			const addedItem = this.items.find(cartItem => 
-				cartItem.item_code === item.item_code || 
-				cartItem.posa_row_id === item.posa_row_id
-			);
-			
-			if (addedItem) {
-				this.highlightItem(addedItem.posa_row_id);
-			}
 		},
 
 		// Show visual feedback when item is being dragged over drop zone
@@ -1042,24 +1008,6 @@ export default {
 
 		// Increase quantity of an item (handles return logic)
 		add_one(item) {
-			// Kiểm tra tồn kho trước khi tăng số lượng (chỉ với đơn hàng thường)
-			if (!this.isReturnInvoice && !this.stock_settings?.allow_negative_stock) {
-				const newQty = item.qty + 1;
-				const availableQty = item.actual_qty || 0;
-
-				if (newQty > availableQty) {
-					this.eventBus.emit("show_message", {
-						title: __("Không đủ tồn kho"),
-						text: __(
-							`Sản phẩm "${item.item_name}" chỉ có ${availableQty} trong kho. ` +
-							`Không thể tăng số lượng lên ${newQty}.`
-						),
-						color: "error",
-					});
-					return;
-				}
-			}
-
 			// Increase quantity, return items remain negative
 			item.qty++;
 			if (item.qty == 0) {
@@ -1110,49 +1058,6 @@ export default {
 			});
 		},
 
-		// Validate stock before proceeding with payment or printing
-		async validateStockBeforePayment() {
-			if (!this.items || this.items.length === 0) {
-				this.eventBus.emit("show_message", {
-					title: __("Cart is empty. Add items before payment."),
-					color: "warning",
-				});
-				return false;
-			}
-
-			// Import stock validation functions
-			const { validateStockForOfflineInvoice, isOffline } = await import("../../../offline/index.js");
-			
-			// Only validate stock if not allowing negative stock
-			if (!this.stock_settings?.allow_negative_stock && !isOffline()) {
-				const validation = validateStockForOfflineInvoice(this.items);
-				if (!validation.isValid) {
-					// Show stock validation error
-					this.eventBus.emit("show_message", {
-						title: __("Insufficient Stock"),
-						description: validation.errorMessage,
-						color: "error",
-					});
-					
-					// Don't proceed to payment - return to invoice
-					this.eventBus.emit("show_payment", "false");
-					return false;
-				}
-			}
-			return true;
-		},
-
-		async submit_invoice() {
-			// Validate stock before submission
-			const stockValid = await this.validateStockBeforePayment();
-			if (!stockValid) {
-				return;
-			}
-
-			// Proceed with normal invoice submission
-			this.show_payment();
-		},
-
 		async print_tax_invoice() {
 			if (!this.invoice_doc || !this.pos_profile) {
 				this.eventBus.emit("show_message", {
@@ -1170,32 +1075,21 @@ export default {
 				return;
 			}
 
-			// Validate stock before printing
-			const stockValid = await this.validateStockBeforePayment();
-			if (!stockValid) {
-				return;
-			}
-
 			this.tax_print_loading = true;
 
 			try {
-				const { handleTaxPrint } = await import("./taxPrintHandler.js");
 				await handleTaxPrint(
 					this.invoice_doc,
 					this.pos_profile,
 					// onSuccess callback
 					(result) => {
 						// Update header display with the next invoice number
-						if (result && result.nextDisplay) {
-							updateHeaderTaxDisplay(result.nextDisplay);
-						}
+						updateHeaderTaxDisplay(result.nextDisplay);
 
 						// Update local POS profile state with the new counter
-						if (this.$store && result && result.newCounter) {
-							this.$store.commit('updatePosProfile', {
-								tax_current_counter: result.newCounter
-							});
-						}
+						this.$store.commit('updatePosProfile', {
+							tax_current_counter: result.newCounter
+						});
 
 						this.eventBus.emit("show_message", {
 							title: __("Tax invoice printed successfully."),
@@ -1272,11 +1166,7 @@ export default {
 			this.fetch_price_lists();
 			this.update_price_list();
 		});
-		this.eventBus.on("add_item", this.add_item_with_highlight);
-		this.eventBus.on("barcode_scanned", (item) => {
-			// Handle barcode scan with highlighting
-			this.add_item_with_highlight(item);
-		});
+		this.eventBus.on("add_item", this.add_item);
 		this.eventBus.on("update_customer", (customer) => {
 			this.customer = customer;
 		});
@@ -1372,15 +1262,9 @@ export default {
 	},
 	// Cleanup event listeners before component is destroyed
 	beforeUnmount() {
-		// Clear highlight timeout
-		if (this.highlightTimeout) {
-			clearTimeout(this.highlightTimeout);
-		}
-		
 		// Existing cleanup
 		this.eventBus.off("register_pos_profile");
 		this.eventBus.off("add_item");
-		this.eventBus.off("barcode_scanned");
 		this.eventBus.off("update_customer");
 		this.eventBus.off("fetch_customer_details");
 		this.eventBus.off("clear_invoice");
