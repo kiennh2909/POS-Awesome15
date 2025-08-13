@@ -82,7 +82,7 @@
 							hide-details
 						></v-checkbox>
 					</v-col>
-					<v-col cols="2" class="pb-0" v-if="pos_profile.posa_enable_camera_scanning">
+					<v-col cols="2" class="pb-0">
 						<v-checkbox
 							v-model="scan_add_mode"
 							:color="scan_add_mode ? 'success' : 'error'"
