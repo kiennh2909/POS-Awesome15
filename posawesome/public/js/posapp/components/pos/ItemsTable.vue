@@ -23,10 +23,14 @@
 			:header-props="headerProps"
 			@update:expanded="$emit('update:expanded', $event)"
 			:search="itemSearch"
+			:row-props="getRowProps"
 		>
 			<!-- Quantity column -->
 			<template v-slot:item.qty="{ item }">
-				<div class="amount-value">
+				<div 
+					class="amount-value" 
+					:class="{ 'highlighted-qty': isHighlighted(item) }"
+				>
 					{{ formatFloat(item.qty, hide_qty_decimals ? 0 : undefined) }}
 				</div>
 			</template>
@@ -557,6 +561,7 @@ export default {
 		isReturnInvoice: Boolean,
 		toggleOffer: Function,
 		changePriceListRate: Function,
+		highlightedItemId: String,
 	},
 	data() {
 		return {
@@ -587,6 +592,18 @@ export default {
 		},
 	},
 	methods: {
+		getRowProps({ item }) {
+			return {
+				class: this.isHighlighted(item) ? "highlighted-row" : "",
+			};
+		},
+
+		isHighlighted(item) {
+			return this.highlightedItemId && 
+				   (item.posa_row_id === this.highlightedItemId || 
+				    item.item_code === this.highlightedItemId);
+		},
+
 		onDragOverFromSelector(event) {
 			// Check if drag data is from item selector
 			const dragData = event.dataTransfer.types.includes("application/json");
@@ -950,5 +967,88 @@ export default {
 /* Expanded row styling */
 .expanded-row {
 	background-color: var(--surface-secondary);
+}
+
+/* Highlighted row styles for scanned items */
+.highlighted-row {
+	background: linear-gradient(90deg, 
+		rgba(33, 150, 243, 0.1) 0%, 
+		rgba(33, 150, 243, 0.05) 50%, 
+		rgba(33, 150, 243, 0.1) 100%) !important;
+	border-left: 4px solid #2196F3 !important;
+	border-right: 4px solid #2196F3 !important;
+	animation: highlightPulse 2s ease-in-out, slideIn 0.3s ease-out;
+	transform: translateX(0);
+	transition: all 0.3s ease;
+}
+
+/* Dark theme highlighted row */
+:deep(.dark-theme) .highlighted-row,
+:deep(.v-theme--dark) .highlighted-row {
+	background: linear-gradient(90deg, 
+		rgba(100, 181, 246, 0.15) 0%, 
+		rgba(100, 181, 246, 0.08) 50%, 
+		rgba(100, 181, 246, 0.15) 100%) !important;
+	border-left: 4px solid #64B5F6 !important;
+	border-right: 4px solid #64B5F6 !important;
+}
+
+/* Highlighted quantity styling */
+.highlighted-qty {
+	font-size: 150% !important;
+	font-weight: bold !important;
+	color: #1976D2 !important;
+	text-shadow: 0 0 2px rgba(25, 118, 210, 0.3);
+	animation: qtyPulse 1.5s ease-in-out;
+}
+
+:deep(.dark-theme) .highlighted-qty,
+:deep(.v-theme--dark) .highlighted-qty {
+	color: #64B5F6 !important;
+	text-shadow: 0 0 2px rgba(100, 181, 246, 0.3);
+}
+
+/* Animations */
+@keyframes highlightPulse {
+	0% {
+		transform: translateX(-5px);
+		box-shadow: 0 0 0 rgba(33, 150, 243, 0.7);
+	}
+	25% {
+		transform: translateX(0);
+		box-shadow: 0 0 20px rgba(33, 150, 243, 0.4);
+	}
+	50% {
+		transform: translateX(2px);
+		box-shadow: 0 0 15px rgba(33, 150, 243, 0.6);
+	}
+	75% {
+		transform: translateX(0);
+		box-shadow: 0 0 10px rgba(33, 150, 243, 0.3);
+	}
+	100% {
+		transform: translateX(0);
+		box-shadow: 0 0 0 rgba(33, 150, 243, 0);
+	}
+}
+
+@keyframes slideIn {
+	0% {
+		transform: translateX(-10px);
+		opacity: 0.8;
+	}
+	100% {
+		transform: translateX(0);
+		opacity: 1;
+	}
+}
+
+@keyframes qtyPulse {
+	0%, 100% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.1);
+	}
 }
 </style>

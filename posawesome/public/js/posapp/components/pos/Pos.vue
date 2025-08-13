@@ -19,7 +19,27 @@
 				cols="12"
 				class="pos dynamic-col"
 			>
-				<ItemsSelector></ItemsSelector>
+				<ItemsSelector
+					:searchKeyword="searchKeyword"
+					:pos_profile="pos_profile"
+					:selectedItemGroup="selectedItemGroup"
+					:selectedBrand="selectedBrand"
+					:items="items"
+					:itemsPerPage="itemsPerPage"
+					:totalItems="totalItems"
+					:loading="loading"
+					:brands="brands"
+					:itemGroups="itemGroups"
+					:addItem="add_item_to_invoice"
+					:loadMore="load_more_items"
+					:searchItems="search_items"
+					:setSelectedItemGroup="setSelectedItemGroup"
+					:setSelectedBrand="setSelectedBrand"
+					:clearFilters="clear_filters"
+					:formatCurrency="formatCurrency"
+					:currencySymbol="currencySymbol"
+					:highlightedItemId="highlightedItemId"
+				/>
 			</v-col>
 			<v-col v-show="offers" xl="5" lg="5" md="5" sm="5" cols="12" class="pos dynamic-col">
 				<PosOffers></PosOffers>
@@ -50,7 +70,6 @@ import SalesOrders from "./SalesOrders.vue";
 import ClosingDialog from "./ClosingDialog.vue";
 import NewAddress from "./NewAddress.vue";
 import Variants from "./Variants.vue";
-import Returns from "./Returns.vue";
 import MpesaPayments from "./Mpesa-Payments.vue";
 import TaxRollDialog from "./TaxRollDialog.vue";
 import {
@@ -74,9 +93,20 @@ export default {
 			dialog: false,
 			pos_profile: "",
 			pos_opening_shift: "",
-			payment: false,
-			offers: false,
-			coupons: false,
+			searchKeyword: "",
+			items: [],
+			brands: [],
+			itemGroups: [],
+			selectedBrand: "",
+			selectedItemGroup: "",
+			showAddCustomer: false,
+			giveCredit: false,
+			updateCustomer: false,
+			loading: false,
+			itemsPerPage: 60,
+			totalItems: 0,
+			highlightedItemId: null,
+			highlightTimeout: null,
 		};
 	},
 
@@ -255,6 +285,28 @@ export default {
 				this.eventBus.emit("set_pos_settings", doc);
 			});
 		},
+
+		add_item_to_invoice(item) {
+			console.log("Adding item to invoice:", item);
+			this.highlightItemInSelector(item.item_code);
+			this.eventBus.emit("add_item", item);
+		},
+
+		// Highlight item in selector when scanned or added
+		highlightItemInSelector(itemIdentifier) {
+			// Clear existing timeout
+			if (this.highlightTimeout) {
+				clearTimeout(this.highlightTimeout);
+			}
+
+			// Set highlighted item
+			this.highlightedItemId = itemIdentifier;
+
+			// Clear highlight after 3 seconds
+			this.highlightTimeout = setTimeout(() => {
+				this.highlightedItemId = null;
+			}, 3000);
+		},
 	},
 
 	mounted: function () {
@@ -292,9 +344,19 @@ export default {
 			this.eventBus.on("submit_closing_pos", (data) => {
 				this.submit_closing_pos(data);
 			});
+			this.eventBus.on("barcode_scanned", (item) => {
+				// Highlight item in selector when barcode is scanned
+				this.highlightItemInSelector(item.item_code);
+			});
 		});
 	},
 	beforeUnmount() {
+		// Clear highlight timeout
+		if (this.highlightTimeout) {
+			clearTimeout(this.highlightTimeout);
+		}
+
+		// Clean up event listeners
 		this.eventBus.off("close_opening_dialog");
 		this.eventBus.off("register_pos_data");
 		this.eventBus.off("LoadPosProfile");
@@ -302,6 +364,7 @@ export default {
 		this.eventBus.off("show_coupons");
 		this.eventBus.off("open_closing_dialog");
 		this.eventBus.off("submit_closing_pos");
+		this.eventBus.off("barcode_scanned");
 	},
 	// In the created() or mounted() lifecycle hook
 	created() {

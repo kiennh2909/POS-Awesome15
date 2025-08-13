@@ -206,6 +206,7 @@
 						:addOne="add_one"
 						:toggleOffer="toggleOffer"
 						:changePriceListRate="change_price_list_rate"
+						:highlightedItemId="highlightedItemId"
 						@update:expanded="expanded = $event"
 						@reorder-items="handleItemReorder"
 						@add-item-from-drag="handleItemDrop"
@@ -345,6 +346,8 @@ export default {
 			show_column_selector: false, // Column selector dialog visibility
 			invoiceHeight: null,
 			tax_print_loading: false, // Loading state for tax print button
+			highlightedItemId: null, // ID of currently highlighted item
+			highlightTimeout: null, // Timeout for clearing highlight
 		};
 	},
 
@@ -431,6 +434,37 @@ export default {
 				title: __(`Item {0} added to invoice`, [item.item_name]),
 				color: "success",
 			});
+		},
+
+		// Highlight item when scanned or added
+		highlightItem(itemIdentifier) {
+			// Clear existing timeout
+			if (this.highlightTimeout) {
+				clearTimeout(this.highlightTimeout);
+			}
+
+			// Set highlighted item
+			this.highlightedItemId = itemIdentifier;
+
+			// Clear highlight after 3 seconds
+			this.highlightTimeout = setTimeout(() => {
+				this.highlightedItemId = null;
+			}, 3000);
+		},
+
+		// Override add_item to include highlighting
+		add_item_with_highlight(item) {
+			this.add_item(item);
+			
+			// Find the added item in the cart and highlight it
+			const addedItem = this.items.find(cartItem => 
+				cartItem.item_code === item.item_code || 
+				cartItem.posa_row_id === item.posa_row_id
+			);
+			
+			if (addedItem) {
+				this.highlightItem(addedItem.posa_row_id);
+			}
 		},
 
 		// Show visual feedback when item is being dragged over drop zone
@@ -1238,7 +1272,11 @@ export default {
 			this.fetch_price_lists();
 			this.update_price_list();
 		});
-		this.eventBus.on("add_item", this.add_item);
+		this.eventBus.on("add_item", this.add_item_with_highlight);
+		this.eventBus.on("barcode_scanned", (item) => {
+			// Handle barcode scan with highlighting
+			this.add_item_with_highlight(item);
+		});
 		this.eventBus.on("update_customer", (customer) => {
 			this.customer = customer;
 		});
@@ -1334,9 +1372,15 @@ export default {
 	},
 	// Cleanup event listeners before component is destroyed
 	beforeUnmount() {
+		// Clear highlight timeout
+		if (this.highlightTimeout) {
+			clearTimeout(this.highlightTimeout);
+		}
+		
 		// Existing cleanup
 		this.eventBus.off("register_pos_profile");
 		this.eventBus.off("add_item");
+		this.eventBus.off("barcode_scanned");
 		this.eventBus.off("update_customer");
 		this.eventBus.off("fetch_customer_details");
 		this.eventBus.off("clear_invoice");

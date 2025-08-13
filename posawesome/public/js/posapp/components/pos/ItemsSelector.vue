@@ -166,6 +166,18 @@
 								@dragstart="onDragStart($event, item)"
 								@dragend="onDragEnd"
 								@click="add_item(item)"
+								:disabled="isItemDisabled(item)"
+								:class="[
+									'item-card',
+									'elevation-2',
+									'cursor-pointer',
+									'transition-all',
+									'duration-200',
+									'item-hover',
+									{ 'item-disabled': isItemDisabled(item) },
+									{ 'item-out-of-stock': item.actual_qty <= 0 },
+									{ 'highlighted-item-card': isHighlighted(item) },
+								]"
 							>
 								<v-img
 									:src="
@@ -359,6 +371,8 @@ import {
 	saveItemDetailsCache,
 } from "../../../offline/index.js";
 import { responsiveMixin } from "../../mixins/responsive.js";
+import { get_currency_symbol } from "../../../utils/currency.js";
+import { onScan } from "../../../utils/scanner.js";
 
 export default {
 	mixins: [format, responsiveMixin],
@@ -656,7 +670,6 @@ export default {
 			const vm = this;
 			this.loading = true;
 
-			// Removed noisy debug log
 			let search = this.get_search(this.first_search);
 			let gr = vm.item_group !== "ALL" ? vm.item_group.toLowerCase() : "";
 			let sr = search || "";
@@ -675,7 +688,6 @@ export default {
 				this.loading = false;
 				return;
 			}
-			// Removed noisy debug log
 
 			// Attempt to load cached items for the current price list
 			if (!force_server && !this.pos_profile.pose_use_limit_search) {
@@ -733,7 +745,6 @@ export default {
 				}
 				return;
 			}
-			// Removed noisy debug log
 
 			if (this.itemWorker) {
 				try {
@@ -754,7 +765,6 @@ export default {
 					});
 
 					const text = await res.text();
-					// console.log(text)
 					this.itemWorker.onmessage = async (ev) => {
 						if (this.items_request_token !== request_token) return;
 						if (ev.data.type === "parsed") {
@@ -977,7 +987,6 @@ export default {
 					title: __("This is an item template. Please choose a variant."),
 					color: "warning",
 				});
-				console.log("sending profile", this.pos_profile);
 				this.eventBus.emit("open_variants_model", item, variants, this.pos_profile);
 			} else {
 				if (item.actual_qty === 0 && this.pos_profile.posa_display_items_in_stock) {
@@ -1025,7 +1034,7 @@ export default {
 				this.qty = 1;
 			}
 		},
-		async enter_event() {
+		enter_event() {
 			let match = false;
 			if (!this.filtered_items.length || !this.first_search) {
 				return;
@@ -1744,6 +1753,15 @@ export default {
 				console.error("Failed to load item selector settings:", e);
 			}
 		},
+
+		// Highlight props and methods for ItemsSelector
+		highlightedItemId: String, // Add this prop
+
+		isHighlighted(item) {
+			return this.highlightedItemId &&
+				   (item.item_code === this.highlightedItemId ||
+				    item.name === this.highlightedItemId);
+		},
 	},
 
 	computed: {
@@ -1932,7 +1950,6 @@ export default {
 					console.error("Filename:", event.filename);
 					console.error("Line number:", event.lineno);
 				};
-				console.log("Created worker nowwwwww");
 			} catch (e) {
 				console.error("Failed to start item worker", e);
 				this.itemWorker = null;
@@ -2175,5 +2192,77 @@ export default {
 	.cards {
 		padding: var(--dynamic-xs) !important;
 	}
+}
+
+/* Item out of stock styling */
+.item-out-of-stock {
+	opacity: 0.6;
+	background-color: rgba(255, 0, 0, 0.05) !important;
+}
+
+/* Highlighted item card for scanned items */
+.highlighted-item-card {
+	background: linear-gradient(135deg,
+		rgba(33, 150, 243, 0.15) 0%,
+		rgba(33, 150, 243, 0.08) 50%,
+		rgba(33, 150, 243, 0.15) 100%) !important;
+	border-left: 4px solid #2196F3 !important; /* Blue left border */
+	border-right: 4px solid #2196F3 !important; /* Blue right border */
+	animation: itemCardPulse 2s ease-in-out, itemCardSlide 0.4s ease-out;
+	transform: translateY(0);
+	box-shadow: 0 4px 20px rgba(33, 150, 243, 0.3) !important;
+}
+
+/* Dark theme highlighted card */
+:deep(.dark-theme) .highlighted-item-card,
+:deep(.v-theme--dark) .highlighted-item-card {
+	background: linear-gradient(135deg,
+		rgba(100, 181, 246, 0.2) 0%,
+		rgba(100, 181, 246, 0.1) 50%,
+		rgba(100, 181, 246, 0.2) 100%) !important;
+	border-left: 4px solid #64B5F6 !important; /* Blue left border */
+	border-right: 4px solid #64B5F6 !important; /* Blue right border */
+	box-shadow: 0 4px 20px rgba(100, 181, 246, 0.3) !important;
+}
+
+/* Highlighted item card animations */
+@keyframes itemCardPulse {
+	0% {
+		transform: translateY(-3px) scale(0.98);
+		box-shadow: 0 2px 10px rgba(33, 150, 243, 0.6);
+	}
+	25% {
+		transform: translateY(0) scale(1.02);
+		box-shadow: 0 6px 25px rgba(33, 150, 243, 0.4);
+	}
+	50% {
+		transform: translateY(1px) scale(1.01);
+		box-shadow: 0 5px 20px rgba(33, 150, 243, 0.5);
+	}
+	75% {
+		transform: translateY(0) scale(1);
+		box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+	}
+	100% {
+		transform: translateY(0) scale(1);
+		box-shadow: 0 4px 20px rgba(33, 150, 243, 0.3);
+	}
+}
+
+@keyframes itemCardSlide {
+	0% {
+		transform: translateY(-8px);
+		opacity: 0.9;
+	}
+	100% {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+/* Style for quantity text in highlighted items */
+.highlighted-item-card .text-caption.golden--text {
+	font-size: 1.5em !important; /* Larger font size */
+	font-weight: bold;
 }
 </style>
