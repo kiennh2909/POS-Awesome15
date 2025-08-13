@@ -60,31 +60,37 @@ export function validateStockForOfflineInvoice(items) {
 	const stockCache = memory.local_stock_cache || {};
 	const invalidItems = [];
 
+	if (!items || !Array.isArray(items)) {
+		return { isValid: true, invalidItems: [], errorMessage: "" };
+	}
+
 	items.forEach((item) => {
+		if (!item || !item.item_code) return;
+		
 		const itemCode = item.item_code;
 		const requestedQty = Math.abs(item.qty || 0);
 		const currentStock = stockCache[itemCode]?.actual_qty || 0;
 
-		if (currentStock - requestedQty < 0) {
+		if (requestedQty > 0 && currentStock - requestedQty < 0) {
 			invalidItems.push({
 				item_code: itemCode,
 				item_name: item.item_name || itemCode,
 				requested_qty: requestedQty,
-				available_qty: currentStock,
+				available_qty: Math.max(0, currentStock),
+				shortfall: requestedQty - currentStock,
 			});
 		}
 	});
 
-	// Create clean error message
+	// Create clean error message in Vietnamese
 	let errorMessage = "";
 	if (invalidItems.length === 1) {
 		const item = invalidItems[0];
-		errorMessage = `Not enough stock for ${item.item_name}. You need ${item.requested_qty} but only ${item.available_qty} available.`;
+		errorMessage = `Không đủ tồn kho cho sản phẩm "${item.item_name}". Cần ${item.requested_qty} nhưng chỉ có ${item.available_qty} trong kho.`;
 	} else if (invalidItems.length > 1) {
-		errorMessage =
-			"Insufficient stock for multiple items:\n" +
+		errorMessage = "Không đủ tồn kho cho nhiều sản phẩm:\n" +
 			invalidItems
-				.map((item) => `• ${item.item_name}: Need ${item.requested_qty}, Have ${item.available_qty}`)
+				.map((item) => `• ${item.item_name}: Cần ${item.requested_qty}, Có ${item.available_qty}`)
 				.join("\n");
 	}
 

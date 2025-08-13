@@ -168,7 +168,7 @@
 							theme="dark"
 							size="large"
 							prepend-icon="mdi-credit-card"
-							@click="$emit('show-payment')"
+							@click="show_payment"
 							class="summary-btn"
 						>
 							{{ __("PAY") }}
@@ -225,6 +225,35 @@ export default {
 			return false;
 		},
 	},
+	methods: {
+		async show_payment() {
+			// Validate stock before showing payment
+			if (!this.$parent.validateStockBeforePayment) {
+				// Fallback validation if parent method doesn't exist
+				const { validateStockForOfflineInvoice } = await import("../../../offline/index.js");
+
+				if (this.$parent.items && this.$parent.items.length > 0) {
+					const validation = validateStockForOfflineInvoice(this.$parent.items);
+					if (!validation.isValid) {
+						this.$parent.eventBus.emit("show_message", {
+							title: __("Insufficient Stock"),
+							description: validation.errorMessage,
+							color: "error",
+						});
+						return;
+					}
+				}
+			} else {
+				// Use parent validation method
+				const stockValid = await this.$parent.validateStockBeforePayment();
+				if (!stockValid) {
+					return;
+				}
+			}
+
+			this.$emit("show-payment");
+		},
+	}
 };
 </script>
 

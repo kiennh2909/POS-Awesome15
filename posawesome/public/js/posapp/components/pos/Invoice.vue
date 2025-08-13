@@ -1058,6 +1058,49 @@ export default {
 			});
 		},
 
+		// Validate stock before proceeding with payment or printing
+		async validateStockBeforePayment() {
+			if (!this.items || this.items.length === 0) {
+				this.eventBus.emit("show_message", {
+					title: __("Cart is empty. Add items before payment."),
+					color: "warning",
+				});
+				return false;
+			}
+
+			// Import stock validation functions
+			const { validateStockForOfflineInvoice, isOffline } = await import("../../../offline/index.js");
+			
+			// Only validate stock if not allowing negative stock
+			if (!this.stock_settings?.allow_negative_stock && !isOffline()) {
+				const validation = validateStockForOfflineInvoice(this.items);
+				if (!validation.isValid) {
+					// Show stock validation error
+					this.eventBus.emit("show_message", {
+						title: __("Insufficient Stock"),
+						description: validation.errorMessage,
+						color: "error",
+					});
+					
+					// Don't proceed to payment - return to invoice
+					this.eventBus.emit("show_payment", "false");
+					return false;
+				}
+			}
+			return true;
+		},
+
+		async submit_invoice() {
+			// Validate stock before submission
+			const stockValid = await this.validateStockBeforePayment();
+			if (!stockValid) {
+				return;
+			}
+
+			// Proceed with normal invoice submission
+			this.show_payment();
+		},
+
 		async print_tax_invoice() {
 			if (!this.invoice_doc || !this.pos_profile) {
 				this.eventBus.emit("show_message", {
@@ -1075,21 +1118,32 @@ export default {
 				return;
 			}
 
+			// Validate stock before printing
+			const stockValid = await this.validateStockBeforePayment();
+			if (!stockValid) {
+				return;
+			}
+
 			this.tax_print_loading = true;
 
 			try {
+				const { handleTaxPrint } = await import("./taxPrintHandler.js");
 				await handleTaxPrint(
 					this.invoice_doc,
 					this.pos_profile,
 					// onSuccess callback
 					(result) => {
 						// Update header display with the next invoice number
-						updateHeaderTaxDisplay(result.nextDisplay);
+						if (result && result.nextDisplay) {
+							updateHeaderTaxDisplay(result.nextDisplay);
+						}
 
 						// Update local POS profile state with the new counter
-						this.$store.commit('updatePosProfile', {
-							tax_current_counter: result.newCounter
-						});
+						if (this.$store && result && result.newCounter) {
+							this.$store.commit('updatePosProfile', {
+								tax_current_counter: result.newCounter
+							});
+						}
 
 						this.eventBus.emit("show_message", {
 							title: __("Tax invoice printed successfully."),
