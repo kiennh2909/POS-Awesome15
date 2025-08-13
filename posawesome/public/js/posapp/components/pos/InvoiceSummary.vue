@@ -89,6 +89,7 @@
 			<!-- Action Buttons -->
 			<v-col cols="12" md="5">
 				<v-row dense>
+					<!-- Row 1: SAVE & CLEAR và LOAD DRAFTS -->
 					<v-col cols="6">
 						<v-btn
 							block
@@ -98,7 +99,7 @@
 							@click="$emit('save-and-clear')"
 							class="summary-btn"
 						>
-							{{ __("Save & Clear") }}
+							{{ __("SAVE & CLEAR") }}
 						</v-btn>
 					</v-col>
 					<v-col cols="6">
@@ -110,23 +111,22 @@
 							@click="$emit('load-drafts')"
 							class="white-text-btn summary-btn"
 						>
-							{{ __("Load Drafts") }}
+							{{ __("LOAD DRAFTS") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6" v-if="pos_profile.custom_allow_select_sales_order == 1">
-						<!-- SELECT S.O button commented out as requested -->
-						<!--
+
+					<!-- Row 2: TRẢ HÀNG BẢN và CANCEL SALE -->
+					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1">
 						<v-btn
 							block
 							color="info"
 							theme="dark"
-							prepend-icon="mdi-book-search"
-							@click="$emit('select-order')"
+							prepend-icon="mdi-backup-restore"
+							@click="$emit('open-returns')"
 							class="summary-btn"
 						>
-							{{ __("Select S.O") }}
+							{{ __("TRẢ HÀNG BẢN") }}
 						</v-btn>
-						-->
 					</v-col>
 					<v-col cols="6">
 						<v-btn
@@ -137,21 +137,11 @@
 							@click="$emit('cancel-sale')"
 							class="summary-btn"
 						>
-							{{ __("Cancel Sale") }}
+							{{ __("CANCEL SALE") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1">
-						<v-btn
-							block
-							color="secondary"
-							theme="dark"
-							prepend-icon="mdi-backup-restore"
-							@click="$emit('open-returns')"
-							class="summary-btn"
-						>
-							{{ __("Sales Return") }}
-						</v-btn>
-					</v-col>
+
+					<!-- Row 3: PRINT DRAFT (nếu có) -->
 					<v-col cols="6" v-if="pos_profile.posa_allow_print_draft_invoices">
 						<v-btn
 							block
@@ -161,9 +151,14 @@
 							@click="$emit('print-draft')"
 							class="summary-btn"
 						>
-							{{ __("Print Draft") }}
+							{{ __("PRINT DRAFT") }}
 						</v-btn>
 					</v-col>
+					<!-- Empty col để giữ layout cân đối khi chỉ có 1 nút ở row này -->
+					<v-col cols="6" v-if="pos_profile.posa_allow_print_draft_invoices">
+					</v-col>
+
+					<!-- Row cuối: PAY button full width -->
 					<v-col cols="12">
 						<v-btn
 							block
