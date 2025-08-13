@@ -3,11 +3,10 @@
 		:class="['cards mb-0 mt-3 py-2 px-3 rounded-lg resizable', isDarkTheme ? '' : 'bg-grey-lighten-4']"
 		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
 	>
-		<v-row dense>
-			<!-- Action Buttons (moved to left) -->
+		<!-- Row 1: SAVE & CLEAR, TRẢ HÀNG BÁN, Total Qty, Additional Discount -->
+		<v-row dense class="mb-2">
 			<v-col cols="12" md="6">
-				<v-row dense class="action-buttons-row">
-					<!-- Row 1: SAVE & CLEAR và LOAD DRAFTS -->
+				<v-row dense>
 					<v-col cols="6" class="button-col">
 						<v-btn
 							block
@@ -20,20 +19,6 @@
 							{{ __("SAVE & CLEAR") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6" class="button-col">
-						<v-btn
-							block
-							color="warning"
-							theme="dark"
-							prepend-icon="mdi-file-document"
-							@click="$emit('load-drafts')"
-							class="white-text-btn summary-btn"
-						>
-							{{ __("LOAD DRAFTS") }}
-						</v-btn>
-					</v-col>
-
-					<!-- Row 2: TRẢ HÀNG BẢN và CANCEL SALE -->
 					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1" class="button-col">
 						<v-btn
 							block
@@ -46,50 +31,8 @@
 							{{ __("TRẢ HÀNG BÁN") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6" class="button-col">
-						<v-btn
-							block
-							color="error"
-							theme="dark"
-							prepend-icon="mdi-close-circle"
-							@click="$emit('cancel-sale')"
-							class="summary-btn"
-						>
-							{{ __("CANCEL SALE") }}
-						</v-btn>
-					</v-col>
-
-					<!-- Row 3: PRINT DRAFT và PAY side by side -->
-					<v-col cols="6" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col-large">
-						<v-btn
-							block
-							color="primary"
-							theme="dark"
-							prepend-icon="mdi-printer"
-							@click="$emit('print-draft')"
-							class="summary-btn large-btn"
-							size="large"
-						>
-							{{ __("PRINT DRAFT") }}
-						</v-btn>
-					</v-col>
-					<v-col cols="6" class="button-col-pay">
-						<v-btn
-							block
-							color="success"
-							theme="dark"
-							size="x-large"
-							prepend-icon="mdi-credit-card"
-							@click="$emit('show-payment')"
-							class="summary-btn pay-btn"
-						>
-							{{ __("PAY") }}
-						</v-btn>
-					</v-col>
 				</v-row>
 			</v-col>
-
-			<!-- Summary Info (moved to right) -->
 			<v-col cols="12" md="6">
 				<v-row dense>
 					<!-- Total Qty -->
@@ -104,7 +47,7 @@
 							color="accent"
 						/>
 					</v-col>
-					<!-- Additional Discount (Amount or Percentage) -->
+					<!-- Additional Discount -->
 					<v-col cols="6" v-if="!pos_profile.posa_use_percentage_discount">
 						<v-text-field
 							:model-value="additional_discount"
@@ -121,7 +64,6 @@
 							"
 						/>
 					</v-col>
-
 					<v-col cols="6" v-else>
 						<v-text-field
 							:model-value="additional_discount_percentage"
@@ -140,7 +82,42 @@
 							"
 						/>
 					</v-col>
+				</v-row>
+			</v-col>
+		</v-row>
 
+		<!-- Row 2: LOAD DRAFTS, CANCEL SALE, Items Discount, Total -->
+		<v-row dense class="mb-2">
+			<v-col cols="12" md="6">
+				<v-row dense>
+					<v-col cols="6" class="button-col">
+						<v-btn
+							block
+							color="warning"
+							theme="dark"
+							prepend-icon="mdi-file-document"
+							@click="$emit('load-drafts')"
+							class="white-text-btn summary-btn"
+						>
+							{{ __("LOAD DRAFTS") }}
+						</v-btn>
+					</v-col>
+					<v-col cols="6" class="button-col">
+						<v-btn
+							block
+							color="error"
+							theme="dark"
+							prepend-icon="mdi-close-circle"
+							@click="$emit('cancel-sale')"
+							class="summary-btn"
+						>
+							{{ __("CANCEL SALE") }}
+						</v-btn>
+					</v-col>
+				</v-row>
+			</v-col>
+			<v-col cols="12" md="6">
+				<v-row dense>
 					<!-- Items Discount -->
 					<v-col cols="6">
 						<v-text-field
@@ -154,8 +131,7 @@
 							readonly
 						/>
 					</v-col>
-
-					<!-- Total (moved to maintain row alignment) -->
+					<!-- Total -->
 					<v-col cols="6">
 						<v-text-field
 							:model-value="formatCurrency(subtotal)"
@@ -169,6 +145,40 @@
 						/>
 					</v-col>
 				</v-row>
+			</v-col>
+		</v-row>
+
+		<!-- Row 3: PRINT DRAFT (full width) and PAY (larger) -->
+		<v-row dense>
+			<v-col cols="12" md="6">
+				<v-row dense>
+					<v-col cols="12" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col-large mb-2">
+						<v-btn
+							block
+							color="primary"
+							theme="dark"
+							prepend-icon="mdi-printer"
+							@click="$emit('print-draft')"
+							class="summary-btn large-btn"
+							size="large"
+						>
+							{{ __("PRINT DRAFT") }}
+						</v-btn>
+					</v-col>
+				</v-row>
+			</v-col>
+			<v-col cols="12" md="6">
+				<v-btn
+					block
+					color="success"
+					theme="dark"
+					size="x-large"
+					prepend-icon="mdi-credit-card"
+					@click="$emit('show-payment')"
+					class="summary-btn pay-btn"
+				>
+					{{ __("PAY") }}
+				</v-btn>
 			</v-col>
 		</v-row>
 	</v-card>
