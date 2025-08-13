@@ -4,7 +4,7 @@
 		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
 	>
 		<!-- Row 1: SAVE & CLEAR, TRẢ HÀNG BÁN, Total Qty, Additional Discount -->
-		<v-row dense class="mb-2">
+		<v-row dense class="mb-1">
 			<v-col cols="12" md="6">
 				<v-row dense>
 					<v-col cols="6" class="button-col">
@@ -87,7 +87,7 @@
 		</v-row>
 
 		<!-- Row 2: LOAD DRAFTS, CANCEL SALE, Items Discount, Total -->
-		<v-row dense class="mb-2">
+		<v-row dense class="mb-1">
 			<v-col cols="12" md="6">
 				<v-row dense>
 					<v-col cols="6" class="button-col">
@@ -271,18 +271,18 @@ export default {
 }
 
 .button-col {
-	margin-bottom: 6px;
-	padding: 2px;
+	margin-bottom: 3px;
+	padding: 1px;
 }
 
 .button-col-large {
-	margin-bottom: 6px;
-	padding: 2px;
+	margin-bottom: 3px;
+	padding: 1px;
 }
 
 .button-col-pay {
-	margin-bottom: 6px;
-	padding: 2px;
+	margin-bottom: 3px;
+	padding: 1px;
 }
 
 /* Large button styling for PRINT DRAFT */
