@@ -1,0 +1,62 @@
+Traceback (most recent call last):
+  File "apps/frappe/frappe/app.py", line 115, in application
+    response = frappe.api.handle(request)
+  File "apps/frappe/frappe/api/__init__.py", line 49, in handle
+    data = endpoint(**arguments)
+  File "apps/frappe/frappe/api/v1.py", line 36, in handle_rpc_call
+    return frappe.handler.handle()
+  File "apps/frappe/frappe/handler.py", line 51, in handle
+    data = execute_cmd(cmd)
+  File "apps/frappe/frappe/handler.py", line 84, in execute_cmd
+    return frappe.call(method, **frappe.form_dict)
+  File "apps/frappe/frappe/__init__.py", line 1739, in call
+    return fn(*args, **newargs)
+  File "apps/frappe/frappe/utils/typing_validations.py", line 31, in wrapper
+    return func(*args, **kwargs)
+  File "apps/posawesome/posawesome/posawesome/doctype/pos_closing_shift/pos_closing_shift.py", line 147, in make_closing_shift_from_opening
+    submit_printed_invoices(opening_shift.get("name"))
+  File "apps/posawesome/posawesome/posawesome/doctype/pos_closing_shift/pos_closing_shift.py", line 289, in submit_printed_invoices
+    invoice_doc.submit()
+  File "apps/frappe/frappe/utils/typing_validations.py", line 31, in wrapper
+    return func(*args, **kwargs)
+  File "apps/frappe/frappe/model/document.py", line 1093, in submit
+    return self._submit()
+  File "apps/frappe/frappe/model/document.py", line 1076, in _submit
+    return self.save()
+  File "apps/frappe/frappe/model/document.py", line 378, in save
+    return self._save(*args, **kwargs)
+  File "apps/frappe/frappe/model/document.py", line 431, in _save
+    self.run_post_save_methods()
+  File "apps/frappe/frappe/model/document.py", line 1176, in run_post_save_methods
+    self.run_method("on_submit")
+  File "apps/frappe/frappe/model/document.py", line 1007, in run_method
+    out = Document.hook(fn)(self, *args, **kwargs)
+  File "apps/frappe/frappe/model/document.py", line 1367, in composer
+    return composed(self, method, *args, **kwargs)
+  File "apps/frappe/frappe/model/document.py", line 1349, in runner
+    add_to_return_value(self, fn(self, *args, **kwargs))
+  File "apps/frappe/frappe/model/document.py", line 1004, in fn
+    return method_object(*args, **kwargs)
+  File "apps/erpnext/erpnext/accounts/doctype/sales_invoice/sales_invoice.py", line 465, in on_submit
+    self.update_stock_ledger()
+  File "apps/erpnext/erpnext/controllers/selling_controller.py", line 591, in update_stock_ledger
+    self.make_sl_entries(sl_entries, allow_negative_stock=allow_negative_stock)
+  File "apps/erpnext/erpnext/controllers/stock_controller.py", line 1725, in make_sl_entries
+    make_sl_entries(sl_entries, allow_negative_stock, via_landed_cost_voucher)
+  File "apps/erpnext/erpnext/stock/stock_ledger.py", line 110, in make_sl_entries
+    repost_current_voucher(args, allow_negative_stock, via_landed_cost_voucher)
+  File "apps/erpnext/erpnext/stock/stock_ledger.py", line 126, in repost_current_voucher
+    update_entries_after(
+  File "apps/erpnext/erpnext/stock/stock_ledger.py", line 570, in __init__
+    self.build()
+  File "apps/erpnext/erpnext/stock/stock_ledger.py", line 652, in build
+    self.raise_exceptions()
+  File "apps/erpnext/erpnext/stock/stock_ledger.py", line 1549, in raise_exceptions
+    frappe.throw(message, NegativeStockError, title=_("Insufficient Stock"))
+  File "apps/frappe/frappe/__init__.py", line 606, in throw
+    msgprint(
+  File "apps/frappe/frappe/__init__.py", line 571, in msgprint
+    _raise_exception()
+  File "apps/frappe/frappe/__init__.py", line 522, in _raise_exception
+    raise exc
+erpnext.stock.stock_ledger.NegativeStockError: <strong>5.0</strong> units of <a href="/app/Form/Item/4897176044747" style="font-weight: bold;">Item 4897176044747: ARIEL NG NANG SOM 1.7L</a> needed in <a href="/app/Form/Warehouse/DaiLoan_KHO_TONG" style="font-weight: bold;">Warehouse DaiLoan_KHO_TONG</a> to complete this transaction.
