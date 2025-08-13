@@ -1034,7 +1034,7 @@ export default {
 				this.qty = 1;
 			}
 		},
-		enter_event() {
+		async enter_event() {
 			let match = false;
 			if (!this.filtered_items.length || !this.first_search) {
 				return;
