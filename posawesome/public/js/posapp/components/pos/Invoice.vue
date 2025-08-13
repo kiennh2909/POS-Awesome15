@@ -1202,6 +1202,9 @@ Bạn có muốn tiếp tục tăng số lượng không?`;
 						message: warningMessage,
 						indicator: "red"
 					});
+					
+					// Reset any loading states
+					this.resetLoadingStates();
 					return false;
 				} else {
 					// If negative stock is allowed, show warning but allow to continue
@@ -1214,10 +1217,12 @@ Bạn có muốn tiếp tục tăng số lượng không?`;
 							warningMessage,
 							() => {
 								// User clicked "Yes" - continue to payment
+								this.resetLoadingStates();
 								resolve(true);
 							},
 							() => {
-								// User clicked "No" - stay on invoice
+								// User clicked "No" - stay on invoice and reset loading states
+								this.resetLoadingStates();
 								resolve(false);
 							},
 							"Tiếp tục thanh toán?",
@@ -1231,10 +1236,19 @@ Bạn có muốn tiếp tục tăng số lượng không?`;
 			return true;
 		},
 
+		// Reset loading states for all print buttons
+		resetLoadingStates() {
+			this.tax_print_loading = false;
+			// Force update to ensure UI reflects the state change
+			this.$forceUpdate();
+		},
+
 		async submit_invoice() {
 			// Validate stock before submission
 			const stockValid = await this.validateStockBeforePayment();
 			if (!stockValid) {
+				// Reset loading states if validation fails
+				this.resetLoadingStates();
 				return;
 			}
 
@@ -1246,6 +1260,8 @@ Bạn có muốn tiếp tục tăng số lượng không?`;
 			// Validate stock before showing payment screen
 			const stockValid = await this.validateStockBeforePayment();
 			if (!stockValid) {
+				// Reset loading states if validation fails
+				this.resetLoadingStates();
 				return;
 			}
 
@@ -1313,6 +1329,8 @@ Bạn có muốn tiếp tục tăng số lượng không?`;
 			// Validate stock before printing
 			const stockValid = await this.validateStockBeforePayment();
 			if (!stockValid) {
+				// Reset loading states if validation fails
+				this.resetLoadingStates();
 				return;
 			}
 
