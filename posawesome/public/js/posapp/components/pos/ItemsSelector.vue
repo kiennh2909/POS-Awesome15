@@ -1608,6 +1608,9 @@ export default {
 					// Add mode - use existing add_item method
 					await this.add_item(item);
 
+					// Emit event to highlight the item in the invoice table
+					this.eventBus.emit("highlight_scanned_item", item.item_code);
+
 					// Show success message
 					frappe.show_alert(
 						{

@@ -21,6 +21,7 @@
 			hide-default-footer
 			:single-expand="true"
 			:header-props="headerProps"
+			:row-props="({ item }) => ({ class: getRowClass(item) })"
 			@update:expanded="$emit('update:expanded', $event)"
 			:search="itemSearch"
 		>
@@ -564,6 +565,8 @@ export default {
 			draggedIndex: null,
 			dragOverIndex: null,
 			isDragging: false,
+			highlightedItemCode: null,
+			highlightTimeout: null,
 		};
 	},
 	computed: {
@@ -584,6 +587,15 @@ export default {
 				console.error("Failed to load item selector settings:", e);
 			}
 			return false;
+		},
+		getRowClass() {
+			return (item) => {
+				const classes = [];
+				if (this.highlightedItemCode === item.item_code) {
+					classes.push('highlighted-item');
+				}
+				return classes.join(' ');
+			};
 		},
 	},
 	methods: {
@@ -620,6 +632,21 @@ export default {
 			} catch (error) {
 				console.error("Error parsing drag data:", error);
 			}
+		},
+
+		highlightItem(itemCode) {
+			// Clear any existing highlight timeout
+			if (this.highlightTimeout) {
+				clearTimeout(this.highlightTimeout);
+			}
+
+			// Set the highlighted item
+			this.highlightedItemCode = itemCode;
+
+			// Remove highlight after 3 seconds
+			this.highlightTimeout = setTimeout(() => {
+				this.highlightedItemCode = null;
+			}, 3000);
 		},
 	},
 };
@@ -950,5 +977,49 @@ export default {
 /* Expanded row styling */
 .expanded-row {
 	background-color: var(--surface-secondary);
+}
+
+/* Highlighted item styling */
+:deep(.highlighted-item) {
+	background-color: #e3f2fd !important;
+	animation: highlightPulse 0.5s ease-in-out;
+	transition: background-color 0.3s ease;
+}
+
+:deep(.dark-theme .highlighted-item),
+:deep(.v-theme--dark .highlighted-item) {
+	background-color: #1565c0 !important;
+	color: white !important;
+}
+
+@keyframes highlightPulse {
+	0% {
+		background-color: #2196f3;
+		transform: scale(1);
+	}
+	50% {
+		background-color: #64b5f6;
+		transform: scale(1.01);
+	}
+	100% {
+		background-color: #e3f2fd;
+		transform: scale(1);
+	}
+}
+
+:deep(.dark-theme) @keyframes highlightPulse,
+:deep(.v-theme--dark) @keyframes highlightPulse {
+	0% {
+		background-color: #1976d2;
+		transform: scale(1);
+	}
+	50% {
+		background-color: #42a5f5;
+		transform: scale(1.01);
+	}
+	100% {
+		background-color: #1565c0;
+		transform: scale(1);
+	}
 }
 </style>

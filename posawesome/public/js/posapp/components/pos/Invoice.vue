@@ -180,6 +180,7 @@
 
 					<!-- ItemsTable component with reorder event handler -->
 					<ItemsTable
+						ref="itemsTable"
 						:headers="items_headers"
 						:items="items"
 						:expanded="expanded"
@@ -1130,6 +1131,13 @@ export default {
 			this.showDropFeedback(false);
 		});
 
+		// Listen for scanned item highlight event
+		this.eventBus.on("highlight_scanned_item", (itemCode) => {
+			if (this.$refs.itemsTable) {
+				this.$refs.itemsTable.highlightItem(itemCode);
+			}
+		});
+
 		// Register event listeners for POS profile, items, customer, offers, etc.
 		this.eventBus.on("register_pos_profile", (data) => {
 			this.pos_profile = data.pos_profile;
@@ -1279,6 +1287,8 @@ export default {
 		this.eventBus.off("clear_invoice");
 		// Cleanup reset_posting_date listener
 		this.eventBus.off("reset_posting_date");
+		// Cleanup highlight event listener
+		this.eventBus.off("highlight_scanned_item");
 	},
 	// Register global keyboard shortcuts when component is created
 	created() {
