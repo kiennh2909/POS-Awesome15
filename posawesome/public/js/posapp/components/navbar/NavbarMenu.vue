@@ -52,6 +52,27 @@
 						}}</v-list-item-subtitle>
 					</div>
 				</v-list-item>
+				
+				<v-list-item
+					v-if="posProfile.posa_allow_print_last_invoice"
+					@click="$emit('print-last-invoice_tax')"
+					:disabled="!lastInvoiceId"
+					class="menu-item-compact secondary-action"
+				>
+					<template v-slot:prepend>
+						<div class="menu-icon-wrapper-compact secondary-icon">
+							<v-icon color="white" size="16">mdi-printer</v-icon>
+						</div>
+					</template>
+					<div class="menu-content-compact">
+						<v-list-item-title class="menu-item-title-compact">{{
+							__("Print Last Invoice Tax")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="menu-item-subtitle-compact">{{
+							__("Reprint previous tax transaction")
+						}}</v-list-item-subtitle>
+					</div>
+				</v-list-item>
 
 				<!-- Hidden sync and offline features -->
 				<!-- 
