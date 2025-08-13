@@ -1010,20 +1010,61 @@ export default {
 		// Increase quantity of an item (handles return logic)
 		add_one(item) {
 			// Kiểm tra tồn kho trước khi tăng số lượng (chỉ với đơn hàng thường)
-			if (!this.isReturnInvoice && !this.stock_settings?.allow_negative_stock) {
+			if (!this.isReturnInvoice) {
 				const newQty = item.qty + 1;
 				const availableQty = item.actual_qty || 0;
 
 				if (newQty > availableQty) {
-					this.eventBus.emit("show_message", {
-						title: __("Không đủ tồn kho"),
-						text: __(
-							`Sản phẩm "${item.item_name}" chỉ có ${availableQty} trong kho. ` +
-							`Không thể tăng số lượng lên ${newQty}.`
-						),
-						color: "error",
-					});
-					return;
+					if (!this.stock_settings?.allow_negative_stock) {
+						// Hiển thị popup cảnh báo và chặn không cho tăng
+						frappe.msgprint({
+							title: "⚠️ CẢNH BÁO TỒN KHO",
+							message: `<div style="text-align: center;">
+								<h4>Không đủ tồn kho!</h4>
+								<p><strong>Sản phẩm:</strong> ${item.item_name}</p>
+								<p><strong>Số lượng hiện tại:</strong> ${item.qty}</p>
+								<p><strong>Số lượng muốn tăng:</strong> ${newQty}</p>
+								<p><strong>Tồn kho khả dụng:</strong> ${availableQty}</p>
+								<br>
+								<p style="color: red;"><strong>❌ Không thể tăng số lượng vì vượt quá tồn kho cho phép!</strong></p>
+							</div>`,
+							indicator: "red"
+						});
+						return;
+					} else {
+						// Cho phép bán âm kho nhưng hiển thị cảnh báo
+						const warningMessage = `<div style="text-align: center;">
+							<h4>⚠️ Cảnh báo tồn kho</h4>
+							<p><strong>Sản phẩm:</strong> ${item.item_name}</p>
+							<p><strong>Số lượng hiện tại:</strong> ${item.qty}</p>
+							<p><strong>Số lượng sẽ tăng thành:</strong> ${newQty}</p>
+							<p><strong>Tồn kho khả dụng:</strong> ${availableQty}</p>
+							<p><strong>Sẽ bán âm kho:</strong> ${newQty - availableQty}</p>
+							<br>
+							<p style="color: orange;">⚠️ Bạn có muốn tiếp tục tăng số lượng không?</p>
+						</div>`;
+
+						frappe.confirm(
+							warningMessage,
+							() => {
+								// User clicked "Yes" - increase quantity
+								item.qty++;
+								if (item.qty == 0) {
+									this.remove_item(item);
+								}
+								this.calc_stock_qty(item, item.qty);
+								this.$forceUpdate();
+							},
+							() => {
+								// User clicked "No" - do nothing
+								return;
+							},
+							"Xác nhận tăng số lượng",
+							"Có, tiếp tục",
+							"Không, giữ nguyên"
+						);
+						return;
+					}
 				}
 			}
 
@@ -1087,25 +1128,82 @@ export default {
 				return false;
 			}
 
-			// Import stock validation functions
-			const { validateStockForOfflineInvoice, isOffline } = await import("../../../offline/index.js");
-
-			// Only validate stock if not allowing negative stock
-			if (!this.stock_settings?.allow_negative_stock && !isOffline()) {
-				const validation = validateStockForOfflineInvoice(this.items);
-				if (!validation.isValid) {
-					// Show stock validation error
-					this.eventBus.emit("show_message", {
-						title: __("Insufficient Stock"),
-						description: validation.errorMessage,
-						color: "error",
+			// Check stock for all items (even when allowing negative stock for awareness)
+			const stockIssues = [];
+			this.items.forEach((item) => {
+				if (!item || !item.item_code) return;
+				
+				const requestedQty = Math.abs(item.qty || 0);
+				const availableStock = item.actual_qty || 0;
+				
+				if (requestedQty > availableStock) {
+					stockIssues.push({
+						item_code: item.item_code,
+						item_name: item.item_name || item.item_code,
+						requested_qty: requestedQty,
+						available_qty: availableStock,
+						shortfall: requestedQty - availableStock
 					});
+				}
+			});
 
-					// Don't proceed to payment - return to invoice
-					this.eventBus.emit("show_payment", "false");
+			// If there are stock issues, show popup warning
+			if (stockIssues.length > 0) {
+				// Create detailed warning message
+				let warningMessage = "⚠️ CẢNH BÁO TỒN KHO ⚠️\n\n";
+				warningMessage += "Các sản phẩm sau vượt quá số lượng tồn kho:\n\n";
+				
+				stockIssues.forEach((issue, index) => {
+					warningMessage += `${index + 1}. ${issue.item_name}\n`;
+					warningMessage += `   • Yêu cầu: ${issue.requested_qty}\n`;
+					warningMessage += `   • Tồn kho: ${issue.available_qty}\n`;
+					warningMessage += `   • Thiếu: ${issue.shortfall}\n\n`;
+				});
+
+				// If negative stock is not allowed, block the payment
+				if (!this.stock_settings?.allow_negative_stock) {
+					warningMessage += "❌ Không thể tiếp tục thanh toán vì cửa hàng không cho phép bán âm kho.";
+					
+					// Show blocking popup
+					frappe.msgprint({
+						title: "KHÔNG THỂ THANH TOÁN",
+						message: warningMessage,
+						indicator: "red",
+						primary_action: {
+							label: "OK",
+							action: () => {
+								// Stay on invoice screen
+								this.eventBus.emit("show_payment", "false");
+							}
+						}
+					});
 					return false;
+				} else {
+					// If negative stock is allowed, show warning but allow to continue
+					warningMessage += "⚠️ Cửa hàng cho phép bán âm kho.\n";
+					warningMessage += "Bạn có muốn tiếp tục thanh toán không?";
+					
+					// Show confirmation popup
+					return new Promise((resolve) => {
+						frappe.confirm(
+							warningMessage,
+							() => {
+								// User clicked "Yes" - continue to payment
+								resolve(true);
+							},
+							() => {
+								// User clicked "No" - stay on invoice
+								this.eventBus.emit("show_payment", "false");
+								resolve(false);
+							},
+							"Tiếp tục thanh toán?",
+							"Có, tiếp tục",
+							"Không, quay lại"
+						);
+					});
 				}
 			}
+
 			return true;
 		},
 
@@ -1118,6 +1216,57 @@ export default {
 
 			// Proceed with normal invoice submission
 			this.show_payment();
+		},
+
+		async show_payment() {
+			// Validate stock before showing payment screen
+			const stockValid = await this.validateStockBeforePayment();
+			if (!stockValid) {
+				return;
+			}
+
+			try {
+				// Validate invoice before payment
+				const validation = await this.validate();
+				if (!validation) {
+					return;
+				}
+
+				// Get invoice document with all necessary data
+				const invoice_doc = this.get_invoice_doc();
+				
+				// Double-check for return invoices
+				if (this.isReturnInvoice || invoice_doc.is_return) {
+					// Ensure negative quantities for all items
+					invoice_doc.items.forEach((item) => {
+						if (item.qty > 0) item.qty = -Math.abs(item.qty);
+						if (item.stock_qty > 0) item.stock_qty = -Math.abs(item.stock_qty);
+						if (item.amount > 0) item.amount = -Math.abs(item.amount);
+					});
+				}
+
+				// Get payments with correct sign (positive/negative)
+				invoice_doc.payments = this.get_payments();
+
+				// Double-check return invoice payments are negative
+				if ((this.isReturnInvoice || invoice_doc.is_return) && invoice_doc.payments.length) {
+					invoice_doc.payments.forEach((payment) => {
+						if (payment.amount > 0) payment.amount = -Math.abs(payment.amount);
+						if (payment.base_amount > 0) payment.base_amount = -Math.abs(payment.base_amount);
+					});
+				}
+
+				console.log("Showing payment dialog with currency:", invoice_doc.currency);
+				this.eventBus.emit("show_payment", "true");
+				this.eventBus.emit("send_invoice_doc_payment", invoice_doc);
+			} catch (error) {
+				console.error("Error in show_payment:", error);
+				this.eventBus.emit("show_message", {
+					title: __("Error processing payment"),
+					color: "error",
+					message: error.message,
+				});
+			}
 		},
 
 		async print_tax_invoice() {
