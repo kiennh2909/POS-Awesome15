@@ -4,7 +4,94 @@
 		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
 	>
 		<v-row dense>
-			<!-- Summary Info -->
+			<!-- Action Buttons (moved to left) -->
+			<v-col cols="12" md="5">
+				<v-row class="action-buttons-row">
+					<!-- Row 1: SAVE & CLEAR và LOAD DRAFTS -->
+					<v-col cols="6" class="button-col">
+						<v-btn
+							block
+							color="accent"
+							theme="dark"
+							prepend-icon="mdi-content-save"
+							@click="$emit('save-and-clear')"
+							class="summary-btn"
+						>
+							{{ __("SAVE & CLEAR") }}
+						</v-btn>
+					</v-col>
+					<v-col cols="6" class="button-col">
+						<v-btn
+							block
+							color="warning"
+							theme="dark"
+							prepend-icon="mdi-file-document"
+							@click="$emit('load-drafts')"
+							class="white-text-btn summary-btn"
+						>
+							{{ __("LOAD DRAFTS") }}
+						</v-btn>
+					</v-col>
+
+					<!-- Row 2: TRẢ HÀNG BẢN và CANCEL SALE -->
+					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1" class="button-col">
+						<v-btn
+							block
+							color="teal"
+							theme="dark"
+							prepend-icon="mdi-backup-restore"
+							@click="$emit('open-returns')"
+							class="summary-btn"
+						>
+							{{ __("TRẢ HÀNG BÁN") }}
+						</v-btn>
+					</v-col>
+					<v-col cols="6" class="button-col">
+						<v-btn
+							block
+							color="error"
+							theme="dark"
+							prepend-icon="mdi-close-circle"
+							@click="$emit('cancel-sale')"
+							class="summary-btn"
+						>
+							{{ __("CANCEL SALE") }}
+						</v-btn>
+					</v-col>
+
+					<!-- Row 3: PRINT DRAFT (larger, spanning more width) -->
+					<v-col cols="12" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col-large">
+						<v-btn
+							block
+							color="primary"
+							theme="dark"
+							prepend-icon="mdi-printer"
+							@click="$emit('print-draft')"
+							class="summary-btn large-btn"
+							size="large"
+						>
+							{{ __("PRINT DRAFT") }}
+						</v-btn>
+					</v-col>
+
+					<!-- Row cuối: PAY button full width (130% larger) -->
+					<v-col cols="12" class="button-col-pay">
+						<v-btn
+							block
+							color="success"
+							theme="dark"
+							size="x-large"
+							prepend-icon="mdi-credit-card"
+							@click="$emit('show-payment')"
+							class="summary-btn pay-btn"
+						>
+							{{ __("PAY") }}
+						</v-btn>
+					</v-col>
+				</v-row>
+			</v-col>
+
+			<!-- Summary Info (moved to right) -->
 			<v-col cols="12" md="7">
 				<v-row dense>
 					<!-- Total Qty -->
@@ -82,95 +169,6 @@
 							readonly
 							color="success"
 						/>
-					</v-col>
-				</v-row>
-			</v-col>
-
-			<!-- Action Buttons -->
-			<v-col cols="12" md="5">
-				<v-row dense>
-					<!-- Row 1: SAVE & CLEAR và LOAD DRAFTS -->
-					<v-col cols="6">
-						<v-btn
-							block
-							color="accent"
-							theme="dark"
-							prepend-icon="mdi-content-save"
-							@click="$emit('save-and-clear')"
-							class="summary-btn"
-						>
-							{{ __("SAVE & CLEAR") }}
-						</v-btn>
-					</v-col>
-					<v-col cols="6">
-						<v-btn
-							block
-							color="warning"
-							theme="dark"
-							prepend-icon="mdi-file-document"
-							@click="$emit('load-drafts')"
-							class="white-text-btn summary-btn"
-						>
-							{{ __("LOAD DRAFTS") }}
-						</v-btn>
-					</v-col>
-
-					<!-- Row 2: TRẢ HÀNG BẢN và CANCEL SALE -->
-					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1">
-						<v-btn
-							block
-							color="info"
-							theme="dark"
-							prepend-icon="mdi-backup-restore"
-							@click="$emit('open-returns')"
-							class="summary-btn"
-						>
-							{{ __("TRẢ HÀNG BẢN") }}
-						</v-btn>
-					</v-col>
-					<v-col cols="6">
-						<v-btn
-							block
-							color="error"
-							theme="dark"
-							prepend-icon="mdi-close-circle"
-							@click="$emit('cancel-sale')"
-							class="summary-btn"
-						>
-							{{ __("CANCEL SALE") }}
-						</v-btn>
-					</v-col>
-
-					<!-- Row 3: PRINT DRAFT (nếu có) -->
-					<v-col cols="6" v-if="pos_profile.posa_allow_print_draft_invoices">
-						<v-btn
-							block
-							color="primary"
-							theme="dark"
-							prepend-icon="mdi-printer"
-							@click="$emit('print-draft')"
-							class="summary-btn"
-						>
-							{{ __("PRINT DRAFT") }}
-						</v-btn>
-					</v-col>
-					<!-- Empty col để giữ layout cân đối khi chỉ có 1 nút ở row này -->
-					<v-col cols="6" v-if="pos_profile.posa_allow_print_draft_invoices">
-					</v-col>
-
-					<!-- Row cuối: PAY button full width -->
-					<v-col cols="12">
-						<v-btn
-							block
-							color="success"
-							theme="dark"
-							size="large"
-							prepend-icon="mdi-credit-card"
-							@click="$emit('show-payment')"
-							class="summary-btn"
-						>
-							{{ __("PAY") }}
-						</v-btn>
 					</v-col>
 				</v-row>
 			</v-col>
@@ -257,5 +255,48 @@ export default {
 /* ensure long button labels stay within the button */
 .summary-btn :deep(.v-btn__content) {
 	white-space: normal !important;
+}
+
+/* Custom spacing for action buttons */
+.action-buttons-row {
+	gap: 8px;
+}
+
+.button-col {
+	margin-bottom: 8px;
+}
+
+.button-col-large {
+	margin-bottom: 12px;
+}
+
+.button-col-pay {
+	margin-top: 8px;
+	margin-bottom: 4px;
+}
+
+/* Large button styling for PRINT DRAFT */
+.large-btn {
+	min-height: 48px !important;
+	font-size: 1.1rem !important;
+	font-weight: 600 !important;
+}
+
+/* Extra large PAY button (130% increase) */
+.pay-btn {
+	min-height: 60px !important;
+	font-size: 1.3rem !important;
+	font-weight: 700 !important;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+.pay-btn :deep(.v-btn__content) {
+	font-size: 1.3rem !important;
+	font-weight: 700 !important;
+}
+
+.pay-btn :deep(.mdi-credit-card) {
+	font-size: 1.5rem !important;
 }
 </style>
