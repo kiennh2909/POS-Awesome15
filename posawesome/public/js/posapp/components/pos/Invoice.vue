@@ -346,6 +346,7 @@ export default {
 			show_column_selector: false, // Column selector dialog visibility
 			invoiceHeight: null,
 			tax_print_loading: false, // Loading state for tax print button
+			processingQuantityChange: false, // Prevent rapid quantity changes
 		};
 	},
 
@@ -1009,6 +1010,12 @@ export default {
 
 		// Increase quantity of an item (handles return logic)
 		add_one(item) {
+			// Prevent multiple rapid clicks
+			if (this.processingQuantityChange) {
+				return;
+			}
+			this.processingQuantityChange = true;
+
 			// Kiểm tra tồn kho trước khi tăng số lượng (chỉ với đơn hàng thường)
 			if (!this.isReturnInvoice) {
 				const newQty = item.qty + 1;
@@ -1030,6 +1037,7 @@ export default {
 							</div>`,
 							indicator: "red"
 						});
+						this.processingQuantityChange = false;
 						return;
 					} else {
 						// Cho phép bán âm kho nhưng hiển thị cảnh báo
@@ -1047,16 +1055,18 @@ export default {
 						frappe.confirm(
 							warningMessage,
 							() => {
-								// User clicked "Yes" - increase quantity
-								item.qty++;
+								// User clicked "Yes" - increase quantity by exactly 1
+								item.qty = item.qty + 1;
 								if (item.qty == 0) {
 									this.remove_item(item);
 								}
 								this.calc_stock_qty(item, item.qty);
 								this.$forceUpdate();
+								this.processingQuantityChange = false;
 							},
 							() => {
 								// User clicked "No" - do nothing
+								this.processingQuantityChange = false;
 								return;
 							},
 							"Xác nhận tăng số lượng",
@@ -1068,24 +1078,40 @@ export default {
 				}
 			}
 
-			// Increase quantity, return items remain negative
-			item.qty++;
+			// Increase quantity by exactly 1, return items remain negative
+			item.qty = item.qty + 1;
 			if (item.qty == 0) {
 				this.remove_item(item);
 			}
 			this.calc_stock_qty(item, item.qty);
 			this.$forceUpdate();
+
+			// Reset processing flag after a short delay
+			setTimeout(() => {
+				this.processingQuantityChange = false;
+			}, 100);
 		},
 
 		// Decrease quantity of an item (handles return logic)
 		subtract_one(item) {
-			// Decrease quantity, return items remain negative
-			item.qty--;
+			// Prevent multiple rapid clicks
+			if (this.processingQuantityChange) {
+				return;
+			}
+			this.processingQuantityChange = true;
+
+			// Decrease quantity by exactly 1, return items remain negative
+			item.qty = item.qty - 1;
 			if (item.qty == 0) {
 				this.remove_item(item);
 			}
 			this.calc_stock_qty(item, item.qty);
 			this.$forceUpdate();
+
+			// Reset processing flag after a short delay
+			setTimeout(() => {
+				this.processingQuantityChange = false;
+			}, 100);
 		},
 
 		// Handle item reordering from drag and drop

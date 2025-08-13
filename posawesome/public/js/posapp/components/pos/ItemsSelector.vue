@@ -169,7 +169,7 @@
 								]"
 								:draggable="true"
 								@dragstart="onDragStart($event, item)"
-								@dragend="onDragEnd"
+								@dragend="onDragEnd($event, item)"
 								@click="add_item(item)"
 							>
 								<v-img
@@ -426,6 +426,8 @@ export default {
 		// Track scanned item for highlighting
 		scanned_item_code: null,
 		highlight_timeout: null,
+		draggedItem: null,
+		dropSuccessful: false,
 	}),
 
 	watch: {
@@ -1698,6 +1700,27 @@ export default {
 			this.trigger_onscan(scannedCode);
 		},
 
+		onItemClick(item, event) {
+			// Prevent double addition when dragging
+			if (this.isDragging) {
+				return;
+			}
+
+			// Check if this is a programmatic click from drag end
+			if (event && event.detail && event.detail.isDragEnd) {
+				return;
+			}
+
+			// Add scanned item highlighting
+			this.eventBus.emit("highlight_scanned_item", item.item_code);
+
+			// Create item copy for addition
+			const itemToAdd = { ...item };
+			itemToAdd.qty = 1;
+
+			this.eventBus.emit("add_item", itemToAdd);
+		},
+
 		currencySymbol(currency) {
 			return get_currency_symbol(currency);
 		},
@@ -1754,11 +1777,13 @@ export default {
 			// Emit event to show drop feedback in ItemsTable
 			this.eventBus.emit("item-drag-start", item);
 		},
-		onDragEnd(event) {
+		onDragEnd(event, item) {
 			this.isDragging = false;
-
-			// Emit event to hide drop feedback
+			this.draggedItem = null;
 			this.eventBus.emit("item-drag-end");
+
+			// Remove the fallback click as ItemsTable handles drop properly
+			this.dropSuccessful = false;
 		},
 		saveItemSettings() {
 			try {
