@@ -1135,7 +1135,7 @@ export default {
 		get_item_qty(first_search) {
 			const qtyVal = this.qty != null ? this.qty : 1;
 			let scal_qty = Math.abs(qtyVal);
-			if (first_search.startsWith(this.pos_profile.posa_scale_barcode_start)) {
+			if (first_search && first_search.startsWith(this.pos_profile.posa_scale_barcode_start)) {
 				let pesokg1 = first_search.substr(7, 5);
 				let pesokg;
 				if (pesokg1.startsWith("0000")) {
@@ -1621,6 +1621,7 @@ export default {
 					);
 				} else {
 					// Remove mode - remove item from invoice
+					console.log("Emitting remove_item_by_code for:", item.item_code);
 					this.eventBus.emit("remove_item_by_code", item.item_code);
 
 					// Show success message
@@ -1635,14 +1636,14 @@ export default {
 
 				// Clear search after successful operation and refocus input
 				this.clearSearch();
-				
+
 				// Use setTimeout to prevent UI blocking
 				setTimeout(() => {
 					if (this.$refs.debounce_search) {
 						this.$refs.debounce_search.focus();
 					}
 				}, 100);
-				
+
 			} catch (error) {
 				console.error("Error processing scanned item:", error);
 				const action = this.scan_add_mode ? "adding" : "removing";
@@ -1722,7 +1723,7 @@ export default {
 			// Keep the search term for manual search but don't trigger_onscan to avoid loops
 			this.first_search = scannedCode;
 			this.search = scannedCode;
-			
+
 			// Refocus input without triggering search
 			setTimeout(() => {
 				if (this.$refs.debounce_search) {
@@ -1730,7 +1731,7 @@ export default {
 				}
 			}, 100);
 		},
-		
+
 		onScanModeChange() {
 			const mode = this.scan_add_mode ? "Add Mode" : "Remove Mode";
 			frappe.show_alert(
@@ -1741,8 +1742,8 @@ export default {
 				2,
 			);
 		},
-		
-		
+
+
 
 		currencySymbol(currency) {
 			return get_currency_symbol(currency);

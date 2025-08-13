@@ -635,6 +635,8 @@ export default {
 		},
 
 		highlightItem(itemCode) {
+			console.log("Highlighting item:", itemCode);
+			
 			// Clear any existing highlight timeout
 			if (this.highlightTimeout) {
 				clearTimeout(this.highlightTimeout);
@@ -642,10 +644,15 @@ export default {
 
 			// Set the highlighted item
 			this.highlightedItemCode = itemCode;
+			
+			// Force update to ensure UI reflects the change
+			this.$forceUpdate();
 
 			// Remove highlight after 3 seconds
 			this.highlightTimeout = setTimeout(() => {
+				console.log("Removing highlight for:", itemCode);
 				this.highlightedItemCode = null;
+				this.$forceUpdate();
 			}, 3000);
 		},
 	},

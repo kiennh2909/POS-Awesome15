@@ -1138,6 +1138,20 @@ export default {
 			}
 		});
 
+		// Listen for remove item by code event
+		this.eventBus.on("remove_item_by_code", (itemCode) => {
+			const itemToRemove = this.items.find(item => item.item_code === itemCode);
+			if (itemToRemove) {
+				this.remove_item(itemToRemove);
+				console.log("Removed item:", itemCode);
+			} else {
+				frappe.show_alert({
+					message: `Item ${itemCode} not found in invoice`,
+					indicator: "orange",
+				}, 3);
+			}
+		});
+
 		// Register event listeners for POS profile, items, customer, offers, etc.
 		this.eventBus.on("register_pos_profile", (data) => {
 			this.pos_profile = data.pos_profile;
@@ -1289,6 +1303,8 @@ export default {
 		this.eventBus.off("reset_posting_date");
 		// Cleanup highlight event listener
 		this.eventBus.off("highlight_scanned_item");
+		// Cleanup remove item event listener
+		this.eventBus.off("remove_item_by_code");
 	},
 	// Register global keyboard shortcuts when component is created
 	created() {
