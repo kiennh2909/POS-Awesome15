@@ -405,6 +405,8 @@ export default {
 		isDragging: false,
 		// Track if the current search was triggered by a scanner
 		search_from_scanner: false,
+		// Track the current scan mode: true for Add, false for Remove
+		scan_add_mode: true,
 	}),
 
 	watch: {
@@ -1025,7 +1027,7 @@ export default {
 				this.qty = 1;
 			}
 		},
-		async enter_event() {
+		enter_event() {
 			let match = false;
 			if (!this.filtered_items.length || !this.first_search) {
 				return;
@@ -1607,14 +1609,18 @@ export default {
 
 			// Add click handlers for item selection
 			setTimeout(() => {
-				items.forEach((item, index) => {
-					const button = dialog.$wrapper.find(`[data-item-index="${index}"]`);
-					button.on("click", () => {
-						this.addScannedItemToInvoice(item, scannedCode);
-						dialog.hide();
+					items.forEach((item, index) => {
+						const button = dialog.$wrapper.find(`[data-item-index="${index}"]`);
+						button.on("click", () => {
+							if (this.scan_add_mode) {
+								this.addScannedItemToInvoice(item, scannedCode);
+							} else {
+								this.removeScannedItemFromInvoice(item, scannedCode);
+							}
+							dialog.hide();
+						});
 					});
-				});
-			}, 100);
+				}, 100);
 		},
 		generateItemSelectionHTML(items, scannedCode) {
 			let html = `<div class="mb-3"><strong>Scanned Code:</strong> ${scannedCode}</div>`;
