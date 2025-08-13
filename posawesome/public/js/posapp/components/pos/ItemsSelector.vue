@@ -1601,22 +1601,36 @@ export default {
 			});
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
-			console.log("Adding scanned item to invoice:", item, scannedCode);
+			console.log("Processing scanned item:", item, scannedCode, "Mode:", this.scan_add_mode ? "Add" : "Remove");
 
 			try {
-				// Use existing add_item method with enhanced feedback
-				await this.add_item(item);
+				if (this.scan_add_mode) {
+					// Add mode - use existing add_item method
+					await this.add_item(item);
 
-				// Show success message
-				frappe.show_alert(
-					{
-						message: `Added: ${item.item_name}`,
-						indicator: "green",
-					},
-					3,
-				);
+					// Show success message
+					frappe.show_alert(
+						{
+							message: `Added: ${item.item_name}`,
+							indicator: "green",
+						},
+						3,
+					);
+				} else {
+					// Remove mode - remove item from invoice
+					this.eventBus.emit("remove_item_by_code", item.item_code);
 
-				// Clear search after successful addition and refocus input
+					// Show success message
+					frappe.show_alert(
+						{
+							message: `Removed: ${item.item_name}`,
+							indicator: "orange",
+						},
+						3,
+					);
+				}
+
+				// Clear search after successful operation and refocus input
 				this.clearSearch();
 				
 				// Use setTimeout to prevent UI blocking
@@ -1627,10 +1641,11 @@ export default {
 				}, 100);
 				
 			} catch (error) {
-				console.error("Error adding scanned item:", error);
+				console.error("Error processing scanned item:", error);
+				const action = this.scan_add_mode ? "adding" : "removing";
 				frappe.show_alert(
 					{
-						message: `Error adding item: ${item.item_name}`,
+						message: `Error ${action} item: ${item.item_name}`,
 						indicator: "red",
 					},
 					3,
@@ -1639,8 +1654,9 @@ export default {
 		},
 		showMultipleItemsDialog(items, scannedCode) {
 			// Create a dialog to let user choose from multiple matches
+			const mode = this.scan_add_mode ? "Add" : "Remove";
 			const dialog = new frappe.ui.Dialog({
-				title: __("Multiple Items Found"),
+				title: __(`Multiple Items Found - ${mode} Mode`),
 				fields: [
 					{
 						fieldtype: "HTML",
@@ -1659,11 +1675,7 @@ export default {
 					items.forEach((item, index) => {
 						const button = dialog.$wrapper.find(`[data-item-index="${index}"]`);
 						button.on("click", () => {
-							if (this.scan_add_mode) {
-								this.addScannedItemToInvoice(item, scannedCode);
-							} else {
-								this.removeScannedItemFromInvoice(item, scannedCode);
-							}
+							this.addScannedItemToInvoice(item, scannedCode);
 							dialog.hide();
 						});
 					});
@@ -1727,25 +1739,7 @@ export default {
 			);
 		},
 		
-		async removeScannedItemFromInvoice(item, scannedCode) {
-			console.log("Removing scanned item from invoice:", item, scannedCode);
-			
-			// Emit event to remove item from invoice
-			this.eventBus.emit("remove_item_by_code", item.item_code);
-			
-			// Show success message
-			frappe.show_alert(
-				{
-					message: `Removed: ${item.item_name}`,
-					indicator: "orange",
-				},
-				3,
-			);
-
-			// Clear search after successful removal and refocus input
-			this.clearSearch();
-			this.$refs.debounce_search && this.$refs.debounce_search.focus();
-		},
+		
 
 		currencySymbol(currency) {
 			return get_currency_symbol(currency);
