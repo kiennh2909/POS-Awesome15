@@ -278,6 +278,8 @@ export default {
 			if (vm.pos_profile.posa_local_storage && getCustomerStorage().length) {
 				try {
 					vm.customers = getCustomerStorage();
+					// Check for default customer after loading from cache
+					vm.setDefaultCustomerIfConfigured();
 				} catch (e) {
 					console.error("Failed to parse customer cache:", e);
 					vm.customers = [];
@@ -297,6 +299,9 @@ export default {
 						if (vm.pos_profile.posa_local_storage) {
 							setCustomerStorage(r.message);
 						}
+
+						// Set default customer after loading customers
+						vm.setDefaultCustomerIfConfigured();
 					}
 					vm.loadingCustomers = false; // ? Stop loading
 				},
@@ -305,6 +310,19 @@ export default {
 					vm.loadingCustomers = false; // Ensure field is re-enabled on failure
 				},
 			});
+		},
+
+		// Method to set default customer if configured
+		setDefaultCustomerIfConfigured() {
+			if (this.pos_profile && this.pos_profile.posa_default_customer && this.customers.length > 0) {
+				const defaultCustomer = this.customers.find(c => c.name === this.pos_profile.posa_default_customer);
+				if (defaultCustomer) {
+					this.customer = defaultCustomer.name;
+					this.internalCustomer = defaultCustomer.name;
+					this.eventBus.emit("update_customer", defaultCustomer.name);
+					console.log("Default customer applied:", defaultCustomer.customer_name);
+				}
+			}
 		},
 
 		new_customer() {
@@ -369,16 +387,6 @@ export default {
 
 			this.eventBus.on("fetch_customer_details", () => {
 				this.get_customer_names();
-			});
-
-			// Listen for default customer from POS Profile
-			frappe.realtime.on("set_default_customer", (customerData) => {
-				if (customerData && customerData.name) {
-					this.customer = customerData.name;
-					this.internalCustomer = customerData.name;
-					this.eventBus.emit("update_customer", customerData.name);
-					console.log("Default customer applied:", customerData.customer_name);
-				}
 			});
 		});
 	},
