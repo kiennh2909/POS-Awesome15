@@ -645,14 +645,18 @@ export default {
 			// Set the highlighted item
 			this.highlightedItemCode = itemCode;
 			
-			// Force update to ensure UI reflects the change
-			this.$forceUpdate();
+			// Force reactivity update
+			this.$nextTick(() => {
+				this.$forceUpdate();
+			});
 
 			// Remove highlight after 3 seconds
 			this.highlightTimeout = setTimeout(() => {
 				console.log("Removing highlight for:", itemCode);
 				this.highlightedItemCode = null;
-				this.$forceUpdate();
+				this.$nextTick(() => {
+					this.$forceUpdate();
+				});
 			}, 3000);
 		},
 	},

@@ -1608,9 +1608,6 @@ export default {
 					// Add mode - use existing add_item method
 					await this.add_item(item);
 
-					// Emit event to highlight the item in the invoice table
-					this.eventBus.emit("highlight_scanned_item", item.item_code);
-
 					// Show success message
 					frappe.show_alert(
 						{
@@ -1619,15 +1616,18 @@ export default {
 						},
 						3,
 					);
+
+					// Emit event to highlight the item in the invoice table
+					this.eventBus.emit("highlight_scanned_item", item.item_code);
 				} else {
-					// Remove mode - remove item from invoice
+					// Remove mode - emit event to remove item from invoice
 					console.log("Emitting remove_item_by_code for:", item.item_code);
 					this.eventBus.emit("remove_item_by_code", item.item_code);
 
-					// Show success message
+					// Show success message  
 					frappe.show_alert(
 						{
-							message: `Removed: ${item.item_name}`,
+							message: `Remove request sent for: ${item.item_name}`,
 							indicator: "orange",
 						},
 						3,

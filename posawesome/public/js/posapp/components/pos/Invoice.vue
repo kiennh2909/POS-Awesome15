@@ -1140,14 +1140,20 @@ export default {
 
 		// Listen for remove item by code event
 		this.eventBus.on("remove_item_by_code", (itemCode) => {
+			console.log("Received remove_item_by_code event for:", itemCode);
 			const itemToRemove = this.items.find(item => item.item_code === itemCode);
 			if (itemToRemove) {
 				this.remove_item(itemToRemove);
-				console.log("Removed item:", itemCode);
+				console.log("Successfully removed item:", itemCode);
+				frappe.show_alert({
+					message: `Removed: ${itemToRemove.item_name}`,
+					indicator: "success",
+				}, 3);
 			} else {
+				console.log("Item not found in invoice:", itemCode);
 				frappe.show_alert({
 					message: `Item ${itemCode} not found in invoice`,
-					indicator: "orange",
+					indicator: "warning",
 				}, 3);
 			}
 		});
