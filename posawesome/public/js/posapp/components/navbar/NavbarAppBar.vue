@@ -115,9 +115,9 @@
 
 		<TaxRollDialog
 			:show="show_tax_roll_dialog"
-			:pos_profile="pos_profile"
+			:pos-profile="complete_pos_profile"
 			@close="show_tax_roll_dialog = false"
-			@updated="handle_tax_roll_updated"
+			@tax-roll-updated="handle_tax_roll_updated"
 		/>
 	</v-app-bar>
 </template>
@@ -177,7 +177,7 @@ export default {
 				   frappe.user_roles.includes('POS Manager');
 		},
 		pos_profile() {
-			// Thử nhiều cách để lấy pos_profile
+			// Thử nhiều cách để lấy pos_profile name
 			if (this.$store?.state?.pos_profile?.name) {
 				return this.$store.state.pos_profile.name;
 			}
@@ -193,6 +193,24 @@ export default {
 				return window.posProfile.name;
 			}
 			return null;
+		},
+		complete_pos_profile() {
+			// Trả về toàn bộ object pos_profile cho TaxRollDialog
+			if (this.$store?.state?.pos_profile) {
+				return this.$store.state.pos_profile;
+			}
+			if (this.posProfile) {
+				return this.posProfile;
+			}
+			// Fallback từ frappe boot
+			if (frappe?.boot?.pos_profile) {
+				return frappe.boot.pos_profile;
+			}
+			// Fallback từ global window
+			if (window.posProfile) {
+				return window.posProfile;
+			}
+			return {};
 		},
 		tax_display() {
 			if (this.pos_profile && this.pos_profile.tax_roll_code && this.pos_profile.tax_current_counter) {
@@ -221,6 +239,30 @@ export default {
 			setTimeout(() => {
 				this.load_tax_code_display();
 			}, 1000);
+		});
+
+		// Listen for tax display updates
+		if (window.posEventBus && typeof window.posEventBus.on === 'function') {
+			window.posEventBus.on('tax-display-updated', (newDisplay) => {
+				console.log("Received tax display update:", newDisplay);
+				this.tax_code_display = newDisplay;
+			});
+		}
+
+		// Listen for frappe realtime tax updates
+		frappe.realtime.on("tax_display_updated", (data) => {
+			if (data && data.display) {
+				console.log("Received realtime tax display update:", data.display);
+				this.tax_code_display = data.display;
+			}
+		});
+
+		// Listen for custom DOM events
+		document.addEventListener('taxDisplayUpdated', (event) => {
+			if (event.detail && event.detail.display) {
+				console.log("Received custom tax display update:", event.detail.display);
+				this.tax_code_display = event.detail.display;
+			}
 		});
 	},
 	beforeUnmount() {
@@ -313,88 +355,54 @@ export default {
 		async handle_tax_roll_updated(data) {
 			console.log("Tax roll updated event received:", data);
 
-			// Bước 1.4: Cập nhật giao diện sau khi nhận phản hồi thành công
-			if (data && data.tax_code_display) {
-				this.tax_code_display = data.tax_code_display;
+			// Cập nhật display từ data
+			if (data && data.display) {
+				this.tax_code_display = data.display;
 			}
 
-			// Đồng bộ pos_profile với dữ liệu mới từ backend
-			if (data.pos_profile && this.$store && this.$store.state.pos_profile) {
-				const updatedProfile = await this.sync_pos_profile_data(data.pos_profile);
-				if (updatedProfile) {
-					// Cập nhật store với dữ liệu mới
-					Object.assign(this.$store.state.pos_profile, {
-						tax_roll_code: updatedData.tax_roll_code,
-						tax_start_number: updatedData.tax_start_number,
-						tax_current_counter: updatedData.tax_current_counter,
-						tax_roll_status: updatedData.tax_roll_status
-					});
-				}
+			// Cập nhật trực tiếp this.posProfile nếu có
+			if (data && this.posProfile) {
+				Object.assign(this.posProfile, {
+					tax_roll_code: data.taxRollCode,
+					tax_start_number: data.taxStartNumber,
+					tax_current_counter: data.taxCurrentCounter,
+					tax_roll_status: data.taxRollStatus
+				});
+				console.log("Updated this.posProfile:", this.posProfile);
 			}
 
-			// Refresh display từ backend để đảm bảo đồng bộ
-			await this.load_tax_code_display();
-
-			// Hiển thị thông báo thành công cho Bước 1.4
-			if (data.action === 'new_roll') {
-				frappe.show_alert({
-					message: `Đã khởi tạo cuộn mới thành công: ${data.new_prefix} ${data.new_start_number}`,
-					indicator: "green"
+			// Cập nhật store nếu có
+			if (data && this.$store && this.$store.state.pos_profile) {
+				Object.assign(this.$store.state.pos_profile, {
+					tax_roll_code: data.taxRollCode,
+					tax_start_number: data.taxStartNumber,
+					tax_current_counter: data.taxCurrentCounter,
+					tax_roll_status: data.taxRollStatus
 				});
 			}
+
+			// Cập nhật global pos_profile nếu có
+			if (data && window.posProfile) {
+				Object.assign(window.posProfile, {
+					tax_roll_code: data.taxRollCode,
+					tax_start_number: data.taxStartNumber,
+					tax_current_counter: data.taxCurrentCounter,
+					tax_roll_status: data.taxRollStatus
+				});
+			}
+
+			console.log("Tax roll successfully updated in all locations");
 		},
 
 		update_tax_display(new_display) {
 			this.tax_code_display = new_display;
 		},
+
 		open_tax_roll_dialog() {
 			this.show_tax_roll_dialog = true;
 		},
 
-		on_tax_roll_updated(result) {
-			// Cập nhật pos_profile với thông tin mới
-			if (result.tax_code_display || result.current_display) {
-				const display = result.tax_code_display || result.current_display;
-				const parts = display.split(' ');
-				if (parts.length >= 2) {
-					this.pos_profile.tax_roll_code = parts[0];
-					this.pos_profile.tax_current_counter = parseInt(parts[1]);
-				}
-			}
 
-			this.$toast.success("Đã cập nhật thông tin cuộn thuế");
-		},
-
-		// Method to update display when counter changes
-		update_tax_display(newDisplay) {
-			if (newDisplay) {
-				const parts = newDisplay.split(' ');
-				if (parts.length >= 2) {
-					this.pos_profile.tax_roll_code = parts[0];
-					this.pos_profile.tax_current_counter = parseInt(parts[1]);
-				}
-			}
-		},
-
-		// Bước 1.4: Đồng bộ dữ liệu pos_profile từ backend
-		async sync_pos_profile_data(profile_name) {
-			try {
-				const response = await frappe.call({
-					method: "posawesome.posawesome.api.tax_roll.get_current_tax_info",
-					args: {
-						pos_profile: profile_name
-					}
-				});
-
-				if (response.message) {
-					console.log("POS Profile synchronized:", response.message);
-					return response.message;
-				}
-			} catch (error) {
-				console.error("Error syncing pos_profile data:", error);
-			}
-			return null;
-		}
 	},
 	emits: ["nav-click", "go-desk", "show-offline-invoices"],
 };

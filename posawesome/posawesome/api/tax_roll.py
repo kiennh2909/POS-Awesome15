@@ -92,13 +92,23 @@ def increment_tax_counter(pos_profile, invoice_name, tax_code):
     
     doc.save()
     
-    # Cập nhật tax_code cho Sales Invoice
+    # Cập nhật tax_code cho Sales Invoice - xử lý cho cả submitted và draft invoices
     try:
         invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
-        invoice_doc.tax_code = tax_code
-        invoice_doc.save()
+        
+        # Nếu invoice đã submitted, cập nhật trực tiếp vào database
+        if invoice_doc.docstatus == 1:
+            frappe.db.set_value("Sales Invoice", invoice_name, "tax_code", tax_code)
+            frappe.db.commit()
+        else:
+            # Nếu invoice chưa submit, có thể update bình thường
+            invoice_doc.tax_code = tax_code
+            invoice_doc.save()
+            
     except frappe.DoesNotExistError:
         frappe.log_error(f"Invoice {invoice_name} not found for tax code update")
+    except Exception as e:
+        frappe.log_error(f"Error updating tax code for invoice {invoice_name}: {str(e)}")
     
     frappe.db.commit()
 
