@@ -1041,28 +1041,23 @@ export default {
 						return;
 					} else {
 						// Cho phép bán âm kho nhưng hiển thị cảnh báo
-						const warningMessage = `<div style="text-align: center;">
-							<h4>⚠️ Cảnh báo tồn kho</h4>
-							<p><strong>Sản phẩm:</strong> ${item.item_name}</p>
-							<p><strong>Số lượng hiện tại:</strong> ${item.qty}</p>
-							<p><strong>Số lượng sẽ tăng thành:</strong> ${newQty}</p>
-							<p><strong>Tồn kho khả dụng:</strong> ${availableQty}</p>
-							<p><strong>Sẽ bán âm kho:</strong> ${newQty - availableQty}</p>
-							<br>
-							<p style="color: orange;">⚠️ Bạn có muốn tiếp tục tăng số lượng không?</p>
-						</div>`;
+						const warningMessage = `⚠️ CẢNH BÁO TỒN KHO ⚠️
+
+Các sản phẩm sau vượt quá số lượng tồn kho:
+
+${item.item_name}
+• Yêu cầu: ${newQty}
+• Tồn kho: ${availableQty}
+• Thiếu: ${newQty - availableQty}
+
+⚠️ Cửa hàng cho phép bán âm kho.
+Bạn có muốn tiếp tục tăng số lượng không?`;
 
 						frappe.confirm(
 							warningMessage,
 							() => {
 								// User clicked "Yes" - increase quantity by exactly 1
-								item.qty = item.qty + 1;
-								if (item.qty == 0) {
-									this.remove_item(item);
-								}
-								this.calc_stock_qty(item, item.qty);
-								this.$forceUpdate();
-								this.processingQuantityChange = false;
+								this.performQuantityIncrease(item);
 							},
 							() => {
 								// User clicked "No" - do nothing
@@ -1078,6 +1073,12 @@ export default {
 				}
 			}
 
+			// Normal quantity increase without warning
+			this.performQuantityIncrease(item);
+		},
+
+		// Helper method to perform quantity increase
+		performQuantityIncrease(item) {
 			// Increase quantity by exactly 1, return items remain negative
 			item.qty = item.qty + 1;
 			if (item.qty == 0) {
@@ -1146,6 +1147,11 @@ export default {
 
 		// Validate stock before proceeding with payment or printing
 		async validateStockBeforePayment() {
+			// Skip validation if already processing to avoid double popup
+			if (this.processingQuantityChange) {
+				return false;
+			}
+
 			if (!this.items || this.items.length === 0) {
 				this.eventBus.emit("show_message", {
 					title: __("Cart is empty. Add items before payment."),
@@ -1190,18 +1196,11 @@ export default {
 				if (!this.stock_settings?.allow_negative_stock) {
 					warningMessage += "❌ Không thể tiếp tục thanh toán vì cửa hàng không cho phép bán âm kho.";
 					
-					// Show blocking popup
+					// Show blocking popup only once
 					frappe.msgprint({
 						title: "KHÔNG THỂ THANH TOÁN",
 						message: warningMessage,
-						indicator: "red",
-						primary_action: {
-							label: "OK",
-							action: () => {
-								// Stay on invoice screen
-								this.eventBus.emit("show_payment", "false");
-							}
-						}
+						indicator: "red"
 					});
 					return false;
 				} else {
@@ -1219,7 +1218,6 @@ export default {
 							},
 							() => {
 								// User clicked "No" - stay on invoice
-								this.eventBus.emit("show_payment", "false");
 								resolve(false);
 							},
 							"Tiếp tục thanh toán?",
