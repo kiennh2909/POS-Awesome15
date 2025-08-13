@@ -1617,8 +1617,10 @@ export default {
 						3,
 					);
 
-					// Emit event to highlight the item in the invoice table
-					this.eventBus.emit("highlight_scanned_item", item.item_code);
+					// Emit highlight AFTER item is added to invoice
+					setTimeout(() => {
+						this.eventBus.emit("highlight_scanned_item", item.item_code);
+					}, 100);
 				} else {
 					// Remove mode - emit event to remove item from invoice
 					console.log("Emitting remove_item_by_code for:", item.item_code);

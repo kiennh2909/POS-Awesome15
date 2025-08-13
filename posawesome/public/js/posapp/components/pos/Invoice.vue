@@ -1141,8 +1141,11 @@ export default {
 		// Listen for remove item by code event
 		this.eventBus.on("remove_item_by_code", (itemCode) => {
 			console.log("Received remove_item_by_code event for:", itemCode);
+			console.log("Current items in invoice:", this.items.map(i => i.item_code));
+			
 			const itemToRemove = this.items.find(item => item.item_code === itemCode);
 			if (itemToRemove) {
+				console.log("Found item to remove:", itemToRemove.item_name);
 				this.remove_item(itemToRemove);
 				console.log("Successfully removed item:", itemCode);
 				frappe.show_alert({

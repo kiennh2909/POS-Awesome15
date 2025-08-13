@@ -636,27 +636,32 @@ export default {
 
 		highlightItem(itemCode) {
 			console.log("Highlighting item:", itemCode);
+			console.log("Current items:", this.items.map(i => i.item_code));
+			
+			// Check if item exists in current items
+			const itemExists = this.items.find(item => item.item_code === itemCode);
+			if (!itemExists) {
+				console.log("Item not found in table:", itemCode);
+				return;
+			}
 			
 			// Clear any existing highlight timeout
 			if (this.highlightTimeout) {
 				clearTimeout(this.highlightTimeout);
 			}
 
-			// Set the highlighted item
+			// Set the highlighted item and force Vue to update
 			this.highlightedItemCode = itemCode;
+			console.log("Set highlightedItemCode to:", this.highlightedItemCode);
 			
-			// Force reactivity update
-			this.$nextTick(() => {
-				this.$forceUpdate();
-			});
+			// Force immediate update
+			this.$forceUpdate();
 
 			// Remove highlight after 3 seconds
 			this.highlightTimeout = setTimeout(() => {
 				console.log("Removing highlight for:", itemCode);
 				this.highlightedItemCode = null;
-				this.$nextTick(() => {
-					this.$forceUpdate();
-				});
+				this.$forceUpdate();
 			}, 3000);
 		},
 	},
@@ -990,31 +995,39 @@ export default {
 	background-color: var(--surface-secondary);
 }
 
-/* Highlighted item styling */
+/* Highlighted item styling with stronger visual feedback */
 :deep(.highlighted-item) {
-	background-color: #e3f2fd !important;
-	animation: highlightPulse 0.5s ease-in-out;
-	transition: background-color 0.3s ease;
+	background-color: #4caf50 !important;
+	color: white !important;
+	animation: highlightPulse 1s ease-in-out;
+	transition: all 0.3s ease;
+	border-left: 4px solid #2e7d32 !important;
+	box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3) !important;
 }
 
 :deep(.dark-theme .highlighted-item),
 :deep(.v-theme--dark .highlighted-item) {
-	background-color: #1565c0 !important;
+	background-color: #4caf50 !important;
 	color: white !important;
+	border-left: 4px solid #66bb6a !important;
+	box-shadow: 0 2px 8px rgba(76, 175, 80, 0.5) !important;
 }
 
 @keyframes highlightPulse {
 	0% {
-		background-color: #2196f3;
+		background-color: #4caf50;
 		transform: scale(1);
+		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
 	}
 	50% {
-		background-color: #64b5f6;
-		transform: scale(1.01);
+		background-color: #66bb6a;
+		transform: scale(1.02);
+		box-shadow: 0 4px 12px rgba(76, 175, 80, 0.5);
 	}
 	100% {
-		background-color: #e3f2fd;
+		background-color: #4caf50;
 		transform: scale(1);
+		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
 	}
 }
 
