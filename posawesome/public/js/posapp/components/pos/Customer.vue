@@ -323,7 +323,7 @@ export default {
 
 		// Method to set default customer if configured
 		setDefaultCustomerIfConfigured() {
-			if (!this.pos_profile || !this.pos_profile.posa_default_customer) {
+			if (!this.pos_profile || !this.pos_profile.default_customer) {
 				console.log("No default customer configured in POS Profile");
 				return;
 			}
@@ -339,7 +339,7 @@ export default {
 				return;
 			}
 
-			const defaultCustomerId = this.pos_profile.posa_default_customer;
+			const defaultCustomerId = this.pos_profile.default_customer;
 			console.log("Looking for default customer:", defaultCustomerId);
 			
 			const defaultCustomer = this.customers.find(c => c.name === defaultCustomerId);

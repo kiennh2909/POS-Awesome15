@@ -256,7 +256,7 @@ def get_default_customer(pos_profile):
 	"""Get default customer from POS Profile"""
 	try:
 		profile = frappe.get_doc("POS Profile", pos_profile)
-		default_customer = profile.get("posa_default_customer")
+		default_customer = profile.get("default_customer")
 
 		if default_customer:
 			# Check if customer exists

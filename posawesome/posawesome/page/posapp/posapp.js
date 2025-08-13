@@ -32,8 +32,8 @@ frappe.pages["posapp"].on_page_load = async function (wrapper) {
 		// Set default customer if configured
 		const setDefaultCustomer = () => {
 			const posProfile = this.page.$PosApp.pos_profile;
-			if (posProfile && posProfile.posa_default_customer) {
-				console.log("POS Profile has default customer configured:", posProfile.posa_default_customer);
+			if (posProfile && posProfile.default_customer) {
+				console.log("POS Profile has default customer configured:", posProfile.default_customer);
 				// Emit event to notify Customer component about POS profile update
 				setTimeout(() => {
 					if (window.posEventBus) {
