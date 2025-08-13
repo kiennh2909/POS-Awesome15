@@ -257,9 +257,16 @@ def get_default_customer(pos_profile):
 	try:
 		pos_profile_doc = frappe.get_doc("POS Profile", pos_profile)
 		print(f"POS Profile doc loaded: {pos_profile_doc.name}")
-		print(f"default_customer field: {pos_profile_doc.default_customer}")
+		print(f"All fields in POS Profile: {[field for field in dir(pos_profile_doc) if not field.startswith('_')]}")
+		print(f"default_customer field: {getattr(pos_profile_doc, 'default_customer', 'FIELD_NOT_FOUND')}")
+		
+		# Check if field exists in database
+		frappe.db.sql("DESCRIBE `tabPOS Profile`")
+		pos_profile_fields = frappe.db.sql("SHOW COLUMNS FROM `tabPOS Profile`", as_dict=True)
+		customer_fields = [field['Field'] for field in pos_profile_fields if 'customer' in field['Field'].lower()]
+		print(f"Customer-related fields in POS Profile table: {customer_fields}")
 
-		if pos_profile_doc.default_customer:
+		if hasattr(pos_profile_doc, 'default_customer') and pos_profile_doc.default_customer:
 			print(f"✅ Default customer found: {pos_profile_doc.default_customer}")
 			customer_doc = frappe.get_doc("Customer", pos_profile_doc.default_customer)
 			print(f"Customer doc loaded: {customer_doc.name} - {customer_doc.customer_name}")
@@ -275,8 +282,11 @@ def get_default_customer(pos_profile):
 			return result
 		else:
 			print("❌ No default customer configured in POS Profile")
+			print(f"Raw doc dict: {pos_profile_doc.as_dict()}")
 			return None
 	except Exception as e:
 		print(f"❌ Error in get_default_customer: {e}")
 		frappe.log_error(f"Error getting default customer: {e}")
+		import traceback
+		traceback.print_exc()
 		return None

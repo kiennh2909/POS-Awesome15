@@ -374,13 +374,20 @@ export default {
 		// Method to set default customer if configured
 		setDefaultCustomerIfConfigured() {
 			console.log("=== DEBUG: setDefaultCustomerIfConfigured() called ===");
-			console.log("POS Profile:", this.pos_profile);
+			console.log("POS Profile (full object):", JSON.stringify(this.pos_profile, null, 2));
 			console.log("POS Profile default_customer:", this.pos_profile?.default_customer);
+			console.log("POS Profile keys:", this.pos_profile ? Object.keys(this.pos_profile) : 'null');
 			console.log("Current customer:", this.customer);
 			console.log("Customers loaded:", this.customers.length);
 
-			if (!this.pos_profile || !this.pos_profile.default_customer) {
+			if (!this.pos_profile) {
+				console.log("❌ POS Profile is null/undefined");
+				return;
+			}
+
+			if (!this.pos_profile.default_customer) {
 				console.log("❌ No default customer configured in POS Profile");
+				console.log("Available pos_profile fields:", Object.keys(this.pos_profile));
 				return;
 			}
 
@@ -449,16 +456,18 @@ export default {
 		this.$nextTick(() => {
 			this.eventBus.on("register_pos_profile", (pos_profile) => {
 				console.log("=== EVENT: register_pos_profile ===");
-				console.log("POS Profile registered in Customer component:", pos_profile);
+				console.log("POS Profile registered in Customer component (full):", JSON.stringify(pos_profile, null, 2));
 				console.log("default_customer in profile:", pos_profile?.default_customer);
+				console.log("pos_profile keys:", pos_profile ? Object.keys(pos_profile) : 'null');
 				this.pos_profile = pos_profile;
 				this.get_customer_names();
 			});
 
 			this.eventBus.on("payments_register_pos_profile", (pos_profile) => {
 				console.log("=== EVENT: payments_register_pos_profile ===");
-				console.log("POS Profile registered from payments:", pos_profile);
+				console.log("POS Profile registered from payments (full):", JSON.stringify(pos_profile, null, 2));
 				console.log("default_customer in profile:", pos_profile?.default_customer);
+				console.log("pos_profile keys:", pos_profile ? Object.keys(pos_profile) : 'null');
 				this.pos_profile = pos_profile;
 				this.get_customer_names();
 			});
