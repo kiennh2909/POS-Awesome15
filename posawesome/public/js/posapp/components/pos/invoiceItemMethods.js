@@ -20,14 +20,14 @@ export default {
 		this.expanded = this.expanded.filter((id) => id !== item.posa_row_id);
 	},
 
-       add_item(item) {
-               console.log("Invoice.add_item received", {
-                       code: item.item_code,
-                       rate: item.rate,
-               });
-               if (!item.uom) {
-                       item.uom = item.stock_uom;
-               }
+	add_item(item) {
+		console.log("Invoice.add_item received", {
+			code: item.item_code,
+			rate: item.rate,
+		});
+		if (!item.uom) {
+			item.uom = item.stock_uom;
+		}
 
 		// Kiểm tra tồn kho trước khi thêm vào giỏ hàng
 		if (!this.validateStockBeforeAddItem(item)) {
@@ -81,21 +81,18 @@ export default {
 				new_item.qty = -Math.abs(new_item.qty || 1);
 			}
 
-                       this.items.unshift(new_item);
-                       // Replace the newly inserted item at index 0 to ensure
-                       // Vue reactivity and avoid overwriting existing rows
-                       this.items[0] = { ...new_item };
-                       console.log("Item inserted at", 0, {
-                               code: new_item.item_code,
-                               rate: new_item.rate,
-                       });
-                       // Force update of item rates when item is first added
-                       this.update_item_detail(new_item, true);
-                       console.log("update_item_detail called", {
-                               code: new_item.item_code,
-                               rate: new_item.rate,
-                       });
-                       // Apply UOM conversion immediately
+			this.items.unshift(new_item);
+			console.log("Item inserted at", 0, {
+				code: new_item.item_code,
+				rate: new_item.rate,
+			});
+			// Force update of item rates when item is first added
+			this.update_item_detail(new_item, true);
+			console.log("update_item_detail called", {
+				code: new_item.item_code,
+				rate: new_item.rate,
+			});
+			// Apply UOM conversion immediately
 			if (new_item.uom && new_item.uom !== new_item.stock_uom) {
 				this.calc_uom(new_item, new_item.uom);
 			}
@@ -1509,14 +1506,14 @@ export default {
 	},
 
 	// Update details for a single item (fetch from backend)
-       update_item_detail(item, force_update = false) {
-               console.log("update_item_detail request", {
-                       code: item.item_code,
-                       force_update,
-               });
-               if (!item.item_code) {
-                       return;
-               }
+	update_item_detail(item, force_update = false) {
+		console.log("update_item_detail request", {
+			code: item.item_code,
+			force_update,
+		});
+		if (!item.item_code) {
+			return;
+		}
 		var vm = this;
 
 		// Remove this block which was causing the issue - rates should persist regardless of currency
@@ -2267,7 +2264,6 @@ export default {
 
 				// Convert to selected currency
 				if (this.selected_currency !== baseCurrency) {
-					// Convert base currency values using the current exchange rate
 					item.rate = this.flt(converted_rate * this.exchange_rate, this.currency_precision);
 					item.price_list_rate = item.rate;
 				} else {

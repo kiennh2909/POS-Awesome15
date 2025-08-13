@@ -587,6 +587,10 @@ export default {
 			dragOverIndex: null,
 			isDragging: false,
 			scanned_item_code: null, // Added to store the scanned item code
+			fieldStyle: {
+				padding: "0px !important",
+				height: "32px !important",
+			},
 		};
 	},
 	computed: {
