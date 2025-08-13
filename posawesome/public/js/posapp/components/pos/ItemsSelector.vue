@@ -82,6 +82,16 @@
 							hide-details
 						></v-checkbox>
 					</v-col>
+					<v-col cols="2" class="pb-0" v-if="pos_profile.posa_enable_camera_scanning">
+						<v-checkbox
+							v-model="scan_add_mode"
+							:color="scan_add_mode ? 'success' : 'error'"
+							:label="scan_add_mode ? 'Add Mode' : 'Remove Mode'"
+							density="default"
+							hide-details
+							@change="onScanModeChange"
+						></v-checkbox>
+					</v-col>
 					<v-col cols="12" class="dynamic-margin-xs">
 						<div class="settings-container">
 							<v-btn
@@ -1659,6 +1669,37 @@ export default {
 
 			// Keep the search term for manual search
 			this.trigger_onscan(scannedCode);
+		},
+		
+		onScanModeChange() {
+			const mode = this.scan_add_mode ? "Add Mode" : "Remove Mode";
+			frappe.show_alert(
+				{
+					message: `Switched to ${mode}`,
+					indicator: this.scan_add_mode ? "green" : "orange",
+				},
+				2,
+			);
+		},
+		
+		async removeScannedItemFromInvoice(item, scannedCode) {
+			console.log("Removing scanned item from invoice:", item, scannedCode);
+			
+			// Emit event to remove item from invoice
+			this.eventBus.emit("remove_item_by_code", item.item_code);
+			
+			// Show success message
+			frappe.show_alert(
+				{
+					message: `Removed: ${item.item_name}`,
+					indicator: "orange",
+				},
+				3,
+			);
+
+			// Clear search after successful removal and refocus input
+			this.clearSearch();
+			this.$refs.debounce_search && this.$refs.debounce_search.focus();
 		},
 
 		currencySymbol(currency) {
