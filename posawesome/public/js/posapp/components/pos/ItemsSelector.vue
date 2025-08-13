@@ -282,44 +282,6 @@
 									</tr>
 								</template>
 							</v-data-table-virtual>
-								<template v-slot:item.rate="{ item }">
-									<div>
-										<div class="text-primary">
-											{{
-												currencySymbol(item.original_currency || pos_profile.currency)
-											}}
-											{{
-												format_currency(
-													item.base_price_list_rate || item.rate,
-													item.original_currency || pos_profile.currency,
-													ratePrecision(item.base_price_list_rate || item.rate),
-												)
-											}}
-										</div>
-										<div
-											v-if="
-												pos_profile.posa_allow_multi_currency &&
-												selected_currency !== pos_profile.currency
-											"
-											class="text-success"
-										>
-											{{ currencySymbol(selected_currency) }}
-											{{
-												format_currency(
-													item.rate,
-													selected_currency,
-													ratePrecision(item.rate),
-												)
-											}}
-										</div>
-									</div>
-								</template>
-								<template v-slot:item.actual_qty="{ item }">
-									<span class="golden--text">{{
-										format_number(item.actual_qty, hide_qty_decimals ? 0 : 4)
-									}}</span>
-								</template>
-							</v-data-table-virtual>
 						</div>
 					</v-col>
 				</v-row>
