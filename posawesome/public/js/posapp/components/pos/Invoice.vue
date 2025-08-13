@@ -48,7 +48,7 @@
 				</v-row>
 
 				<!-- Delivery Charges Section (Only if enabled in POS profile) -->
-				<DeliveryCharges
+				<!-- <DeliveryCharges
 					:pos_profile="pos_profile"
 					:delivery_charges="delivery_charges"
 					:selected_delivery_charge="selected_delivery_charge"
@@ -63,7 +63,7 @@
 							update_delivery_charges();
 						}
 					"
-				/>
+				/> -->
 
 				<!-- Posting Date and Customer Balance Section -->
 				<PostingDateRow
