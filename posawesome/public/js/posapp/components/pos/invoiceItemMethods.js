@@ -28,6 +28,12 @@ export default {
                if (!item.uom) {
                        item.uom = item.stock_uom;
                }
+
+		// Kiểm tra tồn kho trước khi thêm vào giỏ hàng
+		if (!this.validateStockBeforeAddItem(item)) {
+			return; // Dừng lại nếu không đủ tồn kho
+		}
+
 		let index = -1;
 		if (!this.new_line) {
 			// For auto_set_batch enabled, we should check if the item code and UOM match only
@@ -115,6 +121,25 @@ export default {
 				}
 				cur_item.serial_no_selected.push(item.to_set_serial_no);
 				item.to_set_serial_no = null;
+			}
+
+			// Kiểm tra tồn kho trước khi tăng số lượng (chỉ với đơn hàng thường, không phải return)
+			if (!this.isReturnInvoice && !this.stock_settings?.allow_negative_stock) {
+				const additionalQty = item.qty || 1;
+				const newQty = cur_item.qty + additionalQty;
+				const availableQty = cur_item.actual_qty || 0;
+
+				if (newQty > availableQty) {
+					this.eventBus.emit("show_message", {
+						title: __("Không đủ tồn kho"),
+						text: __(
+							`Sản phẩm "${cur_item.item_name}" chỉ có ${availableQty} trong kho. ` +
+							`Không thể tăng số lượng lên ${newQty}.`
+						),
+						color: "error",
+					});
+					return;
+				}
 			}
 
 			// For returns, subtract from quantity to make it more negative
@@ -2457,6 +2482,49 @@ export default {
 
 		// Force UI update
 		this.$forceUpdate();
+	},
+
+	// Kiểm tra tồn kho trước khi thêm item vào giỏ hàng
+	async validateStockBeforeAddItem(item) {
+		// Nếu cho phép bán âm thì bỏ qua kiểm tra
+		if (this.stock_settings?.allow_negative_stock) {
+			return true;
+		}
+
+		// Tính tổng số lượng hiện tại của item này trong giỏ hàng
+		const currentCartQty = this.items
+			.filter(cartItem => 
+				cartItem.item_code === item.item_code && 
+				!cartItem.posa_is_offer && 
+				!cartItem.posa_is_replace
+			)
+			.reduce((total, cartItem) => total + Math.abs(cartItem.qty || 0), 0);
+
+		// Số lượng muốn thêm
+		const requestedQty = Math.abs(item.qty || 1);
+		
+		// Tổng số lượng sau khi thêm
+		const totalQtyAfterAdd = currentCartQty + requestedQty;
+
+		// Số lượng tồn kho hiện tại
+		const availableQty = item.actual_qty || 0;
+
+		// Kiểm tra xem có đủ tồn kho không
+		if (totalQtyAfterAdd > availableQty) {
+			const shortfall = totalQtyAfterAdd - availableQty;
+			this.eventBus.emit("show_message", {
+				title: __("Không đủ tồn kho"),
+				text: __(
+					`Sản phẩm "${item.item_name}" chỉ có ${availableQty} trong kho. ` +
+					`Hiện tại trong giỏ hàng: ${currentCartQty}, muốn thêm: ${requestedQty}. ` +
+					`Thiếu: ${shortfall}`
+				),
+				color: "error",
+			});
+			return false;
+		}
+
+		return true;
 	},
 
 	change_price_list_rate(item) {

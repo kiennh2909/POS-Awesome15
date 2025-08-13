@@ -1008,6 +1008,24 @@ export default {
 
 		// Increase quantity of an item (handles return logic)
 		add_one(item) {
+			// Kiểm tra tồn kho trước khi tăng số lượng (chỉ với đơn hàng thường)
+			if (!this.isReturnInvoice && !this.stock_settings?.allow_negative_stock) {
+				const newQty = item.qty + 1;
+				const availableQty = item.actual_qty || 0;
+
+				if (newQty > availableQty) {
+					this.eventBus.emit("show_message", {
+						title: __("Không đủ tồn kho"),
+						text: __(
+							`Sản phẩm "${item.item_name}" chỉ có ${availableQty} trong kho. ` +
+							`Không thể tăng số lượng lên ${newQty}.`
+						),
+						color: "error",
+					});
+					return;
+				}
+			}
+
 			// Increase quantity, return items remain negative
 			item.qty++;
 			if (item.qty == 0) {
