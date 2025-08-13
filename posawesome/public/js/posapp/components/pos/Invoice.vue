@@ -1137,6 +1137,11 @@ export default {
 			this.customer = data.pos_profile.customer;
 			this.pos_opening_shift = data.pos_opening_shift;
 			this.stock_settings = data.stock_settings;
+			
+			// Set default customer when POS profile is registered
+			this.$nextTick(() => {
+				this.setDefaultCustomerAfterClear();
+			});
 			const prec = parseInt(data.pos_profile.posa_decimal_precision);
 			if (!isNaN(prec)) {
 				this.float_precision = prec;
@@ -1175,6 +1180,10 @@ export default {
 		});
 		this.eventBus.on("clear_invoice", () => {
 			this.clear_invoice();
+			// Ensure default customer is set after clearing
+			this.$nextTick(() => {
+				this.setDefaultCustomerAfterClear();
+			});
 		});
 		this.eventBus.on("load_invoice", (data) => {
 			this.load_invoice(data);

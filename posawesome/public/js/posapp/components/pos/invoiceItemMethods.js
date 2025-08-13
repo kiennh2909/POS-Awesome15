@@ -252,10 +252,34 @@ export default {
 
 	// Method to set the default customer
 	setDefaultCustomerAfterClear() {
-		this.customer = this.pos_profile.customer;
+		console.log("=== setDefaultCustomerAfterClear() called ===");
+		console.log("POS Profile:", this.pos_profile);
+		
+		// Priority 1: Check for default_customer field
+		if (this.pos_profile && this.pos_profile.default_customer) {
+			console.log("✅ Using default_customer:", this.pos_profile.default_customer);
+			this.customer = this.pos_profile.default_customer;
+		}
+		// Priority 2: Fallback to customer field 
+		else if (this.pos_profile && this.pos_profile.customer) {
+			console.log("✅ Using fallback customer:", this.pos_profile.customer);
+			this.customer = this.pos_profile.customer;
+		}
+		// Priority 3: Clear customer if no default
+		else {
+			console.log("❌ No default customer found, clearing");
+			this.customer = "";
+		}
+		
 		this.eventBus.emit("set_customer_readonly", false);
-		this.fetch_customer_details();
-		this.fetch_customer_balance();
+		
+		// Only fetch details if customer is set
+		if (this.customer) {
+			this.fetch_customer_details();
+			this.fetch_customer_balance();
+		}
+		
+		console.log("=== Final customer set to:", this.customer, "===");
 	},
 
 	// Fetch customer balance from backend or cache
@@ -339,8 +363,13 @@ export default {
 				},
 			});
 		}
-		this.clear_invoice();
+		this.clear_invoice(); // This already calls setDefaultCustomerAfterClear()
 		this.cancel_dialog = false;
+		
+		// Ensure default customer is set after cancel
+		this.$nextTick(() => {
+			this.setDefaultCustomerAfterClear();
+		});
 	},
 
 	// Load an invoice (or return invoice) from data, set all fields accordingly
@@ -474,6 +503,9 @@ export default {
 			this.additional_discount_percentage = 0;
 			this.invoiceType = "Invoice";
 			this.invoiceTypes = ["Invoice", "Order"];
+			
+			// Set default customer after clearing
+			this.setDefaultCustomerAfterClear();
 		} else {
 			if (data.is_return) {
 				// For return without invoice case, check if there's a return_against
