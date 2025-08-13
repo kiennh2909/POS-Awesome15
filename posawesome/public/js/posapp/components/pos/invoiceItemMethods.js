@@ -80,7 +80,7 @@ export default {
 			if (this.isReturnInvoice) {
 				new_item.qty = -Math.abs(new_item.qty || 1);
 			}
-      
+
                        this.items.unshift(new_item);
                        // Replace the newly inserted item at index 0 to ensure
                        // Vue reactivity and avoid overwriting existing rows
@@ -869,6 +869,7 @@ export default {
 				// If exchange rate is 300 PKR = 1 USD
 				// item.rate is in USD (e.g. 10 USD)
 				// base_rate should be in PKR (e.g. 3000 PKR)
+				// So multiply by exchange rate to get base_rate
 				new_item.rate = flt(item.rate); // Keep rate in USD
 
 				// Use pre-stored base_rate if available, otherwise calculate
@@ -1230,7 +1231,7 @@ export default {
 					invoice_doc.base_grand_total = -Math.abs(invoice_doc.base_grand_total);
 				if (invoice_doc.base_rounded_total > 0)
 					invoice_doc.base_rounded_total = -Math.abs(invoice_doc.base_rounded_total);
-				if (invoice_doc.base_total > 0) invoice_doc.base_total = -Math.abs(invoice_doc.base_total);
+				if (invoice_doc.base_total > 0) doc.base_total = -Math.abs(doc.base_total);
 
 				// Ensure all items have negative quantity and amount
 				if (invoice_doc.items && invoice_doc.items.length) {
@@ -1675,7 +1676,7 @@ export default {
 
 						// Also store base discount amount
 						item.base_discount_amount = vm.flt(
-							(item.base_price_list_rate * discount_percent) / 100,
+							(item.base_price_list_rate * discount_percent) / 1	00,
 							vm.currency_precision,
 						);
 
@@ -2502,7 +2503,7 @@ export default {
 
 		// Số lượng muốn thêm
 		const requestedQty = Math.abs(item.qty || 1);
-		
+
 		// Tổng số lượng sau khi thêm
 		const totalQtyAfterAdd = currentCartQty + requestedQty;
 
@@ -2580,4 +2581,177 @@ export default {
 
 		d.show();
 	},
+
+	submit_invoice(print, tax) {
+			// === BƯỚC 1: CHUẨN BỊ DỮ LIỆU ===
+			// Xử lý trường hợp trả hàng
+			if (this.invoice_doc.is_return) {
+				this.ensureReturnPaymentsAreNegative();
+			}
+
+			// Chuẩn bị dữ liệu thanh toán bổ sung để gửi lên server
+			const data = {
+				total_change: !this.invoice_doc.is_return ? -this.diff_payment : 0,
+				paid_change: !this.invoice_doc.is_return ? this.paid_change : 0,
+				credit_change: -this.credit_change,
+				redeemed_customer_credit: this.redeemed_customer_credit,
+				customer_credit_dict: this.customer_credit_dict,
+				is_cashback: this.is_cashback,
+			};
+
+			// Đánh dấu các cờ in ấn
+			if (print) this.invoice_doc.posa_is_printed = true;
+			if (tax) this.invoice_doc.tax_report = true;
+
+			const vm = this;
+
+			// Tạo một bản sao đầy đủ của hóa đơn trước khi gửi đi.
+			// Điều này rất quan trọng để giữ lại chi tiết hóa đơn cho việc in ấn sau này.
+			const original_invoice_doc = { ...this.invoice_doc };
+
+			// Hàm helper để reset các trạng thái loading của nút in
+			const resetPrintButtonStates = () => {
+				if (vm.resetLoadingStates && typeof vm.resetLoadingStates === 'function') {
+					vm.resetLoadingStates();
+				}
+				// Reset các trạng thái loading khác nếu cần
+				vm.tax_print_loading = false;
+				vm.loading = false;
+				vm.$forceUpdate();
+			};
+
+			// === BƯỚC 2: GỬI HÓA ĐƠN CHÍNH LÊN SERVER ERNEXT (LUỒNG ONLINE) ===
+			frappe.call({
+				method:
+					this.invoiceType === "Order" && this.pos_profile.posa_create_only_sales_order
+						? "posawesome.posawesome.api.sales_orders.submit_sales_order"
+						: "posawesome.posawesome.api.invoices.submit_invoice",
+				args: {
+					data: data,
+					invoice: original_invoice_doc,
+					order: original_invoice_doc,
+				},
+				callback: async function (r) {
+					try {
+						// Luôn reset loading states ở đầu callback
+						resetPrintButtonStates();
+
+						// Xử lý lỗi từ server - kiểm tra cả r.exc và response structure
+						if (r.exc) {
+							console.error("Server error submitting invoice:", r.exc);
+							vm.eventBus.emit("show_message", {
+								title: __("Server error: ") + (r.exc.toString().substring(0, 100) + "..."),
+								color: "error",
+							});
+							return;
+						}
+
+						// Kiểm tra response structure
+						if (!r.message) {
+							console.error("Invalid response structure: missing message");
+							vm.eventBus.emit("show_message", {
+								title: __("Invalid response from server: missing data"),
+								color: "error",
+							});
+							return;
+						}
+
+						if (!r.message.name) {
+							console.error("Invalid response structure: missing invoice name");
+							vm.eventBus.emit("show_message", {
+								title: __("Invalid response from server: missing invoice name"),
+								color: "error",
+							});
+							return;
+						}
+
+						// === BƯỚC 3: KẾT HỢP DỮ LIỆU ĐỂ TẠO ĐỐI TƯỢNG HÓA ĐƠN HOÀN CHỈNH ===
+						// Lấy TÊN HÓA ĐƠN từ phản hồi của server và kết hợp với dữ liệu gốc
+						const invoice_to_print = {
+							...original_invoice_doc,
+							name: r.message.name
+						};
+
+						// Thông báo thành công và cập nhật các trạng thái
+						vm.eventBus.emit("show_message", {
+							title: __("Invoice {0} is Submitted", [invoice_to_print.name]),
+							color: "success",
+						});
+
+						frappe.utils.play_sound("submit");
+						vm.eventBus.emit("set_last_invoice", invoice_to_print.name);
+						updateLocalStock(invoice_to_print.items || []);
+
+						// === BƯỚC 4: THỰC HIỆN IN (NẾU CÓ) VỚI DỮ LIỆU ĐÃ HOÀN CHỈNH ===
+						if (print || tax) {
+							try {
+								if (print && tax) {
+									// In cả hóa đơn thường và hóa đơn thuế
+									vm.load_print_page(invoice_to_print);
+
+									// Đảm bảo load_print_page_tax được wrap trong try-catch riêng
+									try {
+										await vm.load_print_page_tax(invoice_to_print);
+									} catch (taxPrintError) {
+										console.error("Tax printing failed:", taxPrintError);
+										vm.eventBus.emit("show_message", {
+											title: __("Regular invoice printed successfully, but tax printing failed: ") + (taxPrintError.message || taxPrintError),
+											color: "warning",
+										});
+									}
+								} else if (print) {
+									// Chỉ in hóa đơn thường
+									vm.load_print_page(invoice_to_print);
+								} else if (tax) {
+									// Chỉ in hóa đơn thuế
+									try {
+										await vm.load_print_page_tax(invoice_to_print);
+									} catch (taxPrintError) {
+										console.error("Tax printing failed:", taxPrintError);
+										vm.eventBus.emit("show_message", {
+											title: __("Tax printing failed: ") + (taxPrintError.message || taxPrintError),
+											color: "error",
+										});
+									}
+								}
+							} catch (printError) {
+								console.error("General printing process failed:", printError);
+								vm.eventBus.emit("show_message", {
+									title: __("Invoice submitted successfully, but printing failed: ") + (printError.message || printError),
+									color: "warning",
+								});
+							}
+						}
+
+						// === BƯỚC 5: DỌN DẸP FORM ĐỂ CHUẨN BỊ CHO GIAO DỊCH MỚI ===
+						vm.customer_credit_dict = [];
+						vm.redeem_customer_credit = false;
+						vm.is_cashback = true;
+						vm.is_credit_return = false;
+						vm.sales_person = "";
+						vm.addresses = [];
+						vm.eventBus.emit("clear_invoice");
+						vm.back_to_invoice();
+
+					} catch (callbackError) {
+						// Catch any unexpected errors in the callback
+						console.error("Unexpected error in submit_invoice callback:", callbackError);
+						resetPrintButtonStates();
+						vm.eventBus.emit("show_message", {
+							title: __("Unexpected error occurred: ") + (callbackError.message || callbackError),
+							color: "error",
+						});
+					}
+				},
+				// Xử lý lỗi network hoặc lỗi khác từ frappe.call
+				error: function(error) {
+					console.error("Network or API call error:", error);
+					resetPrintButtonStates();
+					vm.eventBus.emit("show_message", {
+						title: __("Failed to submit invoice. Please check network connection: ") + (error.message || error),
+						color: "error",
+					});
+				}
+			});
+		},
 };
