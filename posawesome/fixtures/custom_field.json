@@ -6077,7 +6077,18 @@
     "default": "0",
     "name": "POS Profile-posa_silent_print"
   },
-  
+  {
+    "doctype": "Custom Field",
+    "dt": "POS Profile",
+    "fieldname": "default_customer",
+    "fieldtype": "Link",
+    "insert_after": "posa_default_sales_order",
+    "label": "Default Customer",
+    "options": "Customer",
+    "description": "Default customer to be selected when POS opens",
+    "default": null,
+    "name": "POS Profile-default_customer"
+  },
   {
     "doctype": "Custom Field",
     "dt": "POS Profile",
