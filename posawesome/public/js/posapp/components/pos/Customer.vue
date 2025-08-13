@@ -270,6 +270,38 @@ export default {
 			}
 		},
 
+		// Load default customer info from server
+		loadDefaultCustomerFromServer() {
+			if (!this.pos_profile || !this.pos_profile.name) {
+				return;
+			}
+
+			frappe.call({
+				method: "posawesome.posawesome.api.utilities.get_default_customer",
+				args: {
+					pos_profile: this.pos_profile.name,
+				},
+				callback: (r) => {
+					if (r.message) {
+						console.log("Default customer info from server:", r.message);
+						// Add to customers list if not already present
+						const existingCustomer = this.customers.find(c => c.name === r.message.name);
+						if (!existingCustomer) {
+							this.customers.unshift(r.message);
+							console.log("Added default customer to list:", r.message);
+						}
+						// Set as selected customer
+						this.customer = r.message.name;
+						this.internalCustomer = r.message.name;
+						this.eventBus.emit("update_customer", r.message.name);
+					}
+				},
+				error: (err) => {
+					console.error("Failed to load default customer from server:", err);
+				}
+			});
+		},
+
 		// Fetch customers list
 		get_customer_names() {
 			var vm = this;
@@ -310,6 +342,10 @@ export default {
 						// Set default customer after loading customers from server
 						vm.$nextTick(() => {
 							vm.setDefaultCustomerIfConfigured();
+							// If default customer setting failed, try loading from server
+							if (!vm.customer && vm.pos_profile.default_customer) {
+								vm.loadDefaultCustomerFromServer();
+							}
 						});
 					}
 					vm.loadingCustomers = false;
@@ -333,8 +369,8 @@ export default {
 				return;
 			}
 
-			// Skip if customer already selected
-			if (this.customer && this.customer !== "") {
+			// Skip if customer already selected (but allow empty string to be overridden)
+			if (this.customer && this.customer !== "" && this.customer !== null) {
 				console.log("Customer already selected:", this.customer);
 				return;
 			}
@@ -345,8 +381,12 @@ export default {
 			const defaultCustomer = this.customers.find(c => c.name === defaultCustomerId);
 			if (defaultCustomer) {
 				console.log("Found default customer:", defaultCustomer);
+				// Set all customer-related properties
 				this.customer = defaultCustomer.name;
 				this.internalCustomer = defaultCustomer.name;
+				this.tempSelectedCustomer = defaultCustomer.name;
+				
+				// Emit update event
 				this.eventBus.emit("update_customer", defaultCustomer.name);
 				console.log("Default customer applied successfully:", defaultCustomer.customer_name);
 			} else {
