@@ -6080,6 +6080,18 @@
   {
     "doctype": "Custom Field",
     "dt": "POS Profile",
+    "fieldname": "posa_default_customer",
+    "fieldtype": "Link",
+    "insert_after": "posa_default_sales_order",
+    "label": "Default Customer",
+    "options": "Customer",
+    "description": "Default customer to be selected when POS opens",
+    "default": null,
+    "name": "POS Profile-posa_default_customer"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "POS Profile",
     "fieldname": "posa_language",
     "fieldtype": "Select",
     "insert_after": "posa_default_country",

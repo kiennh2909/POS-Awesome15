@@ -247,7 +247,23 @@ def get_translation_dict(lang: str) -> dict:
 
 @frappe.whitelist()
 def get_pos_profile_tax_inclusive(pos_profile: str):
-	"""Return the 'posa_tax_inclusive' setting for the given POS Profile."""
-	if not pos_profile:
-		return None
-	return frappe.get_cached_value("POS Profile", pos_profile, "posa_tax_inclusive")
+	"""Get tax inclusive setting from POS Profile"""
+	profile = frappe.get_doc("POS Profile", pos_profile)
+	return profile.get("posa_tax_inclusive", False)
+
+@frappe.whitelist()
+def get_default_customer(pos_profile):
+	"""Get default customer from POS Profile"""
+	profile = frappe.get_doc("POS Profile", pos_profile)
+	default_customer = profile.get("posa_default_customer")
+
+	if default_customer:
+		customer_doc = frappe.get_doc("Customer", default_customer)
+		return {
+			"name": customer_doc.name,
+			"customer_name": customer_doc.customer_name,
+			"mobile_no": customer_doc.mobile_no,
+			"email_id": customer_doc.email_id,
+			"tax_id": customer_doc.tax_id
+		}
+	return None

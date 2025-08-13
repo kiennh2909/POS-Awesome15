@@ -29,6 +29,18 @@ frappe.pages["posapp"].on_page_load = async function (wrapper) {
 
 	// Listen for POS Profile registration
 	frappe.realtime.on("pos_profile_registered", () => {
+		// Set default customer if configured
+		const setDefaultCustomer = () => {
+			const posProfile = this.page.$PosApp.pos_profile;
+			if (posProfile && posProfile.posa_default_customer) {
+				// Emit event to set default customer in the POS interface
+				frappe.realtime.emit("set_default_customer", {
+					customer: posProfile.posa_default_customer
+				});
+				console.log("Default customer set:", posProfile.posa_default_customer);
+			}
+		};
+
 		const update_totals_based_on_tax_inclusive = () => {
 			console.log("Updating totals based on tax inclusive settings");
 			const posProfile = this.page.$PosApp.pos_profile;
@@ -113,6 +125,7 @@ frappe.pages["posapp"].on_page_load = async function (wrapper) {
 		};
 
 		update_totals_based_on_tax_inclusive();
+		setDefaultCustomer();
 
 		const profile = this.page.$PosApp.pos_profile;
 		if (profile && profile.posa_language) {
