@@ -276,6 +276,8 @@ def submit_closing_shift(closing_shift):
 
 
 def submit_printed_invoices(pos_opening_shift):
+	from erpnext.stock.utils import get_latest_stock_qty
+	
 	invoices_list = frappe.get_all(
 		"Sales Invoice",
 		filters={
@@ -284,6 +286,37 @@ def submit_printed_invoices(pos_opening_shift):
 			"posa_is_printed": 1,
 		},
 	)
+	
 	for invoice in invoices_list:
-		invoice_doc = frappe.get_doc("Sales Invoice", invoice.name)
-		invoice_doc.submit()
+		try:
+			invoice_doc = frappe.get_doc("Sales Invoice", invoice.name)
+			
+			# Check stock availability before submitting
+			stock_validation_passed = True
+			for item in invoice_doc.items:
+				if item.item_code and item.warehouse:
+					available_qty = get_latest_stock_qty(item.item_code, item.warehouse)
+					if available_qty < item.qty:
+						frappe.msgprint(
+							f"Insufficient stock for item {item.item_code} in warehouse {item.warehouse}. Available: {available_qty}, Required: {item.qty}",
+							title="Stock Issue",
+							indicator="orange"
+						)
+						stock_validation_passed = False
+						break
+			
+			if stock_validation_passed:
+				invoice_doc.submit()
+			else:
+				frappe.log_error(
+					message=f"Invoice {invoice.name} not submitted due to insufficient stock",
+					title="POS Invoice Stock Validation Failed"
+				)
+				
+		except Exception as e:
+			# Log the error and continue with other invoices
+			frappe.log_error(
+				message=f"Failed to submit invoice {invoice.name}: {str(e)}",
+				title="POS Invoice Submit Error"
+			)
+			continue
