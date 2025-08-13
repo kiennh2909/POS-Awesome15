@@ -370,6 +370,16 @@ export default {
 			this.eventBus.on("fetch_customer_details", () => {
 				this.get_customer_names();
 			});
+
+			// Listen for default customer from POS Profile
+			frappe.realtime.on("set_default_customer", (customerData) => {
+				if (customerData && customerData.name) {
+					this.customer = customerData.name;
+					this.internalCustomer = customerData.name;
+					this.eventBus.emit("update_customer", customerData.name);
+					console.log("Default customer applied:", customerData.customer_name);
+				}
+			});
 		});
 	},
 };

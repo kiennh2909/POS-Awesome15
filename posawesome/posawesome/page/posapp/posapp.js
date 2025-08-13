@@ -33,11 +33,23 @@ frappe.pages["posapp"].on_page_load = async function (wrapper) {
 		const setDefaultCustomer = () => {
 			const posProfile = this.page.$PosApp.pos_profile;
 			if (posProfile && posProfile.posa_default_customer) {
-				// Emit event to set default customer in the POS interface
-				frappe.realtime.emit("set_default_customer", {
-					customer: posProfile.posa_default_customer
+				// Call API to get full customer details
+				frappe.call({
+					method: "posawesome.posawesome.api.utilities.get_default_customer",
+					args: {
+						pos_profile: posProfile.name
+					},
+					callback: function(response) {
+						if (response.message) {
+							// Emit event with full customer data
+							frappe.realtime.emit("set_default_customer", response.message);
+							console.log("Default customer set:", response.message);
+						}
+					},
+					error: function(err) {
+						console.error("Failed to get default customer:", err);
+					}
 				});
-				console.log("Default customer set:", posProfile.posa_default_customer);
 			}
 		};
 
