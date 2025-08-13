@@ -161,7 +161,12 @@
 								v-for="item in filtered_items"
 								:key="item.item_code"
 								hover
-								class="dynamic-item-card"
+								:class="[
+									'dynamic-item-card',
+									{
+										'scanned-item-highlight': item.item_code === scanned_item_code
+									}
+								]"
 								:draggable="true"
 								@dragstart="onDragStart($event, item)"
 								@dragend="onDragEnd"
@@ -226,6 +231,57 @@
 								item-key="item_code"
 								@click:row="click_item_row"
 							>
+								<template v-slot:item="{ item, props }">
+									<tr 
+										:class="{ 'scanned-row-highlight': item.item_code === scanned_item_code }"
+										v-bind="props"
+										@click="click_item_row($event, { item })"
+									>
+										<td v-for="header in headers" :key="header.key">
+											<template v-if="header.key === 'rate'">
+												<div>
+													<div class="text-primary">
+														{{
+															currencySymbol(item.original_currency || pos_profile.currency)
+														}}
+														{{
+															format_currency(
+																item.base_price_list_rate || item.rate,
+																item.original_currency || pos_profile.currency,
+																ratePrecision(item.base_price_list_rate || item.rate),
+															)
+														}}
+													</div>
+													<div
+														v-if="
+															pos_profile.posa_allow_multi_currency &&
+															selected_currency !== pos_profile.currency
+														"
+														class="text-success"
+													>
+														{{ currencySymbol(selected_currency) }}
+														{{
+															format_currency(
+																item.rate,
+																selected_currency,
+																ratePrecision(item.rate),
+															)
+														}}
+													</div>
+												</div>
+											</template>
+											<template v-else-if="header.key === 'actual_qty'">
+												<span class="golden--text">{{
+													format_number(item.actual_qty, hide_qty_decimals ? 0 : 4)
+												}}</span>
+											</template>
+											<template v-else>
+												{{ item[header.key] }}
+											</template>
+										</td>
+									</tr>
+								</template>
+							</v-data-table-virtual>
 								<template v-slot:item.rate="{ item }">
 									<div>
 										<div class="text-primary">
@@ -405,6 +461,9 @@ export default {
 		isDragging: false,
 		// Track if the current search was triggered by a scanner
 		search_from_scanner: false,
+		// Track scanned item for highlighting
+		scanned_item_code: null,
+		highlight_timeout: null,
 	}),
 
 	watch: {
@@ -1572,6 +1631,9 @@ export default {
 		async addScannedItemToInvoice(item, scannedCode) {
 			console.log("Adding scanned item to invoice:", item, scannedCode);
 
+			// Highlight the scanned item
+			this.highlightScannedItem(item.item_code);
+
 			// Use existing add_item method with enhanced feedback
 			await this.add_item(item);
 
@@ -1587,6 +1649,25 @@ export default {
 			// Clear search after successful addition and refocus input
 			this.clearSearch();
 			this.$refs.debounce_search && this.$refs.debounce_search.focus();
+		},
+
+		highlightScannedItem(itemCode) {
+			// Clear previous highlight timeout
+			if (this.highlight_timeout) {
+				clearTimeout(this.highlight_timeout);
+			}
+
+			// Set the scanned item code for highlighting
+			this.scanned_item_code = itemCode;
+
+			// Emit event to highlight item in invoice table as well
+			this.eventBus.emit('highlight_scanned_item', itemCode);
+
+			// Remove highlight after 3 seconds
+			this.highlight_timeout = setTimeout(() => {
+				this.scanned_item_code = null;
+				this.eventBus.emit('clear_scanned_highlight');
+			}, 3000);
 		},
 		showMultipleItemsDialog(items, scannedCode) {
 			// Create a dialog to let user choose from multiple matches
@@ -2023,6 +2104,11 @@ export default {
 		}
 		this.itemDetailsRetryCount = 0;
 
+		// Clear highlight timeout
+		if (this.highlight_timeout) {
+			clearTimeout(this.highlight_timeout);
+		}
+
 		// Call cleanup function for abort controller
 		if (this.cleanupBeforeDestroy) {
 			this.cleanupBeforeDestroy();
@@ -2174,6 +2260,74 @@ export default {
 
 	.cards {
 		padding: var(--dynamic-xs) !important;
+	}
+}
+
+/* Scanned item highlight effects */
+.scanned-item-highlight {
+	animation: scanHighlight 3s ease-in-out;
+	border: 3px solid #4CAF50 !important;
+	box-shadow: 0 0 20px rgba(76, 175, 80, 0.6) !important;
+}
+
+.scanned-row-highlight {
+	animation: scanRowHighlight 3s ease-in-out;
+	background: linear-gradient(90deg, rgba(76, 175, 80, 0.3), rgba(76, 175, 80, 0.1)) !important;
+	border-left: 4px solid #4CAF50 !important;
+}
+
+/* Dark theme adjustments for scanned highlights */
+:deep(.dark-theme) .scanned-item-highlight,
+:deep(.v-theme--dark) .scanned-item-highlight {
+	border-color: #81C784 !important;
+	box-shadow: 0 0 20px rgba(129, 199, 132, 0.6) !important;
+}
+
+:deep(.dark-theme) .scanned-row-highlight,
+:deep(.v-theme--dark) .scanned-row-highlight {
+	background: linear-gradient(90deg, rgba(129, 199, 132, 0.3), rgba(129, 199, 132, 0.1)) !important;
+	border-left-color: #81C784 !important;
+}
+
+/* Keyframe animations */
+@keyframes scanHighlight {
+	0% {
+		transform: scale(1);
+		box-shadow: 0 0 20px rgba(76, 175, 80, 0.6);
+	}
+	25% {
+		transform: scale(1.05);
+		box-shadow: 0 0 25px rgba(76, 175, 80, 0.8);
+	}
+	50% {
+		transform: scale(1.02);
+		box-shadow: 0 0 30px rgba(76, 175, 80, 0.9);
+	}
+	75% {
+		transform: scale(1.01);
+		box-shadow: 0 0 20px rgba(76, 175, 80, 0.7);
+	}
+	100% {
+		transform: scale(1);
+		box-shadow: 0 0 10px rgba(76, 175, 80, 0.4);
+	}
+}
+
+@keyframes scanRowHighlight {
+	0% {
+		background: linear-gradient(90deg, rgba(76, 175, 80, 0.5), rgba(76, 175, 80, 0.2)) !important;
+	}
+	25% {
+		background: linear-gradient(90deg, rgba(76, 175, 80, 0.6), rgba(76, 175, 80, 0.3)) !important;
+	}
+	50% {
+		background: linear-gradient(90deg, rgba(76, 175, 80, 0.4), rgba(76, 175, 80, 0.15)) !important;
+	}
+	75% {
+		background: linear-gradient(90deg, rgba(76, 175, 80, 0.3), rgba(76, 175, 80, 0.1)) !important;
+	}
+	100% {
+		background: linear-gradient(90deg, rgba(76, 175, 80, 0.2), rgba(76, 175, 80, 0.05)) !important;
 	}
 }
 </style>

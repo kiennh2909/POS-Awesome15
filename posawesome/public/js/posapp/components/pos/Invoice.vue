@@ -206,6 +206,7 @@
 						:addOne="add_one"
 						:toggleOffer="toggleOffer"
 						:changePriceListRate="change_price_list_rate"
+						:eventBus="eventBus"
 						@update:expanded="expanded = $event"
 						@reorder-items="handleItemReorder"
 						@add-item-from-drag="handleItemDrop"
@@ -1088,7 +1089,7 @@ export default {
 
 			// Import stock validation functions
 			const { validateStockForOfflineInvoice, isOffline } = await import("../../../offline/index.js");
-			
+
 			// Only validate stock if not allowing negative stock
 			if (!this.stock_settings?.allow_negative_stock && !isOffline()) {
 				const validation = validateStockForOfflineInvoice(this.items);
@@ -1099,7 +1100,7 @@ export default {
 						description: validation.errorMessage,
 						color: "error",
 					});
-					
+
 					// Don't proceed to payment - return to invoice
 					this.eventBus.emit("show_payment", "false");
 					return false;

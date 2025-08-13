@@ -26,8 +26,13 @@
 		>
 			<!-- Custom row styling dựa trên trạng thái tồn kho -->
 			<template v-slot:item="{ item, props }">
-				<tr 
-					:class="getRowClass(item)" 
+				<tr
+					:class="[
+						getRowClass(item),
+						{
+							'scanned-cart-item-highlight': item.item_code === scanned_item_code
+						}
+					]"
 					:title="getStockTooltip(item)"
 					v-bind="props"
 				>
@@ -101,7 +106,7 @@
 					</td>
 				</tr>
 			</template>
-			
+
 
 			<!-- Expanded row content using Vuetify's built-in system -->
 			<template v-slot:expanded-row="{ item }">
@@ -581,6 +586,7 @@ export default {
 			draggedIndex: null,
 			dragOverIndex: null,
 			isDragging: false,
+			scanned_item_code: null, // Added to store the scanned item code
 		};
 	},
 	computed: {
@@ -609,7 +615,7 @@ export default {
 				const key = item.posa_row_id || item.item_code;
 				const requestedQty = Math.abs(item.qty || 0);
 				const availableQty = item.actual_qty || 0;
-				
+
 				// Kiểm tra nếu vượt quá tồn kho (chỉ áp dụng cho đơn hàng thường, không phải return)
 				if (!this.isReturnInvoice && requestedQty > availableQty) {
 					statusMap[key] = {
@@ -633,9 +639,9 @@ export default {
 		getRowClass(item) {
 			const key = item.posa_row_id || item.item_code;
 			const status = this.itemStockStatus[key];
-			
+
 			if (!status) return '';
-			
+
 			if (status.isOverStock) {
 				return 'stock-warning-row';
 			} else {
@@ -648,6 +654,15 @@ export default {
 			const key = item.posa_row_id || item.item_code;
 			const status = this.itemStockStatus[key];
 			return status ? status.message : '';
+		},
+
+		// Method to set the scanned item code (assuming this is called from a parent component or scan event)
+		setScannedItemCode(itemCode) {
+			this.scanned_item_code = itemCode;
+			// Optional: Clear the highlight after a delay
+			setTimeout(() => {
+				this.scanned_item_code = null;
+			}, 3000); // Highlight for 3 seconds
 		},
 
 		onDragOverFromSelector(event) {
@@ -1076,5 +1091,18 @@ export default {
 	width: 48px;
 	text-align: center;
 	padding: 8px 4px;
+}
+
+/* Highlight for scanned items */
+.scanned-cart-item-highlight {
+	background-color: rgba(25, 118, 210, 0.2) !important; /* Vuetify primary blue with transparency */
+	transform: translateY(-1px);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme highlight */
+:deep(.dark-theme) .scanned-cart-item-highlight,
+:deep(.v-theme--dark) .scanned-cart-item-highlight {
+	background-color: rgba(144, 202, 249, 0.2) !important; /* Lighter blue for dark theme */
 }
 </style>
