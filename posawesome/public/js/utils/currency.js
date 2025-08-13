@@ -1,0 +1,58 @@
+
+export function get_currency_symbol(currency) {
+	if (!currency) return '';
+	
+	const symbols = {
+		'USD': '$',
+		'EUR': '€',
+		'GBP': '£',
+		'JPY': '¥',
+		'VND': '₫',
+		'CNY': '¥',
+		'INR': '₹',
+		'AUD': 'A$',
+		'CAD': 'C$',
+		'CHF': 'Fr',
+		'SEK': 'kr',
+		'NOK': 'kr',
+		'DKK': 'kr',
+		'RUB': '₽',
+		'BRL': 'R$',
+		'ZAR': 'R',
+		'KRW': '₩',
+		'SGD': 'S$',
+		'HKD': 'HK$',
+		'MXN': '$',
+		'THB': '฿',
+		'TRY': '₺',
+		'PLN': 'zł',
+		'CZK': 'Kč',
+		'HUF': 'Ft',
+		'ILS': '₪',
+		'EGP': 'E£',
+		'SAR': 'SR',
+		'AED': 'د.إ',
+		'QAR': 'QR',
+		'KWD': 'KD',
+		'BHD': 'BD',
+		'OMR': 'OMR',
+		'JOD': 'JD',
+		'LBP': 'L£',
+		'MAD': 'MAD',
+		'TND': 'TND',
+		'DZD': 'DZD',
+		'PKR': '₨',
+		'LKR': '₨',
+		'BDT': '৳',
+		'NPR': '₨',
+		'MMK': 'K',
+		'KHR': '៛',
+		'LAK': '₭',
+		'IDR': 'Rp',
+		'MYR': 'RM',
+		'PHP': '₱',
+		'TWD': 'NT$'
+	};
+	
+	return symbols[currency] || currency;
+}
