@@ -5,8 +5,8 @@
 	>
 		<v-row dense>
 			<!-- Action Buttons (moved to left) -->
-			<v-col cols="12" md="5">
-				<v-row class="action-buttons-row">
+			<v-col cols="12" md="6">
+				<v-row dense class="action-buttons-row">
 					<!-- Row 1: SAVE & CLEAR và LOAD DRAFTS -->
 					<v-col cols="6" class="button-col">
 						<v-btn
@@ -59,8 +59,8 @@
 						</v-btn>
 					</v-col>
 
-					<!-- Row 3: PRINT DRAFT (larger, spanning more width) -->
-					<v-col cols="12" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col-large">
+					<!-- Row 3: PRINT DRAFT và PAY side by side -->
+					<v-col cols="6" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col-large">
 						<v-btn
 							block
 							color="primary"
@@ -73,9 +73,7 @@
 							{{ __("PRINT DRAFT") }}
 						</v-btn>
 					</v-col>
-
-					<!-- Row cuối: PAY button full width (130% larger) -->
-					<v-col cols="12" class="button-col-pay">
+					<v-col cols="6" class="button-col-pay">
 						<v-btn
 							block
 							color="success"
@@ -92,7 +90,7 @@
 			</v-col>
 
 			<!-- Summary Info (moved to right) -->
-			<v-col cols="12" md="7">
+			<v-col cols="12" md="6">
 				<v-row dense>
 					<!-- Total Qty -->
 					<v-col cols="6">
@@ -259,20 +257,22 @@ export default {
 
 /* Custom spacing for action buttons */
 .action-buttons-row {
-	gap: 8px;
+	gap: 4px;
 }
 
 .button-col {
-	margin-bottom: 8px;
+	margin-bottom: 6px;
+	padding: 2px;
 }
 
 .button-col-large {
-	margin-bottom: 12px;
+	margin-bottom: 6px;
+	padding: 2px;
 }
 
 .button-col-pay {
-	margin-top: 8px;
-	margin-bottom: 4px;
+	margin-bottom: 6px;
+	padding: 2px;
 }
 
 /* Large button styling for PRINT DRAFT */
