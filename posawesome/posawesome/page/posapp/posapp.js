@@ -34,8 +34,23 @@ frappe.pages["posapp"].on_page_load = async function (wrapper) {
 			const posProfile = this.page.$PosApp.pos_profile;
 			if (posProfile && posProfile.posa_default_customer) {
 				console.log("POS Profile has default customer configured:", posProfile.posa_default_customer);
-				// The Customer.vue component will handle setting the default customer 
-				// after it loads the customer list
+				
+				// Call API to get default customer details and emit event
+				frappe.call({
+					method: "posawesome.posawesome.api.utilities.get_default_customer",
+					args: {
+						pos_profile: posProfile.name
+					},
+					callback: function(r) {
+						if (r.message) {
+							console.log("Default customer details:", r.message);
+							// Emit event to set default customer
+							setTimeout(() => {
+								frappe.realtime.emit("set_default_customer", r.message);
+							}, 1000);
+						}
+					}
+				});
 			}
 		};
 
