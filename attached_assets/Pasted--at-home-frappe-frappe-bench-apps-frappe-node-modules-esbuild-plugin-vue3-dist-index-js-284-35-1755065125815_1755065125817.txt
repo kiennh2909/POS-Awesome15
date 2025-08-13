@@ -1,0 +1,39 @@
+
+    at /home/frappe/frappe-bench/apps/frappe/node_modules/esbuild-plugin-vue3/dist/index.js:284:35
+    at step (/home/frappe/frappe-bench/apps/frappe/node_modules/esbuild-plugin-vue3/dist/index.js:67:23)
+    at Object.next (/home/frappe/frappe-bench/apps/frappe/node_modules/esbuild-plugin-vue3/dist/index.js:48:53)
+    at fulfilled (/home/frappe/frappe-bench/apps/frappe/node_modules/esbuild-plugin-vue3/dist/index.js:39:58)
+
+  The plugin "vue" was triggered by this import
+
+    ../posawesome/posawesome/public/js/posapp/components/pos/ItemsSelector.vue:1:290:
+      1 │ ...ex=0";import { render } from "/home/frappe/frappe-bench/apps/posawesome/posawesome/public/js/posapp/components/pos/ItemsSelector.vue?type=template"; script...
+        ╵                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+✘ [ERROR] [plugin frappe-vue-style] Cannot read properties of undefined (reading 'outputs')
+
+    /home/frappe/frappe-bench/apps/frappe/esbuild/frappe-vue-style.js:10:41:
+      10 │       let files = get_files(result.metafile.outputs);
+         ╵                                             ^
+
+    at /home/frappe/frappe-bench/apps/frappe/esbuild/frappe-vue-style.js:10:42
+    at /home/frappe/frappe-bench/apps/frappe/node_modules/esbuild/lib/main.js:1052:21
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+
+  This error came from the "onEnd" callback registered here:
+
+    /home/frappe/frappe-bench/apps/frappe/esbuild/frappe-vue-style.js:9:8:
+      9 │     build.onEnd((result) => {
+        ╵           ~~~~~
+
+    at setup (/home/frappe/frappe-bench/apps/frappe/esbuild/frappe-vue-style.js:9:9)
+    at handlePlugins (/home/frappe/frappe-bench/apps/frappe/node_modules/esbuild/lib/main.js:855:23)
+
+ ERROR  There were some problems during build
+
+Error: Build failed with 2 errors:
+node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:496:10: ERROR: [plugin: vue] Codegen node is missing for element/if/for node. Apply appropriate transforms first.
+/home/frappe/frappe-bench/apps/frappe/esbuild/frappe-vue-style.js:10:41: ERROR: [plugin: frappe-vue-style] Cannot read properties of undefined (reading 'outputs')
+    at failureErrorWithLog (/home/frappe/frappe-bench/apps/frappe/node_modules/esbuild/lib/main.js:1624:15)
+    at /home/frappe/frappe-bench/apps/frappe/node_modules/esbuild/lib/main.js:1266:28
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
