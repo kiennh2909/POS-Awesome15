@@ -24,67 +24,84 @@
 			@update:expanded="$emit('update:expanded', $event)"
 			:search="itemSearch"
 		>
-			<!-- Quantity column -->
-			<template v-slot:item.qty="{ item }">
-				<div class="amount-value">
-					{{ formatFloat(item.qty, hide_qty_decimals ? 0 : undefined) }}
-				</div>
-			</template>
+			<!-- Custom row styling dựa trên trạng thái tồn kho -->
+			<template v-slot:item="{ item, props }">
+				<tr 
+					:class="getRowClass(item)" 
+					:title="getStockTooltip(item)"
+					v-bind="props"
+				>
+					<!-- Expand button column -->
+					<td class="expand-cell">
+						<v-btn
+							icon
+							size="small"
+							variant="text"
+							@click="props.toggleExpanded"
+						>
+							<v-icon>
+								{{ props.isExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+							</v-icon>
+						</v-btn>
+					</td>
 
-			<!-- Rate column -->
-			<template v-slot:item.rate="{ item }">
-				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.rate) }}</span>
-				</div>
+					<!-- Render all other columns dynamically -->
+					<td v-for="header in headers.filter(h => h.key !== 'data-table-expand')" :key="header.key">
+						<template v-if="header.key === 'qty'">
+							<div class="amount-value">
+								{{ formatFloat(item.qty, hide_qty_decimals ? 0 : undefined) }}
+							</div>
+						</template>
+						<template v-else-if="header.key === 'rate'">
+							<div class="currency-display">
+								<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+								<span class="amount-value">{{ formatCurrency(item.rate) }}</span>
+							</div>
+						</template>
+						<template v-else-if="header.key === 'amount'">
+							<div class="currency-display">
+								<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+								<span class="amount-value">{{ formatCurrency(item.qty * item.rate) }}</span>
+							</div>
+						</template>
+						<template v-else-if="header.key === 'discount_value'">
+							<div class="amount-value">
+								{{
+									formatFloat(
+										item.discount_percentage ||
+											(item.price_list_rate
+												? (item.discount_amount / item.price_list_rate) * 100
+												: 0),
+									)
+								}}%
+							</div>
+						</template>
+						<template v-else-if="header.key === 'discount_amount'">
+							<div class="currency-display">
+								<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+								<span class="amount-value">{{ formatCurrency(item.discount_amount || 0) }}</span>
+							</div>
+						</template>
+						<template v-else-if="header.key === 'price_list_rate'">
+							<div class="currency-display">
+								<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+								<span class="amount-value">{{ formatCurrency(item.price_list_rate) }}</span>
+							</div>
+						</template>
+						<template v-else-if="header.key === 'posa_is_offer'">
+							<v-checkbox-btn
+								v-model="item.posa_is_offer"
+								class="center"
+								@change="toggleOffer(item)"
+							></v-checkbox-btn>
+						</template>
+						<template v-else>
+							{{ item[header.key] }}
+						</template>
+					</td>
+				</tr>
 			</template>
-
-			<!-- Amount column -->
-			<template v-slot:item.amount="{ item }">
-				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.qty * item.rate) }}</span>
-				</div>
-			</template>
-
-			<!-- Discount percentage column -->
-			<template v-slot:item.discount_value="{ item }">
-				<div class="amount-value">
-					{{
-						formatFloat(
-							item.discount_percentage ||
-								(item.price_list_rate
-									? (item.discount_amount / item.price_list_rate) * 100
-									: 0),
-						)
-					}}%
-				</div>
-			</template>
-
-			<!-- Discount amount column -->
-			<template v-slot:item.discount_amount="{ item }">
-				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.discount_amount || 0) }}</span>
-				</div>
-			</template>
-
-			<!-- Price list rate column -->
-			<template v-slot:item.price_list_rate="{ item }">
-				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.price_list_rate) }}</span>
-				</div>
-			</template>
-
-			<!-- Offer checkbox column -->
-			<template v-slot:item.posa_is_offer="{ item }">
-				<v-checkbox-btn
-					v-model="item.posa_is_offer"
-					class="center"
-					@change="toggleOffer(item)"
-				></v-checkbox-btn>
-			</template>
+			
 
 			<!-- Expanded row content using Vuetify's built-in system -->
 			<template v-slot:expanded-row="{ item }">
@@ -585,8 +602,54 @@ export default {
 			}
 			return false;
 		},
+		// Kiểm tra trạng thái tồn kho cho từng item
+		itemStockStatus() {
+			const statusMap = {};
+			this.items.forEach(item => {
+				const key = item.posa_row_id || item.item_code;
+				const requestedQty = Math.abs(item.qty || 0);
+				const availableQty = item.actual_qty || 0;
+				
+				// Kiểm tra nếu vượt quá tồn kho (chỉ áp dụng cho đơn hàng thường, không phải return)
+				if (!this.isReturnInvoice && requestedQty > availableQty) {
+					statusMap[key] = {
+						isOverStock: true,
+						status: 'danger',
+						message: `Vượt quá tồn kho: ${requestedQty}/${availableQty}`
+					};
+				} else {
+					statusMap[key] = {
+						isOverStock: false,
+						status: 'safe',
+						message: `Đủ tồn kho: ${requestedQty}/${availableQty}`
+					};
+				}
+			});
+			return statusMap;
+		}
 	},
 	methods: {
+		// Lấy class CSS cho row dựa trên trạng thái tồn kho
+		getRowClass(item) {
+			const key = item.posa_row_id || item.item_code;
+			const status = this.itemStockStatus[key];
+			
+			if (!status) return '';
+			
+			if (status.isOverStock) {
+				return 'stock-warning-row';
+			} else {
+				return 'stock-safe-row';
+			}
+		},
+
+		// Lấy tooltip cho trạng thái tồn kho
+		getStockTooltip(item) {
+			const key = item.posa_row_id || item.item_code;
+			const status = this.itemStockStatus[key];
+			return status ? status.message : '';
+		},
+
 		onDragOverFromSelector(event) {
 			// Check if drag data is from item selector
 			const dragData = event.dataTransfer.types.includes("application/json");
@@ -950,5 +1013,68 @@ export default {
 /* Expanded row styling */
 .expanded-row {
 	background-color: var(--surface-secondary);
+}
+
+/* Stock status row styling */
+.stock-warning-row {
+	background-color: #ffebee !important;
+	border-left: 4px solid #f44336 !important;
+	animation: warningPulse 2s ease-in-out infinite;
+}
+
+.stock-warning-row:hover {
+	background-color: #ffcdd2 !important;
+}
+
+.stock-safe-row {
+	background-color: #e8f5e9 !important;
+	border-left: 4px solid #4caf50 !important;
+}
+
+.stock-safe-row:hover {
+	background-color: #c8e6c9 !important;
+}
+
+/* Dark theme stock status styling */
+:deep(.dark-theme) .stock-warning-row,
+:deep(.v-theme--dark) .stock-warning-row {
+	background-color: rgba(244, 67, 54, 0.1) !important;
+	border-left: 4px solid #f44336 !important;
+}
+
+:deep(.dark-theme) .stock-warning-row:hover,
+:deep(.v-theme--dark) .stock-warning-row:hover {
+	background-color: rgba(244, 67, 54, 0.2) !important;
+}
+
+:deep(.dark-theme) .stock-safe-row,
+:deep(.v-theme--dark) .stock-safe-row {
+	background-color: rgba(76, 175, 80, 0.1) !important;
+	border-left: 4px solid #4caf50 !important;
+}
+
+:deep(.dark-theme) .stock-safe-row:hover,
+:deep(.v-theme--dark) .stock-safe-row:hover {
+	background-color: rgba(76, 175, 80, 0.2) !important;
+}
+
+/* Warning pulse animation */
+@keyframes warningPulse {
+	0% {
+		box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4);
+	}
+	70% {
+		box-shadow: 0 0 0 10px rgba(244, 67, 54, 0);
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
+	}
+}
+
+/* Expand cell styling */
+.expand-cell {
+	width: 48px;
+	text-align: center;
+	padding: 8px 4px;
 }
 </style>
