@@ -417,6 +417,8 @@ export default {
 		search_from_scanner: false,
 		// Track the current scan mode: true for Add, false for Remove
 		scan_add_mode: true,
+		// Prevent multiple simultaneous scan processing
+		processing_scan: false,
 	}),
 
 	watch: {
@@ -1515,6 +1517,12 @@ export default {
 		onBarcodeScanned(scannedCode) {
 			console.log("Barcode scanned:", scannedCode);
 
+			// Prevent multiple simultaneous scans
+			if (this.processing_scan) {
+				return;
+			}
+			this.processing_scan = true;
+
 			// mark this search as coming from a scanner
 			this.search_from_scanner = true;
 
@@ -1535,38 +1543,49 @@ export default {
 				2,
 			);
 
-			// Enhanced item search and submission logic
-			setTimeout(() => {
+			// Process the scanned item immediately without timeout
+			this.$nextTick(() => {
 				this.processScannedItem(scannedCode);
-			}, 300);
+			});
 		},
 		processScannedItem(scannedCode) {
-			// First try to find exact match by barcode
-			let foundItem = this.items.find(
-				(item) =>
-					item.barcode === scannedCode ||
-					item.item_code === scannedCode ||
-					(item.barcodes && item.barcodes.some((bc) => bc.barcode === scannedCode)),
-			);
+			try {
+				// First try to find exact match by barcode
+				let foundItem = this.items.find(
+					(item) =>
+						item.barcode === scannedCode ||
+						item.item_code === scannedCode ||
+						(item.barcodes && item.barcodes.some((bc) => bc.barcode === scannedCode)),
+				);
 
-			if (foundItem) {
-				console.log("Found item by exact match:", foundItem);
-				this.addScannedItemToInvoice(foundItem, scannedCode);
-				return;
-			}
+				if (foundItem) {
+					console.log("Found item by exact match:", foundItem);
+					this.addScannedItemToInvoice(foundItem, scannedCode);
+					return;
+				}
 
-			// If no exact match, try partial search
-			const searchResults = this.searchItemsByCode(scannedCode);
+				// If no exact match, try partial search
+				const searchResults = this.searchItemsByCode(scannedCode);
 
-			if (searchResults.length === 1) {
-				console.log("Found item by search:", searchResults[0]);
-				this.addScannedItemToInvoice(searchResults[0], scannedCode);
-			} else if (searchResults.length > 1) {
-				// Multiple matches - show selection dialog
-				this.showMultipleItemsDialog(searchResults, scannedCode);
-			} else {
-				// No matches found
+				if (searchResults.length === 1) {
+					console.log("Found item by search:", searchResults[0]);
+					this.addScannedItemToInvoice(searchResults[0], scannedCode);
+				} else if (searchResults.length > 1) {
+					// Multiple matches - show selection dialog
+					this.showMultipleItemsDialog(searchResults, scannedCode);
+				} else {
+					// No matches found
+					this.handleItemNotFound(scannedCode);
+				}
+			} catch (error) {
+				console.error("Error processing scanned item:", error);
 				this.handleItemNotFound(scannedCode);
+			} finally {
+				// Always release the processing lock
+				setTimeout(() => {
+					this.processing_scan = false;
+					this.search_from_scanner = false;
+				}, 500);
 			}
 		},
 		searchItemsByCode(code) {
@@ -1584,21 +1603,39 @@ export default {
 		async addScannedItemToInvoice(item, scannedCode) {
 			console.log("Adding scanned item to invoice:", item, scannedCode);
 
-			// Use existing add_item method with enhanced feedback
-			await this.add_item(item);
+			try {
+				// Use existing add_item method with enhanced feedback
+				await this.add_item(item);
 
-			// Show success message
-			frappe.show_alert(
-				{
-					message: `Added: ${item.item_name}`,
-					indicator: "green",
-				},
-				3,
-			);
+				// Show success message
+				frappe.show_alert(
+					{
+						message: `Added: ${item.item_name}`,
+						indicator: "green",
+					},
+					3,
+				);
 
-			// Clear search after successful addition and refocus input
-			this.clearSearch();
-			this.$refs.debounce_search && this.$refs.debounce_search.focus();
+				// Clear search after successful addition and refocus input
+				this.clearSearch();
+				
+				// Use setTimeout to prevent UI blocking
+				setTimeout(() => {
+					if (this.$refs.debounce_search) {
+						this.$refs.debounce_search.focus();
+					}
+				}, 100);
+				
+			} catch (error) {
+				console.error("Error adding scanned item:", error);
+				frappe.show_alert(
+					{
+						message: `Error adding item: ${item.item_name}`,
+						indicator: "red",
+					},
+					3,
+				);
+			}
 		},
 		showMultipleItemsDialog(items, scannedCode) {
 			// Create a dialog to let user choose from multiple matches
@@ -1667,8 +1704,16 @@ export default {
 				5,
 			);
 
-			// Keep the search term for manual search
-			this.trigger_onscan(scannedCode);
+			// Keep the search term for manual search but don't trigger_onscan to avoid loops
+			this.first_search = scannedCode;
+			this.search = scannedCode;
+			
+			// Refocus input without triggering search
+			setTimeout(() => {
+				if (this.$refs.debounce_search) {
+					this.$refs.debounce_search.focus();
+				}
+			}, 100);
 		},
 		
 		onScanModeChange() {
