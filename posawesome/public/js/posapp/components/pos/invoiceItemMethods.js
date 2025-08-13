@@ -74,7 +74,7 @@ export default {
 			if (this.isReturnInvoice) {
 				new_item.qty = -Math.abs(new_item.qty || 1);
 			}
-      
+
                        this.items.unshift(new_item);
                        // Replace the newly inserted item at index 0 to ensure
                        // Vue reactivity and avoid overwriting existing rows
@@ -245,6 +245,17 @@ export default {
 		this.eventBus.emit("set_customer_readonly", false);
 		this.invoiceType = this.pos_profile.posa_default_sales_order ? "Order" : "Invoice";
 		this.invoiceTypes = ["Invoice", "Order"];
+
+		// Call the new method to set the default customer
+		this.setDefaultCustomerAfterClear();
+	},
+
+	// Method to set the default customer
+	setDefaultCustomerAfterClear() {
+		this.customer = this.pos_profile.customer;
+		this.eventBus.emit("set_customer_readonly", false);
+		this.fetch_customer_details();
+		this.fetch_customer_balance();
 	},
 
 	// Fetch customer balance from backend or cache
@@ -435,7 +446,13 @@ export default {
 				color: "error",
 			});
 		} else {
-			this.clear_invoice();
+			this.clear_invoice(); // This already calls setDefaultCustomerAfterClear()
+
+			// Ensure default customer is set after save and clear
+			this.$nextTick(() => {
+				this.setDefaultCustomerAfterClear();
+			});
+
 			return old_invoice;
 		}
 	},
@@ -844,6 +861,7 @@ export default {
 				// If exchange rate is 300 PKR = 1 USD
 				// item.rate is in USD (e.g. 10 USD)
 				// base_rate should be in PKR (e.g. 3000 PKR)
+				// So multiply by exchange rate to get base_rate
 				new_item.rate = flt(item.rate); // Keep rate in USD
 
 				// Use pre-stored base_rate if available, otherwise calculate
@@ -862,7 +880,7 @@ export default {
 				new_item.base_discount_amount =
 					item.base_discount_amount || flt(item.discount_amount / this.exchange_rate);
 			} else {
-				// Same currency (base currency), make sure we use base rates if available
+				// Same currency, make sure we use base rates if available
 				new_item.rate = flt(item.rate);
 				new_item.base_rate = item.base_rate || flt(item.rate);
 				new_item.price_list_rate = flt(item.price_list_rate);
@@ -1205,7 +1223,7 @@ export default {
 					invoice_doc.base_grand_total = -Math.abs(invoice_doc.base_grand_total);
 				if (invoice_doc.base_rounded_total > 0)
 					invoice_doc.base_rounded_total = -Math.abs(invoice_doc.base_rounded_total);
-				if (invoice_doc.base_total > 0) invoice_doc.base_total = -Math.abs(invoice_doc.base_total);
+				if (invoice_doc.base_total > 0) doc.base_total = -Math.abs(doc.base_total);
 
 				// Ensure all items have negative quantity and amount
 				if (invoice_doc.items && invoice_doc.items.length) {
