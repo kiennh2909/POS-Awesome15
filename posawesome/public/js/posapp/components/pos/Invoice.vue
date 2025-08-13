@@ -1133,8 +1133,14 @@ export default {
 
 		// Listen for scanned item highlight event
 		this.eventBus.on("highlight_scanned_item", (itemCode) => {
+			console.log("Invoice received highlight event for:", itemCode);
 			if (this.$refs.itemsTable) {
-				this.$refs.itemsTable.highlightItem(itemCode);
+				const result = this.$refs.itemsTable.highlightItem(itemCode);
+				if (!result) {
+					console.warn("Failed to highlight item:", itemCode);
+				}
+			} else {
+				console.warn("ItemsTable ref not found");
 			}
 		});
 

@@ -1617,10 +1617,11 @@ export default {
 						3,
 					);
 
-					// Emit highlight AFTER item is added to invoice
+					// Emit highlight AFTER item is added to invoice with a longer delay
 					setTimeout(() => {
+						console.log("Emitting highlight event for:", item.item_code);
 						this.eventBus.emit("highlight_scanned_item", item.item_code);
-					}, 100);
+					}, 200);
 				} else {
 					// Remove mode - emit event to remove item from invoice
 					console.log("Emitting remove_item_by_code for:", item.item_code);
@@ -1644,7 +1645,7 @@ export default {
 					if (this.$refs.debounce_search) {
 						this.$refs.debounce_search.focus();
 					}
-				}, 100);
+				}, 150);
 
 			} catch (error) {
 				console.error("Error processing scanned item:", error);
@@ -1656,6 +1657,12 @@ export default {
 					},
 					3,
 				);
+			} finally {
+				// Always clear processing lock
+				setTimeout(() => {
+					this.processing_scan = false;
+					this.search_from_scanner = false;
+				}, 300);
 			}
 		},
 		showMultipleItemsDialog(items, scannedCode) {

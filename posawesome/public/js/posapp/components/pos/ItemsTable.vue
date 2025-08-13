@@ -642,7 +642,7 @@ export default {
 			const itemExists = this.items.find(item => item.item_code === itemCode);
 			if (!itemExists) {
 				console.log("Item not found in table:", itemCode);
-				return;
+				return false;
 			}
 			
 			// Clear any existing highlight timeout
@@ -654,15 +654,21 @@ export default {
 			this.highlightedItemCode = itemCode;
 			console.log("Set highlightedItemCode to:", this.highlightedItemCode);
 			
-			// Force immediate update
-			this.$forceUpdate();
+			// Force immediate update with nextTick for better reactivity
+			this.$nextTick(() => {
+				this.$forceUpdate();
+			});
 
 			// Remove highlight after 3 seconds
 			this.highlightTimeout = setTimeout(() => {
 				console.log("Removing highlight for:", itemCode);
 				this.highlightedItemCode = null;
-				this.$forceUpdate();
+				this.$nextTick(() => {
+					this.$forceUpdate();
+				});
 			}, 3000);
+			
+			return true;
 		},
 	},
 };
