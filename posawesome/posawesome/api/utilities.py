@@ -254,17 +254,26 @@ def get_pos_profile_tax_inclusive(pos_profile: str):
 @frappe.whitelist()
 def get_default_customer(pos_profile):
 	"""Get default customer from POS Profile"""
+	print(f"=== GET DEFAULT CUSTOMER API ===")
+	print(f"POS Profile requested: {pos_profile}")
+	
 	try:
 		profile = frappe.get_doc("POS Profile", pos_profile)
+		print(f"POS Profile loaded: {profile.name}")
+		
 		default_customer = profile.get("default_customer")
+		print(f"Default customer field value: {default_customer}")
 
 		if default_customer:
 			# Check if customer exists
 			if not frappe.db.exists("Customer", default_customer):
-				frappe.log_error(f"Default customer {default_customer} not found", "POS Default Customer")
+				error_msg = f"Default customer {default_customer} not found in Customer table"
+				print(f"❌ {error_msg}")
+				frappe.log_error(error_msg, "POS Default Customer")
 				return None
 				
 			customer_doc = frappe.get_doc("Customer", default_customer)
+			print(f"✅ Customer loaded: {customer_doc.name} - {customer_doc.customer_name}")
 			
 			# Get primary address if available
 			primary_address = ""
@@ -275,7 +284,7 @@ def get_default_customer(pos_profile):
 				except:
 					pass
 			
-			return {
+			result = {
 				"name": customer_doc.name,
 				"customer_name": customer_doc.customer_name,
 				"mobile_no": customer_doc.mobile_no or "",
@@ -283,7 +292,15 @@ def get_default_customer(pos_profile):
 				"tax_id": customer_doc.tax_id or "",
 				"primary_address": primary_address
 			}
+			print(f"✅ Returning customer data: {result}")
+			return result
+		else:
+			print("❌ No default customer configured in POS Profile")
+			
 	except Exception as e:
-		frappe.log_error(f"Error getting default customer: {str(e)}", "POS Default Customer")
+		error_msg = f"Error getting default customer: {str(e)}"
+		print(f"❌ {error_msg}")
+		frappe.log_error(error_msg, "POS Default Customer")
 		
+	print(f"=== END GET DEFAULT CUSTOMER API ===")
 	return None

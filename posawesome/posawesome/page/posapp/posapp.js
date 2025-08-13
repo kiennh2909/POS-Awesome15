@@ -34,12 +34,38 @@ frappe.pages["posapp"].on_page_load = async function (wrapper) {
 			const posProfile = this.page.$PosApp.pos_profile;
 			if (posProfile && posProfile.default_customer) {
 				console.log("POS Profile has default customer configured:", posProfile.default_customer);
-				// Emit event to notify Customer component about POS profile update
-				setTimeout(() => {
-					if (window.posEventBus) {
-						window.posEventBus.emit("pos_profile_updated");
+				
+				// Multiple attempts to ensure default customer is set
+				const attemptSetDefault = (attempt = 1) => {
+					if (attempt > 5) {
+						console.error("Failed to set default customer after 5 attempts");
+						return;
 					}
-				}, 1000); // Wait for components to be ready
+					
+					console.log(`Attempting to set default customer (attempt ${attempt})`);
+					
+					if (window.posEventBus) {
+						// First emit pos_profile_updated
+						window.posEventBus.emit("pos_profile_updated");
+						
+						// Then try to force set default customer
+						setTimeout(() => {
+							window.posEventBus.emit("force_set_default_customer", {
+								pos_profile: posProfile,
+								default_customer: posProfile.default_customer
+							});
+						}, 500);
+						
+						// If still not set, try again
+						setTimeout(() => {
+							attemptSetDefault(attempt + 1);
+						}, 2000);
+					} else {
+						setTimeout(() => attemptSetDefault(attempt), 500);
+					}
+				};
+				
+				attemptSetDefault();
 			}
 		};
 
