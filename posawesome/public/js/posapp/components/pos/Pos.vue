@@ -314,7 +314,7 @@ export default {
 <style scoped>
 .dynamic-container {
 	/* add space for the navbar with better spacing */
-	padding-top: calc(25px + var(--dynamic-lg));
+	padding-top: calc(2px + var(--dynamic-lg));
 	/* Navbar height (25px) + larger spacing */
 	transition: all 0.3s ease;
 }
@@ -333,7 +333,7 @@ export default {
 
 @media (max-width: 768px) {
 	.dynamic-container {
-		padding-top: calc(56px + var(--dynamic-md));
+		padding-top: calc(26px + var(--dynamic-md));
 		/* Consistent navbar height + medium spacing */
 	}
 
