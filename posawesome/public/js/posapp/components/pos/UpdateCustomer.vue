@@ -240,6 +240,7 @@ export default {
 		gender: "",
 		loyalty_points: null,
 		loyalty_program: null,
+		territorys: [],
 		countries: [
 			"Taiwan",
 			"China",
@@ -370,8 +371,8 @@ export default {
 			this.email_id = "";
 			this.referral_code = "";
 			this.birthday = "";
-			this.group = frappe.defaults.get_user_default("Customer Group");
-			this.territory = frappe.defaults.get_user_default("Territory")
+			this.group = frappe.defaults.get_user_default("Customer Group") || "Khách lẻ POS";
+			this.territory = frappe.defaults.get_user_default("Territory") || (this.territorys.length > 0 ? this.territorys[0] : "");
 			this.customer_id = "";
 			this.customer_type = "Individual";
 			this.gender = "";
@@ -411,6 +412,10 @@ export default {
 						data.forEach((el) => {
 							vm.territorys.push(el.name);
 						});
+						// Set default territory to first record if not already set
+						if (!vm.territory && data.length > 0) {
+							vm.territory = data[0].name;
+						}
 					}
 				});
 		},
@@ -643,8 +648,8 @@ export default {
 		this.getCustomerGroups();
 		this.getCustomerTerritorys();
 		this.getGenders();
-		// set default values for customer group and territory from user defaults
-		this.group = frappe.defaults.get_user_default("Customer Group");
+		// set default values for customer group and territory
+		this.group = frappe.defaults.get_user_default("Customer Group") || "Khách lẻ POS";
 		this.territory = frappe.defaults.get_user_default("Territory");
 	},
 };
