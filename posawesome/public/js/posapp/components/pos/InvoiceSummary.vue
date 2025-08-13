@@ -1,17 +1,18 @@
 <template>
 	<v-card
-		:class="['cards mb-0 mt-3 py-2 px-3 rounded-lg resizable', isDarkTheme ? '' : 'bg-grey-lighten-4']"
+		:class="['cards mb-0 mt-2 py-3 px-3 rounded-lg resizable', isDarkTheme ? '' : 'bg-grey-lighten-4']"
 		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
 	>
 		<!-- Row 1: SAVE & CLEAR, TRẢ HÀNG BÁN, Total Qty, Additional Discount -->
-		<v-row dense class="mb-1">
+		<v-row dense class="mb-0">
 			<v-col cols="12" md="6">
 				<v-row dense>
-					<v-col cols="6" class="button-col">
+					<v-col cols="6" class="button-col pa-1">
 						<v-btn
 							block
 							color="accent"
 							theme="dark"
+							size="large"
 							prepend-icon="mdi-content-save"
 							@click="$emit('save-and-clear')"
 							class="summary-btn"
@@ -19,11 +20,12 @@
 							{{ __("SAVE & CLEAR") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1" class="button-col">
+					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1" class="button-col pa-1">
 						<v-btn
 							block
 							color="teal"
 							theme="dark"
+							size="large"
 							prepend-icon="mdi-backup-restore"
 							@click="$emit('open-returns')"
 							class="summary-btn"
@@ -87,14 +89,15 @@
 		</v-row>
 
 		<!-- Row 2: LOAD DRAFTS, CANCEL SALE, Items Discount, Total -->
-		<v-row dense class="mb-1">
+		<v-row dense class="mb-0">
 			<v-col cols="12" md="6">
 				<v-row dense>
-					<v-col cols="6" class="button-col">
+					<v-col cols="6" class="button-col pa-1">
 						<v-btn
 							block
 							color="warning"
 							theme="dark"
+							size="large"
 							prepend-icon="mdi-file-document"
 							@click="$emit('load-drafts')"
 							class="white-text-btn summary-btn"
@@ -102,11 +105,12 @@
 							{{ __("LOAD DRAFTS") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6" class="button-col">
+					<v-col cols="6" class="button-col pa-1">
 						<v-btn
 							block
 							color="error"
 							theme="dark"
+							size="large"
 							prepend-icon="mdi-close-circle"
 							@click="$emit('cancel-sale')"
 							class="summary-btn"
@@ -152,7 +156,7 @@
 		<v-row dense>
 			<v-col cols="12" md="6">
 				<v-row dense>
-					<v-col cols="12" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col-large mb-2">
+					<v-col cols="12" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col-large pa-1">
 						<v-btn
 							block
 							color="primary"
@@ -167,7 +171,7 @@
 					</v-col>
 				</v-row>
 			</v-col>
-			<v-col cols="12" md="6">
+			<v-col cols="12" md="6" class="pa-1">
 				<v-btn
 					block
 					color="success"
@@ -271,34 +275,47 @@ export default {
 }
 
 .button-col {
-	margin-bottom: 3px;
-	padding: 1px;
+	margin-bottom: 0px;
+	padding: 0px;
 }
 
 .button-col-large {
-	margin-bottom: 3px;
-	padding: 1px;
+	margin-bottom: 0px;
+	padding: 0px;
 }
 
 .button-col-pay {
-	margin-bottom: 3px;
-	padding: 1px;
+	margin-bottom: 0px;
+	padding: 0px;
+}
+
+/* Standard button styling - larger size */
+.summary-btn {
+	min-height: 52px !important;
+	font-size: 1.1rem !important;
+	font-weight: 600 !important;
+	text-transform: none;
+	margin: 2px;
+	border-radius: 8px;
 }
 
 /* Large button styling for PRINT DRAFT */
 .large-btn {
-	min-height: 48px !important;
-	font-size: 1.1rem !important;
+	min-height: 56px !important;
+	font-size: 1.2rem !important;
 	font-weight: 600 !important;
+	margin: 2px;
 }
 
-/* Extra large PAY button (130% increase) */
+/* Extra large PAY button */
 .pay-btn {
-	min-height: 60px !important;
-	font-size: 1.3rem !important;
+	min-height: 64px !important;
+	font-size: 1.4rem !important;
 	font-weight: 700 !important;
 	text-transform: uppercase;
 	letter-spacing: 1px;
+	margin: 2px;
+	border-radius: 10px;
 }
 
 .pay-btn :deep(.v-btn__content) {
