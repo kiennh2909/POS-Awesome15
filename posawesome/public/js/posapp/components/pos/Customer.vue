@@ -272,14 +272,21 @@ export default {
 
 		// Load default customer info from server
 		loadDefaultCustomerFromServer() {
-			if (!this.pos_profile || !this.pos_profile.name) {
+			// Handle both direct pos_profile object and nested structure
+			let actualProfile = this.pos_profile;
+			if (this.pos_profile && this.pos_profile.pos_profile) {
+				actualProfile = this.pos_profile.pos_profile;
+			}
+			
+			if (!actualProfile || !actualProfile.name) {
+				console.log("❌ No POS Profile name available for server call");
 				return;
 			}
 
 			frappe.call({
 				method: "posawesome.posawesome.api.utilities.get_default_customer",
 				args: {
-					pos_profile: this.pos_profile.name,
+					pos_profile: actualProfile.name,
 				},
 				callback: (r) => {
 					if (r.message) {
@@ -353,7 +360,11 @@ export default {
 						vm.$nextTick(() => {
 							vm.setDefaultCustomerIfConfigured();
 							// If default customer setting failed, try loading from server
-							if (!vm.customer && vm.pos_profile.default_customer) {
+							let actualProfile = vm.pos_profile;
+							if (vm.pos_profile && vm.pos_profile.pos_profile) {
+								actualProfile = vm.pos_profile.pos_profile;
+							}
+							if (!vm.customer && actualProfile && actualProfile.default_customer) {
 								console.log("🔄 Default customer not set, trying loadDefaultCustomerFromServer...");
 								vm.loadDefaultCustomerFromServer();
 							}
@@ -375,19 +386,28 @@ export default {
 		setDefaultCustomerIfConfigured() {
 			console.log("=== DEBUG: setDefaultCustomerIfConfigured() called ===");
 			console.log("POS Profile (full object):", JSON.stringify(this.pos_profile, null, 2));
-			console.log("POS Profile default_customer:", this.pos_profile?.default_customer);
-			console.log("POS Profile keys:", this.pos_profile ? Object.keys(this.pos_profile) : 'null');
+			
+			// Handle both direct pos_profile object and nested structure
+			let actualProfile = this.pos_profile;
+			if (this.pos_profile && this.pos_profile.pos_profile) {
+				// Nested structure: {pos_profile: {...}, company: {...}, ...}
+				actualProfile = this.pos_profile.pos_profile;
+				console.log("Using nested pos_profile structure");
+			}
+			
+			console.log("Actual Profile default_customer:", actualProfile?.default_customer);
+			console.log("Actual Profile keys:", actualProfile ? Object.keys(actualProfile) : 'null');
 			console.log("Current customer:", this.customer);
 			console.log("Customers loaded:", this.customers.length);
 
-			if (!this.pos_profile) {
+			if (!actualProfile) {
 				console.log("❌ POS Profile is null/undefined");
 				return;
 			}
 
-			if (!this.pos_profile.default_customer) {
+			if (!actualProfile.default_customer) {
 				console.log("❌ No default customer configured in POS Profile");
-				console.log("Available pos_profile fields:", Object.keys(this.pos_profile));
+				console.log("Available actualProfile fields:", Object.keys(actualProfile));
 				return;
 			}
 
@@ -402,7 +422,7 @@ export default {
 				return;
 			}
 
-			const defaultCustomerId = this.pos_profile.default_customer;
+			const defaultCustomerId = actualProfile.default_customer;
 			console.log("🔍 Looking for default customer:", defaultCustomerId);
 			console.log("Available customers:", this.customers.map(c => ({ name: c.name, customer_name: c.customer_name })));
 			
