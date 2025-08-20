@@ -308,7 +308,23 @@ def submit_invoice(invoice, data):
 		invoice_doc.posa_is_printed = data.get("posa_is_printed")
 	if data.get("tax_report") is not None:
 		invoice_doc.tax_report = data.get("tax_report")
-  
+  	# === Attach Customer Tax ID to Invoice (simple mode) ===
+	try:
+		if invoice_doc.get("customer"):
+			cust_tax_id = frappe.db.get_value("Customer", invoice_doc.customer, "tax_id")
+			if cust_tax_id:
+				# Ưu tiên field gốc nếu bạn đang dùng (ví dụ: tax_id)
+				if invoice_doc.meta.has_field("tax_id"):
+					invoice_doc.customer_tax_id = cust_tax_id
+				# Nếu không có thì dùng luôn customer_tax_id trên Sales Invoice (nếu đã tạo custom field này)
+				elif invoice_doc.meta.has_field("customer_tax_id"):
+					invoice_doc.tax_id = cust_tax_id
+				else:
+					# Không có field nào trên Invoice → fallback ghi vào remarks
+					invoice_doc.remarks = (invoice_doc.remarks or "") + f"\nTax ID: {cust_tax_id}"
+	except Exception as e:
+		frappe.log_error(f"[POSA] Failed to attach customer tax_id to invoice {invoice_doc.name}: {e}")
+
 	invoice_doc.save()
 
 	if data.get("due_date"):
@@ -378,8 +394,21 @@ def submit_in_background_job(kwargs):
 	items.append(grand_total)
 
 	invoice_doc.remarks = "\n".join(items)
-	invoice_doc.save()
+	# === Attach Customer Tax ID to Invoice (simple mode) ===
+	try:
+		if invoice_doc.get("customer"):
+			cust_tax_id = frappe.db.get_value("Customer", invoice_doc.customer, "tax_id")
+			if cust_tax_id:
+				if invoice_doc.meta.has_field("tax_id"):
+					invoice_doc.customer_tax_id = cust_tax_id
+				elif invoice_doc.meta.has_field("customer_tax_id"):
+					invoice_doc.tax_id = cust_tax_id
+				else:
+					invoice_doc.remarks = (invoice_doc.remarks or "") + f"\nTax ID: {cust_tax_id}"
+	except Exception as e:
+		frappe.log_error(f"[POSA] BG Failed to attach customer tax_id to invoice {invoice_doc.name}: {e}")
 
+	invoice_doc.save()
 	invoice_doc.submit()
 	redeeming_customer_credit(invoice_doc, data, is_payment_entry, total_cash, cash_account, payments)
 
