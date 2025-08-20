@@ -65,7 +65,7 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       InternalCode: invoice.name,
 
       CustomerName: String(invoice.customer || invoice.customer_name || invoice.title),
-      CustomerInfo: String(invoice.customer_name || `${invoice.customer}, ${invoice.tax_id || ''}`),
+      CustomerInfo: String(invoice.tax_id || invoice.title || "N/A"),
       Cashier: String(invoice.owner || invoice.modified_by),
       CashierName: String(invoice.owner || invoice.modified_by),
 
