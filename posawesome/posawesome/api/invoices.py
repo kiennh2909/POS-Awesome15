@@ -308,22 +308,24 @@ def submit_invoice(invoice, data):
 		invoice_doc.posa_is_printed = data.get("posa_is_printed")
 	if data.get("tax_report") is not None:
 		invoice_doc.tax_report = data.get("tax_report")
-  	# === Attach Customer Tax ID to Invoice (simple mode) ===
+	# === Attach Customer Tax ID to Invoice (simple mode) ===
 	try:
-		if invoice_doc.get("customer"):
-			cust_tax_id = frappe.db.get_value("Customer", invoice_doc.customer, "tax_id")
+		cust_name = invoice_doc.get("customer")
+		if cust_name:
+			cust_tax_id = frappe.db.get_value("Customer", cust_name, "tax_id")
 			if cust_tax_id:
-				# Ưu tiên field gốc nếu bạn đang dùng (ví dụ: tax_id)
 				if invoice_doc.meta.has_field("tax_id"):
-					invoice_doc.customer_tax_id = cust_tax_id
-				# Nếu không có thì dùng luôn customer_tax_id trên Sales Invoice (nếu đã tạo custom field này)
-				elif invoice_doc.meta.has_field("customer_tax_id"):
+					# Ưu tiên field gốc nếu bạn đã tạo trên Sales Invoice
 					invoice_doc.tax_id = cust_tax_id
+				elif invoice_doc.meta.has_field("customer_tax_id"):
+					# Nếu bạn dùng custom field khác tên
+					invoice_doc.customer_tax_id = cust_tax_id
 				else:
-					# Không có field nào trên Invoice → fallback ghi vào remarks
+					# Fallback: để còn in ra bill
 					invoice_doc.remarks = (invoice_doc.remarks or "") + f"\nTax ID: {cust_tax_id}"
 	except Exception as e:
 		frappe.log_error(f"[POSA] Failed to attach customer tax_id to invoice {invoice_doc.name}: {e}")
+
 
 	invoice_doc.save()
 
@@ -395,14 +397,16 @@ def submit_in_background_job(kwargs):
 
 	invoice_doc.remarks = "\n".join(items)
 	# === Attach Customer Tax ID to Invoice (simple mode) ===
+	# === Attach Customer Tax ID to Invoice (simple mode) ===
 	try:
-		if invoice_doc.get("customer"):
-			cust_tax_id = frappe.db.get_value("Customer", invoice_doc.customer, "tax_id")
+		cust_name = invoice_doc.get("customer")
+		if cust_name:
+			cust_tax_id = frappe.db.get_value("Customer", cust_name, "tax_id")
 			if cust_tax_id:
 				if invoice_doc.meta.has_field("tax_id"):
-					invoice_doc.customer_tax_id = cust_tax_id
-				elif invoice_doc.meta.has_field("customer_tax_id"):
 					invoice_doc.tax_id = cust_tax_id
+				elif invoice_doc.meta.has_field("customer_tax_id"):
+					invoice_doc.customer_tax_id = cust_tax_id
 				else:
 					invoice_doc.remarks = (invoice_doc.remarks or "") + f"\nTax ID: {cust_tax_id}"
 	except Exception as e:
