@@ -1830,51 +1830,159 @@ export default {
 		// },
 
 
-		// Thay thế hàm load_print_page_tax cũ của bạn bằng hàm này
-		async load_print_page_tax(invoice_to_print) { // <-- Sửa để nhận tham số
-			// Tải động handler
-			const { handleTaxPrint } = await import('./taxPrintHandler.js');
-			// === DÒNG DEBUG 2: KIỂM TRA DỮ LIỆU ĐƯỢC TRUYỀN VÀO ===
+		// // Thay thế hàm load_print_page_tax cũ của bạn bằng hàm này
+		// async load_print_page_tax(invoice_to_print) { // <-- Sửa để nhận tham số
+		// 	// Tải động handler
+		// 	const { handleTaxPrint } = await import('./taxPrintHandler.js');
+		// 	// === DÒNG DEBUG 2: KIỂM TRA DỮ LIỆU ĐƯỢC TRUYỀN VÀO ===
+		// 	console.log(
+		// 		"%c load_print_page_tax đang truyền đối tượng sau vào handleTaxPrint:", 
+		// 		"color: green; font-weight: bold;",
+		// 		invoice_to_print
+		// 	);
+
+		// 	try {
+		// 		await handleTaxPrint(
+		// 			invoice_to_print, // <-- Sử dụng đối tượng hóa đơn hoàn chỉnh được truyền vào
+		// 			this.pos_profile,
+		// 			// onSuccess callback
+		// 			(result) => {
+		// 				// Bạn có thể cập nhật UI ở đây nếu cần, ví dụ:
+		// 				// this.updateHeaderTaxDisplay(result.nextDisplay);
+		// 				console.log("Tax print process successful:", result);
+		// 			},
+		// 			// onError callback
+		// 			(error) => {
+		// 				// Lỗi từ handleTaxPrint đã được log chi tiết bên trong,
+		// 				// ở đây ta chỉ cần hiển thị thông báo cho người dùng.
+		// 				console.error("Tax print handler reported an error:", error);
+		// 				frappe.msgprint({
+		// 					title: "Lỗi In Hóa Đơn Thuế",
+		// 					message: `Không thể in hóa đơn thuế: ${error.message}`,
+		// 					indicator: "red"
+		// 				});
+		// 			}
+		// 		);
+		// 	} catch (error) {
+		// 		// Bắt các lỗi không mong muốn (vd: không tải được file handler)
+		// 		console.error("An unexpected error occurred in load_print_page_tax:", error);
+		// 		frappe.msgprint({
+		// 			title: "Lỗi Hệ Thống In", 
+		// 			message: `Có lỗi không mong đợi xảy ra: ${error.message}`,
+		// 			indicator: "red"
+		// 		});
+		// 		// Ném lỗi ra ngoài để khối try-catch trong submit_invoice có thể bắt được
+		// 		throw error;
+		// 	}
+		// },
+
+
+		// === REPLACE your old load_print_page_tax with this version ===
+		async load_print_page_tax(invoice_or_name) {
+		try {
+			// 1) Lấy invoice "fresh" từ server để chắc chắn có tax_id do server đã patch
+			let invoice_to_print = null;
+
+			// Cho phép truyền vào: object hoặc chỉ name (string)
+			const passedName =
+			(typeof invoice_or_name === "string" && invoice_or_name) ||
+			(invoice_or_name && invoice_or_name.name);
+
+			if (!passedName) {
+			console.error("[TaxPrint] load_print_page_tax: thiếu 'name' của invoice!", invoice_or_name);
+			frappe.msgprint("Không thể in: Thiếu tên hóa đơn (invoice name).");
+			return;
+			}
+
+			invoice_to_print = await frappe.db.get_doc("Sales Invoice", passedName);
+
+			// 2) TRACE: log các trường quan trọng để debug tax_id
 			console.log(
-				"%c load_print_page_tax đang truyền đối tượng sau vào handleTaxPrint:", 
-				"color: green; font-weight: bold;",
-				invoice_to_print
+			"%c[TRACE] Fresh invoice từ server:",
+			"color:#0aa; font-weight:bold;",
+			{
+				name: invoice_to_print?.name,
+				customer: invoice_to_print?.customer,
+				tax_id: invoice_to_print?.tax_id,
+				customer_tax_id: invoice_to_print?.customer_tax_id,
+				remarks: invoice_to_print?.remarks?.slice?.(0, 200) || "",
+			}
 			);
 
-			try {
-				await handleTaxPrint(
-					invoice_to_print, // <-- Sử dụng đối tượng hóa đơn hoàn chỉnh được truyền vào
-					this.pos_profile,
-					// onSuccess callback
-					(result) => {
-						// Bạn có thể cập nhật UI ở đây nếu cần, ví dụ:
-						// this.updateHeaderTaxDisplay(result.nextDisplay);
-						console.log("Tax print process successful:", result);
-					},
-					// onError callback
-					(error) => {
-						// Lỗi từ handleTaxPrint đã được log chi tiết bên trong,
-						// ở đây ta chỉ cần hiển thị thông báo cho người dùng.
-						console.error("Tax print handler reported an error:", error);
-						frappe.msgprint({
-							title: "Lỗi In Hóa Đơn Thuế",
-							message: `Không thể in hóa đơn thuế: ${error.message}`,
-							indicator: "red"
-						});
-					}
-				);
-			} catch (error) {
-				// Bắt các lỗi không mong muốn (vd: không tải được file handler)
-				console.error("An unexpected error occurred in load_print_page_tax:", error);
-				frappe.msgprint({
-					title: "Lỗi Hệ Thống In", 
-					message: `Có lỗi không mong đợi xảy ra: ${error.message}`,
-					indicator: "red"
-				});
-				// Ném lỗi ra ngoài để khối try-catch trong submit_invoice có thể bắt được
-				throw error;
+			// 3) Fallback: nếu vì lý do nào đó vẫn chưa có tax_id, dùng từ customer_info (nếu đang có)
+			if (
+			(!invoice_to_print.tax_id && !invoice_to_print.customer_tax_id) &&
+			this?.customer_info?.tax_id
+			) {
+			const fallbackTax = String(this.customer_info.tax_id).trim();
+			if (fallbackTax) {
+				invoice_to_print.tax_id = fallbackTax;
+				invoice_to_print.customer_tax_id = fallbackTax;
+				console.warn("[TaxPrint] Fallback gắn tax_id từ customer_info:", fallbackTax);
 			}
-		},
+			}
+
+			// 4) Double-check lần nữa trước khi in
+			const resolvedTaxId = String(
+			invoice_to_print.tax_id || invoice_to_print.customer_tax_id || ""
+			).trim();
+
+			console.log("%c[TRACE] TaxID để in =", "color:#970; font-weight:bold;", resolvedTaxId);
+
+			if (!resolvedTaxId) {
+			// Không chặn in, nhưng cảnh báo mạnh để biết lý do
+			console.warn(
+				"[TaxPrint] CẢNH BÁO: invoice không có tax_id. Nếu yêu cầu in hóa đơn thuế bắt buộc có Tax ID, hãy kiểm tra lại luồng gán tax_id phía server hoặc dữ liệu khách hàng."
+			);
+			}
+
+			// 5) Import handler và gọi in
+			const { handleTaxPrint } = await import("./taxPrintHandler.js");
+
+			console.log(
+			"%c load_print_page_tax -> handleTaxPrint payload:",
+			"color: green; font-weight: bold;",
+			{
+				name: invoice_to_print?.name,
+				customer: invoice_to_print?.customer,
+				tax_id: invoice_to_print?.tax_id,
+				customer_tax_id: invoice_to_print?.customer_tax_id,
+				grand_total: invoice_to_print?.grand_total,
+			}
+			);
+
+			await handleTaxPrint(
+			invoice_to_print,
+			this.pos_profile,
+			// onSuccess
+			(result) => {
+				console.log("[TaxPrint] Success:", result);
+				// Nếu cần cập nhật header: đã có updateHeaderTaxDisplay trong handler, hoặc tự bắn event ở đây
+				// this.$emit('tax-display-updated', result?.nextDisplay);
+			},
+			// onError
+			(error) => {
+				console.error("[TaxPrint] Handler error:", error);
+				frappe.msgprint({
+				title: "Lỗi In Hóa Đơn Thuế",
+				message: `Không thể in hóa đơn thuế: ${error.message}`,
+				indicator: "red",
+				});
+			}
+			);
+		} catch (error) {
+			console.error("[TaxPrint] Unexpected error in load_print_page_tax:", error);
+			frappe.msgprint({
+			title: "Lỗi Hệ Thống In",
+			message: `Có lỗi không mong đợi xảy ra: ${error.message}`,
+			indicator: "red",
+			});
+			// Cho caller biết để xử lý tiếp (nếu cần)
+			throw error;
+		}
+		}
+
+
 		/**
 	 * Mở trang in tiêu chuẩn của Frappe cho một hóa đơn đã hoàn chỉnh.
 	 * @param {object} invoice_to_print - Đối tượng hóa đơn hoàn chỉnh (có .name) cần in.

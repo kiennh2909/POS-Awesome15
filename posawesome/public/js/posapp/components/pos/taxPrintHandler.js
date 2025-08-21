@@ -97,6 +97,8 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
 
       RequestTime: new Date().toISOString()
     };
+    debugLog("[TRACE] print body preview =", { CustomerName: body.CustomerName, CustomerInfo: body.CustomerInfo, TaxCode: body.TaxCode });
+
     debugLog("Bước 2: Tạo body request thành công, khớp với mẫu yêu cầu.", { body });
 
     // === BƯỚC 3: GỌI API PROXY ===
