@@ -117,9 +117,13 @@
 							></v-text-field>
 						</v-col>
 						<v-col cols="6" v-if="!is_mpesa_c2b_payment(payment)">
-							<v-btn block color="primary" theme="dark" @click="set_full_amount(payment.idx)">
+							<!-- <v-btn block color="primary" theme="dark" @click="set_full_amount(payment.idx)">
+								{{ payment.mode_of_payment }}
+							</v-btn> -->
+							<v-btn block color="primary" theme="dark" @click="set_full_amount(payment.idx, $event)">
 								{{ payment.mode_of_payment }}
 							</v-btn>
+
 						</v-col>
 
 						<!-- M-Pesa Payment Button (if payment is M-Pesa) -->
@@ -1105,129 +1109,357 @@ export default {
 				}
 			});
 		},
-		// Submit payment after validation
 		submit(event, payment_received = false, print = false, tax = false ) {
-			// For return invoices, ensure payment amounts are negative
-			if (this.invoice_doc.is_return) {
-				this.ensureReturnPaymentsAreNegative();
-			}
-			// Validate total payments only if not credit sale and invoice total is not zero
-			if (
-				!this.is_credit_sale &&
-				!this.invoice_doc.is_return &&
-				this.total_payments <= 0 &&
-				(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
-			) {
-				this.eventBus.emit("show_message", {
-					title: `Please enter payment amount`,
-					color: "error",
-				});
-				frappe.utils.play_sound("error");
-				return;
-			}
-			// Validate cash payments when credit sale is off
-			if (!this.is_credit_sale && !this.invoice_doc.is_return) {
-				let has_cash_payment = false;
-				let cash_amount = 0;
-				this.invoice_doc.payments.forEach((payment) => {
-					if (payment.mode_of_payment.toLowerCase().includes("cash")) {
-						has_cash_payment = true;
-						cash_amount = this.flt(payment.amount);
-					}
-				});
-				if (has_cash_payment && cash_amount > 0) {
-					if (
-						!this.pos_profile.posa_allow_partial_payment &&
-						cash_amount < (this.invoice_doc.rounded_total || this.invoice_doc.grand_total) &&
-						(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
-					) {
-						this.eventBus.emit("show_message", {
-							title: `Cash payment cannot be less than invoice total when partial payment is not allowed`,
-							color: "error",
-						});
-						frappe.utils.play_sound("error");
-						return;
-					}
-				}
-			}
-			// Validate partial payments only if not credit sale and invoice total is not zero
-			if (
-				!this.is_credit_sale &&
-				!this.pos_profile.posa_allow_partial_payment &&
-				this.total_payments < (this.invoice_doc.rounded_total || this.invoice_doc.grand_total) &&
-				(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
-			) {
-				this.eventBus.emit("show_message", {
-					title: `The amount paid is not complete`,
-					color: "error",
-				});
-				frappe.utils.play_sound("error");
-				return;
-			}
-			// Validate phone payment
-			let phone_payment_is_valid = true;
-			if (!payment_received) {
-				this.invoice_doc.payments.forEach((payment) => {
-					if (payment.type === "Phone" && ![0, "0", "", null, undefined].includes(payment.amount)) {
-						phone_payment_is_valid = false;
-					}
-				});
-				if (!phone_payment_is_valid) {
-					this.eventBus.emit("show_message", {
-						title: __("Please request phone payment or use another payment method"),
-						color: "error",
-					});
-					frappe.utils.play_sound("error");
-					return;
-				}
-			}
-			// Validate paid_change
-			if (this.paid_change > -this.diff_payment) {
-				this.eventBus.emit("show_message", {
-					title: `Paid change cannot be greater than total change!`,
-					color: "error",
-				});
-				frappe.utils.play_sound("error");
-				return;
-			}
-			// Validate cashback
-			let total_change = this.flt(this.flt(this.paid_change) + this.flt(-this.credit_change));
-			if (this.is_cashback && total_change !== -this.diff_payment) {
-				this.eventBus.emit("show_message", {
-					title: `Error in change calculations!`,
-					color: "error",
-				});
-				frappe.utils.play_sound("error");
-				return;
-			}
-			// Validate customer credit redemption
-			let credit_calc_check = this.customer_credit_dict.filter((row) => {
-				return this.flt(row.credit_to_redeem) > this.flt(row.total_credit);
+		// CHẶN DOUBLE-SUBMIT
+		if (this.loading) return;
+
+		// For return invoices, ensure payment amounts are negative
+		if (this.invoice_doc.is_return) {
+			this.ensureReturnPaymentsAreNegative();
+		}
+		// Validate total payments only if not credit sale and invoice total is not zero
+		if (
+			!this.is_credit_sale &&
+			!this.invoice_doc.is_return &&
+			this.total_payments <= 0 &&
+			(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
+		) {
+			this.eventBus.emit("show_message", {
+			title: `Please enter payment amount`,
+			color: "error",
 			});
-			if (credit_calc_check.length > 0) {
-				this.eventBus.emit("show_message", {
-					title: `Redeemed credit cannot be greater than its total.`,
-					color: "error",
-				});
-				frappe.utils.play_sound("error");
-				return;
+			frappe.utils.play_sound("error");
+			return;
+		}
+		// Validate cash payments when credit sale is off
+		if (!this.is_credit_sale && !this.invoice_doc.is_return) {
+			let has_cash_payment = false;
+			let cash_amount = 0;
+			this.invoice_doc.payments.forEach((payment) => {
+			if (payment.mode_of_payment.toLowerCase().includes("cash")) {
+				has_cash_payment = true;
+				cash_amount = this.flt(payment.amount);
 			}
+			});
+			if (has_cash_payment && cash_amount > 0) {
 			if (
-				!this.invoice_doc.is_return &&
-				this.redeemed_customer_credit >
-					(this.invoice_doc.rounded_total || this.invoice_doc.grand_total)
+				!this.pos_profile.posa_allow_partial_payment &&
+				cash_amount < (this.invoice_doc.rounded_total || this.invoice_doc.grand_total) &&
+				(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
 			) {
 				this.eventBus.emit("show_message", {
-					title: `Cannot redeem customer credit more than invoice total`,
-					color: "error",
+				title: `Cash payment cannot be less than invoice total when partial payment is not allowed`,
+				color: "error",
 				});
 				frappe.utils.play_sound("error");
 				return;
 			}
-			// Proceed to submit the invoice
-			this.loading = true;
-			this.submit_invoice(print , tax);
+			}
+		}
+		// Validate partial payments only if not credit sale and invoice total is not zero
+		if (
+			!this.is_credit_sale &&
+			!this.pos_profile.posa_allow_partial_payment &&
+			this.total_payments < (this.invoice_doc.rounded_total || this.invoice_doc.grand_total) &&
+			(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
+		) {
+			this.eventBus.emit("show_message", {
+			title: `The amount paid is not complete`,
+			color: "error",
+			});
+			frappe.utils.play_sound("error");
+			return;
+		}
+		// Validate phone payment
+		let phone_payment_is_valid = true;
+		if (!payment_received) {
+			this.invoice_doc.payments.forEach((payment) => {
+			if (payment.type === "Phone" && ![0, "0", "", null, undefined].includes(payment.amount)) {
+				phone_payment_is_valid = false;
+			}
+			});
+			if (!phone_payment_is_valid) {
+			this.eventBus.emit("show_message", {
+				title: __("Please request phone payment or use another payment method"),
+				color: "error",
+			});
+			frappe.utils.play_sound("error");
+			return;
+			}
+		}
+		// Validate paid_change
+		if (this.paid_change > -this.diff_payment) {
+			this.eventBus.emit("show_message", {
+			title: `Paid change cannot be greater than total change!`,
+			color: "error",
+			});
+			frappe.utils.play_sound("error");
+			return;
+		}
+		// Validate cashback
+		let total_change = this.flt(this.flt(this.paid_change) + this.flt(-this.credit_change));
+		if (this.is_cashback && total_change !== -this.diff_payment) {
+			this.eventBus.emit("show_message", {
+			title: `Error in change calculations!`,
+			color: "error",
+			});
+			frappe.utils.play_sound("error");
+			return;
+		}
+		// Validate customer credit redemption
+		let credit_calc_check = this.customer_credit_dict.filter((row) => {
+			return this.flt(row.credit_to_redeem) > this.flt(row.total_credit);
+		});
+		if (credit_calc_check.length > 0) {
+			this.eventBus.emit("show_message", {
+			title: `Redeemed credit cannot be greater than its total.`,
+			color: "error",
+			});
+			frappe.utils.play_sound("error");
+			return;
+		}
+		if (
+			!this.invoice_doc.is_return &&
+			this.redeemed_customer_credit >
+			(this.invoice_doc.rounded_total || this.invoice_doc.grand_total)
+		) {
+			this.eventBus.emit("show_message", {
+			title: `Cannot redeem customer credit more than invoice total`,
+			color: "error",
+			});
+			frappe.utils.play_sound("error");
+			return;
+		}
+
+		// ✅ Tới đây mới bật loading & gọi submit_invoice
+		this.loading = true;
+		this.submit_invoice(print , tax);
 		},
+	submit_invoice(print, tax) {
+	// === BƯỚC 1: CHUẨN BỊ DỮ LIỆU ===
+	if (this.invoice_doc.is_return) {
+		this.ensureReturnPaymentsAreNegative();
+	}
+
+	const data = {
+		total_change: !this.invoice_doc.is_return ? -this.diff_payment : 0,
+		paid_change: !this.invoice_doc.is_return ? this.paid_change : 0,
+		credit_change: -this.credit_change,
+		redeemed_customer_credit: this.redeemed_customer_credit,
+		customer_credit_dict: this.customer_credit_dict,
+		is_cashback: this.is_cashback,
+	};
+
+	if (print) this.invoice_doc.posa_is_printed = true;
+	if (tax) this.invoice_doc.tax_report = true;
+
+	const vm = this;
+	const original_invoice_doc = { ...this.invoice_doc };
+
+	// === BƯỚC 2: GỌI SERVER ===
+	const req = frappe.call({
+		method:
+		this.invoiceType === "Order" && this.pos_profile.posa_create_only_sales_order
+			? "posawesome.posawesome.api.sales_orders.submit_sales_order"
+			: "posawesome.posawesome.api.invoices.submit_invoice",
+		args: {
+		data: data,
+		invoice: original_invoice_doc,
+		order: original_invoice_doc,
+		},
+		callback: async function (r) {
+		// Đưa việc tắt loading vào finally/.always để “an toàn tuyệt đối”
+
+		// Xử lý lỗi phản hồi
+		if (r.exc || !r.message || !r.message.name) {
+			console.error("Error submitting invoice:", r.exc || "Invalid response from server");
+			vm.eventBus.emit("show_message", {
+			title: __("Error submitting invoice: ") + (r.exc || "Invalid response"),
+			color: "error",
+			});
+			return;
+		}
+
+		// === BƯỚC 3: BUILD ĐỐI TƯỢNG HÓA ĐƠN HOÀN CHỈNH ===
+		const invoice_to_print = {
+			...original_invoice_doc,
+			name: r.message.name
+		};
+
+		// Thông báo & cập nhật
+		vm.eventBus.emit("show_message", {
+			title: __("Invoice {0} is Submitted", [invoice_to_print.name]),
+			color: "success",
+		});
+		frappe.utils.play_sound("submit");
+		vm.eventBus.emit("set_last_invoice", invoice_to_print.name);
+		updateLocalStock(invoice_to_print.items || []);
+
+		// === BƯỚC 4: IN (NẾU CẦN) ===
+		try {
+			if (print && tax) {
+			vm.load_print_page(invoice_to_print);
+			await vm.load_print_page_tax(invoice_to_print);
+			} else if (print) {
+			vm.load_print_page(invoice_to_print);
+			}
+		} catch (printError) {
+			console.error("Printing process failed after submission:", printError);
+			vm.eventBus.emit("show_message", {
+			title: __("Invoice submitted, but printing failed: ") + (printError?.message || printError),
+			color: "error",
+			});
+		}
+
+		// === BƯỚC 5: DỌN DẸP ===
+		vm.customer_credit_dict = [];
+		vm.redeem_customer_credit = false;
+		vm.is_cashback = true;
+		vm.is_credit_return = false;
+		vm.sales_person = "";
+		vm.addresses = [];
+		vm.eventBus.emit("clear_invoice");
+		vm.back_to_invoice();
+		},
+	});
+
+	// === BẢO HIỂM: LUÔN TẮT LOADING DÙ CÓ GÌ XẢY RA ===
+	if (req && typeof req.always === "function") {
+		// Trường hợp frappe.call trả về jqXHR (có .always/.fail)
+		req.always(() => { vm.loading = false; });
+	} else {
+		// Trường hợp frappe.call trả về Promise
+		Promise.resolve(req)
+		.catch(() => {})        // để .finally vẫn chạy
+		.finally(() => { vm.loading = false; });
+	}
+	},
+		// Load print page for invoice
+
+		// Submit invoice and handle printing
+		// Submit payment after validation
+		// submit(event, payment_received = false, print = false, tax = false ) {
+		// 	// For return invoices, ensure payment amounts are negative
+		// 	if (this.invoice_doc.is_return) {
+		// 		this.ensureReturnPaymentsAreNegative();
+		// 	}
+		// 	// Validate total payments only if not credit sale and invoice total is not zero
+		// 	if (
+		// 		!this.is_credit_sale &&
+		// 		!this.invoice_doc.is_return &&
+		// 		this.total_payments <= 0 &&
+		// 		(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
+		// 	) {
+		// 		this.eventBus.emit("show_message", {
+		// 			title: `Please enter payment amount`,
+		// 			color: "error",
+		// 		});
+		// 		frappe.utils.play_sound("error");
+		// 		return;
+		// 	}
+		// 	// Validate cash payments when credit sale is off
+		// 	if (!this.is_credit_sale && !this.invoice_doc.is_return) {
+		// 		let has_cash_payment = false;
+		// 		let cash_amount = 0;
+		// 		this.invoice_doc.payments.forEach((payment) => {
+		// 			if (payment.mode_of_payment.toLowerCase().includes("cash")) {
+		// 				has_cash_payment = true;
+		// 				cash_amount = this.flt(payment.amount);
+		// 			}
+		// 		});
+		// 		if (has_cash_payment && cash_amount > 0) {
+		// 			if (
+		// 				!this.pos_profile.posa_allow_partial_payment &&
+		// 				cash_amount < (this.invoice_doc.rounded_total || this.invoice_doc.grand_total) &&
+		// 				(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
+		// 			) {
+		// 				this.eventBus.emit("show_message", {
+		// 					title: `Cash payment cannot be less than invoice total when partial payment is not allowed`,
+		// 					color: "error",
+		// 				});
+		// 				frappe.utils.play_sound("error");
+		// 				return;
+		// 			}
+		// 		}
+		// 	}
+		// 	// Validate partial payments only if not credit sale and invoice total is not zero
+		// 	if (
+		// 		!this.is_credit_sale &&
+		// 		!this.pos_profile.posa_allow_partial_payment &&
+		// 		this.total_payments < (this.invoice_doc.rounded_total || this.invoice_doc.grand_total) &&
+		// 		(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
+		// 	) {
+		// 		this.eventBus.emit("show_message", {
+		// 			title: `The amount paid is not complete`,
+		// 			color: "error",
+		// 		});
+		// 		frappe.utils.play_sound("error");
+		// 		return;
+		// 	}
+		// 	// Validate phone payment
+		// 	let phone_payment_is_valid = true;
+		// 	if (!payment_received) {
+		// 		this.invoice_doc.payments.forEach((payment) => {
+		// 			if (payment.type === "Phone" && ![0, "0", "", null, undefined].includes(payment.amount)) {
+		// 				phone_payment_is_valid = false;
+		// 			}
+		// 		});
+		// 		if (!phone_payment_is_valid) {
+		// 			this.eventBus.emit("show_message", {
+		// 				title: __("Please request phone payment or use another payment method"),
+		// 				color: "error",
+		// 			});
+		// 			frappe.utils.play_sound("error");
+		// 			return;
+		// 		}
+		// 	}
+		// 	// Validate paid_change
+		// 	if (this.paid_change > -this.diff_payment) {
+		// 		this.eventBus.emit("show_message", {
+		// 			title: `Paid change cannot be greater than total change!`,
+		// 			color: "error",
+		// 		});
+		// 		frappe.utils.play_sound("error");
+		// 		return;
+		// 	}
+		// 	// Validate cashback
+		// 	let total_change = this.flt(this.flt(this.paid_change) + this.flt(-this.credit_change));
+		// 	if (this.is_cashback && total_change !== -this.diff_payment) {
+		// 		this.eventBus.emit("show_message", {
+		// 			title: `Error in change calculations!`,
+		// 			color: "error",
+		// 		});
+		// 		frappe.utils.play_sound("error");
+		// 		return;
+		// 	}
+		// 	// Validate customer credit redemption
+		// 	let credit_calc_check = this.customer_credit_dict.filter((row) => {
+		// 		return this.flt(row.credit_to_redeem) > this.flt(row.total_credit);
+		// 	});
+		// 	if (credit_calc_check.length > 0) {
+		// 		this.eventBus.emit("show_message", {
+		// 			title: `Redeemed credit cannot be greater than its total.`,
+		// 			color: "error",
+		// 		});
+		// 		frappe.utils.play_sound("error");
+		// 		return;
+		// 	}
+		// 	if (
+		// 		!this.invoice_doc.is_return &&
+		// 		this.redeemed_customer_credit >
+		// 			(this.invoice_doc.rounded_total || this.invoice_doc.grand_total)
+		// 	) {
+		// 		this.eventBus.emit("show_message", {
+		// 			title: `Cannot redeem customer credit more than invoice total`,
+		// 			color: "error",
+		// 		});
+		// 		frappe.utils.play_sound("error");
+		// 		return;
+		// 	}
+		// 	// Proceed to submit the invoice
+		// 	this.loading = true;
+		// 	this.submit_invoice(print , tax);
+		// },
 		// Submit invoice to backend after all validations
 		// submit_invoice(print , tax) {
 		// 	// For return invoices, ensure payments are negative one last time
@@ -1501,101 +1733,101 @@ export default {
 		// 	});
 		// },
 
-		submit_invoice(print, tax) {
-			// === BƯỚC 1: CHUẨN BỊ DỮ LIỆU ===
-			// Xử lý trường hợp trả hàng
-			if (this.invoice_doc.is_return) {
-				this.ensureReturnPaymentsAreNegative();
-			}
+		// submit_invoice(print, tax) {
+		// 	// === BƯỚC 1: CHUẨN BỊ DỮ LIỆU ===
+		// 	// Xử lý trường hợp trả hàng
+		// 	if (this.invoice_doc.is_return) {
+		// 		this.ensureReturnPaymentsAreNegative();
+		// 	}
 			
-			// Chuẩn bị dữ liệu thanh toán bổ sung để gửi lên server
-			const data = {
-				total_change: !this.invoice_doc.is_return ? -this.diff_payment : 0,
-				paid_change: !this.invoice_doc.is_return ? this.paid_change : 0,
-				credit_change: -this.credit_change,
-				redeemed_customer_credit: this.redeemed_customer_credit,
-				customer_credit_dict: this.customer_credit_dict,
-				is_cashback: this.is_cashback,
-			};
+		// 	// Chuẩn bị dữ liệu thanh toán bổ sung để gửi lên server
+		// 	const data = {
+		// 		total_change: !this.invoice_doc.is_return ? -this.diff_payment : 0,
+		// 		paid_change: !this.invoice_doc.is_return ? this.paid_change : 0,
+		// 		credit_change: -this.credit_change,
+		// 		redeemed_customer_credit: this.redeemed_customer_credit,
+		// 		customer_credit_dict: this.customer_credit_dict,
+		// 		is_cashback: this.is_cashback,
+		// 	};
 
-			// Đánh dấu các cờ in ấn
-			if (print) this.invoice_doc.posa_is_printed = true;
-			if (tax) this.invoice_doc.tax_report = true;
+		// 	// Đánh dấu các cờ in ấn
+		// 	if (print) this.invoice_doc.posa_is_printed = true;
+		// 	if (tax) this.invoice_doc.tax_report = true;
 
-			const vm = this;
+		// 	const vm = this;
 			
-			// Tạo một bản sao đầy đủ của hóa đơn trước khi gửi đi.
-			// Điều này rất quan trọng để giữ lại chi tiết hóa đơn cho việc in ấn sau này.
-			const original_invoice_doc = { ...this.invoice_doc };
+		// 	// Tạo một bản sao đầy đủ của hóa đơn trước khi gửi đi.
+		// 	// Điều này rất quan trọng để giữ lại chi tiết hóa đơn cho việc in ấn sau này.
+		// 	const original_invoice_doc = { ...this.invoice_doc };
 
-			// === BƯỚC 2: GỬI HÓA ĐƠN CHÍNH LÊN SERVER ERNEXT (LUỒNG ONLINE) ===
-			frappe.call({
-				method:
-					this.invoiceType === "Order" && this.pos_profile.posa_create_only_sales_order
-						? "posawesome.posawesome.api.sales_orders.submit_sales_order"
-						: "posawesome.posawesome.api.invoices.submit_invoice",
-				args: {
-					data: data,
-					invoice: original_invoice_doc,
-					order: original_invoice_doc,
-				},
-				callback: async function (r) {
-					vm.loading = false; // Luôn tắt loading ở đầu callback
+		// 	// === BƯỚC 2: GỬI HÓA ĐƠN CHÍNH LÊN SERVER ERNEXT (LUỒNG ONLINE) ===
+		// 	frappe.call({
+		// 		method:
+		// 			this.invoiceType === "Order" && this.pos_profile.posa_create_only_sales_order
+		// 				? "posawesome.posawesome.api.sales_orders.submit_sales_order"
+		// 				: "posawesome.posawesome.api.invoices.submit_invoice",
+		// 		args: {
+		// 			data: data,
+		// 			invoice: original_invoice_doc,
+		// 			order: original_invoice_doc,
+		// 		},
+		// 		callback: async function (r) {
+		// 			vm.loading = false; // Luôn tắt loading ở đầu callback
 
-					// Xử lý lỗi từ server
-					if (r.exc || !r.message || !r.message.name) {
-						console.error("Error submitting invoice:", r.exc || "Invalid response from server");
-						vm.eventBus.emit("show_message", {
-							title: __("Error submitting invoice: ") + (r.exc || "Invalid response"),
-							color: "error",
-						});
-						return;
-					}
+		// 			// Xử lý lỗi từ server
+		// 			if (r.exc || !r.message || !r.message.name) {
+		// 				console.error("Error submitting invoice:", r.exc || "Invalid response from server");
+		// 				vm.eventBus.emit("show_message", {
+		// 					title: __("Error submitting invoice: ") + (r.exc || "Invalid response"),
+		// 					color: "error",
+		// 				});
+		// 				return;
+		// 			}
 					
-					// === BƯỚC 3: KẾT HỢP DỮ LIỆU ĐỂ TẠO ĐỐI TƯỢNG HÓA ĐƠN HOÀN CHỈNH ===
-					// Lấy TÊN HÓA ĐƠN từ phản hồi của server và kết hợp với dữ liệu gốc
-					const invoice_to_print = {
-						...original_invoice_doc,
-						name: r.message.name
-					};
+		// 			// === BƯỚC 3: KẾT HỢP DỮ LIỆU ĐỂ TẠO ĐỐI TƯỢNG HÓA ĐƠN HOÀN CHỈNH ===
+		// 			// Lấy TÊN HÓA ĐƠN từ phản hồi của server và kết hợp với dữ liệu gốc
+		// 			const invoice_to_print = {
+		// 				...original_invoice_doc,
+		// 				name: r.message.name
+		// 			};
 					
-					// Thông báo thành công và cập nhật các trạng thái
-					vm.eventBus.emit("show_message", {
-						title: __("Invoice {0} is Submitted", [invoice_to_print.name]),
-						color: "success",
-					});
-					frappe.utils.play_sound("submit");
-					vm.eventBus.emit("set_last_invoice", invoice_to_print.name);
-					updateLocalStock(invoice_to_print.items || []);
+		// 			// Thông báo thành công và cập nhật các trạng thái
+		// 			vm.eventBus.emit("show_message", {
+		// 				title: __("Invoice {0} is Submitted", [invoice_to_print.name]),
+		// 				color: "success",
+		// 			});
+		// 			frappe.utils.play_sound("submit");
+		// 			vm.eventBus.emit("set_last_invoice", invoice_to_print.name);
+		// 			updateLocalStock(invoice_to_print.items || []);
 
-					// === BƯỚC 4: THỰC HIỆN IN (NẾU CÓ) VỚI DỮ LIỆU ĐÃ HOÀN CHỈNH ===
-					try {
-						if (print && tax) {
-							vm.load_print_page(invoice_to_print);
-							await vm.load_print_page_tax(invoice_to_print);							
-						} else if (print) {
-							vm.load_print_page(invoice_to_print);
-						}
-					} catch (printError) {
-						console.error("Printing process failed after submission:", printError);
-						vm.eventBus.emit("show_message", {
-							title: __("Invoice submitted, but printing failed: ") + printError.message,
-							color: "error",
-						});
-					}
+		// 			// === BƯỚC 4: THỰC HIỆN IN (NẾU CÓ) VỚI DỮ LIỆU ĐÃ HOÀN CHỈNH ===
+		// 			try {
+		// 				if (print && tax) {
+		// 					vm.load_print_page(invoice_to_print);
+		// 					await vm.load_print_page_tax(invoice_to_print);							
+		// 				} else if (print) {
+		// 					vm.load_print_page(invoice_to_print);
+		// 				}
+		// 			} catch (printError) {
+		// 				console.error("Printing process failed after submission:", printError);
+		// 				vm.eventBus.emit("show_message", {
+		// 					title: __("Invoice submitted, but printing failed: ") + printError.message,
+		// 					color: "error",
+		// 				});
+		// 			}
 					
-					// === BƯỚC 5: DỌN DẸP FORM ĐỂ CHUẨN BỊ CHO GIAO DỊCH MỚI ===
-					vm.customer_credit_dict = [];
-					vm.redeem_customer_credit = false;
-					vm.is_cashback = true;
-					vm.is_credit_return = false;
-					vm.sales_person = "";
-					vm.addresses = [];
-					vm.eventBus.emit("clear_invoice");
-					vm.back_to_invoice();
-				},
-			});
-		},
+		// 			// === BƯỚC 5: DỌN DẸP FORM ĐỂ CHUẨN BỊ CHO GIAO DỊCH MỚI ===
+		// 			vm.customer_credit_dict = [];
+		// 			vm.redeem_customer_credit = false;
+		// 			vm.is_cashback = true;
+		// 			vm.is_credit_return = false;
+		// 			vm.sales_person = "";
+		// 			vm.addresses = [];
+		// 			vm.eventBus.emit("clear_invoice");
+		// 			vm.back_to_invoice();
+		// 		},
+		// 	});
+		// },
 
 
 		// Thay thế hàm load_print_page_tax cũ của bạn bằng hàm này
@@ -1694,45 +1926,75 @@ export default {
 		},
 		// Set full amount for a payment method when clicked
 
-		set_full_amount(idx) {
-			const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
-			let totalAmount = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
+		set_full_amount(idx, ev) {
+		const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
+		const totalAmount = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
 
-			console.log("Setting full amount for payment method idx:", idx);
-			console.log("Current payments:", JSON.stringify(this.invoice_doc.payments));
-
-			// Reset all payment amounts first
-			this.invoice_doc.payments.forEach((payment) => {
-				payment.amount = 0;
-				if (payment.base_amount !== undefined) {
-					payment.base_amount = 0;
-				}
-			});
-
-			// Get the clicked payment method's name from the button text
-			const clickedButton = event?.target?.textContent?.trim();
-			console.log("Clicked button text:", clickedButton);
-
-			// Set amount only for clicked payment method
-			const clickedPayment = this.invoice_doc.payments.find(
-				(payment) => payment.mode_of_payment === clickedButton,
-			);
-
-			if (clickedPayment) {
-				console.log("Found clicked payment:", clickedPayment.mode_of_payment);
-				let amount = isReturn ? -Math.abs(totalAmount) : totalAmount;
-				clickedPayment.amount = amount;
-				if (clickedPayment.base_amount !== undefined) {
-					clickedPayment.base_amount = isReturn ? -Math.abs(amount) : amount;
-				}
-				console.log("Set amount for payment:", clickedPayment.mode_of_payment, "amount:", amount);
-			} else {
-				console.log("No payment found for button text:", clickedButton);
+		// Reset all payment amounts trước
+		this.invoice_doc.payments.forEach((payment) => {
+			payment.amount = 0;
+			if (payment.base_amount !== undefined) {
+			payment.base_amount = 0;
 			}
+		});
 
-			// Force Vue to update the view
-			this.$forceUpdate();
+		// Tìm payment theo idx (ổn định hơn text nút)
+		const clickedPayment = this.invoice_doc.payments.find((p) => p.idx === idx);
+
+		if (clickedPayment) {
+			let amount = isReturn ? -Math.abs(totalAmount) : totalAmount;
+			clickedPayment.amount = amount;
+			if (clickedPayment.base_amount !== undefined) {
+			clickedPayment.base_amount = isReturn ? -Math.abs(amount) : amount;
+			}
+		} else {
+			console.warn("No payment found for idx:", idx);
+		}
+
+		// Force Vue update khi cần
+		this.$forceUpdate();
 		},
+
+
+		// set_full_amount(idx) {
+		// 	const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
+		// 	let totalAmount = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
+
+		// 	console.log("Setting full amount for payment method idx:", idx);
+		// 	console.log("Current payments:", JSON.stringify(this.invoice_doc.payments));
+
+		// 	// Reset all payment amounts first
+		// 	this.invoice_doc.payments.forEach((payment) => {
+		// 		payment.amount = 0;
+		// 		if (payment.base_amount !== undefined) {
+		// 			payment.base_amount = 0;
+		// 		}
+		// 	});
+
+		// 	// Get the clicked payment method's name from the button text
+		// 	const clickedButton = event?.target?.textContent?.trim();
+		// 	console.log("Clicked button text:", clickedButton);
+
+		// 	// Set amount only for clicked payment method
+		// 	const clickedPayment = this.invoice_doc.payments.find(
+		// 		(payment) => payment.mode_of_payment === clickedButton,
+		// 	);
+
+		// 	if (clickedPayment) {
+		// 		console.log("Found clicked payment:", clickedPayment.mode_of_payment);
+		// 		let amount = isReturn ? -Math.abs(totalAmount) : totalAmount;
+		// 		clickedPayment.amount = amount;
+		// 		if (clickedPayment.base_amount !== undefined) {
+		// 			clickedPayment.base_amount = isReturn ? -Math.abs(amount) : amount;
+		// 		}
+		// 		console.log("Set amount for payment:", clickedPayment.mode_of_payment, "amount:", amount);
+		// 	} else {
+		// 		console.log("No payment found for button text:", clickedButton);
+		// 	}
+
+		// 	// Force Vue to update the view
+		// 	this.$forceUpdate();
+		// },
 		// Set remaining amount for a payment method when focused
 		set_rest_amount(idx) {
 			const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";

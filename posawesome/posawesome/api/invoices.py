@@ -309,6 +309,7 @@ def submit_invoice(invoice, data):
 	if data.get("tax_report") is not None:
 		invoice_doc.tax_report = data.get("tax_report")
 	# === Attach Customer Tax ID to Invoice (simple mode) ===
+
 	try:
 		cust_name = invoice_doc.get("customer")
 		if cust_name:
