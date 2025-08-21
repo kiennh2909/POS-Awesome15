@@ -542,48 +542,137 @@ export default {
 
 		async fetch_customer_details() {
 			const vm = this;
-			if (!this.customer_name) return;
+			if (!vm.customer_name) return;
 
-			// Offline first: try cache
+			// --- helper: gắn tax_id vào invoice_doc ngay khi có ---
+			const attachTaxIdToInvoice = (taxIdRaw) => {
+				const taxId = (taxIdRaw || "").toString().trim();
+				// đảm bảo luôn có object để gắn reactivity
+				vm.invoice_doc = vm.invoice_doc || {};
+				// gắn vào các field có thể dùng
+				vm.invoice_doc.tax_id = taxId;
+				vm.invoice_doc.customer_tax_id = taxId;
+				console.log("[TRACE] attachTaxIdToInvoice ->", taxId);
+
+				// (tuỳ chọn) nếu cả 2 field không tồn tại trong DocType và bạn muốn vẫn in được:
+				// if (!("tax_id" in vm.invoice_doc) && !("customer_tax_id" in vm.invoice_doc) && taxId) {
+				//   const line = `Tax ID: ${taxId}`;
+				//   const remarks = (vm.invoice_doc.remarks || "").split("\n").filter(Boolean);
+				//   if (!remarks.some(r => r.includes(line))) {
+				//     remarks.push(line);
+				//     vm.invoice_doc.remarks = remarks.join("\n");
+				//   }
+				// }
+			};
+
+			// --- OFFLINE FIRST: thử lấy từ cache ---
 			if (isOffline()) {
 				try {
-					const cached = (getCustomerStorage() || []).find(
-						(c) => c.name === vm.customer_name || c.customer_name === vm.customer_name,
-					);
-					if (cached) {
-						vm.customer_info = { ...cached };
-						vm.set_mpesa_search_params();
-						vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
-						return;
-					}
-					const queued = (getOfflineCustomers() || [])
-						.map((e) => e.args)
-						.find((c) => c.customer_name === vm.customer_name);
-					if (queued) {
-						vm.customer_info = { ...queued, name: queued.customer_name };
-						vm.set_mpesa_search_params();
-						vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
-					}
+				const cached =
+					(getCustomerStorage() || []).find(
+					(c) => c.name === vm.customer_name || c.customer_name === vm.customer_name
+					) || null;
+
+				if (cached) {
+					vm.customer_info = { ...cached };
+					console.log("[TRACE] customer_info from cache =", vm.customer_info);
+					attachTaxIdToInvoice(vm.customer_info.tax_id);
+					vm.set_mpesa_search_params();
+					vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
+					return;
+				}
+
+				const queued = (getOfflineCustomers() || [])
+					.map((e) => e.args)
+					.find((c) => c.customer_name === vm.customer_name);
+
+				if (queued) {
+					vm.customer_info = { ...queued, name: queued.customer_name };
+					console.log("[TRACE] customer_info from offline queue =", vm.customer_info);
+					attachTaxIdToInvoice(vm.customer_info.tax_id);
+					vm.set_mpesa_search_params();
+					vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
+				}
 				} catch (error) {
-					console.error("Failed to fetch cached customer", error);
+				console.error("Failed to fetch cached customer", error);
 				}
 				return;
 			}
 
+			// --- ONLINE: gọi API ---
 			try {
 				const r = await frappe.call({
-					method: "posawesome.posawesome.api.posapp.get_customer_info",
-					args: { customer: vm.customer_name },
+				method: "posawesome.posawesome.api.posapp.get_customer_info",
+				args: { customer: vm.customer_name },
 				});
+
 				if (!r.exc && r.message) {
-					vm.customer_info = { ...r.message }; // tax_id nằm trong đây nếu cần sử dụng
-					vm.set_mpesa_search_params();
-					vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
+				vm.customer_info = { ...r.message };
+				console.log("[TRACE] customer_info from server =", vm.customer_info);
+
+				// GẮN TAX_ID NGAY TẠI ĐÂY
+				attachTaxIdToInvoice(vm.customer_info.tax_id);
+
+				// phục vụ các UI khác
+				vm.set_mpesa_search_params();
+				vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
+				} else {
+				console.warn("[TRACE] get_customer_info trả về rỗng hoặc có exc", r);
 				}
 			} catch (error) {
 				console.error("Failed to fetch customer details", error);
 			}
 		},
+		selectSingleInvoice(item) {
+			if (item && item.voucher_no) {
+				this.eventBus.emit("set_invoice", item);
+				this.$nextTick(() => this.$forceUpdate());
+			}
+		},
+		// async fetch_customer_details() {
+		// 	const vm = this;
+		// 	if (!this.customer_name) return;
+
+		// 	// Offline first: try cache
+		// 	if (isOffline()) {
+		// 		try {
+		// 			const cached = (getCustomerStorage() || []).find(
+		// 				(c) => c.name === vm.customer_name || c.customer_name === vm.customer_name,
+		// 			);
+		// 			if (cached) {
+		// 				vm.customer_info = { ...cached };
+		// 				vm.set_mpesa_search_params();
+		// 				vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
+		// 				return;
+		// 			}
+		// 			const queued = (getOfflineCustomers() || [])
+		// 				.map((e) => e.args)
+		// 				.find((c) => c.customer_name === vm.customer_name);
+		// 			if (queued) {
+		// 				vm.customer_info = { ...queued, name: queued.customer_name };
+		// 				vm.set_mpesa_search_params();
+		// 				vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
+		// 			}
+		// 		} catch (error) {
+		// 			console.error("Failed to fetch cached customer", error);
+		// 		}
+		// 		return;
+		// 	}
+
+		// 	try {
+		// 		const r = await frappe.call({
+		// 			method: "posawesome.posawesome.api.posapp.get_customer_info",
+		// 			args: { customer: vm.customer_name },
+		// 		});
+		// 		if (!r.exc && r.message) {
+		// 			vm.customer_info = { ...r.message }; // tax_id nằm trong đây nếu cần sử dụng
+		// 			vm.set_mpesa_search_params();
+		// 			vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
+		// 		}
+		// 	} catch (error) {
+		// 		console.error("Failed to fetch customer details", error);
+		// 	}
+		// },
 
 		onInvoiceSelected(event) {
 			if (event && event.item && event.item.customer) {

@@ -58,6 +58,10 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
     debugLog("Bước 1: Xác định TaxCode và Flag.", { taxCode, flag });
 
     // === BƯỚC 2: TẠO BODY HOÀN CHỈNH CHO REQUEST, KHỚP VỚI MẪU ===
+    const resolvedTaxId = String(invoice.tax_id || invoice.customer_tax_id || "").trim();
+    console.log("[TRACE] handler resolvedTaxId =", resolvedTaxId);
+
+
     const body = {
       Flag: flag,
       DocNo: invoice.name,
@@ -65,7 +69,7 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
       InternalCode: invoice.name,
 
       CustomerName: String(invoice.customer || invoice.customer_name || invoice.title),
-      CustomerInfo: String(invoice.tax_id || invoice.title || "N/A"),
+      CustomerInfo: resolvedTaxId || String(invoice.title || "N/A"),
       Cashier: String(invoice.owner || invoice.modified_by),
       CashierName: String(invoice.owner || invoice.modified_by),
 
