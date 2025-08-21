@@ -46,7 +46,6 @@
 									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 									v-model="pos_profile_search"
 									:items="pos_profiles_list"
-									item-value="name"
 									label="Select POS Profile"
 								></v-select>
 							</v-col>
@@ -388,7 +387,6 @@
 <script>
 import format from "../../format";
 import Customer from "../pos/Customer.vue";
-import UpdateCustomer from "../pos/UpdateCustomer.vue";
 import {
 	getOpeningStorage,
 	setOpeningStorage,
@@ -430,145 +428,43 @@ export default {
 			mpesa_search_name: "",
 			mpesa_search_mobile: "",
 			invoices_headers: [
-				{
-					title: "",
-					align: "start",
-					sortable: false,
-					key: "actions",
-					width: "50px",
-				},
-				{
-					title: __("Invoice"),
-					align: "start",
-					sortable: true,
-					key: "voucher_no",
-				},
-				{
-					title: __("Customer"),
-					align: "start",
-					sortable: true,
-					key: "customer_name",
-				},
-				{
-					title: __("Date"),
-					align: "start",
-					sortable: true,
-					key: "posting_date",
-				},
-				{
-					title: __("Due Date"),
-					align: "start",
-					sortable: true,
-					key: "due_date",
-				},
-				{
-					title: __("Total"),
-					align: "end",
-					sortable: true,
-					key: "invoice_amount",
-				},
-				{
-					title: __("Outstanding"),
-					align: "end",
-					sortable: true,
-					key: "outstanding_amount",
-				},
+				{ title: "", align: "start", sortable: false, key: "actions", width: "50px" },
+				{ title: __("Invoice"), align: "start", sortable: true, key: "voucher_no" },
+				{ title: __("Customer"), align: "start", sortable: true, key: "customer_name" },
+				{ title: __("Date"), align: "start", sortable: true, key: "posting_date" },
+				{ title: __("Due Date"), align: "start", sortable: true, key: "due_date" },
+				{ title: __("Total"), align: "end", sortable: true, key: "invoice_amount" },
+				{ title: __("Outstanding"), align: "end", sortable: true, key: "outstanding_amount" },
 			],
 			unallocated_payments_headers: [
-				{
-					title: "",
-					align: "center",
-					sortable: false,
-					key: "select",
-					width: "50px",
-				},
-				{
-					title: __("Payment ID"),
-					align: "start",
-					sortable: true,
-					key: "name",
-				},
-				{
-					title: __("Customer"),
-					align: "start",
-					sortable: true,
-					key: "customer_name",
-				},
-				{
-					title: __("Date"),
-					align: "start",
-					sortable: true,
-					key: "posting_date",
-				},
-				{
-					title: __("Mode"),
-					align: "start",
-					sortable: true,
-					key: "mode_of_payment",
-				},
-				{
-					title: __("Paid"),
-					align: "end",
-					sortable: true,
-					key: "paid_amount",
-				},
-				{
-					title: __("Unallocated"),
-					align: "end",
-					sortable: true,
-					key: "unallocated_amount",
-				},
+				{ title: "", align: "center", sortable: false, key: "select", width: "50px" },
+				{ title: __("Payment ID"), align: "start", sortable: true, key: "name" },
+				{ title: __("Customer"), align: "start", sortable: true, key: "customer_name" },
+				{ title: __("Date"), align: "start", sortable: true, key: "posting_date" },
+				{ title: __("Mode"), align: "start", sortable: true, key: "mode_of_payment" },
+				{ title: __("Paid"), align: "end", sortable: true, key: "paid_amount" },
+				{ title: __("Unallocated"), align: "end", sortable: true, key: "unallocated_amount" },
 			],
 			mpesa_payment_headers: [
-				{
-					title: __("Payment ID"),
-					align: "start",
-					sortable: true,
-					key: "transid",
-				},
-				{
-					title: __("Full Name"),
-					align: "start",
-					sortable: true,
-					key: "full_name",
-				},
-				{
-					title: __("Nobile Number"),
-					align: "start",
-					sortable: true,
-					key: "mobile_no",
-				},
-				{
-					title: __("Date"),
-					align: "start",
-					sortable: true,
-					key: "posting_date",
-				},
-				{
-					title: __("Amount"),
-					align: "end",
-					sortable: true,
-					key: "amount",
-				},
+				{ title: __("Payment ID"), align: "start", sortable: true, key: "transid" },
+				{ title: __("Full Name"), align: "start", sortable: true, key: "full_name" },
+				{ title: __("Mobile Number"), align: "start", sortable: true, key: "mobile_no" },
+				{ title: __("Date"), align: "start", sortable: true, key: "posting_date" },
+				{ title: __("Amount"), align: "end", sortable: true, key: "amount" },
 			],
 			isSubmitting: false,
 		};
 	},
 
-	components: {
-		Customer,
-		UpdateCustomer,
-	},
+	components: { Customer },
 
 	methods: {
 		async check_opening_entry() {
-			var vm = this;
+			const vm = this;
 			await initPromise;
 			await checkDbHealth();
 			return frappe
-				.call("posawesome.posawesome.api.shifts.check_opening_shift", {
-					user: frappe.session.user,
-				})
+				.call("posawesome.posawesome.api.shifts.check_opening_shift", { user: frappe.session.user })
 				.then((r) => {
 					if (r.message) {
 						this.pos_profile = r.message.pos_profile;
@@ -577,26 +473,17 @@ export default {
 						vm.eventBus.emit("payments_register_pos_profile", r.message);
 						vm.eventBus.emit("set_company", r.message.company);
 						this.set_payment_methods();
-						try {
-							setOpeningStorage(r.message);
-						} catch (e) {
-							console.error("Failed to cache opening data", e);
-						}
+						try { setOpeningStorage(r.message); } catch (e) { console.error("Failed to cache opening data", e); }
 
-						// Initialize pos_profile_search as empty
+						// init search profile: keep empty by default
 						this.pos_profile_search = "";
-
-						// Initialize the dropdown list with profiles but don't select any
 						this.pos_profiles_list = [];
-						// Add current profile to the list but don't select it
 						if (r.message.pos_profile && r.message.pos_profile.name) {
 							this.pos_profiles_list.push(r.message.pos_profile.name);
 						}
 
 						this.payment_methods_list = [];
-						this.pos_profile.payments.forEach((element) => {
-							this.payment_methods_list.push(element.mode_of_payment);
-						});
+						this.pos_profile.payments.forEach((el) => this.payment_methods_list.push(el.mode_of_payment));
 						this.get_available_pos_profiles();
 						this.get_outstanding_invoices();
 						this.get_draft_mpesa_payments_register();
@@ -610,9 +497,7 @@ export default {
 							vm.eventBus.emit("set_company", data.company);
 							this.set_payment_methods();
 							this.payment_methods_list = [];
-							this.pos_profile.payments.forEach((element) => {
-								this.payment_methods_list.push(element.mode_of_payment);
-							});
+							this.pos_profile.payments.forEach((el) => this.payment_methods_list.push(el.mode_of_payment));
 							this.get_available_pos_profiles();
 							this.get_outstanding_invoices();
 							this.get_draft_mpesa_payments_register();
@@ -631,9 +516,7 @@ export default {
 						vm.eventBus.emit("set_company", data.company);
 						this.set_payment_methods();
 						this.payment_methods_list = [];
-						this.pos_profile.payments.forEach((element) => {
-							this.payment_methods_list.push(element.mode_of_payment);
-						});
+						this.pos_profile.payments.forEach((el) => this.payment_methods_list.push(el.mode_of_payment));
 						this.get_available_pos_profiles();
 						this.get_outstanding_invoices();
 						this.get_draft_mpesa_payments_register();
@@ -655,14 +538,13 @@ export default {
 					}
 				});
 		},
-		create_opening_voucher() {
-			this.dialog = true;
-		},
+		create_opening_voucher() { this.dialog = true; },
+
 		async fetch_customer_details() {
-			var vm = this;
+			const vm = this;
 			if (!this.customer_name) return;
 
-			// When offline, attempt to load details from cached customers
+			// Offline first: try cache
 			if (isOffline()) {
 				try {
 					const cached = (getCustomerStorage() || []).find(
@@ -691,15 +573,10 @@ export default {
 			try {
 				const r = await frappe.call({
 					method: "posawesome.posawesome.api.posapp.get_customer_info",
-					args: {
-						customer: vm.customer_name,
-					},
+					args: { customer: vm.customer_name },
 				});
-				const message = r.message;
-				if (!r.exc) {
-					vm.customer_info = {
-						...message,
-					};
+				if (!r.exc && r.message) {
+					vm.customer_info = { ...r.message }; // tax_id nằm trong đây nếu cần sử dụng
 					vm.set_mpesa_search_params();
 					vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
 				}
@@ -707,18 +584,15 @@ export default {
 				console.error("Failed to fetch customer details", error);
 			}
 		},
+
 		onInvoiceSelected(event) {
 			if (event && event.item && event.item.customer) {
 				this.eventBus.emit("set_customer", event.item.customer);
-				// Force UI to update total calculations
-				this.$nextTick(() => {
-					this.$forceUpdate();
-				});
+				this.$nextTick(() => this.$forceUpdate());
 			}
 		},
 		get_outstanding_invoices() {
 			this.invoices_loading = true;
-			// Reset selection completely
 			this.selected_invoices = [];
 
 			if (isOffline()) {
@@ -737,12 +611,11 @@ export default {
 				.then((r) => {
 					if (r.message) {
 						this.outstanding_invoices = r.message;
-						this.invoices_loading = false;
-						// Force refresh UI after data is loaded
-						this.$nextTick(() => {
-							this.$forceUpdate();
-						});
 					}
+				})
+				.finally(() => {
+					this.invoices_loading = false;
+					this.$nextTick(() => this.$forceUpdate());
 				});
 		},
 		get_unallocated_payments() {
@@ -768,14 +641,16 @@ export default {
 				.then((r) => {
 					if (r.message) {
 						this.unallocated_payments = r.message;
-						this.unallocated_payments_loading = false;
 					}
+				})
+				.finally(() => {
+					this.unallocated_payments_loading = false;
 				});
 		},
 		set_mpesa_search_params() {
 			if (!this.pos_profile.posa_allow_mpesa_reconcile_payments) return;
 			if (!this.customer_name) return;
-			this.mpesa_search_name = this.customer_info.customer_name.split(" ")[0];
+			this.mpesa_search_name = (this.customer_info.customer_name || "").split(" ")[0] || "";
 			if (this.customer_info.mobile_no) {
 				this.mpesa_search_mobile =
 					this.customer_info.mobile_no.substring(0, 4) +
@@ -802,31 +677,22 @@ export default {
 					payment_methods_list: vm.payment_methods_list,
 				})
 				.then((r) => {
-					if (r.message) {
-						vm.mpesa_payments = r.message;
-					} else {
-						vm.mpesa_payments = [];
-					}
+					vm.mpesa_payments = r.message || [];
+				})
+				.finally(() => {
 					vm.mpesa_payments_loading = false;
 				});
 		},
 		set_payment_methods() {
-			// get payment methods from pos profile
 			if (!this.pos_profile.posa_allow_make_new_payments) return;
 			this.payment_methods = [];
 			this.pos_profile.payments.forEach((method) => {
-				this.payment_methods.push({
-					mode_of_payment: method.mode_of_payment,
-					amount: 0,
-					row_id: method.name,
-				});
+				this.payment_methods.push({ mode_of_payment: method.mode_of_payment, amount: 0, row_id: method.name });
 			});
 		},
 		clear_all(with_customer_info = true) {
 			this.customer_name = "";
-			if (with_customer_info) {
-				this.customer_info = "";
-			}
+			if (with_customer_info) this.customer_info = "";
 			this.mpesa_search_mobile = "";
 			this.mpesa_search_name = "";
 			this.mpesa_payments = [];
@@ -849,53 +715,42 @@ export default {
 				frappe.throw(__("Please select a customer"));
 				return;
 			}
-
-			// Check if we have selected invoices
-			if (this.selected_invoices.length == 0) {
+			if (this.selected_invoices.length === 0) {
 				this.isSubmitting = false;
 				frappe.throw(__("Please select an invoice"));
 				return;
 			}
 
-			// Calculate payment values
-			let total_payments =
-				this.total_selected_payments +
-				this.total_selected_mpesa_payments +
-				this.total_payment_methods;
-
+			let total_payments = this.total_selected_payments + this.total_selected_mpesa_payments + this.total_payment_methods;
 			if (total_payments <= 0) {
 				this.isSubmitting = false;
 				frappe.throw(__("Please make a payment or select an payment"));
 				return;
 			}
 
-			this.payment_methods.forEach((payment) => {
-				payment.amount = flt(payment.amount);
-			});
+			this.payment_methods.forEach((payment) => { payment.amount = this.flt(payment.amount); });
 
-			const payload = {};
-			payload.customer = customer;
-			payload.company = this.company;
-			payload.currency = this.pos_profile.currency;
-			payload.pos_opening_shift_name = this.pos_opening_shift.name;
-			payload.pos_profile_name = this.pos_profile.name;
-			payload.pos_profile = this.pos_profile;
-			payload.payment_methods = this.payment_methods;
-			payload.selected_invoices = this.selected_invoices;
-			payload.selected_payments = this.selected_payments;
-			payload.total_selected_invoices = flt(this.total_selected_invoices);
-			payload.selected_mpesa_payments = this.selected_mpesa_payments;
-			payload.total_selected_payments = flt(this.total_selected_payments);
-			payload.total_payment_methods = flt(this.total_payment_methods);
-			payload.total_selected_mpesa_payments = flt(this.total_selected_mpesa_payments);
+			const payload = {
+				customer,
+				company: this.company,
+				currency: this.pos_profile.currency,
+				pos_opening_shift_name: this.pos_opening_shift.name,
+				pos_profile_name: this.pos_profile.name,
+				pos_profile: this.pos_profile,
+				payment_methods: this.payment_methods,
+				selected_invoices: this.selected_invoices,
+				selected_payments: this.selected_payments,
+				total_selected_invoices: this.flt(this.total_selected_invoices),
+				selected_mpesa_payments: this.selected_mpesa_payments,
+				total_selected_payments: this.flt(this.total_selected_payments),
+				total_payment_methods: this.flt(this.total_payment_methods),
+				total_selected_mpesa_payments: this.flt(this.total_selected_mpesa_payments),
+			};
 
 			if (isOffline()) {
 				try {
 					saveOfflinePayment({ args: { payload } });
-					vm.eventBus.emit("show_message", {
-						title: __("Payment saved offline"),
-						color: "warning",
-					});
+					vm.eventBus.emit("show_message", { title: __("Payment saved offline"), color: "warning" });
 					vm.clear_all(false);
 					vm.customer_name = customer;
 					vm.get_outstanding_invoices();
@@ -903,9 +758,7 @@ export default {
 					vm.set_mpesa_search_params();
 					vm.get_draft_mpesa_payments_register();
 				} catch (error) {
-					frappe.msgprint(
-						__("Cannot Save Offline Payment: ") + (error.message || __("Unknown error")),
-					);
+					frappe.msgprint(__("Cannot Save Offline Payment: ") + (error.message || __("Unknown error")));
 				}
 				vm.isSubmitting = false;
 				return;
@@ -928,9 +781,7 @@ export default {
 						vm.get_draft_mpesa_payments_register();
 					}
 				},
-				error: function () {
-					vm.isSubmitting = false;
-				},
+				error: function () { vm.isSubmitting = false; },
 			});
 		},
 		submit_and_print() {
@@ -943,53 +794,42 @@ export default {
 				frappe.throw(__("Please select a customer"));
 				return;
 			}
-
-			// Check if we have selected invoices
-			if (this.selected_invoices.length == 0) {
+			if (this.selected_invoices.length === 0) {
 				this.isSubmitting = false;
 				frappe.throw(__("Please select an invoice"));
 				return;
 			}
 
-			// Calculate payment values
-			let total_payments =
-				this.total_selected_payments +
-				this.total_selected_mpesa_payments +
-				this.total_payment_methods;
-
+			let total_payments = this.total_selected_payments + this.total_selected_mpesa_payments + this.total_payment_methods;
 			if (total_payments <= 0) {
 				this.isSubmitting = false;
 				frappe.throw(__("Please make a payment or select an payment"));
 				return;
 			}
 
-			this.payment_methods.forEach((payment) => {
-				payment.amount = flt(payment.amount);
-			});
+			this.payment_methods.forEach((payment) => { payment.amount = this.flt(payment.amount); });
 
-			const payload = {};
-			payload.customer = customer;
-			payload.company = this.company;
-			payload.currency = this.pos_profile.currency;
-			payload.pos_opening_shift_name = this.pos_opening_shift.name;
-			payload.pos_profile_name = this.pos_profile.name;
-			payload.pos_profile = this.pos_profile;
-			payload.payment_methods = this.payment_methods;
-			payload.selected_invoices = this.selected_invoices;
-			payload.selected_payments = this.selected_payments;
-			payload.total_selected_invoices = flt(this.total_selected_invoices);
-			payload.selected_mpesa_payments = this.selected_mpesa_payments;
-			payload.total_selected_payments = flt(this.total_selected_payments);
-			payload.total_payment_methods = flt(this.total_payment_methods);
-			payload.total_selected_mpesa_payments = flt(this.total_selected_mpesa_payments);
+			const payload = {
+				customer,
+				company: this.company,
+				currency: this.pos_profile.currency,
+				pos_opening_shift_name: this.pos_opening_shift.name,
+				pos_profile_name: this.pos_profile.name,
+				pos_profile: this.pos_profile,
+				payment_methods: this.payment_methods,
+				selected_invoices: this.selected_invoices,
+				selected_payments: this.selected_payments,
+				total_selected_invoices: this.flt(this.total_selected_invoices),
+				selected_mpesa_payments: this.selected_mpesa_payments,
+				total_selected_payments: this.flt(this.total_selected_payments),
+				total_payment_methods: this.flt(this.total_payment_methods),
+				total_selected_mpesa_payments: this.flt(this.total_selected_mpesa_payments),
+			};
 
 			if (isOffline()) {
 				try {
 					saveOfflinePayment({ args: { payload } });
-					vm.eventBus.emit("show_message", {
-						title: __("Payment saved offline"),
-						color: "warning",
-					});
+					vm.eventBus.emit("show_message", { title: __("Payment saved offline"), color: "warning" });
 					vm.clear_all(false);
 					vm.customer_name = customer;
 					vm.get_outstanding_invoices();
@@ -997,9 +837,7 @@ export default {
 					vm.set_mpesa_search_params();
 					vm.get_draft_mpesa_payments_register();
 				} catch (error) {
-					frappe.msgprint(
-						__("Cannot Save Offline Payment: ") + (error.message || __("Unknown error")),
-					);
+					frappe.msgprint(__("Cannot Save Offline Payment: ") + (error.message || __("Unknown error")));
 				}
 				vm.isSubmitting = false;
 				return;
@@ -1015,22 +853,15 @@ export default {
 					if (r.message) {
 						console.log("Server response:", JSON.stringify(r.message));
 						frappe.utils.play_sound("submit");
-
-						// Extract payment name from server response
 						const payment_name =
 							r.message.new_payments_entry && r.message.new_payments_entry.length > 0
 								? r.message.new_payments_entry[0].name
 								: null;
-
 						if (payment_name) {
-							console.log("Opening print view with payment name:", payment_name);
 							vm.load_print_page(payment_name);
 						} else {
-							console.log("No payment_name found in response");
 							frappe.msgprint(
-								__(
-									"Payment submitted but print function could not be executed. Payment name not found.",
-								),
+								__("Payment submitted but print function could not be executed. Payment name not found."),
 							);
 						}
 						vm.clear_all(false);
@@ -1041,13 +872,10 @@ export default {
 						vm.get_draft_mpesa_payments_register();
 					}
 				},
-				error: function () {
-					vm.isSubmitting = false;
-				},
+				error: function () { vm.isSubmitting = false; },
 			});
 		},
-		selectSingleInvoice(item) {
-			console.log("Row clicked:", item);
+		selectSingleInvoice({ item }) {
 			if (item) {
 				this.toggleInvoiceSelection(item);
 			}
@@ -1057,53 +885,37 @@ export default {
 		},
 		toggleInvoiceSelection(item) {
 			if (this.isInvoiceSelected(item)) {
-				// If already selected, unselect it
-				this.selected_invoices = this.selected_invoices.filter(
-					(i) => i.voucher_no !== item.voucher_no,
-				);
+				this.selected_invoices = this.selected_invoices.filter((i) => i.voucher_no !== item.voucher_no);
 			} else {
-				// Add this invoice to selection - support multiple selection
 				this.selected_invoices.push(item);
-
 				if (item.customer && !this.customer_name) {
 					this.eventBus.emit("set_customer", item.customer);
 				}
 			}
-
-			// Force UI update
 			this.$nextTick(() => {
-				console.log("Selected invoices:", this.selected_invoices);
-				console.log("Total selected amount:", this.total_selected_invoices);
 				this.$forceUpdate();
 			});
 		},
 		isSelected(item) {
 			return this.isInvoiceSelected(item) ? "selected-row bg-primary bg-lighten-4" : "";
 		},
-
 		load_print_page(payment_name) {
 			if (!payment_name) {
 				frappe.msgprint(__("Payment name not found. Cannot open print view."));
 				return;
 			}
-
-			// Use simplest URL possible to avoid errors
 			const url =
 				frappe.urllib.get_base_url() +
 				"/printview?doctype=Payment%20Entry" +
 				"&name=" +
 				payment_name +
 				"&trigger_print=1";
-
-			console.log("Opening printing URL:", url);
-
 			if (this.pos_profile?.posa_silent_print) {
 				silentPrint(url);
 			} else {
 				window.open(url, "_blank");
 			}
 		},
-
 		async syncPendingPayments() {
 			const pending = getPendingOfflinePaymentCount();
 			if (pending) {
@@ -1112,9 +924,7 @@ export default {
 					color: "warning",
 				});
 			}
-			if (isOffline()) {
-				return;
-			}
+			if (isOffline()) return;
 			const result = await syncOfflinePayments();
 			if (result && result.synced) {
 				this.eventBus.emit("show_message", {
@@ -1128,65 +938,38 @@ export default {
 	computed: {
 		total_outstanding_amount() {
 			if (!this.outstanding_invoices || !this.outstanding_invoices.length) return 0;
-			return this.outstanding_invoices.reduce((acc, cur) => acc + flt(cur?.outstanding_amount || 0), 0);
+			return this.outstanding_invoices.reduce((acc, cur) => acc + this.flt(cur?.outstanding_amount || 0), 0);
 		},
 		total_unallocated_amount() {
 			if (!this.unallocated_payments || !this.unallocated_payments.length) return 0;
-			return this.unallocated_payments.reduce((acc, cur) => acc + flt(cur?.unallocated_amount || 0), 0);
+			return this.unallocated_payments.reduce((acc, cur) => acc + this.flt(cur?.unallocated_amount || 0), 0);
 		},
 		total_selected_invoices() {
-			if (!this.selected_invoices || !this.selected_invoices.length) {
-				console.log("No selected invoices");
-				return 0;
-			}
-			const total = this.selected_invoices.reduce(
-				(acc, cur) => acc + flt(cur?.outstanding_amount || 0),
-				0,
-			);
-			console.log("Calculated total selected invoices:", total, "from", this.selected_invoices);
-			return total;
+			if (!this.selected_invoices || !this.selected_invoices.length) return 0;
+			return this.selected_invoices.reduce((acc, cur) => acc + this.flt(cur?.outstanding_amount || 0), 0);
 		},
 		total_selected_payments() {
 			if (!this.selected_payments || !this.selected_payments.length) return 0;
-			return this.selected_payments.reduce((acc, cur) => acc + flt(cur?.unallocated_amount || 0), 0);
+			return this.selected_payments.reduce((acc, cur) => acc + this.flt(cur?.unallocated_amount || 0), 0);
 		},
 		total_selected_mpesa_payments() {
 			if (!this.selected_mpesa_payments || !this.selected_mpesa_payments.length) return 0;
-			return this.selected_mpesa_payments.reduce((acc, cur) => acc + flt(cur?.amount || 0), 0);
+			return this.selected_mpesa_payments.reduce((acc, cur) => acc + this.flt(cur?.amount || 0), 0);
 		},
 		total_payment_methods() {
 			if (!this.payment_methods || !this.payment_methods.length) return 0;
-
-			// Ensure each amount is properly converted to a number
 			const total = this.payment_methods.reduce((acc, cur) => {
 				const amount = parseFloat(cur?.amount || 0);
 				return acc + (isNaN(amount) ? 0 : amount);
 			}, 0);
-
-			console.log("Payment methods total:", total, "from", this.payment_methods);
 			return total;
 		},
 		total_of_diff() {
-			// Calculate difference between invoice total and payment total
 			const invoiceTotal = this.total_selected_invoices || 0;
-			const paymentTotal =
-				(this.total_selected_payments || 0) +
-				(this.total_selected_mpesa_payments || 0) +
-				(this.total_payment_methods || 0);
-
-			console.log("Difference calculation:", {
-				invoiceTotal,
-				paymentTotal,
-				selectedPayments: this.total_selected_payments,
-				mpesaPayments: this.total_selected_mpesa_payments,
-				methodPayments: this.total_payment_methods,
-			});
-
-			return flt(invoiceTotal - paymentTotal);
+			const paymentTotal = (this.total_selected_payments || 0) + (this.total_selected_mpesa_payments || 0) + (this.total_payment_methods || 0);
+			return this.flt(invoiceTotal - paymentTotal);
 		},
-		isDarkTheme() {
-			return this.$theme.current === "dark";
-		},
+		isDarkTheme() { return this.$theme.current === "dark"; },
 	},
 
 	created() {
@@ -1206,9 +989,7 @@ export default {
 				this.get_unallocated_payments();
 				this.get_draft_mpesa_payments_register();
 			});
-			this.eventBus.on("fetch_customer_details", () => {
-				this.fetch_customer_details();
-			});
+			this.eventBus.on("fetch_customer_details", () => { this.fetch_customer_details(); });
 		});
 	},
 	beforeUnmount() {
@@ -1251,27 +1032,11 @@ export default {
 	background-color: #1e1e1e !important;
 }
 
-input[total_of_diff] {
-	text-align: right;
-}
+input[total_of_diff] { text-align: right; }
+input[payments_methods] { text-align: right; }
+input[total_selected_payments] { text-align: right; }
+input[total_selected_invoices] { text-align: right; }
+input[total_selected_mpesa_payments] { text-align: right; }
 
-input[payments_methods] {
-	text-align: right;
-}
-
-input[total_selected_payments] {
-	text-align: right;
-}
-
-input[total_selected_invoices] {
-	text-align: right;
-}
-
-input[total_selected_mpesa_payments] {
-	text-align: right;
-}
-
-.selected-row {
-	background-color: #e3f2fd !important;
-}
+.selected-row { background-color: #e3f2fd !important; }
 </style>
