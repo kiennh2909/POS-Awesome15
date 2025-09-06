@@ -258,47 +258,6 @@
 					</v-col>
 				</v-row>
 
-				<!-- Mode Selection Buttons and NLine Checkbox -->
-				<v-row class="mt-2" v-if="pos_profile.posa_new_line || true">
-					<v-col cols="12" class="d-flex justify-center align-center gap-2">
-						<!-- NLine Checkbox -->
-						<div v-if="pos_profile.posa_new_line" class="d-flex align-center">
-							<v-checkbox
-								v-model="new_line"
-								color="accent"
-								value="true"
-								label="NLine"
-								density="default"
-								hide-details
-								class="mr-4"
-							></v-checkbox>
-						</div>
-
-						<!-- Mode Selection Buttons -->
-						<div class="d-flex gap-2">
-							<v-btn
-								:color="scan_add_mode ? 'success' : 'grey'"
-								:variant="scan_add_mode ? 'flat' : 'outlined'"
-								size="small"
-								@click="setScanMode(true)"
-								class="mode-btn"
-							>
-								<v-icon left size="small">mdi-plus-circle</v-icon>
-								Add Mode
-							</v-btn>
-							<v-btn
-								:color="!scan_add_mode ? 'error' : 'grey'"
-								:variant="!scan_add_mode ? 'flat' : 'outlined'"
-								size="small"
-								@click="setScanMode(false)"
-								class="mode-btn"
-							>
-								<v-icon left size="small">mdi-minus-circle</v-icon>
-								Remove Mode
-							</v-btn>
-						</div>
-					</v-col>
-				</v-row>
 			</div>
 		</v-card>
 		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
@@ -352,6 +311,52 @@
 						class="action-btn-consistent"
 						>{{ couponsCount }} {{ __("Coupons") }}</v-btn
 					>
+				</v-col>
+			</v-row>
+		</v-card>
+
+		<!-- Mode Selection Section - Moved to bottom for better accessibility -->
+		<v-card class="mode-selection-card mt-3 dynamic-padding resizable" v-if="pos_profile.posa_new_line || true">
+			<v-row class="mode-selection-row">
+				<v-col cols="12" class="d-flex justify-center align-center flex-column gap-3">
+					<!-- NLine Checkbox -->
+					<div v-if="pos_profile.posa_new_line" class="d-flex align-center justify-center mb-2">
+						<v-checkbox
+							v-model="new_line"
+							color="accent"
+							value="true"
+							label="NLine"
+							density="comfortable"
+							hide-details
+							class="nline-checkbox"
+						></v-checkbox>
+					</div>
+
+					<!-- Mode Selection Buttons - Made larger for easier selection -->
+					<div class="d-flex gap-4 justify-center flex-wrap">
+						<v-btn
+							:color="scan_add_mode ? 'success' : 'grey'"
+							:variant="scan_add_mode ? 'flat' : 'outlined'"
+							size="large"
+							@click="setScanMode(true)"
+							class="mode-btn-large"
+							height="60"
+						>
+							<v-icon left size="large">mdi-plus-circle</v-icon>
+							<span class="mode-btn-text">{{ __("Add Mode") }}</span>
+						</v-btn>
+						<v-btn
+							:color="!scan_add_mode ? 'error' : 'grey'"
+							:variant="!scan_add_mode ? 'flat' : 'outlined'"
+							size="large"
+							@click="setScanMode(false)"
+							class="mode-btn-large"
+							height="60"
+						>
+							<v-icon left size="large">mdi-minus-circle</v-icon>
+							<span class="mode-btn-text">{{ __("Remove Mode") }}</span>
+						</v-btn>
+					</div>
 				</v-col>
 			</v-row>
 		</v-card>
@@ -1643,7 +1648,7 @@ export default {
 					setTimeout(() => {
 						console.log("Emitting highlight event for:", item.item_code);
 						this.eventBus.emit("highlight_scanned_item", item.item_code);
-					}, 200);
+					}, 1000);
 				} else {
 					// Remove mode - emit event to remove item from invoice
 					console.log("Emitting remove_item_by_code for:", item.item_code);
@@ -2307,6 +2312,22 @@ export default {
 		padding: var(--dynamic-xs) !important;
 		font-size: 0.875rem !important;
 	}
+
+	/* Mode buttons responsive */
+	.mode-btn-large {
+		min-width: 140px !important;
+		font-size: 0.9rem !important;
+		height: 50px !important;
+	}
+
+	.mode-btn-large .v-icon {
+		margin-right: 6px !important;
+		font-size: 20px !important;
+	}
+
+	.mode-btn-text {
+		font-size: 0.9rem !important;
+	}
 }
 
 @media (max-width: 480px) {
@@ -2317,21 +2338,74 @@ export default {
 	.cards {
 		padding: var(--dynamic-xs) !important;
 	}
+
+	/* Stack mode buttons vertically on very small screens */
+	.gap-4 {
+		gap: 8px !important;
+	}
+
+	.mode-btn-large {
+		min-width: 100% !important;
+		height: 50px !important;
+		font-size: 0.85rem !important;
+		margin-bottom: 4px !important;
+	}
+
+	.mode-btn-large .v-icon {
+		font-size: 18px !important;
+	}
+
+	/* Adjust mode selection card for mobile */
+	.mode-selection-card {
+		margin-top: var(--dynamic-sm) !important;
+	}
+
+	.mode-selection-row {
+		padding: var(--dynamic-sm) !important;
+	}
 }
 
-/* Mode Selection Buttons Styling */
-.mode-btn {
-	transition: all 0.3s ease;
-	min-width: 120px;
+/* Mode Selection Card Styling */
+.mode-selection-card {
+	background-color: var(--surface-secondary) !important;
+	border: 2px solid var(--primary) !important;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
 
-.mode-btn:hover {
-	transform: translateY(-1px);
-	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+.mode-selection-row {
+	padding: var(--dynamic-md) !important;
 }
 
-.mode-btn .v-icon {
-	margin-right: 4px;
+/* Large Mode Selection Buttons Styling */
+.mode-btn-large {
+	transition: all 0.3s ease !important;
+	min-width: 180px !important;
+	border-radius: 12px !important;
+	font-weight: 600 !important;
+	font-size: 1.1rem !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.5px !important;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.mode-btn-large:hover {
+	transform: translateY(-2px) !important;
+	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25) !important;
+}
+
+.mode-btn-large .v-icon {
+	margin-right: 8px !important;
+	font-size: 24px !important;
+}
+
+.mode-btn-text {
+	font-weight: 600 !important;
+}
+
+/* NLine Checkbox Styling */
+.nline-checkbox .v-label {
+	font-size: 1.1rem !important;
+	font-weight: 600 !important;
 }
 
 /* Gap utility class */
