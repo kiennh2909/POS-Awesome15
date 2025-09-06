@@ -272,16 +272,6 @@
 		</v-card>
 		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
 			<v-row no-gutters align="center" justify="center" class="dynamic-spacing-sm">
-				<v-col cols="12" class="mb-2">
-					<v-select
-						:items="items_group"
-						:label="frappe._('Items Group')"
-						density="compact"
-						variant="solo"
-						hide-details
-						v-model="item_group"
-					></v-select>
-				</v-col>
 				<v-col cols="12" class="mb-2" v-if="pos_profile.posa_enable_price_list_dropdown">
 					<v-text-field
 						density="compact"
@@ -331,17 +321,19 @@
 				<v-col cols="12" class="d-flex justify-center align-center">
 					<!-- All controls in one horizontal line -->
 					<div class="controls-container">
-						<!-- NLine Checkbox -->
+						<!-- NLine Button -->
 						<div v-if="pos_profile.posa_new_line" class="control-item">
-							<v-checkbox
-								v-model="new_line"
-								color="accent"
-								value="true"
-								label="NLine"
-								density="comfortable"
-								hide-details
-								class="nline-checkbox"
-							></v-checkbox>
+							<v-btn
+								:color="new_line ? 'success' : 'grey'"
+								:variant="new_line ? 'flat' : 'outlined'"
+								size="default"
+								@click="new_line = !new_line"
+								class="mode-btn-compact"
+								height="48"
+							>
+								<v-icon left size="default">mdi-format-line-spacing</v-icon>
+								<span class="mode-btn-text">{{ __("NLine") }}</span>
+							</v-btn>
 						</div>
 
 						<!-- Mode Selection Buttons -->
@@ -422,9 +414,7 @@ export default {
 		pos_profile: "",
 		flags: {},
 		items_view: "list",
-		item_group: "ALL",
 		loading: false,
-		items_group: ["ALL"],
 		items: [],
 		search: "",
 		first_search: "",
@@ -715,7 +705,6 @@ export default {
 
 			// Removed noisy debug log
 			let search = this.get_search(this.first_search);
-			let gr = vm.item_group !== "ALL" ? vm.item_group.toLowerCase() : "";
 			let sr = search || "";
 
 			// Skip reload if items already loaded, not forcing, not searching and limit search disabled
@@ -804,7 +793,6 @@ export default {
 						body: JSON.stringify({
 							pos_profile: JSON.stringify(vm.pos_profile),
 							price_list: vm.customer_price_list,
-							item_group: gr,
 							search_value: sr,
 							customer: vm.customer,
 						}),
@@ -893,7 +881,6 @@ export default {
 					args: {
 						pos_profile: JSON.stringify(vm.pos_profile),
 						price_list: vm.customer_price_list,
-						item_group: gr,
 						search_value: sr,
 						customer: vm.customer,
 					},
@@ -949,32 +936,6 @@ export default {
 							if (vm.pos_profile.pose_use_limit_search) {
 								vm.enter_event();
 							}
-						}
-					},
-				});
-			}
-		},
-		get_items_groups() {
-			if (!this.pos_profile) {
-				console.log("No POS Profile");
-				return;
-			}
-			if (this.pos_profile.item_groups.length > 0) {
-				this.pos_profile.item_groups.forEach((element) => {
-					if (element.item_group !== "All Item Groups") {
-						this.items_group.push(element.item_group);
-					}
-				});
-			} else {
-				const vm = this;
-				frappe.call({
-					method: "posawesome.posawesome.api.items.get_items_groups",
-					args: {},
-					callback: function (r) {
-						if (r.message) {
-							r.message.forEach((element) => {
-								vm.items_group.push(element.name);
-							});
 						}
 					},
 				});
@@ -1934,14 +1895,7 @@ export default {
 			this.search = this.get_search(this.first_search).trim();
 			if (!this.pos_profile.pose_use_limit_search) {
 				let filtred_list = [];
-				let filtred_group_list = [];
-				if (this.item_group != "ALL") {
-					filtred_group_list = this.items.filter((item) =>
-						item.item_group.toLowerCase().includes(this.item_group.toLowerCase()),
-					);
-				} else {
-					filtred_group_list = this.items;
-				}
+				let filtred_group_list = this.items;
 				if (!this.search || this.search.length < 3) {
 					let filtered = [];
 					if (
@@ -2128,7 +2082,6 @@ export default {
 			} else {
 				await this.get_items();
 			}
-			this.get_items_groups();
 			this.items_view = this.pos_profile.posa_default_card_view ? "card" : "list";
 		});
 		this.eventBus.on("update_cur_items_details", () => {
@@ -2470,11 +2423,6 @@ export default {
 	font-weight: 600 !important;
 }
 
-/* NLine Checkbox Styling */
-.nline-checkbox .v-label {
-	font-size: 1.1rem !important;
-	font-weight: 600 !important;
-}
 
 /* Controls container for horizontal layout */
 .controls-container {
