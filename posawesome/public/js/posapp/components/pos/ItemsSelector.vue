@@ -10,7 +10,7 @@
 				maxHeight: responsiveStyles['--container-height'],
 				backgroundColor: isDarkTheme ? '#121212' : '',
 				resize: 'vertical',
-				overflow: 'auto',
+				overflow: 'hidden', // Changed from 'auto' to 'hidden'
 			}"
 		>
 			<v-progress-linear
@@ -23,204 +23,168 @@
 			<v-overlay :model-value="loading" class="align-center justify-center" absolute>
 				<v-progress-circular indeterminate color="primary" size="48"></v-progress-circular>
 			</v-overlay>
-			<!-- Add dynamic-padding wrapper like Invoice component -->
-			<div class="dynamic-padding">
-				<v-row class="items">
-					<v-col class="pb-0">
-						<v-text-field
-							density="compact"
-							clearable
-							autofocus
-							variant="solo"
-							color="primary"
-							:label="frappe._('Search Items')"
-							hint="Search by item code, serial number, batch no or barcode"
-							hide-details
-							v-model="debounce_search"
-							@keydown.esc="esc_event"
-							@keydown.enter="search_onchange"
-							@click:clear="clearSearch"
-							prepend-inner-icon="mdi-magnify"
-							@focus="handleItemSearchFocus"
-							ref="debounce_search"
-						>
-							<!-- Add camera scan button if enabled -->
-							<template v-slot:append-inner v-if="pos_profile.posa_enable_camera_scanning">
-								<v-btn
-									icon="mdi-camera"
-									size="small"
-									color="primary"
-									variant="text"
-									@click="startCameraScanning"
-									:title="__('Scan with Camera')"
-								>
-								</v-btn>
-							</template>
-						</v-text-field>
-					</v-col>
-					<v-col cols="4" class="pb-0" v-if="pos_profile.posa_input_qty">
-						<v-text-field
-							density="compact"
-							variant="solo"
-							color="primary"
-							:label="frappe._('QTY')"
-							hide-details
-							v-model="debounce_qty"
-							type="text"
-							@keydown.enter="enter_event"
-							@keydown.esc="esc_event"
-							@focus="clearQty"
-						></v-text-field>
-					</v-col>
-					<v-col cols="12" class="dynamic-margin-xs">
-						<div class="settings-container">
-							<v-btn
-								density="compact"
-								variant="text"
-								color="primary"
-								prepend-icon="mdi-cog-outline"
-								@click="toggleItemSettings"
-								class="settings-btn"
-							>
-								{{ __("Settings") }}
-							</v-btn>
-							<v-spacer></v-spacer>
-							<v-btn
-								density="compact"
-								variant="text"
-								color="primary"
-								prepend-icon="mdi-refresh"
-								@click="forceReloadItems"
-								class="settings-btn"
-							>
-								{{ __("Reload Items") }}
-							</v-btn>
 
-							<v-dialog v-model="show_item_settings" max-width="400px">
-								<v-card>
-									<v-card-title class="text-h6 pa-4 d-flex align-center">
-										<span>{{ __("Item Selector Settings") }}</span>
-										<v-spacer></v-spacer>
-										<v-btn
-											icon="mdi-close"
-											variant="text"
-											density="compact"
-											@click="show_item_settings = false"
-										></v-btn>
-									</v-card-title>
-									<v-divider></v-divider>
-									<v-card-text class="pa-4">
-										<v-switch
-											v-model="temp_hide_qty_decimals"
-											:label="__('Hide quantity decimals')"
-											hide-details
-											density="compact"
-											color="primary"
-											class="mb-2"
-										></v-switch>
-										<v-switch
-											v-model="temp_hide_zero_rate_items"
-											:label="__('Hide zero rated items')"
-											hide-details
-											density="compact"
-											color="primary"
-										></v-switch>
-									</v-card-text>
-									<v-card-actions class="pa-4 pt-0">
-										<v-btn color="error" variant="text" @click="cancelItemSettings">{{
-											__("Cancel")
-										}}</v-btn>
-										<v-spacer></v-spacer>
-										<v-btn color="primary" variant="tonal" @click="applyItemSettings">{{
-											__("Apply")
-										}}</v-btn>
-									</v-card-actions>
-								</v-card>
-							</v-dialog>
-						</div>
-					</v-col>
-					<v-col cols="12" class="pt-0 mt-0">
-						<div
-							fluid
-							class="items-grid dynamic-scroll"
-							ref="itemsContainer"
-							v-if="items_view == 'card'"
-							:style="{ maxHeight: 'calc(100% - 80px)' }"
-						>
-							<v-card
-								v-for="item in filtered_items"
-								:key="item.item_code"
-								hover
-								class="dynamic-item-card"
-								:draggable="true"
-								@dragstart="onDragStart($event, item)"
-								@dragend="onDragEnd"
-								@click="add_item(item)"
+			<!-- Sticky Search Header -->
+			<div class="sticky-search-header">
+				<div class="dynamic-padding">
+					<v-row class="items">
+						<v-col class="pb-0">
+							<v-text-field
+								density="compact"
+								clearable
+								autofocus
+								variant="solo"
+								color="primary"
+								:label="frappe._('Search Items')"
+								hint="Search by item code, serial number, batch no or barcode"
+								hide-details
+								v-model="debounce_search"
+								@keydown.esc="esc_event"
+								@keydown.enter="search_onchange"
+								@click:clear="clearSearch"
+								prepend-inner-icon="mdi-magnify"
+								@focus="handleItemSearchFocus"
+								ref="debounce_search"
 							>
-								<v-img
-									:src="
-										item.image ||
-										'/assets/posawesome/js/posapp/components/pos/placeholder-image.png'
-									"
-									class="text-white align-end"
-									gradient="to bottom, rgba(0,0,0,0), rgba(0,0,0,0.4)"
-									height="100px"
-								>
-									<v-card-text class="text-caption px-1 pb-0 truncate">{{
-										item.item_name
-									}}</v-card-text>
-								</v-img>
-								<v-card-text class="text--primary pa-1">
-									<div class="text-caption text-primary truncate">
-										{{
-											currencySymbol(item.original_currency || pos_profile.currency) ||
-											""
-										}}
-										{{
-											format_currency(
-												item.base_price_list_rate || item.rate,
-												item.original_currency || pos_profile.currency,
-												ratePrecision(item.base_price_list_rate || item.rate),
-											)
-										}}
-									</div>
-									<div
-										v-if="
-											pos_profile.posa_allow_multi_currency &&
-											selected_currency !== pos_profile.currency
-										"
-										class="text-caption text-success truncate"
+								<!-- Add camera scan button if enabled -->
+								<template v-slot:append-inner v-if="pos_profile.posa_enable_camera_scanning">
+									<v-btn
+										icon="mdi-camera"
+										size="small"
+										color="primary"
+										variant="text"
+										@click="startCameraScanning"
+										:title="__('Scan with Camera')"
 									>
-										{{ currencySymbol(selected_currency) || "" }}
-										{{
-											format_currency(
-												item.rate,
-												selected_currency,
-												ratePrecision(item.rate),
-											)
-										}}
-									</div>
-									<div class="text-caption golden--text truncate">
-										{{ format_number(item.actual_qty, hide_qty_decimals ? 0 : 4) || 0 }}
-										{{ item.stock_uom || "" }}
-									</div>
-								</v-card-text>
-							</v-card>
-						</div>
-						<div v-else>
-							<v-data-table-virtual
-								:headers="headers"
-								:items="filtered_items"
-								class="sleek-data-table overflow-y-auto"
-								:style="{ maxHeight: 'calc(100% - 80px)' }"
-								item-key="item_code"
-								@click:row="click_item_row"
+									</v-btn>
+								</template>
+							</v-text-field>
+						</v-col>
+						<v-col cols="4" class="pb-0" v-if="pos_profile.posa_input_qty">
+							<v-text-field
+								density="compact"
+								variant="solo"
+								color="primary"
+								:label="frappe._('QTY')"
+								hide-details
+								v-model="debounce_qty"
+								type="text"
+								@keydown.enter="enter_event"
+								@keydown.esc="esc_event"
+								@focus="clearQty"
+							></v-text-field>
+						</v-col>
+						<v-col cols="12" class="dynamic-margin-xs">
+							<div class="settings-container">
+								<v-btn
+									density="compact"
+									variant="text"
+									color="primary"
+									prepend-icon="mdi-cog-outline"
+									@click="toggleItemSettings"
+									class="settings-btn"
+								>
+									{{ __("Settings") }}
+								</v-btn>
+								<v-spacer></v-spacer>
+								<v-btn
+									density="compact"
+									variant="text"
+									color="primary"
+									prepend-icon="mdi-refresh"
+									@click="forceReloadItems"
+									class="settings-btn"
+								>
+									{{ __("Reload Items") }}
+								</v-btn>
+
+								<v-dialog v-model="show_item_settings" max-width="400px">
+									<v-card>
+										<v-card-title class="text-h6 pa-4 d-flex align-center">
+											<span>{{ __("Item Selector Settings") }}</span>
+											<v-spacer></v-spacer>
+											<v-btn
+												icon="mdi-close"
+												variant="text"
+												density="compact"
+												@click="show_item_settings = false"
+											></v-btn>
+										</v-card-title>
+										<v-divider></v-divider>
+										<v-card-text class="pa-4">
+											<v-switch
+												v-model="temp_hide_qty_decimals"
+												:label="__('Hide quantity decimals')"
+												hide-details
+												density="compact"
+												color="primary"
+												class="mb-2"
+											></v-switch>
+											<v-switch
+												v-model="temp_hide_zero_rate_items"
+												:label="__('Hide zero rated items')"
+												hide-details
+												density="compact"
+												color="primary"
+											></v-switch>
+										</v-card-text>
+										<v-card-actions class="pa-4 pt-0">
+											<v-btn color="error" variant="text" @click="cancelItemSettings">{{
+												__("Cancel")
+											}}</v-btn>
+											<v-spacer></v-spacer>
+											<v-btn color="primary" variant="tonal" @click="applyItemSettings">{{
+												__("Apply")
+											}}</v-btn>
+										</v-card-actions>
+									</v-card>
+								</v-dialog>
+							</div>
+						</v-col>
+					</v-row>
+				</div>
+			</div>
+
+			<!-- Scrollable Items Container -->
+			<div class="scrollable-items-container">
+				<div class="dynamic-padding">
+					<v-row class="items">
+						<v-col cols="12" class="pt-0 mt-0">
+							<div
+								fluid
+								class="items-grid dynamic-scroll"
+								ref="itemsContainer"
+								v-if="items_view == 'card'"
+								:style="{ maxHeight: 'calc(100vh - 200px)' }"
 							>
-								<template v-slot:item.rate="{ item }">
-									<div>
-										<div class="text-primary">
+								<v-card
+									v-for="item in filtered_items"
+									:key="item.item_code"
+									hover
+									class="dynamic-item-card"
+									:draggable="true"
+									@dragstart="onDragStart($event, item)"
+									@dragend="onDragEnd"
+									@click="add_item(item)"
+								>
+									<v-img
+										:src="
+											item.image ||
+											'/assets/posawesome/js/posapp/components/pos/placeholder-image.png'
+										"
+										class="text-white align-end"
+										gradient="to bottom, rgba(0,0,0,0), rgba(0,0,0,0.4)"
+										height="100px"
+									>
+										<v-card-text class="text-caption px-1 pb-0 truncate">{{
+											item.item_name
+										}}</v-card-text>
+									</v-img>
+									<v-card-text class="text--primary pa-1">
+										<div class="text-caption text-primary truncate">
 											{{
-												currencySymbol(item.original_currency || pos_profile.currency)
+												currencySymbol(item.original_currency || pos_profile.currency) ||
+												""
 											}}
 											{{
 												format_currency(
@@ -235,9 +199,9 @@
 												pos_profile.posa_allow_multi_currency &&
 												selected_currency !== pos_profile.currency
 											"
-											class="text-success"
+											class="text-caption text-success truncate"
 										>
-											{{ currencySymbol(selected_currency) }}
+											{{ currencySymbol(selected_currency) || "" }}
 											{{
 												format_currency(
 													item.rate,
@@ -246,18 +210,64 @@
 												)
 											}}
 										</div>
-									</div>
-								</template>
-								<template v-slot:item.actual_qty="{ item }">
-									<span class="golden--text">{{
-										format_number(item.actual_qty, hide_qty_decimals ? 0 : 4)
-									}}</span>
-								</template>
-							</v-data-table-virtual>
-						</div>
-					</v-col>
-				</v-row>
-
+										<div class="text-caption golden--text truncate">
+											{{ format_number(item.actual_qty, hide_qty_decimals ? 0 : 4) || 0 }}
+											{{ item.stock_uom || "" }}
+										</div>
+									</v-card-text>
+								</v-card>
+							</div>
+							<div v-else>
+								<v-data-table-virtual
+									:headers="headers"
+									:items="filtered_items"
+									class="sleek-data-table overflow-y-auto"
+									:style="{ maxHeight: 'calc(100vh - 200px)' }"
+									item-key="item_code"
+									@click:row="click_item_row"
+								>
+									<template v-slot:item.rate="{ item }">
+										<div>
+											<div class="text-primary">
+												{{
+													currencySymbol(item.original_currency || pos_profile.currency)
+												}}
+												{{
+													format_currency(
+														item.base_price_list_rate || item.rate,
+														item.original_currency || pos_profile.currency,
+														ratePrecision(item.base_price_list_rate || item.rate),
+													)
+												}}
+											</div>
+											<div
+												v-if="
+													pos_profile.posa_allow_multi_currency &&
+													selected_currency !== pos_profile.currency
+												"
+												class="text-success"
+											>
+												{{ currencySymbol(selected_currency) }}
+												{{
+													format_currency(
+														item.rate,
+														selected_currency,
+														ratePrecision(item.rate),
+													)
+												}}
+											</div>
+										</div>
+									</template>
+									<template v-slot:item.actual_qty="{ item }">
+										<span class="golden--text">{{
+											format_number(item.actual_qty, hide_qty_decimals ? 0 : 4)
+										}}</span>
+									</template>
+								</v-data-table-virtual>
+							</div>
+						</v-col>
+					</v-row>
+				</div>
 			</div>
 		</v-card>
 		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
@@ -2242,6 +2252,30 @@ export default {
 	scrollbar-gutter: stable;
 }
 
+/* Sticky Search Header */
+.sticky-search-header {
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	background-color: var(--surface-secondary);
+	border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+:deep(.dark-theme) .sticky-search-header,
+:deep(.v-theme--dark) .sticky-search-header {
+	background-color: #121212;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Scrollable Items Container */
+.scrollable-items-container {
+	height: calc(100% - 120px); /* Adjust based on header height */
+	overflow-y: auto;
+	scrollbar-gutter: stable;
+}
+
 .items-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -2350,6 +2384,17 @@ export default {
 
 	.mode-btn-text {
 		font-size: 0.9rem !important;
+	}
+
+	/* Sticky search header responsive */
+	.sticky-search-header {
+		position: relative; /* Remove sticky on mobile for better UX */
+		box-shadow: none;
+		border-bottom: none;
+	}
+
+	.scrollable-items-container {
+		height: calc(100% - 100px); /* Adjust for mobile */
 	}
 }
 
