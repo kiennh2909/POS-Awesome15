@@ -9,7 +9,7 @@
 		<v-card
 			ref="invoiceCard"
 			:style="{
-				height: '48vh' || 'var(--container-height)',
+				height: '55vh' || 'var(--container-height)',
 				maxHeight: invoiceHeight || 'var(--container-height)',
 				backgroundColor: isDarkTheme ? '#121212' : '',
 				resize: 'vertical',
