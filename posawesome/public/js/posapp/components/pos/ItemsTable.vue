@@ -21,7 +21,7 @@
 			hide-default-footer
 			:single-expand="true"
 			:header-props="headerProps"
-			:row-props="({ item }) => ({ class: getRowClass(item) })"
+			:item-class="getRowClass"
 			@update:expanded="$emit('update:expanded', $event)"
 			:search="itemSearch"
 		>
@@ -589,14 +589,8 @@ export default {
 			}
 			return false;
 		},
-		getRowClass() {
-			return (item) => {
-				const classes = [];
-				if (this.highlightedItemCode === item.item_code) {
-					classes.push('highlighted-item');
-				}
-				return classes.join(' ');
-			};
+		getRowClass(item) {
+			return this.highlightedItemCode === item.item_code ? 'highlighted-item' : '';
 		},
 	},
 	methods: {
@@ -636,15 +630,18 @@ export default {
 		},
 
 		highlightItem(itemCode, enlargeFont = false) {
-			console.log("Highlighting item:", itemCode, "with enlarge font:", enlargeFont);
-			console.log("Current items:", this.items.map(i => i.item_code));
+			console.log("[ItemsTable] Highlighting item:", itemCode, "with enlarge font:", enlargeFont);
+			console.log("[ItemsTable] Current items count:", this.items.length);
+			console.log("[ItemsTable] Current items:", this.items.map(i => i.item_code));
 
 			// Check if item exists in current items
 			const itemExists = this.items.find(item => item.item_code === itemCode);
 			if (!itemExists) {
-				console.log("Item not found in table:", itemCode);
+				console.log("[ItemsTable] ❌ Item not found in table:", itemCode);
 				return false;
 			}
+
+			console.log("[ItemsTable] ✅ Item found:", itemCode);
 
 			// Clear any existing highlight timeout
 			if (this.highlightTimeout) {
@@ -654,16 +651,18 @@ export default {
 			// Set the highlighted item and force Vue to update
 			this.highlightedItemCode = itemCode;
 			this.enlargeFont = enlargeFont;
-			console.log("Set highlightedItemCode to:", this.highlightedItemCode);
+			console.log("[ItemsTable] Set highlightedItemCode to:", this.highlightedItemCode);
+			console.log("[ItemsTable] Set enlargeFont to:", this.enlargeFont);
 
 			// Force immediate update with nextTick for better reactivity
 			this.$nextTick(() => {
+				console.log("[ItemsTable] Force update triggered");
 				this.$forceUpdate();
 			});
 
 			// Remove highlight after 2 seconds (shorter for better UX)
 			this.highlightTimeout = setTimeout(() => {
-				console.log("Removing highlight for:", itemCode);
+				console.log("[ItemsTable] Removing highlight for:", itemCode);
 				this.highlightedItemCode = null;
 				this.enlargeFont = false;
 				this.$nextTick(() => {
@@ -676,22 +675,28 @@ export default {
 
 		// Add created hook for event listeners
 		created() {
+			console.log("[ItemsTable] Setting up event listeners");
+
 			// Listen for highlight invoice item event
 			this.eventBus.on("highlight_invoice_item", (data) => {
-				console.log("ItemsTable received highlight event for:", data.itemRowId, "enlarge font:", data.enlargeFont);
+				console.log("[ItemsTable] 📨 Received highlight_invoice_item event:", data);
+				console.log("[ItemsTable] Item to highlight:", data.itemRowId, "enlarge font:", data.enlargeFont);
 				this.highlightItem(data.itemRowId, data.enlargeFont);
 			});
 
 			// Keep old event listener for backward compatibility
 			this.eventBus.on("highlight_scanned_item", (itemCode) => {
-				console.log("ItemsTable received old highlight event for:", itemCode);
+				console.log("[ItemsTable] 📨 Received old highlight_scanned_item event for:", itemCode);
 				this.highlightItem(itemCode, false);
 			});
+
+			console.log("[ItemsTable] Event listeners setup complete");
 		},
 
 		// Add beforeUnmount for cleanup
 		beforeUnmount() {
-			// Cleanup event listener
+			// Cleanup event listeners
+			this.eventBus.off("highlight_invoice_item");
 			this.eventBus.off("highlight_scanned_item");
 		},
 	},

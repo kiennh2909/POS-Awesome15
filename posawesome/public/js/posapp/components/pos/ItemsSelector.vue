@@ -1628,11 +1628,13 @@ export default {
 			});
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
-			console.log("Processing scanned item:", item, scannedCode, "Mode:", this.scan_add_mode ? "Add" : "Remove");
+			console.log("[ItemsSelector] 🔄 Processing scanned item:", item.item_code, "with code:", scannedCode);
+			console.log("[ItemsSelector] Current scan mode:", this.scan_add_mode ? "Add" : "Remove");
 
 			try {
 				if (this.scan_add_mode) {
 					// Add mode - use existing add_item method
+					console.log("[ItemsSelector] ➕ Add mode: Adding item to invoice");
 					await this.add_item(item);
 
 					// Show success message
@@ -1646,17 +1648,27 @@ export default {
 
 					// Emit highlight AFTER item is added to invoice with a longer delay
 					setTimeout(() => {
-						console.log("Emitting highlight event for:", item.item_code);
+						console.log("[ItemsSelector] 🎯 Emitting highlight event for:", item.item_code);
+						console.log("[ItemsSelector] Scan mode:", this.scan_add_mode);
+						console.log("[ItemsSelector] Event data:", {
+							itemRowId: item.item_code,
+							scanMode: this.scan_add_mode,
+							duration: 2000,
+							enlargeFont: true
+						});
+
 						this.eventBus.emit("highlight_invoice_item", {
 							itemRowId: item.item_code,
 							scanMode: this.scan_add_mode,
 							duration: 2000,
 							enlargeFont: true
 						});
+
+						console.log("[ItemsSelector] ✅ Highlight event emitted successfully");
 					}, 1000);
 				} else {
 					// Remove mode - emit event to remove item from invoice with scan mode
-					console.log("Emitting remove_item_by_code for:", item.item_code);
+					console.log("[ItemsSelector] ➖ Remove mode: Emitting remove_item_by_code for:", item.item_code);
 					this.eventBus.emit("remove_item_by_code", item.item_code, this.scan_add_mode);
 
 					// Show success message
@@ -1680,7 +1692,7 @@ export default {
 				}, 150);
 
 			} catch (error) {
-				console.error("Error processing scanned item:", error);
+				console.error("[ItemsSelector] ❌ Error processing scanned item:", error);
 				const action = this.scan_add_mode ? "adding" : "removing";
 				frappe.show_alert(
 					{
