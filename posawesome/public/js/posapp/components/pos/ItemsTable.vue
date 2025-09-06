@@ -637,14 +637,14 @@ export default {
 		highlightItem(itemCode) {
 			console.log("Highlighting item:", itemCode);
 			console.log("Current items:", this.items.map(i => i.item_code));
-			
+
 			// Check if item exists in current items
 			const itemExists = this.items.find(item => item.item_code === itemCode);
 			if (!itemExists) {
 				console.log("Item not found in table:", itemCode);
 				return false;
 			}
-			
+
 			// Clear any existing highlight timeout
 			if (this.highlightTimeout) {
 				clearTimeout(this.highlightTimeout);
@@ -653,7 +653,7 @@ export default {
 			// Set the highlighted item and force Vue to update
 			this.highlightedItemCode = itemCode;
 			console.log("Set highlightedItemCode to:", this.highlightedItemCode);
-			
+
 			// Force immediate update with nextTick for better reactivity
 			this.$nextTick(() => {
 				this.$forceUpdate();
@@ -667,8 +667,23 @@ export default {
 					this.$forceUpdate();
 				});
 			}, 3000);
-			
+
 			return true;
+		},
+
+		// Add created hook for event listeners
+		created() {
+			// Listen for highlight scanned item event
+			this.eventBus.on("highlight_scanned_item", (itemCode) => {
+				console.log("ItemsTable received highlight event for:", itemCode);
+				this.highlightItem(itemCode);
+			});
+		},
+
+		// Add beforeUnmount for cleanup
+		beforeUnmount() {
+			// Cleanup event listener
+			this.eventBus.off("highlight_scanned_item");
 		},
 	},
 };
