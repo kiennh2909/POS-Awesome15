@@ -1,7 +1,7 @@
 <template>
 	<div
 		class="my-0 py-0 overflow-y-auto items-table-container"
-		:style="{ height: 'calc(100% - 80px)', maxHeight: 'calc(100% - 80px)' }"
+		:style="{ height: 'calc(100vh - 400px)', maxHeight: 'calc(100vh - 400px)' }"
 		@dragover="onDragOverFromSelector($event)"
 		@drop="onDropFromSelector($event)"
 		@dragenter="onDragEnterFromSelector"
@@ -719,6 +719,29 @@ export default {
 /* Ensure items table can scroll when many rows exist */
 .items-table-container {
 	overflow-y: auto;
+	scrollbar-width: thin;
+	scroll-behavior: smooth;
+}
+
+/* Force table wrapper to scroll properly */
+.items-table-container :deep(.v-data-table__wrapper) {
+	max-height: 100%;
+	overflow-y: auto;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+	.items-table-container {
+		height: calc(100vh - 350px) !important;
+		max-height: calc(100vh - 350px) !important;
+	}
+}
+
+@media (max-width: 480px) {
+	.items-table-container {
+		height: calc(100vh - 320px) !important;
+		max-height: calc(100vh - 320px) !important;
+	}
 }
 
 /* Table wrapper styling */
