@@ -413,34 +413,28 @@ export default {
 	width: 100% !important;
 }
 
-/* Sticky InvoiceSummary at bottom of screen */
+/* Sticky InvoiceSummary at right side only */
 .sticky-invoice-summary {
 	position: fixed !important;
 	bottom: 0 !important;
-	left: 0 !important;
 	right: 0 !important;
+	width: 50% !important; /* Right side only */
 	z-index: 1000 !important;
 	box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15) !important;
 	border-top: 2px solid var(--primary) !important;
+	border-left: 1px solid var(--primary) !important;
 	background-color: var(--surface-secondary) !important;
 	max-height: 200px !important; /* Limit height to prevent overflow */
 	overflow-y: auto !important; /* Allow scrolling if content is too tall */
 }
 
-/* Ensure content above sticky doesn't get hidden */
-.sticky-invoice-summary + * {
-	margin-bottom: 200px !important; /* Add space for sticky element */
-}
 
 /* Mobile responsive adjustments for sticky */
 @media (max-width: 768px) {
 	.sticky-invoice-summary {
+		width: 100% !important; /* Full width on mobile */
 		max-height: 180px !important;
 		padding: 8px !important;
-	}
-
-	.sticky-invoice-summary + * {
-		margin-bottom: 180px !important;
 	}
 }
 
@@ -449,14 +443,6 @@ export default {
 		max-height: 160px !important;
 		padding: 6px !important;
 	}
-
-	.sticky-invoice-summary + * {
-		margin-bottom: 160px !important;
-	}
 }
 
-/* Add padding to body when sticky is active */
-body.sticky-invoice-active {
-	padding-bottom: 200px !important; /* Adjust based on InvoiceSummary height */
-}
 </style>
