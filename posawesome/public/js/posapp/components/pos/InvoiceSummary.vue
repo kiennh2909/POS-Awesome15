@@ -3,42 +3,12 @@
 		:class="['cards mb-0 mt-2 py-3 px-3 rounded-lg resizable', isDarkTheme ? '' : 'bg-grey-lighten-4']"
 		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
 	>
-		<!-- Row 1: SAVE & CLEAR, LOAD DRAFTS, Total Qty, Additional Discount -->
+		<!-- Row 1: All numeric fields - Total Qty, Additional Discount, Items Discount, Total -->
 		<v-row dense class="mb-0">
-			<v-col cols="12" md="6">
-				<v-row dense>
-					<v-col cols="6" class="button-col pa-1">
-						<v-btn
-							block
-							color="accent"
-							theme="dark"
-							size="default"
-							prepend-icon="mdi-content-save"
-							@click="$emit('save-and-clear')"
-							class="summary-btn"
-						>
-							{{ __("SAVE & CLEAR") }}
-						</v-btn>
-					</v-col>
-					<v-col cols="6" class="button-col pa-1">
-						<v-btn
-							block
-							color="warning"
-							theme="dark"
-							size="default"
-							prepend-icon="mdi-file-document"
-							@click="$emit('load-drafts')"
-							class="white-text-btn summary-btn"
-						>
-							{{ __("LOAD DRAFTS") }}
-						</v-btn>
-					</v-col>
-				</v-row>
-			</v-col>
-			<v-col cols="12" md="6">
+			<v-col cols="12">
 				<v-row dense>
 					<!-- Total Qty -->
-					<v-col cols="6">
+					<v-col cols="3">
 						<v-text-field
 							:model-value="formatFloat(total_qty, hide_qty_decimals ? 0 : undefined)"
 							:label="frappe._('Total Qty')"
@@ -50,7 +20,7 @@
 						/>
 					</v-col>
 					<!-- Additional Discount -->
-					<v-col cols="6" v-if="!pos_profile.posa_use_percentage_discount">
+					<v-col cols="3" v-if="!pos_profile.posa_use_percentage_discount">
 						<v-text-field
 							:model-value="additional_discount"
 							@update:model-value="$emit('update:additional_discount', $event)"
@@ -66,7 +36,7 @@
 							"
 						/>
 					</v-col>
-					<v-col cols="6" v-else>
+					<v-col cols="3" v-else>
 						<v-text-field
 							:model-value="additional_discount_percentage"
 							@update:model-value="$emit('update:additional_discount_percentage', $event)"
@@ -84,28 +54,68 @@
 							"
 						/>
 					</v-col>
+					<!-- Items Discount -->
+					<v-col cols="3">
+						<v-text-field
+							:model-value="formatCurrency(total_items_discount_amount)"
+							:prefix="currencySymbol(displayCurrency)"
+							:label="frappe._('Items Discounts')"
+							prepend-inner-icon="mdi-tag-minus"
+							variant="solo"
+							density="compact"
+							color="warning"
+							readonly
+						/>
+					</v-col>
+					<!-- Total (with larger font) -->
+					<v-col cols="3">
+						<v-text-field
+							:model-value="formatCurrency(subtotal)"
+							:prefix="currencySymbol(displayCurrency)"
+							:label="frappe._('Total')"
+							prepend-inner-icon="mdi-cash"
+							variant="solo"
+							density="compact"
+							readonly
+							color="success"
+							class="total-field-large"
+						/>
+					</v-col>
 				</v-row>
 			</v-col>
 		</v-row>
 
-		<!-- Row 2: TRẢ HÀNG BÁN, CANCEL SALE, Items Discount, Total -->
+		<!-- Row 2: SAVE & CLEAR, LOAD DRAFTS, CANCEL SALE -->
 		<v-row dense class="mb-0">
-			<v-col cols="12" md="6">
+			<v-col cols="12">
 				<v-row dense>
-					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1" class="button-col pa-1">
+					<v-col cols="4" class="button-col pa-1">
 						<v-btn
 							block
-							color="teal"
+							color="accent"
 							theme="dark"
 							size="default"
-							prepend-icon="mdi-backup-restore"
-							@click="$emit('open-returns')"
+							prepend-icon="mdi-content-save"
+							@click="$emit('save-and-clear')"
 							class="summary-btn"
 						>
-							{{ __("TRẢ HÀNG BÁN") }}
+							{{ __("SAVE & CLEAR") }}
 						</v-btn>
 					</v-col>
-					<v-col :cols="pos_profile.posa_allow_return == 1 ? 6 : 12" class="button-col pa-1">
+					<v-col cols="4" class="button-col pa-1">
+						<v-btn
+							block
+							color="warning"
+							theme="dark"
+							size="default"
+							prepend-icon="mdi-file-document"
+							@click="$emit('load-drafts')"
+							class="white-text-btn summary-btn"
+						>
+							{{ __("LOAD DRAFTS") }}
+						</v-btn>
+					</v-col>
+					<v-col cols="4" class="button-col pa-1">
 						<v-btn
 							block
 							color="error"
@@ -120,69 +130,52 @@
 					</v-col>
 				</v-row>
 			</v-col>
-			<v-col cols="12" md="6">
-				<v-row dense>
-					<!-- Items Discount -->
-					<v-col cols="6">
-						<v-text-field
-							:model-value="formatCurrency(total_items_discount_amount)"
-							:prefix="currencySymbol(displayCurrency)"
-							:label="frappe._('Items Discounts')"
-							prepend-inner-icon="mdi-tag-minus"
-							variant="solo"
-							density="compact"
-							color="warning"
-							readonly
-						/>
-					</v-col>
-					<!-- Total -->
-					<v-col cols="6">
-						<v-text-field
-							:model-value="formatCurrency(subtotal)"
-							:prefix="currencySymbol(displayCurrency)"
-							:label="frappe._('Total')"
-							prepend-inner-icon="mdi-cash"
-							variant="solo"
-							density="compact"
-							readonly
-							color="success"
-						/>
-					</v-col>
-				</v-row>
-			</v-col>
 		</v-row>
 
-		<!-- Row 3: PRINT DRAFT (full width) and PAY (larger) -->
+		<!-- Row 3: PRINT DRAFT, PAY, TRẢ HÀNG BÁN -->
 		<v-row dense>
-			<v-col cols="12" md="6">
+			<v-col cols="12">
 				<v-row dense>
-					<v-col cols="12" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col-large pa-1">
+					<v-col cols="4" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col pa-1">
 						<v-btn
 							block
 							color="primary"
 							theme="dark"
+							size="default"
 							prepend-icon="mdi-printer"
 							@click="$emit('print-draft')"
-							class="summary-btn large-btn"
-							size="default"
+							class="summary-btn"
 						>
 							{{ __("PRINT DRAFT") }}
 						</v-btn>
 					</v-col>
+					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? 4 : 6" class="button-col pa-1">
+						<v-btn
+							block
+							color="success"
+							theme="dark"
+							size="x-large"
+							prepend-icon="mdi-credit-card"
+							@click="$emit('show-payment')"
+							class="summary-btn pay-btn"
+						>
+							{{ __("PAY") }}
+						</v-btn>
+					</v-col>
+					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? 4 : 6" v-if="pos_profile.posa_allow_return == 1" class="button-col pa-1">
+						<v-btn
+							block
+							color="teal"
+							theme="dark"
+							size="default"
+							prepend-icon="mdi-backup-restore"
+							@click="$emit('open-returns')"
+							class="summary-btn"
+						>
+							{{ __("TRẢ HÀNG BÁN") }}
+						</v-btn>
+					</v-col>
 				</v-row>
-			</v-col>
-			<v-col cols="12" md="6" class="pa-1">
-				<v-btn
-					block
-					color="success"
-					theme="dark"
-					size="x-large"
-					prepend-icon="mdi-credit-card"
-					@click="$emit('show-payment')"
-					class="summary-btn pay-btn"
-				>
-					{{ __("PAY") }}
-				</v-btn>
 			</v-col>
 		</v-row>
 	</v-card>
@@ -356,5 +349,21 @@ export default {
 
 .pay-btn :deep(.mdi-credit-card) {
 	font-size: 1.5rem !important;
+}
+
+/* Large font for Total field */
+.total-field-large :deep(.v-field__input) {
+	font-size: 1.4rem !important;
+	font-weight: 700 !important;
+}
+
+.total-field-large :deep(.v-field__input input) {
+	font-size: 1.4rem !important;
+	font-weight: 700 !important;
+}
+
+/* Ensure all buttons in row 2 and 3 have same height */
+.v-row.dense .button-col .v-btn {
+	min-height: 44px !important;
 }
 </style>
