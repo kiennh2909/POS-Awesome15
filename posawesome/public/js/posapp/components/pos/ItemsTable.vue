@@ -1073,33 +1073,29 @@ export default {
 	}
 }
 
-:deep(.dark-theme) @keyframes highlightPulse {
-	0% {
-		background-color: #1976d2;
-		transform: scale(1);
-	}
-	50% {
-		background-color: #42a5f5;
-		transform: scale(1.01);
-	}
-	100% {
-		background-color: #1565c0;
-		transform: scale(1);
-	}
+:deep(.dark-theme) .highlighted-item {
+	animation: highlightPulseDark 1s ease-in-out;
 }
 
-:deep(.v-theme--dark) @keyframes highlightPulse {
+:deep(.v-theme--dark) .highlighted-item {
+	animation: highlightPulseDark 1s ease-in-out;
+}
+
+@keyframes highlightPulseDark {
 	0% {
 		background-color: #1976d2;
 		transform: scale(1);
+		box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
 	}
 	50% {
 		background-color: #42a5f5;
 		transform: scale(1.01);
+		box-shadow: 0 4px 12px rgba(25, 118, 210, 0.5);
 	}
 	100% {
-		background-color: #1565c0;
+		background-color: #1976d2;
 		transform: scale(1);
+		box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
 	}
 }
 </style>

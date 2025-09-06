@@ -315,47 +315,53 @@
 			</v-row>
 		</v-card>
 
-		<!-- Mode Selection Section - Moved to bottom for better accessibility -->
+		<!-- Mode Selection Section - All controls in one line -->
 		<v-card class="mode-selection-card mt-3 dynamic-padding resizable" v-if="pos_profile.posa_new_line || true">
 			<v-row class="mode-selection-row">
-				<v-col cols="12" class="d-flex justify-center align-center flex-column gap-3">
-					<!-- NLine Checkbox -->
-					<div v-if="pos_profile.posa_new_line" class="d-flex align-center justify-center mb-2">
-						<v-checkbox
-							v-model="new_line"
-							color="accent"
-							value="true"
-							label="NLine"
-							density="comfortable"
-							hide-details
-							class="nline-checkbox"
-						></v-checkbox>
-					</div>
+				<v-col cols="12" class="d-flex justify-center align-center">
+					<!-- All controls in one horizontal line -->
+					<div class="controls-container">
+						<!-- NLine Checkbox -->
+						<div v-if="pos_profile.posa_new_line" class="control-item">
+							<v-checkbox
+								v-model="new_line"
+								color="accent"
+								value="true"
+								label="NLine"
+								density="comfortable"
+								hide-details
+								class="nline-checkbox"
+							></v-checkbox>
+						</div>
 
-					<!-- Mode Selection Buttons - Made larger for easier selection -->
-					<div class="d-flex gap-4 justify-center flex-wrap">
-						<v-btn
-							:color="scan_add_mode ? 'success' : 'grey'"
-							:variant="scan_add_mode ? 'flat' : 'outlined'"
-							size="large"
-							@click="setScanMode(true)"
-							class="mode-btn-large"
-							height="60"
-						>
-							<v-icon left size="large">mdi-plus-circle</v-icon>
-							<span class="mode-btn-text">{{ __("Add Mode") }}</span>
-						</v-btn>
-						<v-btn
-							:color="!scan_add_mode ? 'error' : 'grey'"
-							:variant="!scan_add_mode ? 'flat' : 'outlined'"
-							size="large"
-							@click="setScanMode(false)"
-							class="mode-btn-large"
-							height="60"
-						>
-							<v-icon left size="large">mdi-minus-circle</v-icon>
-							<span class="mode-btn-text">{{ __("Remove Mode") }}</span>
-						</v-btn>
+						<!-- Mode Selection Buttons -->
+						<div class="control-item">
+							<v-btn
+								:color="scan_add_mode ? 'success' : 'grey'"
+								:variant="scan_add_mode ? 'flat' : 'outlined'"
+								size="default"
+								@click="setScanMode(true)"
+								class="mode-btn-compact"
+								height="48"
+							>
+								<v-icon left size="default">mdi-plus-circle</v-icon>
+								<span class="mode-btn-text">{{ __("Add Mode") }}</span>
+							</v-btn>
+						</div>
+
+						<div class="control-item">
+							<v-btn
+								:color="!scan_add_mode ? 'error' : 'grey'"
+								:variant="!scan_add_mode ? 'flat' : 'outlined'"
+								size="default"
+								@click="setScanMode(false)"
+								class="mode-btn-compact"
+								height="48"
+							>
+								<v-icon left size="default">mdi-minus-circle</v-icon>
+								<span class="mode-btn-text">{{ __("Remove Mode") }}</span>
+							</v-btn>
+						</div>
 					</div>
 				</v-col>
 			</v-row>
@@ -2425,8 +2431,86 @@ export default {
 	font-weight: 600 !important;
 }
 
+/* Controls container for horizontal layout */
+.controls-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	flex-wrap: wrap;
+}
+
+.control-item {
+	display: flex;
+	align-items: center;
+}
+
 /* Gap utility class */
 .gap-2 {
 	gap: 8px;
+}
+
+/* Compact mode buttons styling */
+.mode-btn-compact {
+	transition: all 0.3s ease !important;
+	min-width: 120px !important;
+	border-radius: 8px !important;
+	font-weight: 500 !important;
+	font-size: 0.9rem !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.3px !important;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+	height: 48px !important;
+}
+
+.mode-btn-compact:hover {
+	transform: translateY(-1px) !important;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2) !important;
+}
+
+.mode-btn-compact .v-icon {
+	margin-right: 6px !important;
+	font-size: 18px !important;
+}
+
+.mode-btn-compact .mode-btn-text {
+	font-weight: 500 !important;
+	font-size: 0.85rem !important;
+}
+
+/* Responsive adjustments for compact buttons */
+@media (max-width: 768px) {
+	.mode-btn-compact {
+		min-width: 100px !important;
+		font-size: 0.8rem !important;
+		height: 44px !important;
+	}
+
+	.mode-btn-compact .v-icon {
+		font-size: 16px !important;
+		margin-right: 4px !important;
+	}
+
+	.mode-btn-compact .mode-btn-text {
+		font-size: 0.8rem !important;
+	}
+}
+
+@media (max-width: 480px) {
+	.controls-container {
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.control-item {
+		width: 100%;
+		justify-content: center;
+	}
+
+	.mode-btn-compact {
+		width: 100% !important;
+		min-width: unset !important;
+		max-width: 200px !important;
+	}
 }
 </style>
