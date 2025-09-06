@@ -5,10 +5,11 @@
 		<CancelSaleDialog v-model="cancel_dialog" @confirm="cancel_invoice" />
 
 		<!-- Main Invoice Card (contains all invoice content) -->
+		 
 		<v-card
 			ref="invoiceCard"
 			:style="{
-				height: invoiceHeight || 'var(--container-height)',
+				height: '48vh' || 'var(--container-height)',
 				maxHeight: invoiceHeight || 'var(--container-height)',
 				backgroundColor: isDarkTheme ? '#121212' : '',
 				resize: 'vertical',
