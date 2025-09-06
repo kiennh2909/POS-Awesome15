@@ -291,26 +291,29 @@
 				</v-col>
 				<v-col cols="5" class="dynamic-margin-xs">
 					<v-btn
-						size="small"
-						block
 						color="warning"
-						variant="text"
+						variant="flat"
+						size="default"
 						@click="show_offers"
-						class="action-btn-consistent"
+						class="mode-btn-compact action-btn-large"
+						height="56"
 					>
-						{{ offersCount }} {{ __("Offers") }}
+						<v-icon left size="default">mdi-gift</v-icon>
+						<span class="mode-btn-text">{{ offersCount }} {{ __("Offers") }}</span>
 					</v-btn>
 				</v-col>
 				<v-col cols="4" class="dynamic-margin-xs">
 					<v-btn
-						size="small"
-						block
 						color="primary"
-						variant="text"
+						variant="flat"
+						size="default"
 						@click="show_coupons"
-						class="action-btn-consistent"
-						>{{ couponsCount }} {{ __("Coupons") }}</v-btn
+						class="mode-btn-compact action-btn-large"
+						height="56"
 					>
+						<v-icon left size="default">mdi-ticket-percent</v-icon>
+						<span class="mode-btn-text">{{ couponsCount }} {{ __("Coupons") }}</span>
+					</v-btn>
 				</v-col>
 			</v-row>
 		</v-card>
@@ -2301,6 +2304,32 @@ export default {
 	transform: translateY(-1px) !important;
 }
 
+/* Large action buttons styling */
+.action-btn-large {
+	font-size: 1rem !important;
+	font-weight: 600 !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.5px !important;
+	border-radius: 10px !important;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+	transition: all 0.3s ease !important;
+}
+
+.action-btn-large:hover {
+	transform: translateY(-2px) !important;
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25) !important;
+}
+
+.action-btn-large .v-icon {
+	font-size: 20px !important;
+	margin-right: 8px !important;
+}
+
+.action-btn-large .mode-btn-text {
+	font-size: 0.95rem !important;
+	font-weight: 600 !important;
+}
+
 /* Ensure consistent spacing with navbar pattern */
 .cards {
 	margin-top: var(--dynamic-sm) !important;
@@ -2321,6 +2350,20 @@ export default {
 	.action-btn-consistent {
 		padding: var(--dynamic-xs) !important;
 		font-size: 0.875rem !important;
+	}
+
+	.action-btn-large {
+		font-size: 0.9rem !important;
+		height: 50px !important;
+	}
+
+	.action-btn-large .v-icon {
+		font-size: 18px !important;
+		margin-right: 6px !important;
+	}
+
+	.action-btn-large .mode-btn-text {
+		font-size: 0.85rem !important;
 	}
 
 	/* Mode buttons responsive */
