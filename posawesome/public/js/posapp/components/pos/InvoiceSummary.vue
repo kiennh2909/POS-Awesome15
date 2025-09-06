@@ -89,12 +89,12 @@
 		<v-row dense class="mb-0">
 			<v-col cols="12">
 				<v-row dense>
-					<v-col cols="4" class="button-col pa-1">
+					<v-col cols="3" class="button-col pa-1">
 						<v-btn
 							block
 							color="accent"
 							theme="dark"
-							size="default"
+							size="small"
 							prepend-icon="mdi-content-save"
 							@click="$emit('save-and-clear')"
 							class="summary-btn"
@@ -102,12 +102,12 @@
 							{{ __("SAVE") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="4" class="button-col pa-1">
+					<v-col cols="3" class="button-col pa-1">
 						<v-btn
 							block
 							color="warning"
 							theme="dark"
-							size="default"
+							size="small"
 							prepend-icon="mdi-file-document"
 							@click="$emit('load-drafts')"
 							class="white-text-btn summary-btn"
@@ -115,18 +115,21 @@
 							{{ __("LOAD") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="4" class="button-col pa-1">
+					<v-col cols="3" class="button-col pa-1">
 						<v-btn
 							block
 							color="error"
 							theme="dark"
-							size="default"
+							size="small"
 							prepend-icon="mdi-close-circle"
 							@click="$emit('cancel-sale')"
 							class="summary-btn"
 						>
 							{{ __("CANCEL") }}
 						</v-btn>
+					</v-col>
+					<v-col cols="3" class="button-col pa-1">
+						<!-- Spacer for balance -->
 					</v-col>
 				</v-row>
 			</v-col>
@@ -136,25 +139,25 @@
 		<v-row dense>
 			<v-col cols="12">
 				<v-row dense>
-					<v-col cols="4" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col pa-1">
+					<v-col cols="3" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col pa-1">
 						<v-btn
 							block
 							color="primary"
 							theme="dark"
-							size="default"
+							size="small"
 							prepend-icon="mdi-printer"
 							@click="$emit('print-draft')"
 							class="summary-btn"
 						>
-							{{ __("PRINT DRAFT") }}
+							{{ __("PRINT") }}
 						</v-btn>
 					</v-col>
-					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? 4 : 6" class="button-col pa-1">
+					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? 3 : 4" class="button-col pa-1">
 						<v-btn
 							block
 							color="success"
 							theme="dark"
-							size="x-large"
+							size="small"
 							prepend-icon="mdi-credit-card"
 							@click="$emit('show-payment')"
 							class="summary-btn pay-btn"
@@ -162,18 +165,21 @@
 							{{ __("PAY") }}
 						</v-btn>
 					</v-col>
-					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? 4 : 6" v-if="pos_profile.posa_allow_return == 1" class="button-col pa-1">
+					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? 3 : 4" v-if="pos_profile.posa_allow_return == 1" class="button-col pa-1">
 						<v-btn
 							block
 							color="teal"
 							theme="dark"
-							size="default"
+							size="small"
 							prepend-icon="mdi-backup-restore"
 							@click="$emit('open-returns')"
 							class="summary-btn"
 						>
 							{{ __("RETURN") }}
 						</v-btn>
+					</v-col>
+					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? (pos_profile.posa_allow_return == 1 ? 3 : 6) : (pos_profile.posa_allow_return == 1 ? 4 : 4)" class="button-col pa-1">
+						<!-- Spacer for balance -->
 					</v-col>
 				</v-row>
 			</v-col>
@@ -318,37 +324,43 @@ export default {
 	padding: 0px;
 }
 
+/* Custom column width for 4-column layout */
+.v-col-4 {
+    flex: 0 0 32.3333333333% !important;
+    max-width: 33.3333333333% !important;
+}
+
 /* Standard button styling - compact size */
 .summary-btn {
-	min-height: 40px !important;
-	font-size: 0.85rem !important;
-	font-weight: 600 !important;
-	text-transform: none;
-	margin: 1px;
-	border-radius: 6px;
-	padding: 6px 8px !important;
-	white-space: nowrap !important;
+    min-height: 60px !important;
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    text-transform: none;
+    margin: 1px;
+    border-radius: 6px;
+    padding: 6px 8px !important;
+    white-space: nowrap !important;
 }
 
 /* Large button styling for PRINT DRAFT */
 .large-btn {
-	min-height: 48px !important;
-	font-size: 1.1rem !important;
+	min-height: 60px !important;
+	font-size: 0.9rem !important;
 	font-weight: 600 !important;
 	margin: 1px;
-	padding: 10px 14px !important;
+	padding: 6px 10px !important;
 }
 
 /* Extra large PAY button */
 .pay-btn {
-	min-height: 56px !important;
-	font-size: 1.2rem !important;
+	min-height: 60px !important;
+	font-size: 1.0rem !important;
 	font-weight: 700 !important;
 	text-transform: uppercase;
 	letter-spacing: 1px;
 	margin: 1px;
 	border-radius: 8px;
-	padding: 12px 16px !important;
+	padding: 8px 12px !important;
 }
 
 .pay-btn :deep(.v-btn__content) {
@@ -364,16 +376,27 @@ export default {
 .total-field-large :deep(.v-field__input) {
 	font-size: 1.4rem !important;
 	font-weight: 700 !important;
+	min-height: 60px !important;
 }
 
 .total-field-large :deep(.v-field__input input) {
 	font-size: 1.4rem !important;
 	font-weight: 700 !important;
+	min-height: 60px !important;
 }
 
 /* Ensure all buttons in row 2 and 3 have same height */
 .v-row.dense .button-col .v-btn {
-	min-height: 40px !important;
+	min-height: 60px !important;
+}
+
+/* Vuetify input field height to match buttons */
+.v-input--density-compact .v-field--variant-filled,
+.v-input--density-compact .v-field--variant-solo,
+.v-input--density-compact .v-field--variant-solo-filled,
+.v-input--density-compact .v-field--variant-solo-inverted {
+    --v-input-control-height: 60px;
+    --v-field-padding-bottom: 0px;
 }
 
 /* Prevent button text wrapping */
