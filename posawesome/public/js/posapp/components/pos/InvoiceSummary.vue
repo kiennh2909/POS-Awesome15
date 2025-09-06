@@ -260,6 +260,22 @@ export default {
 						event.preventDefault();
 						this.$emit('save-and-clear');
 						console.log('Shortcut: Ctrl+S - Save and Clear');
+
+						// Focus back to search input after save
+						this.$nextTick(() => {
+							// Try multiple selectors to find the search input
+							let searchInput = document.querySelector('input[placeholder*="Search"]') ||
+											document.querySelector('.v-text-field input') ||
+											document.querySelector('input[autofocus]');
+
+							if (searchInput) {
+								searchInput.focus();
+								searchInput.select(); // Select all text for easy replacement
+								console.log('Focused back to search input after save');
+							} else {
+								console.warn('Could not find search input to focus');
+							}
+						});
 					}
 					break;
 				case 'p':
