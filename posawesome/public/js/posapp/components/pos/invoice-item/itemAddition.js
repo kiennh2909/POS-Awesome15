@@ -8,7 +8,17 @@ export default {
 		this.expanded = this.expanded.filter((id) => id !== item.posa_row_id);
 	},
 
-	add_item(item) {
+	add_item(item, scanMode = null) {
+		// Get scan mode from ItemsSelector via eventBus if not provided
+		if (scanMode === null) {
+			// Listen for scan mode from ItemsSelector
+			this.eventBus.emit("get_scan_mode");
+			// For now, default to add mode if not specified
+			scanMode = true;
+		}
+
+		console.log(`[Invoice.add_item] Processing item ${item.item_code} in ${scanMode ? 'Add' : 'Remove'} mode`);
+
 		if (!item.uom) {
 			item.uom = item.stock_uom;
 		}
@@ -39,8 +49,15 @@ export default {
 		}
 
 		let new_item;
+		let target_item;
+		let is_new_item = false;
+
 		if (index === -1 || this.new_line) {
+			// Create new item
 			new_item = this.get_new_item(item);
+			target_item = new_item;
+			is_new_item = true;
+
 			// Handle serial number logic
 			if (item.has_serial_no && item.to_set_serial_no) {
 				new_item.serial_no_selected = [];
@@ -54,10 +71,18 @@ export default {
 				item.batch_no = null;
 				this.set_batch_qty(new_item, new_item.batch_no, false);
 			}
-			// Make quantity negative for returns
-			if (this.isReturnInvoice) {
+
+			// Apply scan mode logic for new items
+			if (!scanMode) {
+				// Remove mode: set negative quantity for new items
 				new_item.qty = -Math.abs(new_item.qty || 1);
+			} else {
+				// Add mode: keep positive quantity (default behavior)
+				if (this.isReturnInvoice) {
+					new_item.qty = -Math.abs(new_item.qty || 1);
+				}
 			}
+
 			this.items.unshift(new_item);
 			// Force update of item rates when item is first added
 			this.update_item_detail(new_item, true);
@@ -69,7 +94,11 @@ export default {
 				});
 			}
 		} else {
+			// Update existing item
 			const cur_item = this.items[index];
+			target_item = cur_item;
+			is_new_item = false;
+
 			this.update_items_details([cur_item]);
 			// Serial number logic for existing item
 			if (item.has_serial_no && item.to_set_serial_no) {
@@ -85,12 +114,24 @@ export default {
 				item.to_set_serial_no = null;
 			}
 
-			// For returns, subtract from quantity to make it more negative
-			if (this.isReturnInvoice) {
-				cur_item.qty -= item.qty || 1;
+			// Apply scan mode logic for existing items
+			const qty_change = item.qty || 1;
+			if (!scanMode) {
+				// Remove mode: decrease quantity
+				if (this.isReturnInvoice) {
+					cur_item.qty -= qty_change; // Make more negative for returns
+				} else {
+					cur_item.qty -= qty_change; // Decrease for normal invoices
+				}
 			} else {
-				cur_item.qty += item.qty || 1;
+				// Add mode: increase quantity (original behavior)
+				if (this.isReturnInvoice) {
+					cur_item.qty -= qty_change; // Make more negative for returns
+				} else {
+					cur_item.qty += qty_change; // Increase for normal invoices
+				}
 			}
+
 			this.calc_stock_qty(cur_item, cur_item.qty);
 
 			// Update batch quantity if needed
@@ -100,6 +141,7 @@ export default {
 
 			this.set_serial_no(cur_item);
 		}
+
 		this.$forceUpdate();
 
 		// Only try to expand if new_item exists and should be expanded
@@ -109,6 +151,30 @@ export default {
 		) {
 			this.expanded = [new_item.posa_row_id];
 		}
+
+		// Apply highlight effect for the affected item
+		if (target_item) {
+			this.applyItemHighlight(target_item.posa_row_id, scanMode);
+		}
+	},
+
+	// Apply highlight effect with green background and enlarged font for quantity and amount
+	applyItemHighlight(itemRowId, scanMode) {
+		console.log(`[Invoice.applyItemHighlight] Highlighting item ${itemRowId} in ${scanMode ? 'Add' : 'Remove'} mode`);
+
+		// Emit event to ItemsTable to apply highlight with enlarged font
+		this.eventBus.emit("highlight_invoice_item", {
+			itemRowId: itemRowId,
+			scanMode: scanMode,
+			duration: 2000, // 2 seconds highlight duration
+			enlargeFont: true // Enable font enlargement for quantity and amount
+		});
+
+		// Also emit to show visual feedback
+		this.eventBus.emit("show_message", {
+			title: scanMode ? __("Item Added") : __("Item Removed"),
+			color: scanMode ? "success" : "warning",
+		});
 	},
 
 	// Create a new item object with default and calculated fields

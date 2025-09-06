@@ -1062,7 +1062,7 @@ export default {
 					}
 					item.qty = qtyVal;
 				}
-				this.eventBus.emit("add_item", item);
+				this.eventBus.emit("add_item", item, this.scan_add_mode);
 				this.qty = 1;
 			}
 		},
@@ -1647,14 +1647,19 @@ export default {
 					// Emit highlight AFTER item is added to invoice with a longer delay
 					setTimeout(() => {
 						console.log("Emitting highlight event for:", item.item_code);
-						this.eventBus.emit("highlight_scanned_item", item.item_code);
+						this.eventBus.emit("highlight_invoice_item", {
+							itemRowId: item.item_code,
+							scanMode: this.scan_add_mode,
+							duration: 2000,
+							enlargeFont: true
+						});
 					}, 1000);
 				} else {
-					// Remove mode - emit event to remove item from invoice
+					// Remove mode - emit event to remove item from invoice with scan mode
 					console.log("Emitting remove_item_by_code for:", item.item_code);
-					this.eventBus.emit("remove_item_by_code", item.item_code);
+					this.eventBus.emit("remove_item_by_code", item.item_code, this.scan_add_mode);
 
-					// Show success message  
+					// Show success message
 					frappe.show_alert(
 						{
 							message: `Remove request sent for: ${item.item_name}`,

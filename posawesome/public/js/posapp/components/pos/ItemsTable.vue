@@ -27,7 +27,7 @@
 		>
 			<!-- Quantity column -->
 			<template v-slot:item.qty="{ item }">
-				<div class="amount-value">
+				<div class="amount-value" :class="{ 'enlarged-font': enlargeFont && highlightedItemCode === item.item_code }">
 					{{ formatFloat(item.qty, hide_qty_decimals ? 0 : undefined) }}
 				</div>
 			</template>
@@ -44,7 +44,7 @@
 			<template v-slot:item.amount="{ item }">
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.qty * item.rate) }}</span>
+					<span class="amount-value" :class="{ 'enlarged-font': enlargeFont && highlightedItemCode === item.item_code }">{{ formatCurrency(item.qty * item.rate) }}</span>
 				</div>
 			</template>
 
@@ -567,6 +567,7 @@ export default {
 			isDragging: false,
 			highlightedItemCode: null,
 			highlightTimeout: null,
+			enlargeFont: false,
 		};
 	},
 	computed: {
@@ -634,8 +635,8 @@ export default {
 			}
 		},
 
-		highlightItem(itemCode) {
-			console.log("Highlighting item:", itemCode);
+		highlightItem(itemCode, enlargeFont = false) {
+			console.log("Highlighting item:", itemCode, "with enlarge font:", enlargeFont);
 			console.log("Current items:", this.items.map(i => i.item_code));
 
 			// Check if item exists in current items
@@ -652,6 +653,7 @@ export default {
 
 			// Set the highlighted item and force Vue to update
 			this.highlightedItemCode = itemCode;
+			this.enlargeFont = enlargeFont;
 			console.log("Set highlightedItemCode to:", this.highlightedItemCode);
 
 			// Force immediate update with nextTick for better reactivity
@@ -659,24 +661,31 @@ export default {
 				this.$forceUpdate();
 			});
 
-			// Remove highlight after 3 seconds
+			// Remove highlight after 2 seconds (shorter for better UX)
 			this.highlightTimeout = setTimeout(() => {
 				console.log("Removing highlight for:", itemCode);
 				this.highlightedItemCode = null;
+				this.enlargeFont = false;
 				this.$nextTick(() => {
 					this.$forceUpdate();
 				});
-			}, 3000);
+			}, 2000);
 
 			return true;
 		},
 
 		// Add created hook for event listeners
 		created() {
-			// Listen for highlight scanned item event
+			// Listen for highlight invoice item event
+			this.eventBus.on("highlight_invoice_item", (data) => {
+				console.log("ItemsTable received highlight event for:", data.itemRowId, "enlarge font:", data.enlargeFont);
+				this.highlightItem(data.itemRowId, data.enlargeFont);
+			});
+
+			// Keep old event listener for backward compatibility
 			this.eventBus.on("highlight_scanned_item", (itemCode) => {
-				console.log("ItemsTable received highlight event for:", itemCode);
-				this.highlightItem(itemCode);
+				console.log("ItemsTable received old highlight event for:", itemCode);
+				this.highlightItem(itemCode, false);
 			});
 		},
 
@@ -947,6 +956,13 @@ export default {
 .amount-value {
 	font-weight: 500;
 	text-align: left;
+	transition: font-size 0.3s ease;
+}
+
+.amount-value.enlarged-font {
+	font-size: 130% !important;
+	font-weight: 700 !important;
+	color: #2e7d32 !important;
 }
 
 /* Drag and drop styles */
@@ -1052,7 +1068,21 @@ export default {
 	}
 }
 
-:deep(.dark-theme) @keyframes highlightPulse,
+:deep(.dark-theme) @keyframes highlightPulse {
+	0% {
+		background-color: #1976d2;
+		transform: scale(1);
+	}
+	50% {
+		background-color: #42a5f5;
+		transform: scale(1.01);
+	}
+	100% {
+		background-color: #1565c0;
+		transform: scale(1);
+	}
+}
+
 :deep(.v-theme--dark) @keyframes highlightPulse {
 	0% {
 		background-color: #1976d2;
