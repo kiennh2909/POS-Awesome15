@@ -98,6 +98,7 @@
 							prepend-icon="mdi-content-save"
 							@click="$emit('save-and-clear')"
 							class="summary-btn"
+							title="Ctrl+S - Save and Clear"
 						>
 							{{ __("SAVE") }}
 						</v-btn>
@@ -111,6 +112,7 @@
 							prepend-icon="mdi-file-document"
 							@click="$emit('load-drafts')"
 							class="white-text-btn summary-btn"
+							title="Ctrl+L - Load Drafts"
 						>
 							{{ __("LOAD") }}
 						</v-btn>
@@ -124,6 +126,7 @@
 							prepend-icon="mdi-close-circle"
 							@click="$emit('cancel-sale')"
 							class="summary-btn"
+							title="Ctrl+C - Cancel Sale"
 						>
 							{{ __("CANCEL") }}
 						</v-btn>
@@ -148,6 +151,7 @@
 							prepend-icon="mdi-printer"
 							@click="$emit('print-draft')"
 							class="summary-btn"
+							title="Ctrl+D - Print Draft"
 						>
 							{{ __("PRINT") }}
 						</v-btn>
@@ -161,6 +165,7 @@
 							prepend-icon="mdi-credit-card"
 							@click="$emit('show-payment')"
 							class="summary-btn pay-btn"
+							title="Ctrl+P - Payment"
 						>
 							{{ __("PAY") }}
 						</v-btn>
@@ -174,6 +179,7 @@
 							prepend-icon="mdi-backup-restore"
 							@click="$emit('open-returns')"
 							class="summary-btn"
+							title="Ctrl+R - Return"
 						>
 							{{ __("RETURN") }}
 						</v-btn>
@@ -231,6 +237,82 @@ export default {
 			}
 			return false;
 		},
+	},
+
+	methods: {
+		setupKeyboardShortcuts() {
+			// Keyboard shortcuts for invoice actions
+			document.addEventListener('keydown', this.handleKeyboardShortcuts);
+		},
+
+		handleKeyboardShortcuts(event) {
+			// Only handle shortcuts when not typing in input fields
+			if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+				return;
+			}
+
+			// Prevent default browser behavior for our shortcuts
+			const key = event.key.toLowerCase();
+
+			switch(key) {
+				case 's':
+					if (event.ctrlKey || event.metaKey) {
+						event.preventDefault();
+						this.$emit('save-and-clear');
+						console.log('Shortcut: Ctrl+S - Save and Clear');
+					}
+					break;
+				case 'p':
+					if (event.ctrlKey || event.metaKey) {
+						event.preventDefault();
+						this.$emit('show-payment');
+						console.log('Shortcut: Ctrl+P - Payment');
+					}
+					break;
+				case 'l':
+					if (event.ctrlKey || event.metaKey) {
+						event.preventDefault();
+						this.$emit('load-drafts');
+						console.log('Shortcut: Ctrl+L - Load Drafts');
+					}
+					break;
+				case 'c':
+					if (event.ctrlKey || event.metaKey) {
+						event.preventDefault();
+						this.$emit('cancel-sale');
+						console.log('Shortcut: Ctrl+C - Cancel Sale');
+					}
+					break;
+				case 'r':
+					if (event.ctrlKey || event.metaKey) {
+						event.preventDefault();
+						if (this.pos_profile.posa_allow_return == 1) {
+							this.$emit('open-returns');
+							console.log('Shortcut: Ctrl+R - Return');
+						}
+					}
+					break;
+				case 'd':
+					if (event.ctrlKey || event.metaKey) {
+						event.preventDefault();
+						if (this.pos_profile.posa_allow_print_draft_invoices) {
+							this.$emit('print-draft');
+							console.log('Shortcut: Ctrl+D - Print Draft');
+						}
+					}
+					break;
+			}
+		},
+	},
+
+	mounted() {
+		// Setup keyboard shortcuts when component is mounted
+		this.setupKeyboardShortcuts();
+	},
+
+	beforeUnmount() {
+		// Clean up keyboard event listener
+		document.removeEventListener('keydown', this.handleKeyboardShortcuts);
 	},
 };
 </script>
