@@ -12,7 +12,7 @@
 							block
 							color="accent"
 							theme="dark"
-							size="large"
+							size="default"
 							prepend-icon="mdi-content-save"
 							@click="$emit('save-and-clear')"
 							class="summary-btn"
@@ -25,7 +25,7 @@
 							block
 							color="warning"
 							theme="dark"
-							size="large"
+							size="default"
 							prepend-icon="mdi-file-document"
 							@click="$emit('load-drafts')"
 							class="white-text-btn summary-btn"
@@ -97,7 +97,7 @@
 							block
 							color="teal"
 							theme="dark"
-							size="large"
+							size="default"
 							prepend-icon="mdi-backup-restore"
 							@click="$emit('open-returns')"
 							class="summary-btn"
@@ -110,7 +110,7 @@
 							block
 							color="error"
 							theme="dark"
-							size="large"
+							size="default"
 							prepend-icon="mdi-close-circle"
 							@click="$emit('cancel-sale')"
 							class="summary-btn"
@@ -164,7 +164,7 @@
 							prepend-icon="mdi-printer"
 							@click="$emit('print-draft')"
 							class="summary-btn large-btn"
-							size="large"
+							size="default"
 						>
 							{{ __("PRINT DRAFT") }}
 						</v-btn>
@@ -271,7 +271,7 @@ export default {
 
 /* Custom spacing for action buttons */
 .action-buttons-row {
-	gap: 5px;
+	gap: 3px;
 }
 
 /* Row spacing */
@@ -283,11 +283,23 @@ export default {
 .button-col {
 	margin-bottom: 0px;
 	padding: 0px;
-	margin-right: 5px;
+	margin-right: 3px;
+	flex-shrink: 0; /* Prevent shrinking */
 }
 
 .button-col:last-child {
 	margin-right: 0px;
+}
+
+/* Ensure buttons don't wrap */
+.v-row.dense .v-col .v-row.dense {
+	flex-wrap: nowrap;
+	align-items: stretch;
+}
+
+.v-row.dense .v-col .v-row.dense .button-col {
+	flex: 1;
+	min-width: 0; /* Allow flex shrinking */
 }
 
 .button-col {
@@ -305,33 +317,36 @@ export default {
 	padding: 0px;
 }
 
-/* Standard button styling - larger size */
+/* Standard button styling - compact size */
 .summary-btn {
-	min-height: 52px !important;
-	font-size: 1.1rem !important;
+	min-height: 44px !important;
+	font-size: 0.95rem !important;
 	font-weight: 600 !important;
 	text-transform: none;
-	margin: 2px;
-	border-radius: 8px;
+	margin: 1px;
+	border-radius: 6px;
+	padding: 8px 12px !important;
 }
 
 /* Large button styling for PRINT DRAFT */
 .large-btn {
-	min-height: 56px !important;
-	font-size: 1.2rem !important;
+	min-height: 48px !important;
+	font-size: 1.1rem !important;
 	font-weight: 600 !important;
-	margin: 2px;
+	margin: 1px;
+	padding: 10px 14px !important;
 }
 
 /* Extra large PAY button */
 .pay-btn {
-	min-height: 64px !important;
-	font-size: 1.4rem !important;
+	min-height: 56px !important;
+	font-size: 1.2rem !important;
 	font-weight: 700 !important;
 	text-transform: uppercase;
 	letter-spacing: 1px;
-	margin: 2px;
-	border-radius: 10px;
+	margin: 1px;
+	border-radius: 8px;
+	padding: 12px 16px !important;
 }
 
 .pay-btn :deep(.v-btn__content) {
