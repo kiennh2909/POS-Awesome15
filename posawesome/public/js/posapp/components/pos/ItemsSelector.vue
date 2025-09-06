@@ -58,7 +58,7 @@
 							</template>
 						</v-text-field>
 					</v-col>
-					<v-col cols="3" class="pb-0" v-if="pos_profile.posa_input_qty">
+					<v-col cols="4" class="pb-0" v-if="pos_profile.posa_input_qty">
 						<v-text-field
 							density="compact"
 							variant="solo"
@@ -71,26 +71,6 @@
 							@keydown.esc="esc_event"
 							@focus="clearQty"
 						></v-text-field>
-					</v-col>
-					<v-col cols="2" class="pb-0" v-if="pos_profile.posa_new_line">
-						<v-checkbox
-							v-model="new_line"
-							color="accent"
-							value="true"
-							label="NLine"
-							density="default"
-							hide-details
-						></v-checkbox>
-					</v-col>
-					<v-col cols="2" class="pb-0">
-						<v-checkbox
-							v-model="scan_add_mode"
-							:color="scan_add_mode ? 'success' : 'error'"
-							:label="scan_add_mode ? 'Add Mode' : 'Remove Mode'"
-							density="default"
-							hide-details
-							@change="onScanModeChange"
-						></v-checkbox>
 					</v-col>
 					<v-col cols="12" class="dynamic-margin-xs">
 						<div class="settings-container">
@@ -274,6 +254,48 @@
 									}}</span>
 								</template>
 							</v-data-table-virtual>
+						</div>
+					</v-col>
+				</v-row>
+
+				<!-- Mode Selection Buttons and NLine Checkbox -->
+				<v-row class="mt-2" v-if="pos_profile.posa_new_line || true">
+					<v-col cols="12" class="d-flex justify-center align-center gap-2">
+						<!-- NLine Checkbox -->
+						<div v-if="pos_profile.posa_new_line" class="d-flex align-center">
+							<v-checkbox
+								v-model="new_line"
+								color="accent"
+								value="true"
+								label="NLine"
+								density="default"
+								hide-details
+								class="mr-4"
+							></v-checkbox>
+						</div>
+
+						<!-- Mode Selection Buttons -->
+						<div class="d-flex gap-2">
+							<v-btn
+								:color="scan_add_mode ? 'success' : 'grey'"
+								:variant="scan_add_mode ? 'flat' : 'outlined'"
+								size="small"
+								@click="setScanMode(true)"
+								class="mode-btn"
+							>
+								<v-icon left size="small">mdi-plus-circle</v-icon>
+								Add Mode
+							</v-btn>
+							<v-btn
+								:color="!scan_add_mode ? 'error' : 'grey'"
+								:variant="!scan_add_mode ? 'flat' : 'outlined'"
+								size="small"
+								@click="setScanMode(false)"
+								class="mode-btn"
+							>
+								<v-icon left size="small">mdi-minus-circle</v-icon>
+								Remove Mode
+							</v-btn>
 						</div>
 					</v-col>
 				</v-row>
@@ -1752,6 +1774,27 @@ export default {
 			);
 		},
 
+		setScanMode(isAddMode) {
+			console.log(`[ItemsSelector] User clicked ${isAddMode ? 'Add Mode' : 'Remove Mode'} button`);
+			console.log(`[ItemsSelector] Previous mode: ${this.scan_add_mode ? 'Add Mode' : 'Remove Mode'}`);
+			console.log(`[ItemsSelector] New mode: ${isAddMode ? 'Add Mode' : 'Remove Mode'}`);
+
+			this.scan_add_mode = isAddMode;
+
+			const mode = this.scan_add_mode ? "Add Mode" : "Remove Mode";
+			console.log(`[ItemsSelector] Mode switched to: ${mode}`);
+
+			frappe.show_alert(
+				{
+					message: `Switched to ${mode}`,
+					indicator: this.scan_add_mode ? "green" : "orange",
+				},
+				2,
+			);
+
+			console.log(`[ItemsSelector] Scan mode change completed`);
+		},
+
 
 
 		currencySymbol(currency) {
@@ -2274,5 +2317,25 @@ export default {
 	.cards {
 		padding: var(--dynamic-xs) !important;
 	}
+}
+
+/* Mode Selection Buttons Styling */
+.mode-btn {
+	transition: all 0.3s ease;
+	min-width: 120px;
+}
+
+.mode-btn:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.mode-btn .v-icon {
+	margin-right: 4px;
+}
+
+/* Gap utility class */
+.gap-2 {
+	gap: 8px;
 }
 </style>
