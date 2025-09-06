@@ -99,7 +99,7 @@
 							@click="$emit('save-and-clear')"
 							class="summary-btn"
 						>
-							{{ __("SAVE & CLEAR") }}
+							{{ __("SAVE") }}
 						</v-btn>
 					</v-col>
 					<v-col cols="4" class="button-col pa-1">
@@ -112,7 +112,7 @@
 							@click="$emit('load-drafts')"
 							class="white-text-btn summary-btn"
 						>
-							{{ __("LOAD DRAFTS") }}
+							{{ __("LOAD") }}
 						</v-btn>
 					</v-col>
 					<v-col cols="4" class="button-col pa-1">
@@ -125,7 +125,7 @@
 							@click="$emit('cancel-sale')"
 							class="summary-btn"
 						>
-							{{ __("CANCEL SALE") }}
+							{{ __("CANCEL") }}
 						</v-btn>
 					</v-col>
 				</v-row>
@@ -172,7 +172,7 @@
 							@click="$emit('open-returns')"
 							class="summary-btn"
 						>
-							{{ __("TRẢ HÀNG BÁN") }}
+							{{ __("RETURN") }}
 						</v-btn>
 					</v-col>
 				</v-row>
@@ -286,13 +286,21 @@ export default {
 
 /* Ensure buttons don't wrap */
 .v-row.dense .v-col .v-row.dense {
-	flex-wrap: nowrap;
+	flex-wrap: nowrap !important;
 	align-items: stretch;
+	display: flex !important;
 }
 
 .v-row.dense .v-col .v-row.dense .button-col {
 	flex: 1;
 	min-width: 0; /* Allow flex shrinking */
+	flex-shrink: 0;
+}
+
+/* Force single line layout */
+.v-row.dense .v-col .v-row.dense .v-col {
+	flex-shrink: 0 !important;
+	min-width: fit-content !important;
 }
 
 .button-col {
@@ -312,13 +320,14 @@ export default {
 
 /* Standard button styling - compact size */
 .summary-btn {
-	min-height: 44px !important;
-	font-size: 0.95rem !important;
+	min-height: 40px !important;
+	font-size: 0.85rem !important;
 	font-weight: 600 !important;
 	text-transform: none;
 	margin: 1px;
 	border-radius: 6px;
-	padding: 8px 12px !important;
+	padding: 6px 8px !important;
+	white-space: nowrap !important;
 }
 
 /* Large button styling for PRINT DRAFT */
@@ -364,6 +373,20 @@ export default {
 
 /* Ensure all buttons in row 2 and 3 have same height */
 .v-row.dense .button-col .v-btn {
-	min-height: 44px !important;
+	min-height: 40px !important;
+}
+
+/* Prevent button text wrapping */
+.summary-btn :deep(.v-btn__content) {
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+}
+
+/* Force container to not wrap */
+.invoice-summary-row {
+	display: flex !important;
+	flex-wrap: nowrap !important;
+	width: 100% !important;
 }
 </style>
