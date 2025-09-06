@@ -271,7 +271,13 @@
 			</div>
 		</v-card>
 		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
-			<v-row no-gutters align="center" justify="center" class="dynamic-spacing-sm">
+			<v-row no-gutters align="center" justify="space-between" class="dynamic-spacing-sm">
+				<v-col cols="3" class="dynamic-margin-xs">
+					<v-btn-toggle v-model="items_view" color="primary" group density="compact" rounded>
+						<v-btn size="small" value="list">{{ __("List") }}</v-btn>
+						<v-btn size="small" value="card">{{ __("Card") }}</v-btn>
+					</v-btn-toggle>
+				</v-col>
 				<v-col cols="12" class="mb-2" v-if="pos_profile.posa_enable_price_list_dropdown">
 					<v-text-field
 						density="compact"
@@ -283,13 +289,7 @@
 						readonly
 					></v-text-field>
 				</v-col>
-				<v-col cols="3" class="dynamic-margin-xs">
-					<v-btn-toggle v-model="items_view" color="primary" group density="compact" rounded>
-						<v-btn size="small" value="list">{{ __("List") }}</v-btn>
-						<v-btn size="small" value="card">{{ __("Card") }}</v-btn>
-					</v-btn-toggle>
-				</v-col>
-				<v-col cols="5" class="dynamic-margin-xs">
+				<v-col cols="auto" class="d-flex justify-end align-center" style="gap: 5px;">
 					<v-btn
 						color="warning"
 						variant="flat"
@@ -301,8 +301,6 @@
 						<v-icon left size="default">mdi-gift</v-icon>
 						<span class="mode-btn-text">{{ offersCount }} {{ __("Offers") }}</span>
 					</v-btn>
-				</v-col>
-				<v-col cols="4" class="dynamic-margin-xs">
 					<v-btn
 						color="primary"
 						variant="flat"
@@ -321,9 +319,9 @@
 		<!-- Mode Selection Section - All controls in one line -->
 		<v-card class="mode-selection-card mt-3 dynamic-padding resizable" v-if="pos_profile.posa_new_line || true">
 			<v-row class="mode-selection-row">
-				<v-col cols="12" class="d-flex justify-center align-center">
+				<v-col cols="12" class="d-flex justify-end align-center">
 					<!-- All controls in one horizontal line -->
-					<div class="controls-container">
+					<div class="controls-container-right" style="gap: 5px;">
 						<!-- NLine Button -->
 						<div v-if="pos_profile.posa_new_line" class="control-item">
 							<v-btn
@@ -2438,6 +2436,7 @@ export default {
 
 .mode-selection-row {
 	padding: var(--dynamic-md) !important;
+	background: #13110b !important;
 }
 
 /* Large Mode Selection Buttons Styling */
@@ -2533,7 +2532,8 @@ export default {
 }
 
 @media (max-width: 480px) {
-	.controls-container {
+	.controls-container,
+	.controls-container-right {
 		flex-direction: column;
 		gap: 8px;
 	}
