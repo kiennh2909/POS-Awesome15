@@ -318,53 +318,53 @@
 
 		<!-- Mode Selection Section - All controls in one line -->
 		<v-card class="mode-selection-card mt-3 dynamic-padding resizable" v-if="pos_profile.posa_new_line || true">
-			<v-row class="mode-selection-row">
-				<v-col cols="12" class="d-flex justify-end align-center">
-					<!-- All controls in one horizontal line -->
-					<div class="controls-container-right" style="gap: 5px;">
-						<!-- NLine Button -->
-						<div v-if="pos_profile.posa_new_line" class="control-item">
-							<v-btn
-								:color="new_line ? 'success' : 'grey'"
-								:variant="new_line ? 'flat' : 'outlined'"
-								size="default"
-								@click="new_line = !new_line"
-								class="mode-btn-compact"
-								height="48"
-							>
-								<v-icon left size="default">mdi-format-line-spacing</v-icon>
-								<span class="mode-btn-text">{{ __("NLine") }}</span>
-							</v-btn>
-						</div>
+			<v-row no-gutters align="center" justify="space-between" class="mode-selection-row">
+				<v-col cols="3" class="dynamic-margin-xs">
+					<!-- Spacer for alignment -->
+				</v-col>
+				<v-col cols="auto" class="d-flex justify-end align-center" style="gap: 5px;">
+					<!-- NLine Button -->
+					<div v-if="pos_profile.posa_new_line" class="control-item">
+						<v-btn
+							:color="new_line ? 'success' : 'grey'"
+							:variant="new_line ? 'flat' : 'outlined'"
+							size="default"
+							@click="new_line = !new_line"
+							class="mode-btn-compact"
+							height="48"
+						>
+							<v-icon left size="default">mdi-format-line-spacing</v-icon>
+							<span class="mode-btn-text">{{ __("NLine") }}</span>
+						</v-btn>
+					</div>
 
-						<!-- Mode Selection Buttons -->
-						<div class="control-item">
-							<v-btn
-								:color="scan_add_mode ? 'success' : 'grey'"
-								:variant="scan_add_mode ? 'flat' : 'outlined'"
-								size="default"
-								@click="setScanMode(true)"
-								class="mode-btn-compact"
-								height="48"
-							>
-								<v-icon left size="default">mdi-plus-circle</v-icon>
-								<span class="mode-btn-text">{{ __("Add Mode") }}</span>
-							</v-btn>
-						</div>
+					<!-- Mode Selection Buttons -->
+					<div class="control-item">
+						<v-btn
+							:color="scan_add_mode ? 'success' : 'grey'"
+							:variant="scan_add_mode ? 'flat' : 'outlined'"
+							size="default"
+							@click="setScanMode(true)"
+							class="mode-btn-compact"
+							height="48"
+						>
+							<v-icon left size="default">mdi-plus-circle</v-icon>
+							<span class="mode-btn-text">{{ __("Add Mode") }}</span>
+						</v-btn>
+					</div>
 
-						<div class="control-item">
-							<v-btn
-								:color="!scan_add_mode ? 'error' : 'grey'"
-								:variant="!scan_add_mode ? 'flat' : 'outlined'"
-								size="default"
-								@click="setScanMode(false)"
-								class="mode-btn-compact"
-								height="48"
-							>
-								<v-icon left size="default">mdi-minus-circle</v-icon>
-								<span class="mode-btn-text">{{ __("Remove Mode") }}</span>
-							</v-btn>
-						</div>
+					<div class="control-item">
+						<v-btn
+							:color="!scan_add_mode ? 'error' : 'grey'"
+							:variant="!scan_add_mode ? 'flat' : 'outlined'"
+							size="default"
+							@click="setScanMode(false)"
+							class="mode-btn-compact"
+							height="48"
+						>
+							<v-icon left size="default">mdi-minus-circle</v-icon>
+							<span class="mode-btn-text">{{ __("Remove Mode") }}</span>
+						</v-btn>
 					</div>
 				</v-col>
 			</v-row>
@@ -2424,6 +2424,20 @@ export default {
 
 	.mode-selection-row {
 		padding: var(--dynamic-sm) !important;
+	}
+
+	/* Ensure mode buttons stay in one line on mobile */
+	@media (max-width: 768px) {
+		.mode-selection-row .d-flex {
+			flex-wrap: nowrap !important;
+			overflow-x: auto !important;
+			scrollbar-width: none !important;
+			-ms-overflow-style: none !important;
+		}
+
+		.mode-selection-row .d-flex::-webkit-scrollbar {
+			display: none !important;
+		}
 	}
 }
 
