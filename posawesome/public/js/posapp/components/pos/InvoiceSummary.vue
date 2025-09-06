@@ -1,6 +1,6 @@
 <template>
 	<v-card
-		:class="['cards mb-0 mt-2 py-3 px-3 rounded-lg resizable', isDarkTheme ? '' : 'bg-grey-lighten-4']"
+		:class="['cards mb-0 mt-2 py-3 px-3 rounded-lg resizable sticky-invoice-summary', isDarkTheme ? '' : 'bg-grey-lighten-4']"
 		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
 	>
 		<!-- Row 1: All numeric fields - Total Qty, Additional Discount, Items Discount, Total -->
@@ -411,5 +411,52 @@ export default {
 	display: flex !important;
 	flex-wrap: nowrap !important;
 	width: 100% !important;
+}
+
+/* Sticky InvoiceSummary at bottom of screen */
+.sticky-invoice-summary {
+	position: fixed !important;
+	bottom: 0 !important;
+	left: 0 !important;
+	right: 0 !important;
+	z-index: 1000 !important;
+	box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15) !important;
+	border-top: 2px solid var(--primary) !important;
+	background-color: var(--surface-secondary) !important;
+	max-height: 200px !important; /* Limit height to prevent overflow */
+	overflow-y: auto !important; /* Allow scrolling if content is too tall */
+}
+
+/* Ensure content above sticky doesn't get hidden */
+.sticky-invoice-summary + * {
+	margin-bottom: 200px !important; /* Add space for sticky element */
+}
+
+/* Mobile responsive adjustments for sticky */
+@media (max-width: 768px) {
+	.sticky-invoice-summary {
+		max-height: 180px !important;
+		padding: 8px !important;
+	}
+
+	.sticky-invoice-summary + * {
+		margin-bottom: 180px !important;
+	}
+}
+
+@media (max-width: 480px) {
+	.sticky-invoice-summary {
+		max-height: 160px !important;
+		padding: 6px !important;
+	}
+
+	.sticky-invoice-summary + * {
+		margin-bottom: 160px !important;
+	}
+}
+
+/* Add padding to body when sticky is active */
+body.sticky-invoice-active {
+	padding-bottom: 200px !important; /* Adjust based on InvoiceSummary height */
 }
 </style>
