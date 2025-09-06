@@ -3,7 +3,7 @@
 		:class="['cards mb-0 mt-2 py-3 px-3 rounded-lg resizable', isDarkTheme ? '' : 'bg-grey-lighten-4']"
 		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
 	>
-		<!-- Row 1: SAVE & CLEAR, TRẢ HÀNG BÁN, Total Qty, Additional Discount -->
+		<!-- Row 1: SAVE & CLEAR, LOAD DRAFTS, Total Qty, Additional Discount -->
 		<v-row dense class="mb-0">
 			<v-col cols="12" md="6">
 				<v-row dense>
@@ -20,17 +20,17 @@
 							{{ __("SAVE & CLEAR") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1" class="button-col pa-1">
+					<v-col cols="6" class="button-col pa-1">
 						<v-btn
 							block
-							color="teal"
+							color="warning"
 							theme="dark"
 							size="large"
-							prepend-icon="mdi-backup-restore"
-							@click="$emit('open-returns')"
-							class="summary-btn"
+							prepend-icon="mdi-file-document"
+							@click="$emit('load-drafts')"
+							class="white-text-btn summary-btn"
 						>
-							{{ __("TRẢ HÀNG BÁN") }}
+							{{ __("LOAD DRAFTS") }}
 						</v-btn>
 					</v-col>
 				</v-row>
@@ -88,24 +88,24 @@
 			</v-col>
 		</v-row>
 
-		<!-- Row 2: LOAD DRAFTS, CANCEL SALE, Items Discount, Total -->
+		<!-- Row 2: TRẢ HÀNG BÁN, CANCEL SALE, Items Discount, Total -->
 		<v-row dense class="mb-0">
 			<v-col cols="12" md="6">
 				<v-row dense>
-					<v-col cols="6" class="button-col pa-1">
+					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1" class="button-col pa-1">
 						<v-btn
 							block
-							color="warning"
+							color="teal"
 							theme="dark"
 							size="large"
-							prepend-icon="mdi-file-document"
-							@click="$emit('load-drafts')"
-							class="white-text-btn summary-btn"
+							prepend-icon="mdi-backup-restore"
+							@click="$emit('open-returns')"
+							class="summary-btn"
 						>
-							{{ __("LOAD DRAFTS") }}
+							{{ __("TRẢ HÀNG BÁN") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6" class="button-col pa-1">
+					<v-col :cols="pos_profile.posa_allow_return == 1 ? 6 : 12" class="button-col pa-1">
 						<v-btn
 							block
 							color="error"
@@ -271,7 +271,23 @@ export default {
 
 /* Custom spacing for action buttons */
 .action-buttons-row {
-	gap: 4px;
+	gap: 5px;
+}
+
+/* Row spacing */
+.v-row.dense.mb-0 {
+	margin-bottom: 5px !important;
+}
+
+/* Button spacing */
+.button-col {
+	margin-bottom: 0px;
+	padding: 0px;
+	margin-right: 5px;
+}
+
+.button-col:last-child {
+	margin-right: 0px;
 }
 
 .button-col {

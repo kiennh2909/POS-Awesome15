@@ -2444,7 +2444,6 @@ export default {
 /* Mode Selection Card Styling */
 .mode-selection-card {
 	background-color: var(--surface-secondary) !important;
-	border: 2px solid var(--primary) !important;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
 
