@@ -1,6 +1,6 @@
 <template>
 	<v-card
-		:class="['cards mb-0 mt-2 py-3 px-3 rounded-lg resizable sticky-invoice-summary', isDarkTheme ? '' : 'bg-grey-lighten-4']"
+		:class="['cards mb-0 mt-2 py-3 px-3 rounded-lg resizable sticky-invoice-summary fixed-spacing', isDarkTheme ? '' : 'bg-grey-lighten-4']"
 		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
 	>
 		<!-- Row 1: All numeric fields - Total Qty, Additional Discount, Items Discount, Total -->
@@ -278,6 +278,15 @@ export default {
 	margin-bottom: 5px !important;
 }
 
+/* Dense row styling */
+.v-row--dense>.v-col, .v-row--dense>[class*=v-col-] {
+	padding: 1px;
+}
+
+.v-row--dense {
+	margin: -2px;
+}
+
 /* Button spacing */
 .button-col {
 	margin-bottom: 0px;
@@ -333,7 +342,7 @@ export default {
 /* Standard button styling - compact size */
 .summary-btn {
     min-height: 60px !important;
-    font-size: 0.85rem !important;
+    font-size: 1.3rem !important;
     font-weight: 600 !important;
     text-transform: none;
     margin: 1px;
@@ -413,19 +422,24 @@ export default {
 	width: 100% !important;
 }
 
+/* Fixed spacing between ItemsTable and InvoiceSummary */
+.fixed-spacing {
+	margin-top: 5px !important;
+}
+
 /* Sticky InvoiceSummary at right side only */
 .sticky-invoice-summary {
 	position: fixed !important;
 	bottom: 0 !important;
 	right: 0 !important;
-	width: 50% !important; /* Right side only */
+	width: 58% !important;
 	z-index: 1000 !important;
-	box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15) !important;
-	border-top: 2px solid var(--primary) !important;
-	border-left: 1px solid var(--primary) !important;
-	background-color: var(--surface-secondary) !important;
-	max-height: 200px !important; /* Limit height to prevent overflow */
-	overflow-y: auto !important; /* Allow scrolling if content is too tall */
+	box-shadow: 0 -4px 12px #00000026 !important;
+	border-top: 2px solid #2ac446 !important;
+	border-left: 3px solid #17d86f !important;
+	max-height: 250px !important;
+	overflow-y: auto !important;
+	background: blueviolet !important;
 }
 
 
@@ -433,14 +447,14 @@ export default {
 @media (max-width: 768px) {
 	.sticky-invoice-summary {
 		width: 100% !important; /* Full width on mobile */
-		max-height: 180px !important;
+		max-height: 220px !important;
 		padding: 8px !important;
 	}
 }
 
 @media (max-width: 480px) {
 	.sticky-invoice-summary {
-		max-height: 160px !important;
+		max-height: 200px !important;
 		padding: 6px !important;
 	}
 }
