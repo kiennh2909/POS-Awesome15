@@ -67,6 +67,111 @@ def search_serial_or_batch_or_barcode_number(search_value, search_serial_no):
 
 
 def get_stock_availability(item_code, warehouse):
+    """Lấy stock từ Bin - Optimized for performance"""
+    actual_qty = frappe.db.get_value(
+        "Bin",
+        filters={
+            "item_code": item_code,
+            "warehouse": warehouse
+        },
+        fieldname="actual_qty"
+    ) or 0.0
+    return actual_qty
+
+
+@redis_cache(ttl=30)  # Cache 30 giây
+def get_stock_from_bin(item_code, warehouse):
+    """Lấy stock từ Bin với performance tối ưu + cache"""
+    return frappe.db.get_value(
+        "Bin",
+        filters={
+            "item_code": item_code,
+            "warehouse": warehouse
+        },
+        fieldname="actual_qty"
+    ) or 0.0
+
+
+@redis_cache(ttl=30)
+def get_available_stock_from_bin(item_code, warehouse):
+    """Lấy stock available (actual - reserved) từ Bin với cache"""
+    bin_data = frappe.db.get_value(
+        "Bin",
+        filters={
+            "item_code": item_code,
+            "warehouse": warehouse
+        },
+        fieldname=["actual_qty", "reserved_qty"],
+        as_dict=True
+    )
+
+    if bin_data:
+        available_qty = bin_data.actual_qty - (bin_data.reserved_qty or 0)
+        return available_qty
+
+    return 0.0
+
+
+def get_stock_from_bin_bulk(item_codes, warehouse):
+    """Lấy stock cho nhiều items cùng lúc từ Bin - Performance optimized"""
+    if not item_codes:
+        return {}
+
+    bin_data = frappe.get_all(
+        "Bin",
+        filters={
+            "item_code": ["in", item_codes],
+            "warehouse": warehouse
+        },
+        fields=["item_code", "actual_qty", "reserved_qty"]
+    )
+
+    # Convert to dict for fast lookup
+    stock_map = {}
+    for bin_item in bin_data:
+        stock_map[bin_item.item_code] = {
+            "actual_qty": bin_item.actual_qty or 0,
+            "available_qty": (bin_item.actual_qty or 0) - (bin_item.reserved_qty or 0)
+        }
+
+    return stock_map
+
+
+def clear_stock_cache():
+    """Clear Redis cache cho các hàm stock"""
+    try:
+        # Clear cache cho các hàm stock
+        frappe.cache().delete_key("get_stock_from_bin")
+        frappe.cache().delete_key("get_available_stock_from_bin")
+        frappe.cache().delete_key("get_stock_availability")
+        print("Stock cache cleared successfully")
+    except Exception as e:
+        print(f"Error clearing stock cache: {e}")
+
+
+@frappe.whitelist()
+def get_stock_unified(item_code, warehouse, source="bin"):
+    """
+    Hàm unified để lấy stock với tùy chọn nguồn
+    - source="bin": Sử dụng Bin (nhanh)
+    - source="stock_ledger": Sử dụng Stock Ledger Entry (chính xác)
+    - source="auto": Tự động chọn
+    """
+    if source == "bin":
+        return get_stock_from_bin(item_code, warehouse)
+    elif source == "stock_ledger":
+        return get_stock_availability_from_ledger(item_code, warehouse)
+    else:  # auto
+        # Thử Bin trước, nếu không có thì dùng Stock Ledger
+        bin_qty = get_stock_from_bin(item_code, warehouse)
+        if bin_qty > 0:
+            return bin_qty
+        else:
+            return get_stock_availability_from_ledger(item_code, warehouse)
+
+
+def get_stock_availability_from_ledger(item_code, warehouse):
+    """Lấy stock từ Stock Ledger Entry (for fallback)"""
     actual_qty = (
         frappe.db.get_value(
             "Stock Ledger Entry",
@@ -198,16 +303,23 @@ def _get_items_optimized(
     # --- BƯỚC 2: TỐI ƯU - LẤY TỒN KHO TỪ `Bin` TRƯỚC ---
     stock_map = {}
     if pos_profile.get("posa_display_items_in_stock"):
+        # Sử dụng bulk query để lấy stock cho tất cả items
         bin_items = frappe.get_all(
             "Bin",
             filters={"warehouse": warehouse, "actual_qty": [">", 0]},
-            fields=["item_code", "actual_qty"]
+            fields=["item_code", "actual_qty", "reserved_qty"]
         )
         if not bin_items:
             return []  # Tối ưu: Nếu không có gì trong kho, trả về rỗng ngay lập tức
-        
+
         in_stock_item_codes = [b.item_code for b in bin_items]
-        stock_map = {b.item_code: b.actual_qty for b in bin_items}
+        # Tạo stock_map với cả actual_qty và available_qty
+        stock_map = {}
+        for b in bin_items:
+            stock_map[b.item_code] = {
+                "actual_qty": b.actual_qty or 0,
+                "available_qty": (b.actual_qty or 0) - (b.reserved_qty or 0)
+            }
         item_filters["name"] = ["in", in_stock_item_codes]
 
     # --- BƯỚC 3: XỬ LÝ TÌM KIẾM ---
@@ -296,19 +408,20 @@ def _get_items_optimized(
         if item.stock_uom and not any(u['uom'] == item.stock_uom for u in item_uoms):
             item_uoms.append({"uom": item.stock_uom, "conversion_factor": 1.0})
 
-        # Lấy tồn kho từ stock_map đã có
-        actual_qty = stock_map.get(item_code, 0)
-        
+        # Lấy tồn kho từ stock_map đã có (tối ưu từ Bin)
+        stock_info = stock_map.get(item_code, {"actual_qty": 0, "available_qty": 0})
+        actual_qty = stock_info["actual_qty"]
+
         row = {
             **item,
             "rate": item_price.get("price_list_rate", 0),
             "currency": item_price.get("currency") or pos_profile.get("currency"),
             "item_barcode": barcodes_map.get(item_code, []),
-            "actual_qty": actual_qty,
+            "actual_qty": actual_qty,  # ← Từ Bin (đã có sẵn)
             "item_uoms": item_uoms,
             # Giữ các trường này để tương thích với frontend
-            "serial_no_data": [], 
-            "batch_no_data": [], 
+            "serial_no_data": [],
+            "batch_no_data": [],
             "attributes": "",
             "item_attributes": "",
         }
@@ -849,7 +962,8 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
         overwrite_warehouse=False,
     )
     if item.get("is_stock_item") and warehouse:
-        res["actual_qty"] = get_stock_availability(item_code, warehouse)
+        # Sử dụng Bin cho performance tối ưu
+        res["actual_qty"] = get_stock_from_bin(item_code, warehouse)
     res["max_discount"] = max_discount
     res["batch_no_data"] = batch_no_data
     res["serial_no_data"] = serial_no_data
