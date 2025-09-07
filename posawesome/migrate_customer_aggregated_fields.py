@@ -5,7 +5,109 @@ This script should be run after setting up the custom fields
 """
 
 import frappe
-from setup_customer_aggregated_fields import calculate_customer_aggregated_data
+
+
+def calculate_customer_aggregated_data(customer_name):
+    """
+    Calculate all aggregated values for a customer
+
+    Args:
+        customer_name (str): Customer name
+
+    Returns:
+        dict: Aggregated data
+    """
+
+    try:
+        # 1. Credit related calculations
+        # Get credit limit from Customer Credit Limit table (child table of Customer)
+        credit_limits = frappe.db.sql("""
+            SELECT
+                SUM(credit_limit) as total_credit_limit,
+                GROUP_CONCAT(DISTINCT company SEPARATOR ', ') as companies
+            FROM `tabCustomer Credit Limit`
+            WHERE parent = %s
+            AND parenttype = 'Customer'
+        """, (customer_name,), as_dict=True)
+
+        total_credit_limit = credit_limits[0]["total_credit_limit"] if credit_limits and credit_limits[0]["total_credit_limit"] else 0
+        credit_companies = credit_limits[0]["companies"] if credit_limits and credit_limits[0]["companies"] else ""
+
+        # Get outstanding amount from invoices
+        outstanding_invoices = frappe.db.sql("""
+            SELECT SUM(outstanding_amount) as total_outstanding
+            FROM `tabSales Invoice`
+            WHERE customer = %s
+            AND docstatus = 1
+            AND outstanding_amount > 0
+        """, (customer_name,), as_dict=True)
+
+        total_outstanding = outstanding_invoices[0]["total_outstanding"] if outstanding_invoices and outstanding_invoices[0]["total_outstanding"] else 0
+
+        # Calculate credit balance
+        total_credit_balance = total_credit_limit - total_outstanding
+
+        # 2. Loyalty related calculations
+        # Get loyalty program info first
+        customer_loyalty_program = frappe.db.get_value("Customer", customer_name, "loyalty_program")
+
+        if customer_loyalty_program:
+            # Get conversion factor from Loyalty Program table
+            conversion_factor = frappe.db.get_value("Loyalty Program", customer_loyalty_program, "conversion_factor") or 0
+
+            # Get total loyalty points earned (positive entries)
+            loyalty_points_earned = frappe.db.sql("""
+                SELECT SUM(loyalty_points) as total_earned
+                FROM `tabLoyalty Point Entry`
+                WHERE customer = %s
+                AND loyalty_points > 0
+                AND loyalty_program = %s
+            """, (customer_name, customer_loyalty_program), as_dict=True)
+
+            total_loyalty_points = loyalty_points_earned[0]["total_earned"] if loyalty_points_earned and loyalty_points_earned[0]["total_earned"] else 0
+
+            # Get total loyalty points used (negative entries or redemption entries)
+            loyalty_points_used = frappe.db.sql("""
+                SELECT
+                    SUM(ABS(loyalty_points)) as points_used,
+                    SUM(ABS(redemption.redeemed_points)) as points_redeemed
+                FROM `tabLoyalty Point Entry` lpe
+                LEFT JOIN `tabLoyalty Point Entry Redemption` redemption
+                    ON lpe.name = redemption.parent
+                WHERE lpe.customer = %s
+                AND lpe.loyalty_program = %s
+                AND (lpe.loyalty_points < 0 OR redemption.redeemed_points > 0)
+            """, (customer_name, customer_loyalty_program), as_dict=True)
+
+            total_loyalty_points_used = 0
+            if loyalty_points_used and loyalty_points_used[0]:
+                points_used = loyalty_points_used[0]["points_used"] or 0
+                points_redeemed = loyalty_points_used[0]["points_redeemed"] or 0
+                total_loyalty_points_used = points_used + points_redeemed
+
+            # Calculate loyalty points balance
+            total_loyalty_points_balance = total_loyalty_points - total_loyalty_points_used
+        else:
+            # No loyalty program assigned
+            total_loyalty_points = 0
+            total_loyalty_points_used = 0
+            total_loyalty_points_balance = 0
+            conversion_factor = 0
+
+        return {
+            "total_credit_limit": total_credit_limit,
+            "total_outstanding_amount": total_outstanding,
+            "total_credit_balance": total_credit_balance,
+            "credit_companies": credit_companies,
+            "total_loyalty_points": total_loyalty_points,
+            "total_loyalty_points_used": total_loyalty_points_used,
+            "total_loyalty_points_balance": total_loyalty_points_balance,
+            "conversion_factor": conversion_factor,
+        }
+
+    except Exception as e:
+        print(f"❌ Error calculating aggregated data for {customer_name}: {str(e)}")
+        return None
 
 
 def migrate_customer_aggregated_fields():

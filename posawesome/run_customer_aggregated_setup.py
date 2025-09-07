@@ -14,11 +14,7 @@ import os
 # Add the current directory to Python path to import our setup script
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from setup_customer_aggregated_fields import (
-    setup_customer_aggregated_fields,
-    update_customer_aggregated_fields,
-    calculate_customer_aggregated_data
-)
+from setup_customer_aggregated_fields import setup_customer_aggregated_fields
 from migrate_customer_aggregated_fields import (
     migrate_customer_aggregated_fields,
     verify_migration
@@ -42,6 +38,8 @@ def run_setup():
 
         if not migrate_success:
             print("⚠️  Migration completed with warnings")
+        else:
+            print("✅ Migration completed successfully")
 
         # Step 3: Verification
         print("\n✅ Step 3: Verifying setup...")
