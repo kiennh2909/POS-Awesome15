@@ -1,6 +1,7 @@
 <template>
 	<div fluid>
 		<v-row v-show="!dialog">
+			<!-- Left Panel - Invoices and Payments -->
 			<v-col md="8" cols="12" class="pb-2 pr-0">
 				<v-card
 					:class="[
@@ -12,6 +13,7 @@
 				>
 					<Customer></Customer>
 					<v-divider></v-divider>
+
 					<!-- Outstanding Invoices Header -->
 					<div class="section-header mb-4">
 						<v-row dense class="align-center">
@@ -136,7 +138,8 @@
 						</template>
 					</v-data-table>
 					<v-divider></v-divider>
-					</div>
+
+					<!-- Unallocated Payments Section -->
 					<div v-if="pos_profile.posa_allow_reconcile_payments && unallocated_payments.length">
 						<v-row>
 							<v-col md="7" cols="12">
@@ -188,6 +191,8 @@
 						</v-data-table>
 						<v-divider></v-divider>
 					</div>
+
+					<!-- Mpesa Payments Section -->
 					<div v-if="pos_profile.posa_allow_mpesa_reconcile_payments">
 						<v-row>
 							<v-col md="8" cols="12">
@@ -266,6 +271,8 @@
 					</div>
 				</v-card>
 			</v-col>
+
+			<!-- Right Panel - Totals and Actions -->
 			<v-col md="4" cols="12" class="pb-3">
 				<v-card
 					:class="['invoices mx-auto mt-3 p-3', isDarkTheme ? '' : 'bg-grey-lighten-5']"
@@ -667,6 +674,7 @@ export default {
 				this.$nextTick(() => this.$forceUpdate());
 			}
 		},
+		// Remove duplicate method
 		// async fetch_customer_details() {
 		// 	const vm = this;
 		// 	if (!this.customer_name) return;
@@ -1002,9 +1010,10 @@ export default {
 				error: function () { vm.isSubmitting = false; },
 			});
 		},
-		selectSingleInvoice({ item }) {
-			if (item) {
-				this.toggleInvoiceSelection(item);
+		selectSingleInvoice(item) {
+			if (item && item.voucher_no) {
+				this.eventBus.emit("set_invoice", item);
+				this.$nextTick(() => this.$forceUpdate());
 			}
 		},
 		isInvoiceSelected(item) {
