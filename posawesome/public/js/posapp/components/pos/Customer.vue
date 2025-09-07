@@ -107,8 +107,10 @@
 		<!-- Customer Detail modal -->
 		<div class="mt-4">
 			<CustomerDetail
+				:key="customerDetailKey"
 				v-model="showCustomerDetail"
 				:customer-id="customer"
+				@update:modelValue="onCustomerDetailDialogUpdate"
 			/>
 		</div>
 	</div>
@@ -247,6 +249,7 @@ export default {
 		loadingCustomers: false, // ? New state to track loading status
 		customerSearch: "", // Search text
 		showCustomerDetail: false, // Show customer detail dialog
+		customerDetailKey: 0, // Key to force re-render CustomerDetail component
 	}),
 
 	components: {
@@ -534,8 +537,35 @@ export default {
 		},
 
 		viewCustomerDetails(customerId) {
+			console.log('[Customer] viewCustomerDetails called with:', customerId);
+			console.log('[Customer] Current showCustomerDetail:', this.showCustomerDetail);
+
 			this.customer = customerId;
 			this.showCustomerDetail = true;
+			this.customerDetailKey += 1; // Force re-render by changing key
+
+			console.log('[Customer] After setting - customer:', this.customer, 'showCustomerDetail:', this.showCustomerDetail, 'key:', this.customerDetailKey);
+
+			// Force update to ensure reactivity
+			this.$nextTick(() => {
+				this.$forceUpdate();
+				console.log('[Customer] Force updated component');
+			});
+		},
+
+		onCustomerDetailDialogUpdate(value) {
+			console.log('[Customer] onCustomerDetailDialogUpdate called with:', value);
+			console.log('[Customer] Current showCustomerDetail before update:', this.showCustomerDetail);
+
+			this.showCustomerDetail = value;
+
+			console.log('[Customer] showCustomerDetail updated to:', this.showCustomerDetail);
+
+			// Force update to ensure reactivity
+			this.$nextTick(() => {
+				this.$forceUpdate();
+				console.log('[Customer] Force updated after dialog update');
+			});
 		},
 	},
 

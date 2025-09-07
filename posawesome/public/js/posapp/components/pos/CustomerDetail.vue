@@ -28,7 +28,7 @@
 						icon="mdi-close"
 						variant="text"
 						size="default"
-						@click="dialog = false"
+						@click="closeDialog"
 						class="close-btn"
 					></v-btn>
 				</v-card-title>
@@ -98,7 +98,7 @@
 					<v-btn
 						theme="dark"
 						variant="outlined"
-						@click="dialog = false"
+						@click="closeDialog"
 						class="standard-btn cancel-btn"
 						size="default"
 					>
@@ -390,16 +390,35 @@ export default {
 		};
 	},
 	watch: {
-		modelValue(val) {
-			this.dialog = val;
-			if (val && this.customerId) {
-				this.loadCustomerDetails();
-			}
+		modelValue: {
+			handler(val) {
+				console.log('[CustomerDetail] modelValue changed:', val, 'customerId:', this.customerId);
+				this.dialog = val;
+				if (val && this.customerId) {
+					console.log('[CustomerDetail] Loading customer details for:', this.customerId);
+					this.$nextTick(() => {
+						this.loadCustomerDetails();
+					});
+				} else if (!val) {
+					console.log('[CustomerDetail] Dialog closed, resetting state');
+					// Reset state when dialog closes
+					this.customerData = null;
+					this.loading = false;
+				}
+			},
+			immediate: true
 		},
-		customerId(val) {
-			if (val && this.dialog) {
-				this.loadCustomerDetails();
-			}
+		customerId: {
+			handler(val) {
+				console.log('[CustomerDetail] customerId changed:', val, 'dialog:', this.dialog);
+				if (val && this.dialog) {
+					console.log('[CustomerDetail] Loading customer details for new customerId:', val);
+					this.$nextTick(() => {
+						this.loadCustomerDetails();
+					});
+				}
+			},
+			immediate: true
 		},
 	},
 	methods: {
@@ -428,6 +447,17 @@ export default {
 
 		formatNumber(value) {
 			return new Intl.NumberFormat().format(value || 0);
+		},
+
+		closeDialog() {
+			console.log('[CustomerDetail] closeDialog called');
+			console.log('[CustomerDetail] Current dialog state:', this.dialog);
+			console.log('[CustomerDetail] Emitting update:modelValue with false');
+
+			this.dialog = false;
+			this.$emit('update:modelValue', false);
+
+			console.log('[CustomerDetail] After close - dialog:', this.dialog);
 		},
 	},
 };
