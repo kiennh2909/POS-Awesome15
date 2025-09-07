@@ -8,6 +8,7 @@
 		<MpesaPayments></MpesaPayments>
 		<Variants></Variants>
 		<TaxRollDialog></TaxRollDialog>
+		<ListInvoicesDialog></ListInvoicesDialog>
 		<OpeningDialog v-if="dialog" :dialog="dialog"></OpeningDialog>
 		<v-row v-show="!dialog" dense class="ma-0 dynamic-main-row">
 			<v-col
@@ -53,6 +54,7 @@ import Variants from "./Variants.vue";
 import Returns from "./Returns.vue";
 import MpesaPayments from "./Mpesa-Payments.vue";
 import TaxRollDialog from "./TaxRollDialog.vue";
+import ListInvoicesDialog from "./ListInvoicesDialog.vue";
 import {
 	getCachedOffers,
 	saveOffers,
@@ -96,6 +98,7 @@ export default {
 		MpesaPayments,
 		SalesOrders,
 		TaxRollDialog,
+		ListInvoicesDialog,
 	},
 
 	methods: {

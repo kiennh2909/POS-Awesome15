@@ -232,6 +232,7 @@
 			@open-returns="open_returns"
 			@print-draft="print_draft_invoice"
 			@show-payment="show_payment"
+			@list-invoices="handleListInvoices"
 		>
 			<!-- Add Print and Tax Print Buttons here -->
 			<template #actions>
@@ -1118,6 +1119,11 @@ export default {
 				});
 				this.tax_print_loading = false;
 			}
+		},
+
+		handleListInvoices() {
+			// Emit event to open list invoices dialog
+			this.eventBus.emit("open_list_invoices");
 		},
 	},
 
