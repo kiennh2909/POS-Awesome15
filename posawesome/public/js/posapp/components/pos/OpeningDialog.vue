@@ -536,6 +536,16 @@ export default {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+	.v-dialog {
+		margin: 16px !important;
+		max-width: calc(100vw - 32px) !important;
+		max-height: calc(100vh - 32px) !important;
+	}
+
+	.opening-dialog-card {
+		max-height: 85vh;
+	}
+
 	.opening-dialog-header {
 		padding: 12px 16px;
 	}
@@ -550,33 +560,62 @@ export default {
 
 	.opening-dialog-content {
 		padding: 16px;
+		max-height: 60vh;
+		overflow-y: auto;
 	}
 
-	.opening-dialog-actions-compact {
+	.enhanced-table-compact {
+		height: 250px !important;
+	}
+
+	.dialog-actions-container {
+		flex-direction: column;
+		gap: 8px;
 		padding: 12px 16px;
 	}
 
-	.action-btn-compact {
-		padding: 6px 12px;
-		min-width: 70px;
+	.pos-action-btn {
+		width: 100%;
+		min-width: unset;
 	}
 }
 
 @media (max-width: 480px) {
+	.v-dialog {
+		margin: 8px !important;
+		max-width: calc(100vw - 16px) !important;
+		max-height: calc(100vh - 16px) !important;
+	}
+
+	.opening-dialog-card {
+		max-height: 90vh;
+	}
+
 	.header-content {
 		flex-direction: column;
 		text-align: center;
 		gap: 8px;
 	}
 
-	.opening-dialog-content {
-		padding: 12px;
+	.header-title {
+		font-size: 1.1rem;
 	}
 
-	.action-btn-compact {
-		margin-left: 4px;
-		padding: 6px 10px;
-		min-width: 60px;
+	.opening-dialog-content {
+		padding: 12px;
+		max-height: 50vh;
+	}
+
+	.enhanced-table-compact {
+		height: 200px !important;
+	}
+
+	.form-field {
+		margin-bottom: 8px;
+	}
+
+	.section-title-compact {
+		font-size: 0.9rem;
 	}
 }
 

@@ -465,22 +465,78 @@ body {
     flex-direction: column;
     gap: var(--dynamic-sm);
   }
-  
+
   .pos-action-btn {
     width: 100%;
     min-width: unset;
   }
-  
+
   .dynamic-text {
     font-size: calc(0.95rem * var(--font-scale));
   }
-  
+
   .dynamic-text-lg {
     font-size: calc(1.05rem * var(--font-scale));
   }
-  
+
   .dynamic-text-xl {
     font-size: calc(1.3rem * var(--font-scale));
+  }
+
+  /* Footer Status Bar responsive adjustments */
+  .footer-status-bar {
+    height: 50px !important;
+  }
+
+  .status-bar-content {
+    padding: 0 12px !important;
+    gap: 8px !important;
+  }
+
+  .status-text {
+    font-size: 11px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Footer Status Bar mobile adjustments */
+  .footer-status-bar {
+    height: 60px !important;
+  }
+
+  .status-bar-content {
+    flex-direction: column !important;
+    gap: 2px !important;
+    padding: 6px 8px !important;
+  }
+
+  .status-item {
+    min-width: 0 !important;
+    flex: none !important;
+    justify-content: flex-start !important;
+  }
+
+  .status-text {
+    font-size: 10px !important;
+  }
+
+  /* Customer Info responsive adjustments */
+  .customer-info-section {
+    padding: 12px !important;
+  }
+
+  .customer-basic-row {
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+
+  .vip-status-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .header-title {
+    font-size: 1.1rem !important;
   }
 }
 

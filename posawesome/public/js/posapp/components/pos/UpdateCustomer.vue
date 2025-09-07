@@ -685,4 +685,55 @@ export default {
 ::v-deep(.v-theme--dark) .dark-field .v-field__overlay {
 	background-color: #1e1e1e !important;
 }
+
+/* Responsive Design */
+@media (max-width: 768px) {
+	.v-dialog {
+		margin: 16px !important;
+		max-width: calc(100vw - 32px) !important;
+	}
+
+	.v-card {
+		max-height: 85vh;
+		overflow-y: auto;
+	}
+
+	.v-card-text {
+		padding: 16px !important;
+	}
+
+	.v-card-actions {
+		padding: 16px !important;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.v-card-actions .v-btn {
+		width: 100%;
+	}
+}
+
+@media (max-width: 480px) {
+	.v-card-title {
+		font-size: 1.25rem !important;
+		padding: 16px !important;
+	}
+
+	.v-card-text {
+		padding: 12px !important;
+	}
+
+	.v-card-actions {
+		padding: 12px !important;
+	}
+
+	/* Stack form fields vertically on very small screens */
+	.v-row .v-col {
+		margin-bottom: 8px;
+	}
+
+	.v-row .v-col:last-child {
+		margin-bottom: 0;
+	}
+}
 </style>

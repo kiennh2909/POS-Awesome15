@@ -48,6 +48,11 @@
 					</v-col>
 				</v-row>
 
+				<!-- Customer Information Display -->
+				<div class="customer-info-section">
+					<CustomerInfo :customer-id="customer" />
+				</div>
+
 				<!-- Delivery Charges Section (Only if enabled in POS profile) -->
 				<!-- <DeliveryCharges
 					:pos_profile="pos_profile"
@@ -274,6 +279,7 @@
 import { evntBus } from "../../bus";
 import format from "../../format";
 import Customer from "./Customer.vue";
+import CustomerInfo from "./CustomerInfo.vue";
 import DeliveryCharges from "./DeliveryCharges.vue";
 import PostingDateRow from "./PostingDateRow.vue";
 import MultiCurrencyRow from "./MultiCurrencyRow.vue";
@@ -352,6 +358,7 @@ export default {
 
 	components: {
 		Customer,
+		CustomerInfo,
 		DeliveryCharges,
 		PostingDateRow,
 		MultiCurrencyRow,

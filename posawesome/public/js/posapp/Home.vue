@@ -30,11 +30,15 @@
 				<component v-bind:is="page" class="mx-4 md-4"></component>
 			</div>
 		</v-main>
+
+		<!-- Footer Status Bar -->
+		<FooterStatusBar />
 	</v-app>
 </template>
 
 <script>
 import Navbar from "./components/Navbar.vue";
+import FooterStatusBar from "./components/FooterStatusBar.vue";
 import POS from "./components/pos/Pos.vue";
 import Payments from "./components/payments/Pay.vue";
 import {
@@ -102,6 +106,7 @@ export default {
 	},
 	components: {
 		Navbar,
+		FooterStatusBar,
 		POS,
 		Payments,
 	},

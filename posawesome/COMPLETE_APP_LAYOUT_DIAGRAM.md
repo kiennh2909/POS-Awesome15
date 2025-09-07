@@ -2,11 +2,11 @@
 
 ## 🎯 **TỔNG QUAN KIẾN TRÚC**
 
-Ứng dụng POS Awesome sử dụng **layout 3-panel** với:
-- **App Bar** (Global) - Thanh điều hướng toàn ứng dụng
-- **Left Panel** - Menu điều hướng và thông tin bổ sung
-- **Main Content** - Khu vực làm việc chính với Right Panel
-- **Bottom Section** - Thông tin trạng thái và actions
+Ứng dụng POS Awesome sử dụng **layout Navbar + 2-Panel + Footer** với:
+- **Navbar** (Global) - Thanh điều hướng toàn ứng dụng
+- **Left Panel** - Quản lý sản phẩm và danh mục
+- **Right Panel** - Quản lý giao dịch với Customer Info chi tiết
+- **Footer Bar** - Thông tin thời gian, tài khoản và thống kê
 
 ---
 
@@ -49,7 +49,7 @@
 │  │ • 📝 Draft Invoices • ↩️ Return Items • 🧾 Tax Calculations         │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ 🟢 Online │ 💰 Cash: $1,250.00 │ 🧾 Last Invoice: INV-001 │ 📊 Today: $2,450.00 │
+│ 📅 2024-01-15 │ 🕐 14:30:25 │ 🟢 admin │ 💰 Cash: $1,250.00 │ 🧾 Last Invoice: INV-001 │ 📊 Today: $2,450.00 │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -82,7 +82,7 @@
 │  │ • ↩️ Return Items               │ │
 │  └─────────────────────────────────┘ │
 ├─────────────────────────────────────┤
-│ 🟢 │ 💰 $1,250 │ 🧾 INV-001 │ 📊 $2,450 │
+│ 📅 01-15 │ 🕐 14:30 │ 🟢 admin │ 💰 $1,250 │ 🧾 INV-001 │ 📊 $2,450 │
 └─────────────────────────────────────┘
 ```
 
@@ -273,18 +273,20 @@
 └─────────────────────────────────────────────────────┘
 ```
 
-### **4. 📊 BOTTOM STATUS BAR**
+### **6. 📊 BOTTOM STATUS BAR (FOOTER)**
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ 🟢 Online │ 💰 Cash: $1,250.00 │ 🧾 Last Invoice: INV-001 │ 📊 Today: $2,450.00 │
+│ 📅 2024-01-15 │ 🕐 14:30:25 │ 🟢 admin │ 💰 Cash: $1,250.00 │ 🧾 Last Invoice: INV-001 │ 📊 Today: $2,450.00 │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Thông tin hiển thị:**
-- **🟢 Connection Status** - Trạng thái kết nối
-- **💰 Cash Balance** - Số dư tiền mặt
-- **🧾 Last Invoice** - Hóa đơn cuối cùng
-- **📊 Today's Sales** - Doanh thu hôm nay
+- **📅 Current Date** - Ngày hiện tại (2024-01-15)
+- **🕐 Current Time** - Thời gian hiện tại (14:30:25)
+- **🟢 User Account** - Tài khoản đăng nhập (admin)
+- **💰 Cash Balance** - Số dư tiền mặt ($1,250.00)
+- **🧾 Last Invoice** - Hóa đơn cuối cùng (INV-001)
+- **📊 Today's Sales** - Doanh thu hôm nay ($2,450.00)
 
 ---
 
@@ -580,9 +582,9 @@ const store = {
 ### ✅ **Perfect Architecture:**
 - **🧭 Global Navbar** - Điều hướng thống nhất toàn ứng dụng
 - **🛒 Left Panel** - Quản lý sản phẩm và danh mục
-- **📄 Right Panel** - Quản lý giao dịch và khách hàng
+- **📄 Right Panel** - Quản lý giao dịch và khách hàng với Customer Info chi tiết
 - **🎨 Modal Overlay** - Các dialog và modal bổ sung
-- **📊 Bottom Status** - Thông tin trạng thái hệ thống
+- **📊 Footer Bar** - Thông tin thời gian, tài khoản, và thống kê chi tiết
 
 ### ✅ **Advanced Features:**
 - **👤 Customer Intelligence** - Thông tin khách hàng toàn diện:
