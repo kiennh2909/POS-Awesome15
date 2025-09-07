@@ -69,61 +69,82 @@
 				</v-data-table>
 
 				<!-- Dialog hiển thị chi tiết offer -->
-				<v-dialog v-model="offerDialog" max-width="600px" persistent>
-					<v-card v-if="selectedOffer">
-						<v-card-title class="text-h6 pa-4 d-flex align-center">
-							<span class="text-primary">{{ selectedOffer.title || selectedOffer.name }}</span>
+				<v-dialog v-model="offerDialog" max-width="650px" persistent>
+					<v-card v-if="selectedOffer" class="offer-detail-dialog">
+						<v-card-title class="offer-dialog-header pa-4 d-flex align-center">
+							<div class="d-flex align-center">
+								<v-icon color="primary" class="mr-2">mdi-gift</v-icon>
+								<span class="offer-dialog-title">{{ selectedOffer.title || selectedOffer.name }}</span>
+							</div>
 							<v-spacer></v-spacer>
 							<v-btn
 								icon="mdi-close"
 								variant="text"
 								density="compact"
+								color="grey"
 								@click="closeOfferDialog"
+								title="Đóng"
 							></v-btn>
 						</v-card-title>
 						<v-divider></v-divider>
-						<v-card-text class="pa-4">
-							<!-- Hiển thị loading nếu chưa có dữ liệu -->
-							<div v-if="!formattedOfferContent" class="text-center py-8">
-								<v-progress-circular indeterminate color="primary" size="32"></v-progress-circular>
-								<div class="mt-2 text-caption">Đang tải thông tin...</div>
-							</div>
+						<v-card-text class="pa-0">
+							<div class="offer-dialog-body">
+								<!-- Hiển thị loading nếu chưa có dữ liệu -->
+								<div v-if="!formattedOfferContent" class="text-center py-8">
+									<v-progress-circular indeterminate color="primary" size="32"></v-progress-circular>
+									<div class="mt-2 text-caption text-grey-600">Đang tải thông tin...</div>
+								</div>
 
-							<!-- Hiển thị nội dung chi tiết -->
-							<div v-else class="offer-dialog-content" v-html="formattedOfferContent"></div>
+								<!-- Hiển thị nội dung chi tiết -->
+								<div v-else class="offer-dialog-content" v-html="formattedOfferContent"></div>
 
-							<!-- Phần cấu hình cho Give Product -->
-							<div v-if="selectedOffer.offer == 'Give Product'" class="offer-config-section mt-4">
-								<v-divider class="my-3"></v-divider>
-								<div class="config-title mb-3">⚙️ Cấu hình sản phẩm tặng:</div>
-								<v-autocomplete
-									v-model="selectedOffer.give_item"
-									:items="get_give_items(selectedOffer)"
-									item-title="item_code"
-									variant="outlined"
-									density="compact"
-									color="primary"
-									:label="frappe._('Chọn sản phẩm tặng')"
-									:disabled="
-										selectedOffer.apply_type != 'Item Group' ||
-										selectedOffer.replace_item ||
-										selectedOffer.replace_cheapest_item
-									"
-									class="mb-3"
-								></v-autocomplete>
+								<!-- Phần cấu hình cho Give Product -->
+								<div v-if="selectedOffer.offer == 'Give Product'" class="offer-config-section">
+									<v-divider class="my-4 mx-6"></v-divider>
+									<div class="config-section-wrapper">
+										<div class="config-title mb-3">
+											<v-icon color="primary" size="small" class="mr-2">mdi-cog</v-icon>
+											Cấu hình sản phẩm tặng:
+										</div>
+										<v-autocomplete
+											v-model="selectedOffer.give_item"
+											:items="get_give_items(selectedOffer)"
+											item-title="item_code"
+											variant="outlined"
+											density="compact"
+											color="primary"
+											:label="frappe._('Chọn sản phẩm tặng')"
+											:disabled="
+												selectedOffer.apply_type != 'Item Group' ||
+												selectedOffer.replace_item ||
+												selectedOffer.replace_cheapest_item
+											"
+											class="config-autocomplete"
+											prepend-inner-icon="mdi-package-variant"
+										></v-autocomplete>
+									</div>
+								</div>
 							</div>
 						</v-card-text>
-						<v-card-actions class="pa-4 pt-0">
+						<v-card-actions class="offer-dialog-footer pa-4">
 							<v-btn
 								color="info"
 								variant="text"
 								size="small"
 								@click="showDebugInfo = !showDebugInfo"
+								class="debug-toggle-btn"
 							>
+								<v-icon size="small" class="mr-1">mdi-bug</v-icon>
 								{{ showDebugInfo ? 'Ẩn Debug' : 'Hiện Debug' }}
 							</v-btn>
 							<v-spacer></v-spacer>
-							<v-btn color="primary" variant="tonal" @click="closeOfferDialog">
+							<v-btn
+								color="primary"
+								variant="tonal"
+								@click="closeOfferDialog"
+								class="close-btn"
+							>
+								<v-icon size="small" class="mr-1">mdi-check</v-icon>
 								{{ __("Đóng") }}
 							</v-btn>
 						</v-card-actions>
@@ -133,7 +154,10 @@
 							<v-card-text v-if="showDebugInfo" class="pa-4 pt-0">
 								<v-divider class="mb-3"></v-divider>
 								<div class="debug-info">
-									<h4 class="text-h6 mb-2">🔍 Debug Information</h4>
+									<h4 class="text-h6 mb-2 d-flex align-center">
+										<v-icon color="orange" size="small" class="mr-2">mdi-bug</v-icon>
+										Debug Information
+									</h4>
 									<pre class="debug-json">{{ JSON.stringify(selectedOffer, null, 2) }}</pre>
 								</div>
 							</v-card-text>
@@ -772,75 +796,193 @@ export default {
 }
 
 /* Dialog styling */
+.offer-detail-dialog {
+	border-radius: 16px;
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15) !important;
+	overflow: hidden;
+}
+
+.offer-dialog-header {
+	background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+	border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.offer-dialog-title {
+	font-size: 20px;
+	font-weight: 600;
+	color: #2c3e50;
+	line-height: 1.3;
+}
+
+.offer-dialog-body {
+	padding: 24px;
+	background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
+	min-height: 300px;
+}
+
 .offer-dialog-content {
-	line-height: 1.7;
-	font-size: 14px;
+	line-height: 1.8;
+	font-size: 15px;
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .offer-dialog-content div {
-	margin-bottom: 12px;
-	padding: 10px 14px;
-	border-radius: 8px;
-	background: rgba(33, 150, 243, 0.05);
-	border-left: 4px solid #2196f3;
-	transition: all 0.2s ease;
+	margin-bottom: 16px;
+	padding: 14px 18px;
+	border-radius: 12px;
+	background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.9) 100%);
+	border: 1px solid rgba(33, 150, 243, 0.1);
+	border-left: 5px solid #2196f3;
+	transition: all 0.3s ease;
+	box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08);
+	position: relative;
 }
 
 .offer-dialog-content div:hover {
-	background: rgba(33, 150, 243, 0.08);
-	transform: translateX(2px);
+	background: linear-gradient(135deg, rgba(33, 150, 243, 0.08) 0%, rgba(25, 118, 210, 0.08) 100%);
+	transform: translateX(4px) translateY(-2px);
+	box-shadow: 0 6px 20px rgba(33, 150, 243, 0.15);
+}
+
+.offer-dialog-content div:before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+	border-radius: 12px;
+	pointer-events: none;
 }
 
 .offer-config-section {
-	padding: 16px;
-	background: rgba(33, 150, 243, 0.05);
-	border-radius: 8px;
-	border: 1px solid rgba(33, 150, 243, 0.1);
+	margin-top: 24px;
+}
+
+.config-section-wrapper {
+	padding: 20px;
+	background: linear-gradient(135deg, rgba(33, 150, 243, 0.05) 0%, rgba(25, 118, 210, 0.05) 100%);
+	border-radius: 12px;
+	border: 2px solid rgba(33, 150, 243, 0.1);
+	box-shadow: 0 4px 16px rgba(33, 150, 243, 0.08);
 }
 
 .config-title {
-	font-size: 15px;
+	font-size: 16px;
 	font-weight: 600;
 	color: #1976d2;
-	margin-bottom: 12px;
+	margin-bottom: 16px;
 	display: flex;
 	align-items: center;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-.config-title:before {
-	content: "⚙️";
-	margin-right: 8px;
+.config-autocomplete {
+	background: rgba(255, 255, 255, 0.8);
+	border-radius: 8px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.offer-dialog-footer {
+	background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+	border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.debug-toggle-btn {
+	border-radius: 20px;
+	font-weight: 500;
+	text-transform: none;
+}
+
+.close-btn {
+	border-radius: 20px;
+	font-weight: 500;
+	text-transform: none;
+	box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
 }
 
 /* Dialog animation */
 :deep(.v-dialog__content) {
-	animation: dialogFadeIn 0.3s ease-out;
+	animation: dialogFadeIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes dialogFadeIn {
 	from {
 		opacity: 0;
-		transform: scale(0.95) translateY(-20px);
+		transform: scale(0.9) translateY(-30px) rotate(-2deg);
 	}
 	to {
 		opacity: 1;
-		transform: scale(1) translateY(0);
+		transform: scale(1) translateY(0) rotate(0deg);
 	}
 }
 
-/* Dark theme support */
-:deep(.v-theme--dark) .offer-dialog-content div {
-	background: rgba(25, 118, 210, 0.1);
-	border-left-color: #90caf9;
+/* Enhanced hover effects */
+:deep(.v-btn:hover) {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	transition: all 0.2s ease;
 }
 
-:deep(.v-theme--dark) .offer-config-section {
-	background: rgba(25, 118, 210, 0.1);
+/* Dark theme support */
+:deep(.v-theme--dark) .offer-detail-dialog {
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3) !important;
+}
+
+:deep(.v-theme--dark) .offer-dialog-header {
+	background: linear-gradient(135deg, #1e1e1e 0%, #2a2a2a 100%);
+	border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+:deep(.v-theme--dark) .offer-dialog-title {
+	color: #ffffff;
+}
+
+:deep(.v-theme--dark) .offer-dialog-body {
+	background: linear-gradient(135deg, rgba(33, 33, 33, 0.98) 0%, rgba(45, 45, 45, 0.98) 100%);
+}
+
+:deep(.v-theme--dark) .offer-dialog-content div {
+	background: linear-gradient(135deg, rgba(66, 66, 66, 0.9) 0%, rgba(55, 55, 55, 0.9) 100%);
 	border-color: rgba(144, 202, 249, 0.2);
+	border-left-color: #90caf9;
+	box-shadow: 0 2px 8px rgba(144, 202, 249, 0.1);
+}
+
+:deep(.v-theme--dark) .offer-dialog-content div:hover {
+	background: linear-gradient(135deg, rgba(144, 202, 249, 0.1) 0%, rgba(25, 118, 210, 0.1) 100%);
+	box-shadow: 0 6px 20px rgba(144, 202, 249, 0.2);
+}
+
+:deep(.v-theme--dark) .config-section-wrapper {
+	background: linear-gradient(135deg, rgba(25, 118, 210, 0.1) 0%, rgba(33, 150, 243, 0.1) 100%);
+	border-color: rgba(144, 202, 249, 0.2);
+	box-shadow: 0 4px 16px rgba(144, 202, 249, 0.1);
 }
 
 :deep(.v-theme--dark) .config-title {
 	color: #90caf9;
+}
+
+:deep(.v-theme--dark) .config-autocomplete {
+	background: rgba(66, 66, 66, 0.8);
+}
+
+:deep(.v-theme--dark) .offer-dialog-footer {
+	background: linear-gradient(135deg, #1e1e1e 0%, #2a2a2a 100%);
+	border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+:deep(.v-theme--dark) .debug-toggle-btn {
+	background: rgba(255, 152, 0, 0.1);
+	color: #ffb74d;
+}
+
+:deep(.v-theme--dark) .close-btn {
+	background: rgba(33, 150, 243, 0.1);
+	color: #90caf9;
+	box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
 }
 
 /* Responsive cho mobile */
