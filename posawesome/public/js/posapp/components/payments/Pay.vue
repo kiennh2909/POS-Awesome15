@@ -12,92 +12,130 @@
 				>
 					<Customer></Customer>
 					<v-divider></v-divider>
-					<div>
-						<v-row>
-							<v-col md="7" cols="12">
-								<p>
-									<strong>{{ __("Invoices") }}</strong>
-									<span v-if="total_outstanding_amount" class="text-primary"
-										>{{ __("- Total Outstanding") }} :
-										{{ currencySymbol(pos_profile.currency) }}
-										{{ formatCurrency(total_outstanding_amount) }}</span
-									>
-								</p>
-							</v-col>
-							<v-col md="5" cols="12">
-								<p v-if="total_selected_invoices" class="golden--text text-end">
-									<span>{{ __("Total Selected :") }}</span>
-									<span>
-										{{ currencySymbol(pos_profile.currency) }}
-										{{ formatCurrency(total_selected_invoices) }}
-									</span>
-									<small>({{ selected_invoices.length }} invoice(s))</small>
-								</p>
+					<!-- Outstanding Invoices Header -->
+					<div class="section-header mb-4">
+						<v-row dense class="align-center">
+							<v-col cols="12">
+								<div class="d-flex align-center justify-space-between">
+									<div class="d-flex align-center">
+										<v-icon size="24" color="primary" class="mr-3">mdi-file-document-multiple</v-icon>
+										<div>
+											<h3 class="text-h6 font-weight-bold text-primary mb-1">
+												{{ __("Outstanding Invoices") }}
+											</h3>
+											<p class="text-body-2 text-grey-darken-1 mb-0">
+												{{ __("Select invoices to process payment") }}
+											</p>
+										</div>
+									</div>
+									<div class="text-right">
+										<div v-if="total_outstanding_amount" class="text-h6 font-weight-bold text-success mb-1">
+											{{ currencySymbol(pos_profile.currency) }}
+											{{ formatCurrency(total_outstanding_amount) }}
+										</div>
+										<div class="text-caption text-grey">{{ __("Total Outstanding") }}</div>
+									</div>
+								</div>
 							</v-col>
 						</v-row>
-						<v-row align="center" no-gutters class="mb-1">
-							<v-col md="4" cols="12">
-								<v-select
+						<v-row v-if="total_selected_invoices" dense class="mt-2">
+							<v-col cols="12">
+								<v-alert
+									type="info"
+									variant="tonal"
 									density="compact"
-									variant="outlined"
-									hide-details
-									clearable
-									class="dark-field"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									v-model="pos_profile_search"
-									:items="pos_profiles_list"
-									label="Select POS Profile"
-								></v-select>
-							</v-col>
-							<v-col> </v-col>
-							<v-col md="3" cols="12">
-								<v-btn block color="warning" theme="dark" @click="get_outstanding_invoices">{{
-									__("Search")
-								}}</v-btn>
-							</v-col>
-							<v-col md="3" cols="12">
-								<v-btn
-									v-if="selected_invoices.length"
-									block
-									color="error"
-									theme="dark"
-									@click="
-										selected_invoices = [];
-										$forceUpdate();
-									"
-									>{{ __("Clear") }}</v-btn
+									class="mb-0"
 								>
+									<div class="d-flex align-center justify-space-between">
+										<span class="font-weight-medium">
+											{{ __("Selected for Payment:") }}
+											{{ selected_invoices.length }} {{ __("invoice(s)") }}
+										</span>
+										<span class="font-weight-bold text-primary">
+											{{ currencySymbol(pos_profile.currency) }}
+											{{ formatCurrency(total_selected_invoices) }}
+										</span>
+									</div>
+								</v-alert>
 							</v-col>
 						</v-row>
-						<v-data-table
-							:headers="invoices_headers"
-							:items="outstanding_invoices"
-							item-key="voucher_no"
-							class="elevation-1 mt-0"
-							:loading="invoices_loading"
-							@click:row="selectSingleInvoice"
-							:item-class="isSelected"
-						>
-							<template v-slot:item.actions="{ item }">
-								<v-checkbox
-									:model-value="isInvoiceSelected(item)"
-									color="primary"
-									@click.stop="toggleInvoiceSelection(item)"
-								>
-								</v-checkbox>
-							</template>
-							<template v-slot:item.invoice_amount="{ item }">
-								{{ currencySymbol(item.currency) }}
-								{{ formatCurrency(item.invoice_amount) }}
-							</template>
-							<template v-slot:item.outstanding_amount="{ item }">
-								<span class="text-primary"
-									>{{ currencySymbol(item?.currency || pos_profile.currency) }}
-									{{ formatCurrency(item?.outstanding_amount || 0) }}</span
-								>
-							</template>
-						</v-data-table>
-						<v-divider></v-divider>
+					</div>
+
+					<!-- Search and Action Buttons -->
+					<v-row align="center" no-gutters class="mb-3">
+						<v-col md="4" cols="12">
+							<v-select
+								density="compact"
+								variant="outlined"
+								hide-details
+								clearable
+								class="dark-field"
+								:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+								v-model="pos_profile_search"
+								:items="pos_profiles_list"
+								label="Select POS Profile"
+							></v-select>
+						</v-col>
+						<v-col></v-col>
+						<v-col md="3" cols="12" class="pr-1">
+							<v-btn
+								block
+								color="warning"
+								theme="dark"
+								size="default"
+								prepend-icon="mdi-magnify"
+								class="standard-btn"
+								@click="get_outstanding_invoices"
+							>
+								{{ __("Search") }}
+							</v-btn>
+						</v-col>
+						<v-col md="3" cols="12" class="pl-1">
+							<v-btn
+								v-if="selected_invoices.length"
+								block
+								color="error"
+								theme="dark"
+								size="default"
+								prepend-icon="mdi-close-circle"
+								class="standard-btn"
+								@click="selected_invoices = []; $forceUpdate();"
+							>
+								{{ __("Clear") }}
+							</v-btn>
+						</v-col>
+					</v-row>
+
+					<!-- Outstanding Invoices Table -->
+					<v-data-table
+						:headers="invoices_headers"
+						:items="outstanding_invoices"
+						item-key="voucher_no"
+						class="elevation-1 mt-0"
+						:loading="invoices_loading"
+						@click:row="selectSingleInvoice"
+						:item-class="isSelected"
+					>
+						<template v-slot:item.actions="{ item }">
+							<v-checkbox
+								:model-value="isInvoiceSelected(item)"
+								color="primary"
+								@click.stop="toggleInvoiceSelection(item)"
+							>
+							</v-checkbox>
+						</template>
+						<template v-slot:item.invoice_amount="{ item }">
+							{{ currencySymbol(item.currency) }}
+							{{ formatCurrency(item.invoice_amount) }}
+						</template>
+						<template v-slot:item.outstanding_amount="{ item }">
+							<span class="text-primary">
+								{{ currencySymbol(item?.currency || pos_profile.currency) }}
+								{{ formatCurrency(item?.outstanding_amount || 0) }}
+							</span>
+						</template>
+					</v-data-table>
+					<v-divider></v-divider>
 					</div>
 					<div v-if="pos_profile.posa_allow_reconcile_payments && unallocated_payments.length">
 						<v-row>
@@ -1128,4 +1166,61 @@ input[total_selected_invoices] { text-align: right; }
 input[total_selected_mpesa_payments] { text-align: right; }
 
 .selected-row { background-color: #e3f2fd !important; }
+
+/* Standard Button Styling - matching InvoiceSummary.vue */
+.standard-btn {
+    min-height: 60px !important;
+    font-size: 1.3rem !important;
+    font-weight: 600 !important;
+    text-transform: none;
+    margin: 1px;
+    border-radius: 6px;
+    padding: 6px 8px !important;
+    white-space: nowrap !important;
+}
+
+/* Section Header Styling */
+.section-header {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme for section header */
+:deep(.dark-theme) .section-header,
+:deep(.v-theme--dark) .section-header {
+    background: linear-gradient(135deg, #1e1e1e 0%, #2a2a2a 100%);
+    border-color: #333;
+    color: #fff;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .standard-btn {
+        min-height: 50px !important;
+        font-size: 1.1rem !important;
+        padding: 4px 6px !important;
+    }
+
+    .section-header {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .standard-btn {
+        min-height: 48px !important;
+        font-size: 1.0rem !important;
+        padding: 4px 6px !important;
+    }
+
+    .section-header {
+        padding: 8px;
+        margin-bottom: 8px;
+    }
+}
 </style>
