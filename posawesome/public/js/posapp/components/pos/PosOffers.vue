@@ -193,7 +193,7 @@ export default {
 					this.eventBus.emit("show_message", {
 						title: __("🎉 New Offer Available!"),
 						message: offerDetails,
-						color: "primary",
+						color: "warning",
 						offer: newOffer,
 						timeout: 3000
 					});
@@ -246,14 +246,14 @@ export default {
 		formatOfferDetails(offer) {
 			let details = `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;">`;
 
-			// Tên chương trình
-			details += `<div style="font-size: 16px; font-weight: bold; color: #2e7d32; margin-bottom: 8px;">`;
+			// Tên chương trình - màu đen, font to
+			details += `<div style="font-size: 18px; font-weight: bold; color: #000000; margin-bottom: 8px;">`;
 			details += `📋 ${offer.title || offer.name}`;
 			details += `</div>`;
 
-			// Thời gian khuyến mại
+			// Thời gian khuyến mại - màu đen
 			if (offer.valid_from || offer.valid_upto) {
-				details += `<div style="font-size: 14px; color: #666; margin-bottom: 6px;">`;
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
 				details += `📅 Thời gian: `;
 				if (offer.valid_from) {
 					details += `${this.formatDate(offer.valid_from)}`;
@@ -264,22 +264,22 @@ export default {
 				details += `</div>`;
 			}
 
-			// Loại khuyến mại
-			details += `<div style="font-size: 14px; color: #1976d2; margin-bottom: 6px;">`;
+			// Loại khuyến mại - màu đen
+			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
 			details += `🏷️ Loại: ${this.getOfferTypeText(offer.offer)}`;
 			details += `</div>`;
 
-			// Nội dung khuyến mại
+			// Nội dung khuyến mại - màu đen
 			if (offer.description) {
-				details += `<div style="font-size: 14px; color: #333; margin-bottom: 6px;">`;
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
 				details += `📝 ${offer.description}`;
 				details += `</div>`;
 			}
 
-			// Chi tiết giảm giá
+			// Chi tiết giảm giá - màu đen, in đậm
 			const discountDetails = this.getDiscountDetails(offer);
 			if (discountDetails) {
-				details += `<div style="font-size: 14px; color: #d32f2f; font-weight: bold;">`;
+				details += `<div style="font-size: 14px; color: #000000; font-weight: bold;">`;
 				details += `💰 ${discountDetails}`;
 				details += `</div>`;
 			}

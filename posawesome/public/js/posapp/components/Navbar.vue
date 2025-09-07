@@ -90,8 +90,8 @@
 			location="top right"
 			class="offer-notification-snackbar"
 			:style="{
-				'--snackbar-bg': snackColor === 'primary' ? '#1976d2' : '#4caf50',
-				'--snackbar-text': '#ffffff',
+				'--snackbar-bg': snackColor === 'warning' ? '#ffeb3b' : (snackColor === 'primary' ? '#1976d2' : '#4caf50'),
+				'--snackbar-text': snackColor === 'warning' ? '#000000' : '#ffffff',
 				'--snackbar-shadow': '0 4px 12px rgba(0,0,0,0.15)'
 			}"
 		>
@@ -106,7 +106,7 @@
 			></div>
 			<template v-slot:actions>
 				<v-btn
-					color="white"
+					:color="snackColor === 'warning' ? 'black' : 'white'"
 					variant="text"
 					@click="snack = false"
 					class="offer-close-btn"
@@ -419,6 +419,7 @@ nav {
 .offer-notification-content {
 	padding: 4px 0;
 	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+	color: var(--snackbar-text) !important;
 }
 
 .offer-notification-content div {
@@ -429,11 +430,29 @@ nav {
 	margin-bottom: 0;
 }
 
+/* Tiêu đề to hơn */
+.offer-notification-content div:first-child {
+	font-size: 18px !important;
+	font-weight: bold !important;
+	margin-bottom: 8px !important;
+}
+
+/* Các dòng thông tin khác */
+.offer-notification-content div:not(:first-child) {
+	font-size: 14px !important;
+	font-weight: 500 !important;
+}
+
 .offer-close-btn {
 	font-weight: 600 !important;
 	text-transform: none !important;
 	min-width: auto !important;
 	padding: 4px 8px !important;
+}
+
+/* Nút Close màu đen khi background vàng */
+.offer-notification-snackbar :deep(.v-btn--variant-text) {
+	color: var(--snackbar-text) !important;
 }
 
 /* Ensure good contrast for readability */
