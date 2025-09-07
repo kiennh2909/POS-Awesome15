@@ -98,7 +98,7 @@
 							prepend-icon="mdi-content-save"
 							@click="$emit('save-and-clear')"
 							class="summary-btn"
-							title="Ctrl+S - Save and Clear"
+							title="Ctrl+<u>S</u> - Save and Clear"
 						>
 							{{ __("SAVE") }}
 						</v-btn>
@@ -112,7 +112,7 @@
 							prepend-icon="mdi-file-document"
 							@click="$emit('load-drafts')"
 							class="white-text-btn summary-btn"
-							title="Ctrl+L - Load Drafts"
+							title="Ctrl+<u>L</u> - Load Drafts"
 						>
 							{{ __("LOAD") }}
 						</v-btn>
@@ -126,7 +126,7 @@
 							prepend-icon="mdi-close-circle"
 							@click="$emit('cancel-sale')"
 							class="summary-btn"
-							title="Ctrl+C - Cancel Sale"
+							title="Ctrl+<u>C</u> - Cancel Sale"
 						>
 							{{ __("CANCEL") }}
 						</v-btn>
@@ -148,12 +148,12 @@
 							color="primary"
 							theme="dark"
 							size="small"
-							prepend-icon="mdi-printer"
+							prepend-icon="mdi-file-document-outline"
 							@click="$emit('print-draft')"
 							class="summary-btn"
-							title="Ctrl+D - Print Draft"
+							title="Ctrl+<u>D</u> - Draft Invoice"
 						>
-							{{ __("PRINT") }}
+							{{ __("DRAFT") }}
 						</v-btn>
 					</v-col>
 					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? 3 : 4" class="button-col pa-1">
@@ -165,7 +165,7 @@
 							prepend-icon="mdi-credit-card"
 							@click="$emit('show-payment')"
 							class="summary-btn pay-btn"
-							title="Ctrl+P - Payment"
+							title="Ctrl+<u>P</u> - Payment"
 						>
 							{{ __("PAY") }}
 						</v-btn>
@@ -179,7 +179,7 @@
 							prepend-icon="mdi-backup-restore"
 							@click="$emit('open-returns')"
 							class="summary-btn"
-							title="Ctrl+R - Return"
+							title="Ctrl+<u>R</u> - Return"
 						>
 							{{ __("RETURN") }}
 						</v-btn>
@@ -313,7 +313,7 @@ export default {
 						event.preventDefault();
 						if (this.pos_profile.posa_allow_print_draft_invoices) {
 							this.$emit('print-draft');
-							console.log('Shortcut: Ctrl+D - Print Draft');
+							console.log('Shortcut: Ctrl+D - Draft Invoice');
 						}
 					}
 					break;

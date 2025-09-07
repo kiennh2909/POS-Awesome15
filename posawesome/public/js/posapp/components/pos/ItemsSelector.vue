@@ -273,9 +273,9 @@
 		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
 			<v-row no-gutters align="center" justify="space-between" class="dynamic-spacing-sm">
 				<v-col cols="3" class="dynamic-margin-xs">
-					<v-btn-toggle v-model="items_view" color="primary" group density="compact" rounded>
-						<v-btn size="small" value="list">{{ __("List") }}</v-btn>
-						<v-btn size="small" value="card">{{ __("Card") }}</v-btn>
+					<v-btn-toggle v-model="items_view" color="primary" group density="compact" rounded class="summary-btn">
+						<v-btn size="small" value="list" min-height="60">{{ __("List") }}</v-btn>
+						<v-btn size="small" value="card" min-height="60">{{ __("Card") }}</v-btn>
 					</v-btn-toggle>
 				</v-col>
 				<v-col cols="12" class="mb-2" v-if="pos_profile.posa_enable_price_list_dropdown">
@@ -295,22 +295,22 @@
 						variant="flat"
 						size="default"
 						@click="show_offers"
-						class="mode-btn-compact action-btn-large"
-						height="56"
+						class="summary-btn"
+						min-height="60"
 					>
 						<v-icon left size="default">mdi-gift</v-icon>
-						<span class="mode-btn-text">{{ offersCount }} {{ __("Offers") }}</span>
+						<span>{{ offersCount }} {{ __("Offers") }}</span>
 					</v-btn>
 					<v-btn
 						color="primary"
 						variant="flat"
 						size="default"
 						@click="show_coupons"
-						class="mode-btn-compact action-btn-large"
-						height="56"
+						class="summary-btn"
+						min-height="60"
 					>
 						<v-icon left size="default">mdi-ticket-percent</v-icon>
-						<span class="mode-btn-text">{{ couponsCount }} {{ __("Coupons") }}</span>
+						<span>{{ couponsCount }} {{ __("Coupons") }}</span>
 					</v-btn>
 				</v-col>
 			</v-row>
@@ -330,11 +330,11 @@
 							:variant="new_line ? 'flat' : 'outlined'"
 							size="default"
 							@click="new_line = !new_line"
-							class="mode-btn-compact"
-							height="48"
+							class="summary-btn"
+							min-height="60"
 						>
 							<v-icon left size="default">mdi-format-line-spacing</v-icon>
-							<span class="mode-btn-text">{{ __("NLine") }}</span>
+							<span>{{ __("NLine") }}</span>
 						</v-btn>
 					</div>
 
@@ -345,11 +345,11 @@
 							:variant="scan_add_mode ? 'flat' : 'outlined'"
 							size="default"
 							@click="setScanMode(true)"
-							class="mode-btn-compact"
-							height="48"
+							class="summary-btn"
+							min-height="60"
 						>
 							<v-icon left size="default">mdi-plus-circle</v-icon>
-							<span class="mode-btn-text">{{ __("Add Mode") }}</span>
+							<span>{{ __("Add Mode") }}</span>
 						</v-btn>
 					</div>
 
@@ -359,11 +359,11 @@
 							:variant="!scan_add_mode ? 'flat' : 'outlined'"
 							size="default"
 							@click="setScanMode(false)"
-							class="mode-btn-compact"
-							height="48"
+							class="summary-btn"
+							min-height="60"
 						>
 							<v-icon left size="default">mdi-minus-circle</v-icon>
-							<span class="mode-btn-text">{{ __("Remove Mode") }}</span>
+							<span>{{ __("Remove Mode") }}</span>
 						</v-btn>
 					</div>
 				</v-col>
@@ -2426,6 +2426,12 @@ export default {
 		padding: var(--dynamic-sm) !important;
 	}
 
+	/* Button toggle responsive */
+	.v-btn-toggle.summary-btn .v-btn {
+		min-height: 50px !important;
+		font-size: 1.1rem !important;
+	}
+
 	/* Ensure mode buttons stay in one line on mobile */
 	@media (max-width: 768px) {
 		.mode-selection-row .d-flex {
@@ -2526,6 +2532,23 @@ export default {
 	font-size: 0.85rem !important;
 }
 
+/* Standard button styling - compact size */
+.summary-btn {
+    min-height: 60px !important;
+    font-size: 1.3rem !important;
+    font-weight: 600 !important;
+    text-transform: none;
+    margin: 1px;
+    border-radius: 6px;
+    padding: 6px 8px !important;
+    white-space: nowrap !important;
+}
+
+/* ensure long button labels stay within the button */
+.summary-btn :deep(.v-btn__content) {
+	white-space: normal !important;
+}
+
 /* Responsive adjustments for compact buttons */
 @media (max-width: 768px) {
 	.mode-btn-compact {
@@ -2541,6 +2564,11 @@ export default {
 
 	.mode-btn-compact .mode-btn-text {
 		font-size: 0.8rem !important;
+	}
+
+	.summary-btn {
+		min-height: 50px !important;
+		font-size: 1.1rem !important;
 	}
 }
 
@@ -2560,6 +2588,23 @@ export default {
 		width: 100% !important;
 		min-width: unset !important;
 		max-width: 200px !important;
+	}
+
+	/* Button toggle mobile responsive */
+	.v-btn-toggle.summary-btn {
+		width: 100% !important;
+	}
+
+	.v-btn-toggle.summary-btn .v-btn {
+		flex: 1 !important;
+		min-height: 48px !important;
+		font-size: 1.0rem !important;
+	}
+
+	.summary-btn {
+		min-height: 48px !important;
+		font-size: 1.0rem !important;
+		padding: 4px 6px !important;
 	}
 }
 </style>
