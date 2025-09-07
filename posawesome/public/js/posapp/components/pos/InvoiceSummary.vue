@@ -592,7 +592,7 @@ export default {
 .v-input--density-compact .v-field--variant-solo,
 .v-input--density-compact .v-field--variant-solo-filled,
 .v-input--density-compact .v-field--variant-solo-inverted {
-    --v-input-control-height: 60px;
+    --v-input-control-height: 50px;
     --v-field-padding-bottom: 0px;
 }
 
