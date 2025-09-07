@@ -83,10 +83,37 @@
 		/>
 
 		<!-- Snackbar for notifications -->
-		<v-snackbar v-model="snack" :timeout="snackTimeout" :color="snackColor" location="top right">
-			<div v-html="snackText"></div>
+		<v-snackbar
+			v-model="snack"
+			:timeout="snackTimeout"
+			:color="snackColor"
+			location="top right"
+			class="offer-notification-snackbar"
+			:style="{
+				'--snackbar-bg': snackColor === 'primary' ? '#1976d2' : '#4caf50',
+				'--snackbar-text': '#ffffff',
+				'--snackbar-shadow': '0 4px 12px rgba(0,0,0,0.15)'
+			}"
+		>
+			<div
+				v-html="snackText"
+				class="offer-notification-content"
+				:style="{
+					fontSize: '14px',
+					lineHeight: '1.5',
+					fontWeight: '500'
+				}"
+			></div>
 			<template v-slot:actions>
-				<v-btn color="white" variant="text" @click="snack = false">{{ __("Close") }}</v-btn>
+				<v-btn
+					color="white"
+					variant="text"
+					@click="snack = false"
+					class="offer-close-btn"
+					size="small"
+				>
+					{{ __("Close") }}
+				</v-btn>
 			</template>
 		</v-snackbar>
 	</nav>
@@ -373,5 +400,56 @@ nav {
 :deep(.dark-theme) nav,
 :deep(.v-theme--dark) nav {
 	background-color: var(--background) !important;
+}
+
+/* Custom styling for offer notification snackbar */
+.offer-notification-snackbar {
+	border-radius: 8px !important;
+	box-shadow: var(--snackbar-shadow) !important;
+	max-width: 450px !important;
+	min-width: 350px !important;
+}
+
+.offer-notification-snackbar :deep(.v-snackbar__wrapper) {
+	border-radius: 8px !important;
+	background: var(--snackbar-bg) !important;
+	color: var(--snackbar-text) !important;
+}
+
+.offer-notification-content {
+	padding: 4px 0;
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+}
+
+.offer-notification-content div {
+	margin-bottom: 6px;
+}
+
+.offer-notification-content div:last-child {
+	margin-bottom: 0;
+}
+
+.offer-close-btn {
+	font-weight: 600 !important;
+	text-transform: none !important;
+	min-width: auto !important;
+	padding: 4px 8px !important;
+}
+
+/* Ensure good contrast for readability */
+.offer-notification-snackbar :deep(.v-snackbar__content) {
+	padding: 16px 20px !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+	.offer-notification-snackbar {
+		max-width: 90vw !important;
+		min-width: 300px !important;
+	}
+
+	.offer-notification-content {
+		font-size: 13px !important;
+	}
 }
 </style>

@@ -193,7 +193,7 @@ export default {
 					this.eventBus.emit("show_message", {
 						title: __("🎉 New Offer Available!"),
 						message: offerDetails,
-						color: "success",
+						color: "primary",
 						offer: newOffer,
 						timeout: 3000
 					});
