@@ -441,56 +441,29 @@ def get_customer_detailed_info(customer):
     }
 
     # 3. Thông tin Credit
+    # Sử dụng các trường đã tính toán sẵn để tối ưu performance
     credit_info = {
-        "credit_limit": customer_doc.credit_limit or 0,
-        "outstanding_amount": 0,
-        "credit_balance": customer_doc.credit_limit or 0,
-        "payment_terms": customer_doc.payment_terms,
+        "credit_limit": customer_doc.total_credit_limit or 0,
+        "outstanding_amount": customer_doc.total_outstanding_amount or 0,
+        "credit_balance": customer_doc.total_credit_balance or 0,
+        "payment_terms": customer_doc.payment_terms or "",
     }
 
-    # Tính outstanding amount từ invoices
-    outstanding_invoices = frappe.db.sql("""
-        SELECT SUM(outstanding_amount) as total_outstanding
-        FROM `tabSales Invoice`
-        WHERE customer = %s
-        AND docstatus = 1
-        AND outstanding_amount > 0
-    """, (customer_doc.name,), as_dict=True)
-
-    if outstanding_invoices and outstanding_invoices[0].total_outstanding:
-        credit_info["outstanding_amount"] = outstanding_invoices[0].total_outstanding
-        credit_info["credit_balance"] = (customer_doc.credit_limit or 0) - outstanding_invoices[0].total_outstanding
-
     # 4. Thông tin Loyalty Points
+    # Sử dụng các trường đã tính toán sẵn để tối ưu performance
     loyalty_info = {
         "loyalty_program": customer_doc.loyalty_program,
-        "loyalty_points": 0,
-        "loyalty_points_used": 0,
-        "loyalty_points_balance": 0,
+        "loyalty_points": customer_doc.total_loyalty_points or 0,
+        "loyalty_points_used": customer_doc.total_loyalty_points_used or 0,
+        "loyalty_points_balance": customer_doc.total_loyalty_points_balance or 0,
         "conversion_factor": 0,
     }
 
+    # Lấy conversion factor từ Loyalty Program table nếu có
     if customer_doc.loyalty_program:
-        from erpnext.accounts.doctype.loyalty_program.loyalty_program import get_loyalty_program_details_with_points
-        lp_details = get_loyalty_program_details_with_points(
-            customer_doc.name,
-            customer_doc.loyalty_program,
-            silent=True,
-            include_expired_entry=False,
-        )
-        if lp_details:
-            loyalty_info["loyalty_points"] = lp_details.get("loyalty_points", 0)
-            loyalty_info["conversion_factor"] = lp_details.get("conversion_factor", 0)
-            # Tính điểm đã sử dụng (từ loyalty point entries)
-            used_points = frappe.db.sql("""
-                SELECT SUM(loyalty_points) as used
-                FROM `tabLoyalty Point Entry`
-                WHERE customer = %s
-                AND loyalty_points < 0
-            """, (customer_doc.name,), as_dict=True)
-            if used_points and used_points[0].used:
-                loyalty_info["loyalty_points_used"] = abs(used_points[0].used)
-                loyalty_info["loyalty_points_balance"] = loyalty_info["loyalty_points"] - loyalty_info["loyalty_points_used"]
+        conversion_factor = frappe.db.get_value("Loyalty Program", customer_doc.loyalty_program, "conversion_factor")
+        if conversion_factor:
+            loyalty_info["conversion_factor"] = conversion_factor
 
     # 5. Công nợ về khách hàng
     debt_info = {
