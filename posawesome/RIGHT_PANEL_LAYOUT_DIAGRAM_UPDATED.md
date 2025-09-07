@@ -23,14 +23,9 @@
 │  │  │  │ (Read Only)    │ │                     │    │ │    │
 │  │  │  └─────────────────┘ └─────────────────────┘    │ │ │    │
 │  │  │                                                 │ │    │
-│  │  │  ┌─────────────────────────────────────────┐    │ │    │
-│  │  │  │ 👑 Type: VIP                           │    │ │    │
-│  │  │  │ 💳 Sum Credit: $5,000.00               │    │ │    │
-│  │  │  │ 💰 Credit Balance: $1,250.00           │    │ │    │
-│  │  │  │ ⭐ Sum Loyalty: 2,500 pts               │    │ │    │
-│  │  │  │ 🎁 Loyalty Balance: 850 pts             │    │ │    │
-│  │  │  │ 📊 Tổng công nợ: $3,750.00              │    │ │    │
-│  │  │  └─────────────────────────────────────────┘    │ │ │    │
+│  │  │  ┌─────────────────────────────────────────────────────────────────────┐ │    │
+│  │  │  │ 👑 VIP │ 💳 $5K │ 💰 $1.25K │ ⭐ 2.5K pts │ 🎁 850 pts │ 📊 $3.75K │ │    │
+│  │  │  └─────────────────────────────────────────────────────────────────────┘ │    │
 │  │  └─────────────────────────────────────────────────┘ │    │
 │  │                                                         │    │
 │  │                    [5px spacing]                        │    │
@@ -66,17 +61,11 @@
 │  │                                 │    │
 │  │  ┌─────────────────────────┐ │    │
 │  │  │ 📅 DATE & 💰 BALANCE     │ │    │
-│  │  │ 📅 Date & Time:         │ │    │
-│  │  │ 2024-01-15 14:30:25     │ │    │
-│  │  │ (Read Only)             │ │    │
-│  │  │ 💰 Balance: $1,250.00   │ │    │
+│  │  │ 📅 2024-01-15 14:30:25   │ │    │
+│  │  │ 💰 $1,250.00             │ │    │
 │  │  │                         │ │    │
-│  │  │ 👑 Type: VIP             │ │    │
-│  │  │ 💳 Sum Credit: $5,000    │ │    │
-│  │  │ 💰 Credit Bal: $1,250    │ │    │
-│  │  │ ⭐ Sum Loy: 2,500 pts    │ │    │
-│  │  │ 🎁 Loy Bal: 850 pts      │ │    │
-│  │  │ 📊 Tổng nợ: $3,750       │ │    │
+│  │  │ 👑 VIP │ 💳 $5K │ 💰 $1.25K │ │    │
+│  │  │ ⭐ 2.5K pts │ 🎁 850 pts │ 📊 $3.75K │ │    │
 │  │  └─────────────────────────┘ │    │
 │  │                                 │    │
 │  │  ┌─────────────────────────┐ │    │
@@ -110,32 +99,56 @@
 
 ## 🎨 **CSS Implementation**
 
-### **VIP Information Section:**
+### **VIP Information Section (Horizontal Layout):**
 ```css
 .vip-info-section {
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   border: 1px solid #dee2e6;
   border-radius: 8px;
-  padding: 12px;
+  padding: 8px 12px;
   margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .vip-info-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 4px 0;
-  font-size: 13px;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
-.vip-info-item .label {
-  font-weight: 600;
-  color: #495057;
+.vip-info-item .icon {
+  font-size: 14px;
 }
 
 .vip-info-item .value {
   font-weight: 700;
   color: #007bff;
+  min-width: 60px;
+  text-align: right;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .vip-info-section {
+    padding: 6px 8px;
+    gap: 8px;
+  }
+
+  .vip-info-item {
+    font-size: 11px;
+    gap: 2px;
+  }
+
+  .vip-info-item .value {
+    min-width: 50px;
+  }
 }
 ```
 
@@ -165,7 +178,7 @@
 
 ## 🔧 **Technical Implementation**
 
-### **Vue.js Template:**
+### **Vue.js Template (Horizontal Layout):**
 ```vue
 <!-- Enhanced Date & Balance Section -->
 <div class="date-balance-section">
@@ -178,31 +191,31 @@
     </div>
   </div>
 
-  <!-- VIP Information Section -->
+  <!-- VIP Information Section (Horizontal) -->
   <div class="vip-info-section">
     <div class="vip-info-item">
-      <span class="label">👑 Type:</span>
+      <span class="icon">👑</span>
       <span class="value">{{ customer_type || 'Regular' }}</span>
     </div>
     <div class="vip-info-item">
-      <span class="label">💳 Sum Credit:</span>
-      <span class="value">{{ formatCurrency(sum_credit) }}</span>
+      <span class="icon">💳</span>
+      <span class="value">{{ formatCurrency(sum_credit, 0) }}</span>
     </div>
     <div class="vip-info-item">
-      <span class="label">💰 Credit Balance:</span>
-      <span class="value">{{ formatCurrency(credit_balance) }}</span>
+      <span class="icon">💰</span>
+      <span class="value">{{ formatCurrency(credit_balance, 0) }}</span>
     </div>
     <div class="vip-info-item">
-      <span class="label">⭐ Sum Loyalty:</span>
-      <span class="value">{{ sum_loyalty }} pts</span>
+      <span class="icon">⭐</span>
+      <span class="value">{{ formatNumber(sum_loyalty, 0) }} pts</span>
     </div>
     <div class="vip-info-item">
-      <span class="label">🎁 Loyalty Balance:</span>
-      <span class="value">{{ loyalty_balance }} pts</span>
+      <span class="icon">🎁</span>
+      <span class="value">{{ formatNumber(loyalty_balance, 0) }} pts</span>
     </div>
     <div class="vip-info-item">
-      <span class="label">📊 Tổng công nợ:</span>
-      <span class="value">{{ formatCurrency(total_debt) }}</span>
+      <span class="icon">📊</span>
+      <span class="value">{{ formatCurrency(total_debt, 0) }}</span>
     </div>
   </div>
 </div>
@@ -292,43 +305,88 @@ async loadCustomerVipInfo() {
 }
 ```
 
-### **3. CSS Styling:**
+### **3. CSS Styling (Horizontal Layout):**
 ```css
-/* VIP Information Styling */
+/* VIP Information Styling - Horizontal */
 .vip-info-section {
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   border: 1px solid #dee2e6;
   border-radius: 8px;
-  padding: 12px;
+  padding: 8px 12px;
   margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .vip-info-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 4px 0;
-  font-size: 13px;
-  border-bottom: 1px solid #f1f3f4;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
-.vip-info-item:last-child {
-  border-bottom: none;
-}
-
-.vip-info-item .label {
-  font-weight: 600;
-  color: #495057;
+.vip-info-item .icon {
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
 }
 
 .vip-info-item .value {
   font-weight: 700;
   color: #007bff;
+  min-width: 60px;
+  text-align: right;
+  font-family: 'Roboto Mono', monospace;
 }
 
 .vip-info-item .value.negative {
   color: #dc3545;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .vip-info-section {
+    padding: 6px 8px;
+    gap: 8px;
+  }
+
+  .vip-info-item {
+    font-size: 11px;
+    gap: 2px;
+  }
+
+  .vip-info-item .value {
+    min-width: 50px;
+  }
+
+  .vip-info-item .icon {
+    font-size: 13px;
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Tablet adjustments */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .vip-info-section {
+    gap: 10px;
+  }
+
+  .vip-info-item {
+    font-size: 11px;
+  }
+
+  .vip-info-item .value {
+    min-width: 55px;
+  }
 }
 ```
 
