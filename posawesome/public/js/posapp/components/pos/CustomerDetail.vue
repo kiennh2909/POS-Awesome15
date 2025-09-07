@@ -55,9 +55,17 @@
 								hide-default-footer
 							>
 								<template v-slot:item.section="{ item }">
-									<div class="section-header">
-										<v-icon :color="item.iconColor" size="20" class="mr-2">{{ item.icon }}</v-icon>
-										<span class="font-weight-medium">{{ item.section }}</span>
+									<div class="section-header" :class="{ 'section-title': item.section && !item.section.startsWith('   ') }">
+										<v-icon
+											v-if="item.icon"
+											:color="item.iconColor"
+											size="20"
+											class="mr-2"
+										>{{ item.icon }}</v-icon>
+										<span
+											class="section-text"
+											:class="{ 'section-title-text': item.section && !item.section.startsWith('   ') }"
+										>{{ item.section }}</span>
 									</div>
 								</template>
 
@@ -128,18 +136,18 @@ export default {
 
 			const items = [];
 
-			// Basic Information Section
+			// ===== THÔNG TIN CƠ BẢN =====
 			items.push({
-				section: __("Basic Information"),
-				field: __("Customer ID"),
+				section: "📋 " + __("THÔNG TIN CƠ BẢN"),
+				field: "📋 " + __("ID Customer"),
 				value: this.customerData.basic_info.customer_id,
-				icon: "mdi-account",
+				icon: "mdi-identifier",
 				iconColor: "primary",
-				valueClass: "",
+				valueClass: "font-weight-bold text-primary",
 			});
 			items.push({
 				section: "",
-				field: __("Customer Name"),
+				field: "👤 " + __("Customer Name"),
 				value: this.customerData.basic_info.customer_name,
 				icon: "",
 				iconColor: "",
@@ -147,7 +155,7 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Mobile No"),
+				field: "📞 " + __("Mobile No"),
 				value: this.customerData.basic_info.mobile_no || __("Not provided"),
 				icon: "",
 				iconColor: "",
@@ -155,7 +163,7 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Email"),
+				field: "✉️ " + __("Email"),
 				value: this.customerData.basic_info.email_id || __("Not provided"),
 				icon: "",
 				iconColor: "",
@@ -163,7 +171,7 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Tax ID"),
+				field: "🏷️ " + __("Tax ID"),
 				value: this.customerData.basic_info.tax_id || __("Not provided"),
 				icon: "",
 				iconColor: "",
@@ -171,17 +179,17 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("City"),
+				field: "🏙️ " + __("City"),
 				value: this.customerData.basic_info.city || __("Not provided"),
 				icon: "",
 				iconColor: "",
 				valueClass: "",
 			});
 
-			// Classification Section
+			// ===== THÔNG TIN PHÂN LOẠI =====
 			items.push({
-				section: __("Classification"),
-				field: __("Customer Type"),
+				section: "🏷️ " + __("THÔNG TIN PHÂN LOẠI"),
+				field: "👥 " + __("Customer Type"),
 				value: this.customerData.classification_info.customer_type || __("Not specified"),
 				icon: "mdi-tag",
 				iconColor: "info",
@@ -189,7 +197,7 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Customer Group"),
+				field: "👨‍👩‍👧‍👦 " + __("Customer Group"),
 				value: this.customerData.classification_info.customer_group || __("Not specified"),
 				icon: "",
 				iconColor: "",
@@ -197,7 +205,7 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Territory"),
+				field: "🗺️ " + __("Territory"),
 				value: this.customerData.classification_info.territory || __("Not specified"),
 				icon: "",
 				iconColor: "",
@@ -205,25 +213,75 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Gender"),
+				field: "⚧️ " + __("Gender"),
 				value: this.customerData.classification_info.gender || __("Not specified"),
 				icon: "",
 				iconColor: "",
 				valueClass: "",
 			});
 
-			// Credit Information Section
+			// ===== THÔNG TIN VỀ CREDIT =====
 			items.push({
-				section: __("Credit Information"),
-				field: __("Credit Limit"),
-				value: this.formatCurrency(this.customerData.credit_info.credit_limit),
+				section: "💳 " + __("THÔNG TIN VỀ CREDIT"),
+				field: "📊 " + __("Calculated Results"),
+				value: "",
 				icon: "mdi-credit-card",
 				iconColor: "success",
-				valueClass: "text-success font-weight-medium",
+				valueClass: "font-weight-bold",
 			});
 			items.push({
 				section: "",
-				field: __("Outstanding Amount"),
+				field: "💰 " + __("Total Credit Limit"),
+				value: this.formatCurrency(this.customerData.credit_info.credit_limit),
+				icon: "",
+				iconColor: "",
+				valueClass: "text-success font-weight-bold",
+			});
+			items.push({
+				section: "",
+				field: "📈 " + __("Total Outstanding"),
+				value: this.formatCurrency(this.customerData.credit_info.outstanding_amount),
+				icon: "",
+				iconColor: "",
+				valueClass: "text-warning font-weight-medium",
+			});
+			items.push({
+				section: "",
+				field: "💳 " + __("Credit Balance"),
+				value: this.formatCurrency(this.customerData.credit_info.credit_balance),
+				icon: "",
+				iconColor: "",
+				valueClass: this.customerData.credit_info.credit_balance >= 0 ? "text-success font-weight-bold" : "text-error font-weight-bold",
+			});
+			items.push({
+				section: "",
+				field: "🏢 " + __("Credit Companies"),
+				value: this.customerData.credit_info.credit_companies || __("No companies"),
+				icon: "",
+				iconColor: "",
+				valueClass: "",
+			});
+
+			// Credit Verification Section
+			items.push({
+				section: "",
+				field: "🔍 " + __("Verification"),
+				value: "",
+				icon: "",
+				iconColor: "",
+				valueClass: "font-weight-medium text-info",
+			});
+			items.push({
+				section: "",
+				field: "📋 " + __("Credit Limit Entries"),
+				value: this.customerData.credit_info.credit_limit_entries || __("No entries"),
+				icon: "",
+				iconColor: "",
+				valueClass: "text-caption",
+			});
+			items.push({
+				section: "",
+				field: "📈 " + __("Direct Outstanding"),
 				value: this.formatCurrency(this.customerData.credit_info.outstanding_amount),
 				icon: "",
 				iconColor: "",
@@ -231,25 +289,25 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Credit Balance"),
-				value: this.formatCurrency(this.customerData.credit_info.credit_balance),
+				field: "💳 " + __("Expected Balance"),
+				value: this.formatCurrency(this.customerData.credit_info.expected_balance),
 				icon: "",
 				iconColor: "",
-				valueClass: this.customerData.credit_info.credit_balance >= 0 ? "text-success" : "text-error",
+				valueClass: "text-success",
 			});
 			items.push({
 				section: "",
-				field: __("Payment Terms"),
+				field: "⏰ " + __("Payment Terms"),
 				value: this.customerData.credit_info.payment_terms || __("Not specified"),
 				icon: "",
 				iconColor: "",
 				valueClass: "",
 			});
 
-			// Loyalty Points Section
+			// ===== THÔNG TIN LOYALTY =====
 			items.push({
-				section: __("Loyalty Points"),
-				field: __("Loyalty Program"),
+				section: "⭐ " + __("THÔNG TIN LOYALTY"),
+				field: "🎯 " + __("Loyalty Program"),
 				value: this.customerData.loyalty_info.loyalty_program || __("Not enrolled"),
 				icon: "mdi-star",
 				iconColor: "purple",
@@ -257,15 +315,15 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Total Points"),
+				field: "🔢 " + __("Total Points"),
 				value: this.formatNumber(this.customerData.loyalty_info.loyalty_points),
 				icon: "",
 				iconColor: "",
-				valueClass: "text-primary font-weight-medium",
+				valueClass: "text-primary font-weight-bold",
 			});
 			items.push({
 				section: "",
-				field: __("Points Used"),
+				field: "📉 " + __("Points Used"),
 				value: this.formatNumber(this.customerData.loyalty_info.loyalty_points_used),
 				icon: "",
 				iconColor: "",
@@ -273,59 +331,59 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Points Balance"),
+				field: "💰 " + __("Points Balance"),
 				value: this.formatNumber(this.customerData.loyalty_info.loyalty_points_balance),
 				icon: "",
 				iconColor: "",
-				valueClass: "text-success font-weight-medium",
+				valueClass: "text-success font-weight-bold",
 			});
 
-			// Debt Information Section
+			// ===== THÔNG TIN CÔNG NỢ =====
 			items.push({
-				section: __("Debt Information"),
-				field: __("Total Debt Generated"),
+				section: "💰 " + __("THÔNG TIN CÔNG NỢ"),
+				field: "📊 " + __("Total Debt Generated"),
 				value: this.formatCurrency(this.customerData.debt_info.total_debt_generated),
 				icon: "mdi-cash-multiple",
 				iconColor: "orange",
-				valueClass: "text-error",
+				valueClass: "text-error font-weight-medium",
 			});
 			items.push({
 				section: "",
-				field: __("Total Paid"),
+				field: "✅ " + __("Total Paid"),
 				value: this.formatCurrency(this.customerData.debt_info.total_paid),
-				icon: "",
-				iconColor: "",
-				valueClass: "text-success",
-			});
-			items.push({
-				section: "",
-				field: __("Remaining Debt"),
-				value: this.formatCurrency(this.customerData.debt_info.remaining_debt),
-				icon: "",
-				iconColor: "",
-				valueClass: this.customerData.debt_info.remaining_debt > 0 ? "text-error font-weight-medium" : "text-success",
-			});
-
-			// Statistics Section
-			items.push({
-				section: __("Customer Statistics"),
-				field: __("Total Orders"),
-				value: this.formatNumber(this.customerData.statistics_info.total_orders),
-				icon: "mdi-chart-bar",
-				iconColor: "teal",
-				valueClass: "text-primary font-weight-medium",
-			});
-			items.push({
-				section: "",
-				field: __("Total GMV"),
-				value: this.formatCurrency(this.customerData.statistics_info.total_gmv),
 				icon: "",
 				iconColor: "",
 				valueClass: "text-success font-weight-medium",
 			});
 			items.push({
 				section: "",
-				field: __("Paid Orders"),
+				field: "⚠️ " + __("Remaining Debt"),
+				value: this.formatCurrency(this.customerData.debt_info.remaining_debt),
+				icon: "",
+				iconColor: "",
+				valueClass: this.customerData.debt_info.remaining_debt > 0 ? "text-error font-weight-bold" : "text-success font-weight-bold",
+			});
+
+			// ===== THỐNG KÊ KHÁCH HÀNG =====
+			items.push({
+				section: "📈 " + __("THỐNG KÊ KHÁCH HÀNG"),
+				field: "🛒 " + __("Total Orders"),
+				value: this.formatNumber(this.customerData.statistics_info.total_orders),
+				icon: "mdi-chart-bar",
+				iconColor: "teal",
+				valueClass: "text-primary font-weight-bold",
+			});
+			items.push({
+				section: "",
+				field: "💵 " + __("Total GMV"),
+				value: this.formatCurrency(this.customerData.statistics_info.total_gmv),
+				icon: "",
+				iconColor: "",
+				valueClass: "text-success font-weight-bold",
+			});
+			items.push({
+				section: "",
+				field: "✅ " + __("Paid Orders"),
 				value: this.formatNumber(this.customerData.statistics_info.total_paid_orders),
 				icon: "",
 				iconColor: "",
@@ -333,7 +391,7 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Return Orders"),
+				field: "↩️ " + __("Return Orders"),
 				value: this.formatNumber(this.customerData.statistics_info.total_return_orders),
 				icon: "",
 				iconColor: "",
@@ -341,7 +399,7 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Avg Order Value"),
+				field: "📊 " + __("Avg Order Value"),
 				value: this.formatCurrency(this.customerData.statistics_info.avg_order_value),
 				icon: "",
 				iconColor: "",
@@ -349,7 +407,7 @@ export default {
 			});
 			items.push({
 				section: "",
-				field: __("Last Order Date"),
+				field: "📅 " + __("Last Order Date"),
 				value: this.customerData.statistics_info.last_order_date || __("No orders yet"),
 				icon: "",
 				iconColor: "",
@@ -633,6 +691,29 @@ export default {
 	margin-right: 8px;
 }
 
+.section-title {
+	background: linear-gradient(135deg, #f5f5f5 0%, #e8f5e8 100%);
+	border-left: 4px solid #4caf50;
+	padding: 8px 12px;
+	margin: 4px 0;
+	border-radius: 0 8px 8px 0;
+	font-weight: 700;
+	font-size: 1rem;
+}
+
+.section-title-text {
+	color: #2e7d32;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	font-size: 0.9rem;
+}
+
+.section-text {
+	font-size: 0.85rem;
+	color: #666;
+}
+
 .value-cell {
 	font-size: 0.9rem;
 	line-height: 1.4;
@@ -640,6 +721,11 @@ export default {
 
 .value-cell.font-weight-medium {
 	font-weight: 600;
+}
+
+.value-cell.font-weight-bold {
+	font-weight: 700;
+	font-size: 1rem;
 }
 
 /* Footer */
@@ -735,6 +821,22 @@ export default {
 :deep(.dark-theme) .section-header,
 :deep(.v-theme--dark) .section-header {
 	color: #fff !important;
+}
+
+:deep(.dark-theme) .section-title,
+:deep(.v-theme--dark) .section-title {
+	background: linear-gradient(135deg, #333 0%, #2e7d32 100%);
+	border-left-color: #4caf50;
+}
+
+:deep(.dark-theme) .section-title-text,
+:deep(.v-theme--dark) .section-title-text {
+	color: #81c784 !important;
+}
+
+:deep(.dark-theme) .section-text,
+:deep(.v-theme--dark) .section-text {
+	color: #ccc !important;
 }
 
 :deep(.dark-theme) .dialog-actions-container,
