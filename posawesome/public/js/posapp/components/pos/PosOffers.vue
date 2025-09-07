@@ -20,8 +20,38 @@
 					class="elevation-1"
 					:items-per-page="itemsPerPage"
 					hide-default-footer
-					@click:row="openOfferDialog"
 				>
+					<template v-slot:item.name="{ item }">
+						<div class="d-flex align-center">
+							<span
+								class="offer-name-link mr-2"
+								@click.stop="openOfferDialog(item)"
+								title="Click để xem chi tiết"
+							>
+								{{ item.name }}
+							</span>
+							<v-btn
+								icon="mdi-information-outline"
+								size="small"
+								variant="text"
+								color="info"
+								@click.stop="openOfferDialog(item)"
+								title="Xem chi tiết"
+							></v-btn>
+						</div>
+					</template>
+					<template v-slot:item.actions="{ item }">
+						<v-btn
+							icon="mdi-eye"
+							size="small"
+							variant="text"
+							color="primary"
+							@click.stop="openOfferDialog(item)"
+							title="Xem chi tiết offer"
+						>
+							<v-icon size="small">mdi-eye</v-icon>
+						</v-btn>
+					</template>
 					<template v-slot:item.offer_applied="{ item }">
 						<v-checkbox-btn
 							@click.stop="toggleOfferApplied(item)"
@@ -150,6 +180,7 @@ export default {
 			{ title: __("Apply On"), value: "apply_on", align: "start" },
 			{ title: __("Offer"), value: "offer", align: "start" },
 			{ title: __("Applied"), value: "offer_applied", align: "start" },
+			{ title: __("Actions"), value: "actions", align: "center", sortable: false },
 		],
 	}),
 
@@ -313,12 +344,33 @@ export default {
 		openOfferDialog(item) {
 			// Mở dialog hiển thị chi tiết offer
 			console.log('Opening offer dialog for item:', item);
-			this.selectedOffer = { ...item };
-			console.log('Selected offer:', this.selectedOffer);
+			console.log('Item keys:', Object.keys(item));
+			console.log('Item values:', Object.values(item));
+
+			// Kiểm tra xem item có phải là offer thực tế không
+			if (!item || typeof item !== 'object') {
+				console.error('Invalid item passed to openOfferDialog:', item);
+				return;
+			}
+
+			// Copy object an toàn hơn
+			try {
+				this.selectedOffer = JSON.parse(JSON.stringify(item));
+				console.log('Selected offer after copy:', this.selectedOffer);
+				console.log('Selected offer type:', typeof this.selectedOffer);
+				console.log('Selected offer keys:', Object.keys(this.selectedOffer));
+			} catch (error) {
+				console.error('Error copying offer object:', error);
+				this.selectedOffer = item; // Fallback
+			}
 
 			// Test formatOfferDetails
-			const formattedDetails = this.formatOfferDetails(this.selectedOffer);
-			console.log('Formatted details:', formattedDetails);
+			try {
+				const formattedDetails = this.formatOfferDetails(this.selectedOffer);
+				console.log('Formatted details:', formattedDetails);
+			} catch (error) {
+				console.error('Error formatting offer details:', error);
+			}
 
 			this.offerDialog = true;
 		},
@@ -821,6 +873,32 @@ export default {
 /* Prevent checkbox click from triggering row click */
 :deep(.v-checkbox-btn) {
 	pointer-events: auto;
+}
+
+/* Offer name link styling */
+.offer-name-link {
+	cursor: pointer;
+	color: #1976d2;
+	text-decoration: none;
+	transition: all 0.2s ease;
+	font-weight: 500;
+}
+
+.offer-name-link:hover {
+	color: #0d47a1;
+	text-decoration: underline;
+	background-color: rgba(25, 118, 210, 0.1);
+	padding: 2px 4px;
+	border-radius: 4px;
+}
+
+:deep(.v-theme--dark) .offer-name-link {
+	color: #90caf9;
+}
+
+:deep(.v-theme--dark) .offer-name-link:hover {
+	color: #42a5f5;
+	background-color: rgba(144, 202, 249, 0.1);
 }
 
 /* Debug information styling */
