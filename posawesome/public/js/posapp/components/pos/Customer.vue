@@ -1,97 +1,103 @@
 <template>
-	<!-- ? Disable dropdown if either readonly or loadingCustomers is true -->
+	<!-- Customer Input Section -->
 	<div class="customer-input-wrapper">
-		<v-autocomplete
-			ref="customerDropdown"
-			class="customer-autocomplete sleek-field"
-			density="compact"
-			clearable
-			variant="solo"
-			color="primary"
-			:label="frappe._('Customer')"
-			v-model="internalCustomer"
-			:items="filteredCustomers"
-			item-title="customer_name"
-			item-value="name"
-			:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-			:no-data-text="__('Customers not found')"
-			hide-details
-			:customFilter="() => true"
-			:disabled="readonly || loadingCustomers"
-			:menu-props="{ closeOnContentClick: false }"
-			@update:menu="onCustomerMenuToggle"
-			@update:modelValue="onCustomerChange"
-			@update:search="onCustomerSearch"
-			@keydown.enter="handleEnter"
-			:virtual-scroll="true"
-			:virtual-scroll-item-height="48"
-		>
-			<!-- Edit icon (left) -->
-			<template #prepend-inner>
-				<v-tooltip text="Edit customer">
-					<template #activator="{ props }">
-						<v-icon
-							v-bind="props"
-							class="icon-button"
-							@mousedown.prevent.stop
-							@click.stop="edit_customer"
-						>
-							mdi-account-edit
-						</v-icon>
-					</template>
-				</v-tooltip>
-			</template>
+		<div class="customer-input-row">
+			<v-autocomplete
+				ref="customerDropdown"
+				class="customer-autocomplete sleek-field"
+				density="compact"
+				clearable
+				variant="solo"
+				color="primary"
+				:label="frappe._('Customer')"
+				v-model="internalCustomer"
+				:items="filteredCustomers"
+				item-title="customer_name"
+				item-value="name"
+				:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+				:no-data-text="__('Customers not found')"
+				hide-details
+				:customFilter="() => true"
+				:disabled="readonly || loadingCustomers"
+				:menu-props="{ closeOnContentClick: false }"
+				@update:menu="onCustomerMenuToggle"
+				@update:modelValue="onCustomerChange"
+				@update:search="onCustomerSearch"
+				@keydown.enter="handleEnter"
+				:virtual-scroll="true"
+				:virtual-scroll-item-height="48"
+			>
+				<!-- Edit icon (left) -->
+				<template #prepend-inner>
+					<v-tooltip text="Edit customer">
+						<template #activator="{ props }">
+							<v-icon
+								v-bind="props"
+								class="icon-button"
+								@mousedown.prevent.stop
+								@click.stop="edit_customer"
+							>
+								mdi-account-edit
+							</v-icon>
+						</template>
+					</v-tooltip>
+				</template>
 
-			<!-- Add icon (right) -->
-			<template #append-inner>
-				<v-tooltip text="Add new customer">
-					<template #activator="{ props }">
-						<v-icon
-							v-bind="props"
-							class="icon-button"
-							@mousedown.prevent.stop
-							@click.stop="new_customer"
-						>
-							mdi-plus
-						</v-icon>
-					</template>
-				</v-tooltip>
-			</template>
+				<!-- Add icon (right) -->
+				<template #append-inner>
+					<v-tooltip text="Add new customer">
+						<template #activator="{ props }">
+							<v-icon
+								v-bind="props"
+								class="icon-button"
+								@mousedown.prevent.stop
+								@click.stop="new_customer"
+							>
+								mdi-plus
+							</v-icon>
+						</template>
+					</v-tooltip>
+				</template>
 
-			<!-- Dropdown display -->
-			<template #item="{ props, item }">
-				<v-list-item v-bind="props">
-					<template #append>
-						<v-btn
-							icon
-							size="small"
-							variant="text"
-							@click.stop="viewCustomerDetails(item.raw.name)"
-						>
-							<v-icon size="16">mdi-eye</v-icon>
-							<v-tooltip activator="parent" location="top">
-								{{ __("View Customer Details") }}
-							</v-tooltip>
-						</v-btn>
-					</template>
-					<v-list-item-subtitle v-if="item.raw.customer_name !== item.raw.name">
-						<div v-html="`ID: ${item.raw.name}`"></div>
-					</v-list-item-subtitle>
-					<v-list-item-subtitle v-if="item.raw.tax_id">
-						<div v-html="`TAX ID: ${item.raw.tax_id}`"></div>
-					</v-list-item-subtitle>
-					<v-list-item-subtitle v-if="item.raw.email_id">
-						<div v-html="`Email: ${item.raw.email_id}`"></div>
-					</v-list-item-subtitle>
-					<v-list-item-subtitle v-if="item.raw.mobile_no">
-						<div v-html="`Mobile No: ${item.raw.mobile_no}`"></div>
-					</v-list-item-subtitle>
-					<v-list-item-subtitle v-if="item.raw.primary_address">
-						<div v-html="`Primary Address: ${item.raw.primary_address}`"></div>
-					</v-list-item-subtitle>
-				</v-list-item>
-			</template>
-		</v-autocomplete>
+				<!-- Dropdown display -->
+				<template #item="{ props, item }">
+					<v-list-item v-bind="props">
+						<v-list-item-subtitle v-if="item.raw.customer_name !== item.raw.name">
+							<div v-html="`ID: ${item.raw.name}`"></div>
+						</v-list-item-subtitle>
+						<v-list-item-subtitle v-if="item.raw.tax_id">
+							<div v-html="`TAX ID: ${item.raw.tax_id}`"></div>
+						</v-list-item-subtitle>
+						<v-list-item-subtitle v-if="item.raw.email_id">
+							<div v-html="`Email: ${item.raw.email_id}`"></div>
+						</v-list-item-subtitle>
+						<v-list-item-subtitle v-if="item.raw.mobile_no">
+							<div v-html="`Mobile No: ${item.raw.mobile_no}`"></div>
+						</v-list-item-subtitle>
+						<v-list-item-subtitle v-if="item.raw.primary_address">
+							<div v-html="`Primary Address: ${item.raw.primary_address}`"></div>
+						</v-list-item-subtitle>
+					</v-list-item>
+				</template>
+			</v-autocomplete>
+
+			<!-- View Details Button (moved outside dropdown) -->
+			<v-btn
+				v-if="customer"
+				icon
+				size="default"
+				variant="outlined"
+				color="primary"
+				@click="viewCustomerDetails(customer)"
+				class="view-details-btn"
+				:disabled="readonly || loadingCustomers"
+			>
+				<v-icon size="20">mdi-eye</v-icon>
+				<v-tooltip activator="parent" location="top">
+					{{ __("View Customer Details") }}
+				</v-tooltip>
+			</v-btn>
+		</div>
 
 		<!-- Update customer modal -->
 		<div class="mt-4">
@@ -117,6 +123,13 @@
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
+}
+
+.customer-input-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
 }
 
 .customer-autocomplete {
@@ -173,6 +186,42 @@
 .icon-button:hover {
 	opacity: 1;
 	color: var(--v-theme-primary);
+}
+
+.view-details-btn {
+	min-width: 48px !important;
+	height: 48px !important;
+	border-radius: 12px !important;
+	transition: all 0.2s ease;
+	flex-shrink: 0;
+}
+
+.view-details-btn:hover {
+	transform: scale(1.05);
+	box-shadow: 0 4px 12px rgba(25, 118, 210, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+	.customer-input-wrapper {
+		padding-right: 1rem;
+	}
+
+	.customer-input-row {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 8px;
+	}
+
+	.customer-autocomplete {
+		flex: 1;
+	}
+
+	.view-details-btn {
+		align-self: flex-end;
+		min-width: 44px !important;
+		height: 44px !important;
+	}
 }
 </style>
 
