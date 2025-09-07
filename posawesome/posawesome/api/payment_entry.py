@@ -150,11 +150,19 @@ def set_paid_amount_and_received_amount(
 @frappe.whitelist()
 def get_outstanding_invoices(customer=None, company=None, currency=None, pos_profile=None):
 	try:
-		party_account = get_party_account("Customer", customer, company)
+		frappe.logger().info(f"[OUTSTANDING_INVOICES] Starting fetch for customer: {customer}, company: {company}, currency: {currency}, pos_profile: {pos_profile}")
 
-		frappe.logger().debug(
-			f"Fetching outstanding invoices for customer: {customer}, party_account: {party_account}"
-		)
+		# Validate required parameters
+		if not customer:
+			frappe.logger().warning("[OUTSTANDING_INVOICES] No customer provided")
+			return []
+
+		if not company:
+			frappe.logger().warning("[OUTSTANDING_INVOICES] No company provided")
+			return []
+
+		party_account = get_party_account("Customer", customer, company)
+		frappe.logger().debug(f"[OUTSTANDING_INVOICES] Party account for customer {customer}: {party_account}")
 
 		# Build filters
 		filters = {
@@ -167,9 +175,13 @@ def get_outstanding_invoices(customer=None, company=None, currency=None, pos_pro
 
 		if currency:
 			filters["currency"] = currency
+			frappe.logger().debug(f"[OUTSTANDING_INVOICES] Filtering by currency: {currency}")
 
 		if pos_profile:
 			filters["pos_profile"] = pos_profile
+			frappe.logger().debug(f"[OUTSTANDING_INVOICES] Filtering by POS profile: {pos_profile}")
+
+		frappe.logger().debug(f"[OUTSTANDING_INVOICES] Final filters: {filters}")
 
 		# Get all outstanding invoices directly from Sales Invoice
 		outstanding_invoices = frappe.get_all(
@@ -189,19 +201,21 @@ def get_outstanding_invoices(customer=None, company=None, currency=None, pos_pro
 			order_by="posting_date desc",
 		)
 
+		frappe.logger().info(f"[OUTSTANDING_INVOICES] Found {len(outstanding_invoices)} outstanding invoices")
+
 		# Ensure all amounts are properly formatted
-		for invoice in outstanding_invoices:
+		for i, invoice in enumerate(outstanding_invoices):
 			invoice.outstanding_amount = flt(invoice.outstanding_amount)
 			invoice.invoice_amount = flt(invoice.invoice_amount)
+			if i < 3:  # Log first 3 invoices for debugging
+				frappe.logger().debug(f"[OUTSTANDING_INVOICES] Invoice {i+1}: {invoice}")
 
-		frappe.logger().debug(f"Found {len(outstanding_invoices)} outstanding invoices")
-		frappe.logger().debug(
-			f"First invoice data: {outstanding_invoices[0] if outstanding_invoices else 'No invoices'}"
-		)
-
+		frappe.logger().info(f"[OUTSTANDING_INVOICES] Successfully processed {len(outstanding_invoices)} invoices")
 		return outstanding_invoices
+
 	except Exception as e:
-		frappe.logger().error(f"Error in get_outstanding_invoices: {str(e)}")
+		frappe.logger().error(f"[OUTSTANDING_INVOICES] Error in get_outstanding_invoices: {str(e)}")
+		frappe.logger().error(f"[OUTSTANDING_INVOICES] Stack trace: {frappe.get_traceback()}")
 		return []
 
 

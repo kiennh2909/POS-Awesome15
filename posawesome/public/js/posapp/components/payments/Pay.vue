@@ -92,6 +92,20 @@
 								{{ __("Search") }}
 							</v-btn>
 						</v-col>
+						<v-col md="2" cols="12" class="pl-1">
+							<v-btn
+								block
+								color="info"
+								theme="dark"
+								size="default"
+								prepend-icon="mdi-refresh"
+								class="standard-btn"
+								@click="refreshOutstandingInvoices()"
+								:disabled="invoices_loading"
+							>
+								{{ __("Refresh") }}
+							</v-btn>
+						</v-col>
 						<v-col md="3" cols="12" class="pl-1">
 							<v-btn
 								v-if="selected_invoices.length"
@@ -727,31 +741,102 @@ export default {
 			}
 		},
 		get_outstanding_invoices() {
+			console.log("[DEBUG] get_outstanding_invoices called");
 			this.invoices_loading = true;
 			this.selected_invoices = [];
 
+			// Log current state
+			console.log("[DEBUG] Current state:", {
+				customer_name: this.customer_name,
+				company: this.company,
+				pos_profile: this.pos_profile,
+				pos_profile_currency: this.pos_profile?.currency,
+				pos_profile_search: this.pos_profile_search,
+				isOffline: isOffline()
+			});
+
 			if (isOffline()) {
+				console.log("[DEBUG] System is offline, skipping outstanding invoices fetch");
 				this.outstanding_invoices = [];
 				this.invoices_loading = false;
 				return;
 			}
 
+			// Validate required parameters
+			if (!this.customer_name) {
+				console.warn("[DEBUG] No customer selected, cannot fetch outstanding invoices");
+				this.outstanding_invoices = [];
+				this.invoices_loading = false;
+				return;
+			}
+
+			if (!this.company) {
+				console.warn("[DEBUG] No company set, cannot fetch outstanding invoices");
+				this.outstanding_invoices = [];
+				this.invoices_loading = false;
+				return;
+			}
+
+			if (!this.pos_profile?.currency) {
+				console.warn("[DEBUG] No currency set in POS profile, cannot fetch outstanding invoices");
+				this.outstanding_invoices = [];
+				this.invoices_loading = false;
+				return;
+			}
+
+			const apiParams = {
+				customer: this.customer_name,
+				company: this.company,
+				currency: this.pos_profile.currency,
+				pos_profile: this.pos_profile_search || null,
+			};
+
+			console.log("[DEBUG] Calling API with params:", apiParams);
+
 			return frappe
-				.call("posawesome.posawesome.api.payment_entry.get_outstanding_invoices", {
-					customer: this.customer_name,
-					company: this.company,
-					currency: this.pos_profile.currency,
-					pos_profile: this.pos_profile_search || null,
-				})
+				.call("posawesome.posawesome.api.payment_entry.get_outstanding_invoices", apiParams)
 				.then((r) => {
+					console.log("[DEBUG] API response received:", r);
+
 					if (r.message) {
-						this.outstanding_invoices = r.message;
+						console.log("[DEBUG] Setting outstanding_invoices with", Array.isArray(r.message) ? r.message.length : "non-array", "items");
+						this.outstanding_invoices = Array.isArray(r.message) ? r.message : [];
+						console.log("[DEBUG] outstanding_invoices set to:", this.outstanding_invoices);
+					} else {
+						console.warn("[DEBUG] API returned no message");
+						this.outstanding_invoices = [];
 					}
 				})
+				.catch((error) => {
+					console.error("[DEBUG] API call failed:", error);
+					this.outstanding_invoices = [];
+					frappe.msgprint(__("Failed to load outstanding invoices: ") + (error.message || __("Unknown error")));
+				})
 				.finally(() => {
+					console.log("[DEBUG] get_outstanding_invoices completed, setting loading to false");
 					this.invoices_loading = false;
-					this.$nextTick(() => this.$forceUpdate());
+					this.$nextTick(() => {
+						console.log("[DEBUG] Force update triggered");
+						this.$forceUpdate();
+					});
 				});
+		},
+		// Method to manually refresh outstanding invoices
+		refreshOutstandingInvoices() {
+			console.log("[DEBUG] Manual refresh of outstanding invoices requested");
+			if (!this.invoices_loading) {
+				this.get_outstanding_invoices();
+			} else {
+				console.log("[DEBUG] Already loading, skipping refresh");
+			}
+		},
+		// Method to clear and reload data
+		reloadOutstandingInvoices() {
+			console.log("[DEBUG] Force reload of outstanding invoices");
+			this.outstanding_invoices = [];
+			this.selected_invoices = [];
+			this.invoices_loading = false;
+			this.get_outstanding_invoices();
 		},
 		get_unallocated_payments() {
 			if (!this.pos_profile.posa_allow_reconcile_payments) return;
