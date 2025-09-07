@@ -23,6 +23,7 @@
 					class="elevation-1"
 					:items-per-page="itemsPerPage"
 					hide-default-footer
+					@click:row="toggleExpanded"
 				>
 					<template v-slot:item.offer_applied="{ item }">
 						<v-checkbox-btn
@@ -107,6 +108,7 @@ export default {
 			{ title: __("Apply On"), value: "apply_on", align: "start" },
 			{ title: __("Offer"), value: "offer", align: "start" },
 			{ title: __("Applied"), value: "offer_applied", align: "start" },
+			{ title: "", value: "data-table-expand", align: "end" },
 		],
 	}),
 
@@ -246,6 +248,27 @@ export default {
 				(offer) => offer.offer_applied && offer.coupon_based,
 			);
 			this.eventBus.emit("update_pos_coupons", applyedOffers);
+		},
+
+		toggleOfferApplied(item) {
+			// Toggle trạng thái áp dụng offer
+			item.offer_applied = !item.offer_applied;
+			this.handelOffers();
+			this.forceUpdateItem();
+		},
+
+		toggleExpanded(item) {
+			// Toggle expanded state
+			const index = this.expanded.indexOf(item.row_id);
+			if (index > -1) {
+				this.expanded.splice(index, 1);
+			} else {
+				if (this.singleExpand) {
+					this.expanded = [item.row_id];
+				} else {
+					this.expanded.push(item.row_id);
+				}
+			}
 		},
 		formatOfferDetails(offer) {
 			let details = `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;">`;
@@ -569,47 +592,155 @@ export default {
 </script>
 
 <style scoped>
-.offer-expanded-content {
-	padding: 16px;
-	background: rgba(255, 255, 255, 0.95);
+/* Data table styling */
+.elevation-1 {
 	border-radius: 8px;
-	margin: 8px 0;
-	border: 1px solid #e0e0e0;
+	overflow: hidden;
+}
+
+/* Expand icon styling */
+:deep(.v-data-table__td .v-btn--icon) {
+	margin: 0;
+	padding: 0;
+	min-width: 24px;
+	width: 24px;
+	height: 24px;
+}
+
+:deep(.v-data-table__td .v-icon) {
+	font-size: 18px;
+}
+
+/* Expanded content styling */
+.offer-expanded-content {
+	padding: 20px;
+	background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
+	border-radius: 12px;
+	margin: 12px 0;
+	border: 2px solid rgba(33, 150, 243, 0.1);
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+	animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+	from {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 .offer-details-section {
-	margin-bottom: 16px;
+	margin-bottom: 20px;
+	line-height: 1.7;
+}
+
+.offer-details-section div {
+	margin-bottom: 10px;
+	padding: 8px 12px;
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.8);
+	border-left: 3px solid #2196f3;
+	transition: all 0.2s ease;
+}
+
+.offer-details-section div:hover {
+	background: rgba(33, 150, 243, 0.05);
+	transform: translateX(2px);
 }
 
 .offer-config-section {
-	margin-top: 16px;
+	margin-top: 20px;
+	padding: 16px;
+	background: rgba(33, 150, 243, 0.05);
+	border-radius: 8px;
+	border: 1px solid rgba(33, 150, 243, 0.1);
 }
 
 .config-title {
-	font-size: 14px;
+	font-size: 15px;
 	font-weight: 600;
-	color: #666;
-	margin-bottom: 8px;
+	color: #1976d2;
+	margin-bottom: 12px;
+	display: flex;
+	align-items: center;
+}
+
+.config-title:before {
+	content: "⚙️";
+	margin-right: 8px;
 }
 
 .offer-expanded-content .v-divider {
-	margin: 16px 0;
-	border-color: #e0e0e0;
+	margin: 20px 0;
+	border-color: rgba(33, 150, 243, 0.2);
+	border-width: 1px;
+}
+
+/* Dark theme support */
+:deep(.v-theme--dark) .offer-expanded-content {
+	background: linear-gradient(135deg, rgba(33, 33, 33, 0.98) 0%, rgba(45, 45, 45, 0.98) 100%);
+	border-color: rgba(144, 202, 249, 0.2);
+}
+
+:deep(.v-theme--dark) .offer-details-section div {
+	background: rgba(66, 66, 66, 0.8);
+	border-left-color: #90caf9;
+}
+
+:deep(.v-theme--dark) .offer-config-section {
+	background: rgba(25, 118, 210, 0.1);
+	border-color: rgba(144, 202, 249, 0.2);
+}
+
+:deep(.v-theme--dark) .config-title {
+	color: #90caf9;
 }
 
 /* Responsive cho mobile */
 @media (max-width: 600px) {
 	.offer-expanded-content {
-		padding: 12px;
-		margin: 4px 0;
+		padding: 16px;
+		margin: 8px 0;
+		border-radius: 8px;
 	}
 
 	.offer-details-section {
-		margin-bottom: 12px;
+		margin-bottom: 16px;
+	}
+
+	.offer-details-section div {
+		padding: 6px 8px;
+		margin-bottom: 8px;
+		font-size: 14px;
 	}
 
 	.config-title {
-		font-size: 13px;
+		font-size: 14px;
+		margin-bottom: 10px;
 	}
+
+	.offer-config-section {
+		padding: 12px;
+		margin-top: 16px;
+	}
+}
+
+/* Row hover effect */
+:deep(.v-data-table__tr:hover) {
+	background-color: rgba(33, 150, 243, 0.04) !important;
+	transition: background-color 0.2s ease;
+}
+
+:deep(.v-theme--dark .v-data-table__tr:hover) {
+	background-color: rgba(144, 202, 249, 0.08) !important;
+}
+
+/* Expand transition */
+:deep(.v-data-table__expanded-content) {
+	transition: all 0.3s ease;
 }
 </style>
