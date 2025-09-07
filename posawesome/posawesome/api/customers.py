@@ -386,4 +386,187 @@ def get_sales_person_names():
 	except Exception as e:
 		print(f"Error fetching sales persons: {str(e)}")
 		frappe.log_error(f"Error fetching sales persons: {str(e)}", "POS Sales Person Error")
-		return []
+@frappe.whitelist()
+def get_customer_detailed_info(customer):
+    """
+    Lấy thông tin chi tiết về customer bao gồm:
+    1. Thông tin cơ bản (Mã KH, Tên KH, SĐT, Email, Công ty, Tax ID, Thành phố)
+    2. Thông tin phân loại (Loại KH cá nhân/doanh nghiệp, Hạng KH)
+    3. Thông tin về Credit (Tổng Credit Limit, Outstanding Amount, Credit Balance)
+    4. Điểm Loyalty tích lũy (Tổng điểm, Đã sử dụng, Còn lại Balance)
+    5. Công nợ về khách hàng (Tổng phát sinh nợ, Tổng đã thanh toán, Còn Balance nợ)
+    6. Thống kê về khách hàng (Tổng số đơn hàng, Tổng GMV, Tổng đã thanh toán)
+    """
+    customer_doc = frappe.get_doc("Customer", customer)
+
+    # 1. Thông tin cơ bản
+    basic_info = {
+        "customer_id": customer_doc.name,
+        "customer_name": customer_doc.customer_name,
+        "mobile_no": customer_doc.mobile_no,
+        "email_id": customer_doc.email_id,
+        "company": customer_doc.customer_name,  # Có thể lấy từ company field nếu có
+        "tax_id": customer_doc.tax_id,
+        "city": None,  # Sẽ lấy từ địa chỉ
+        "territory": customer_doc.territory,
+        "customer_group": customer_doc.customer_group,
+        "customer_type": customer_doc.customer_type,
+        "gender": customer_doc.gender,
+        "birthday": customer_doc.posa_birthday,
+    }
+
+    # Lấy địa chỉ chính
+    primary_address = frappe.db.sql("""
+        SELECT city, state, country
+        FROM `tabAddress` address
+        INNER JOIN `tabDynamic Link` link ON address.name = link.parent
+        WHERE link.link_doctype = 'Customer'
+        AND link.link_name = %s
+        AND address.is_primary_address = 1
+        AND address.disabled = 0
+        LIMIT 1
+    """, (customer_doc.name,), as_dict=True)
+
+    if primary_address:
+        basic_info["city"] = primary_address[0].city
+        basic_info["state"] = primary_address[0].state
+        basic_info["country"] = primary_address[0].country
+
+    # 2. Thông tin phân loại
+    classification_info = {
+        "customer_type": customer_doc.customer_type,  # Individual/Company
+        "customer_group": customer_doc.customer_group,
+        "territory": customer_doc.territory,
+        "gender": customer_doc.gender,
+    }
+
+    # 3. Thông tin Credit
+    credit_info = {
+        "credit_limit": customer_doc.credit_limit or 0,
+        "outstanding_amount": 0,
+        "credit_balance": customer_doc.credit_limit or 0,
+        "payment_terms": customer_doc.payment_terms,
+    }
+
+    # Tính outstanding amount từ invoices
+    outstanding_invoices = frappe.db.sql("""
+        SELECT SUM(outstanding_amount) as total_outstanding
+        FROM `tabSales Invoice`
+        WHERE customer = %s
+        AND docstatus = 1
+        AND outstanding_amount > 0
+    """, (customer_doc.name,), as_dict=True)
+
+    if outstanding_invoices and outstanding_invoices[0].total_outstanding:
+        credit_info["outstanding_amount"] = outstanding_invoices[0].total_outstanding
+        credit_info["credit_balance"] = (customer_doc.credit_limit or 0) - outstanding_invoices[0].total_outstanding
+
+    # 4. Thông tin Loyalty Points
+    loyalty_info = {
+        "loyalty_program": customer_doc.loyalty_program,
+        "loyalty_points": 0,
+        "loyalty_points_used": 0,
+        "loyalty_points_balance": 0,
+        "conversion_factor": 0,
+    }
+
+    if customer_doc.loyalty_program:
+        from erpnext.accounts.doctype.loyalty_program.loyalty_program import get_loyalty_program_details_with_points
+        lp_details = get_loyalty_program_details_with_points(
+            customer_doc.name,
+            customer_doc.loyalty_program,
+            silent=True,
+            include_expired_entry=False,
+        )
+        if lp_details:
+            loyalty_info["loyalty_points"] = lp_details.get("loyalty_points", 0)
+            loyalty_info["conversion_factor"] = lp_details.get("conversion_factor", 0)
+            # Tính điểm đã sử dụng (từ loyalty point entries)
+            used_points = frappe.db.sql("""
+                SELECT SUM(loyalty_points) as used
+                FROM `tabLoyalty Point Entry`
+                WHERE customer = %s
+                AND loyalty_points < 0
+            """, (customer_doc.name,), as_dict=True)
+            if used_points and used_points[0].used:
+                loyalty_info["loyalty_points_used"] = abs(used_points[0].used)
+                loyalty_info["loyalty_points_balance"] = loyalty_info["loyalty_points"] - loyalty_info["loyalty_points_used"]
+
+    # 5. Công nợ về khách hàng
+    debt_info = {
+        "total_debt_generated": 0,  # Tổng phát sinh nợ
+        "total_paid": 0,           # Tổng đã thanh toán
+        "remaining_debt": 0,       # Còn nợ
+    }
+
+    # Tính tổng phát sinh nợ (từ tất cả invoices)
+    total_invoices = frappe.db.sql("""
+        SELECT SUM(grand_total) as total_generated
+        FROM `tabSales Invoice`
+        WHERE customer = %s
+        AND docstatus = 1
+    """, (customer_doc.name,), as_dict=True)
+
+    if total_invoices and total_invoices[0].total_generated:
+        debt_info["total_debt_generated"] = total_invoices[0].total_generated
+
+    # Tính tổng đã thanh toán (từ payment entries)
+    total_payments = frappe.db.sql("""
+        SELECT SUM(paid_amount) as total_paid
+        FROM `tabPayment Entry`
+        WHERE party_type = 'Customer'
+        AND party = %s
+        AND docstatus = 1
+        AND payment_type = 'Receive'
+    """, (customer_doc.name,), as_dict=True)
+
+    if total_payments and total_payments[0].total_paid:
+        debt_info["total_paid"] = total_payments[0].total_paid
+
+    debt_info["remaining_debt"] = debt_info["total_debt_generated"] - debt_info["total_paid"]
+
+    # 6. Thống kê về khách hàng
+    statistics_info = {
+        "total_orders": 0,         # Tổng số đơn hàng
+        "total_gmv": 0,           # Tổng GMV (Gross Merchandise Value)
+        "total_paid_orders": 0,   # Tổng đơn hàng đã thanh toán
+        "total_return_orders": 0, # Tổng đơn hàng trả lại
+        "avg_order_value": 0,     # Giá trị đơn hàng trung bình
+        "last_order_date": None,  # Ngày đơn hàng cuối cùng
+    }
+
+    # Thống kê đơn hàng
+    order_stats = frappe.db.sql("""
+        SELECT
+            COUNT(*) as total_orders,
+            SUM(grand_total) as total_gmv,
+            SUM(CASE WHEN outstanding_amount = 0 THEN 1 ELSE 0 END) as paid_orders,
+            SUM(CASE WHEN is_return = 1 THEN 1 ELSE 0 END) as return_orders,
+            AVG(grand_total) as avg_order_value,
+            MAX(posting_date) as last_order_date
+        FROM `tabSales Invoice`
+        WHERE customer = %s
+        AND docstatus = 1
+    """, (customer_doc.name,), as_dict=True)
+
+    if order_stats and order_stats[0]:
+        stats = order_stats[0]
+        statistics_info["total_orders"] = stats.total_orders or 0
+        statistics_info["total_gmv"] = stats.total_gmv or 0
+        statistics_info["total_paid_orders"] = stats.paid_orders or 0
+        statistics_info["total_return_orders"] = stats.return_orders or 0
+        statistics_info["avg_order_value"] = stats.avg_order_value or 0
+        statistics_info["last_order_date"] = stats.last_order_date
+
+    # Tổng hợp tất cả thông tin
+    result = {
+        "basic_info": basic_info,
+        "classification_info": classification_info,
+        "credit_info": credit_info,
+        "loyalty_info": loyalty_info,
+        "debt_info": debt_info,
+        "statistics_info": statistics_info,
+        "last_updated": frappe.utils.now(),
+    }
+
+    return result

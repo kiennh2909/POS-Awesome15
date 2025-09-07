@@ -61,6 +61,19 @@
 			<!-- Dropdown display -->
 			<template #item="{ props, item }">
 				<v-list-item v-bind="props">
+					<template #append>
+						<v-btn
+							icon
+							size="small"
+							variant="text"
+							@click.stop="viewCustomerDetails(item.raw.name)"
+						>
+							<v-icon size="16">mdi-eye</v-icon>
+							<v-tooltip activator="parent" location="top">
+								{{ __("View Customer Details") }}
+							</v-tooltip>
+						</v-btn>
+					</template>
 					<v-list-item-subtitle v-if="item.raw.customer_name !== item.raw.name">
 						<div v-html="`ID: ${item.raw.name}`"></div>
 					</v-list-item-subtitle>
@@ -83,6 +96,14 @@
 		<!-- Update customer modal -->
 		<div class="mt-4">
 			<UpdateCustomer />
+		</div>
+
+		<!-- Customer Detail modal -->
+		<div class="mt-4">
+			<CustomerDetail
+				v-model="showCustomerDetail"
+				:customer-id="customer"
+			/>
 		</div>
 	</div>
 </template>
@@ -157,6 +178,7 @@
 
 <script>
 import UpdateCustomer from "./UpdateCustomer.vue";
+import CustomerDetail from "./CustomerDetail.vue";
 import { getCustomerStorage, setCustomerStorage } from "../../../offline/index.js";
 
 export default {
@@ -175,10 +197,12 @@ export default {
 		customer_info: {}, // Used for edit modal
 		loadingCustomers: false, // ? New state to track loading status
 		customerSearch: "", // Search text
+		showCustomerDetail: false, // Show customer detail dialog
 	}),
 
 	components: {
 		UpdateCustomer,
+		CustomerDetail,
 	},
 
 	computed: {
@@ -458,6 +482,11 @@ export default {
 
 		edit_customer() {
 			this.eventBus.emit("open_update_customer", this.customer_info);
+		},
+
+		viewCustomerDetails(customerId) {
+			this.customer = customerId;
+			this.showCustomerDetail = true;
 		},
 	},
 
