@@ -104,7 +104,7 @@
 									<div class="config-section-wrapper">
 										<div class="config-title mb-3">
 											<v-icon color="primary" size="small" class="mr-2">mdi-cog</v-icon>
-											Cấu hình sản phẩm tặng:
+											Sản phẩm tặng:
 										</div>
 										<v-autocomplete
 											v-model="selectedOffer.give_item"
