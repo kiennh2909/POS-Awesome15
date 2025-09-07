@@ -16,59 +16,74 @@
 				<v-data-table
 					:headers="items_headers"
 					:items="pos_offers"
-					:single-expand="singleExpand"
-					v-model:expanded="expanded"
-					show-expand
 					item-key="row_id"
 					class="elevation-1"
 					:items-per-page="itemsPerPage"
 					hide-default-footer
-					@click:row="toggleExpanded"
+					@click:row="openOfferDialog"
 				>
 					<template v-slot:item.offer_applied="{ item }">
 						<v-checkbox-btn
-							@click="toggleOfferApplied(item)"
+							@click.stop="toggleOfferApplied(item)"
 							v-model="item.offer_applied"
 							:disabled="
 								(item.offer == 'Give Product' &&
 									!item.give_item &&
-									(!offer.replace_cheapest_item || !offer.replace_item)) ||
+									(!item.replace_cheapest_item || !item.replace_item)) ||
 								(item.offer == 'Grand Total' &&
 									discount_percentage_offer_name &&
 									discount_percentage_offer_name != item.name)
 							"
 						></v-checkbox-btn>
 					</template>
-					<template v-slot:expanded-item="{ headers, item }">
-						<td :colspan="headers.length">
-							<div class="offer-expanded-content">
-								<!-- Thông tin chi tiết của offer -->
-								<div class="offer-details-section" v-html="formatOfferDetails(item)"></div>
-
-								<!-- Phần cấu hình cho Give Product -->
-								<div v-if="item.offer == 'Give Product'" class="offer-config-section">
-									<v-divider class="my-3"></v-divider>
-									<div class="config-title">Cấu hình sản phẩm tặng:</div>
-									<v-autocomplete
-										v-model="item.give_item"
-										:items="get_give_items(item)"
-										item-title="item_code"
-										variant="outlined"
-										density="compact"
-										color="primary"
-										:label="frappe._('Chọn sản phẩm tặng')"
-										:disabled="
-											item.apply_type != 'Item Group' ||
-											item.replace_item ||
-											item.replace_cheapest_item
-										"
-										class="mt-2"
-									></v-autocomplete>
-								</div>
-							</div>
-						</td>
-					</template>
 				</v-data-table>
+
+				<!-- Dialog hiển thị chi tiết offer -->
+				<v-dialog v-model="offerDialog" max-width="600px" persistent>
+					<v-card v-if="selectedOffer">
+						<v-card-title class="text-h6 pa-4 d-flex align-center">
+							<span class="text-primary">{{ selectedOffer.title || selectedOffer.name }}</span>
+							<v-spacer></v-spacer>
+							<v-btn
+								icon="mdi-close"
+								variant="text"
+								density="compact"
+								@click="closeOfferDialog"
+							></v-btn>
+						</v-card-title>
+						<v-divider></v-divider>
+						<v-card-text class="pa-4">
+							<div class="offer-dialog-content" v-html="formatOfferDetails(selectedOffer)"></div>
+
+							<!-- Phần cấu hình cho Give Product -->
+							<div v-if="selectedOffer.offer == 'Give Product'" class="offer-config-section mt-4">
+								<v-divider class="my-3"></v-divider>
+								<div class="config-title mb-3">⚙️ Cấu hình sản phẩm tặng:</div>
+								<v-autocomplete
+									v-model="selectedOffer.give_item"
+									:items="get_give_items(selectedOffer)"
+									item-title="item_code"
+									variant="outlined"
+									density="compact"
+									color="primary"
+									:label="frappe._('Chọn sản phẩm tặng')"
+									:disabled="
+										selectedOffer.apply_type != 'Item Group' ||
+										selectedOffer.replace_item ||
+										selectedOffer.replace_cheapest_item
+									"
+									class="mb-3"
+								></v-autocomplete>
+							</div>
+						</v-card-text>
+						<v-card-actions class="pa-4 pt-0">
+							<v-spacer></v-spacer>
+							<v-btn color="primary" variant="tonal" @click="closeOfferDialog">
+								{{ __("Đóng") }}
+							</v-btn>
+						</v-card-actions>
+					</v-card>
+				</v-dialog>
 			</div>
 		</v-card>
 
@@ -101,14 +116,13 @@ export default {
 		allItems: [],
 		discount_percentage_offer_name: null,
 		itemsPerPage: 1000,
-		expanded: [],
-		singleExpand: true,
+		offerDialog: false,
+		selectedOffer: null,
 		items_headers: [
 			{ title: __("Name"), value: "name", align: "start" },
 			{ title: __("Apply On"), value: "apply_on", align: "start" },
 			{ title: __("Offer"), value: "offer", align: "start" },
 			{ title: __("Applied"), value: "offer_applied", align: "start" },
-			{ title: "", value: "data-table-expand", align: "end" },
 		],
 	}),
 
@@ -257,18 +271,28 @@ export default {
 			this.forceUpdateItem();
 		},
 
-		toggleExpanded(item) {
-			// Toggle expanded state
-			const index = this.expanded.indexOf(item.row_id);
-			if (index > -1) {
-				this.expanded.splice(index, 1);
-			} else {
-				if (this.singleExpand) {
-					this.expanded = [item.row_id];
-				} else {
-					this.expanded.push(item.row_id);
+		openOfferDialog(item) {
+			// Mở dialog hiển thị chi tiết offer
+			this.selectedOffer = { ...item };
+			this.offerDialog = true;
+		},
+
+		closeOfferDialog() {
+			// Cập nhật lại offer trong danh sách chính nếu có thay đổi
+			if (this.selectedOffer) {
+				const originalOffer = this.pos_offers.find(offer => offer.row_id === this.selectedOffer.row_id);
+				if (originalOffer) {
+					// Cập nhật give_item nếu có thay đổi
+					if (originalOffer.give_item !== this.selectedOffer.give_item) {
+						originalOffer.give_item = this.selectedOffer.give_item;
+						this.handelOffers(); // Tính toán lại offers
+					}
 				}
 			}
+
+			// Đóng dialog
+			this.offerDialog = false;
+			this.selectedOffer = null;
 		},
 		formatOfferDetails(offer) {
 			let details = `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;">`;
@@ -598,62 +622,44 @@ export default {
 	overflow: hidden;
 }
 
-/* Expand icon styling */
-:deep(.v-data-table__td .v-btn--icon) {
-	margin: 0;
-	padding: 0;
-	min-width: 24px;
-	width: 24px;
-	height: 24px;
-}
-
-:deep(.v-data-table__td .v-icon) {
-	font-size: 18px;
-}
-
-/* Expanded content styling */
-.offer-expanded-content {
-	padding: 20px;
-	background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
-	border-radius: 12px;
-	margin: 12px 0;
-	border: 2px solid rgba(33, 150, 243, 0.1);
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-	animation: slideDown 0.3s ease-out;
-}
-
-@keyframes slideDown {
-	from {
-		opacity: 0;
-		transform: translateY(-10px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-.offer-details-section {
-	margin-bottom: 20px;
-	line-height: 1.7;
-}
-
-.offer-details-section div {
-	margin-bottom: 10px;
-	padding: 8px 12px;
-	border-radius: 6px;
-	background: rgba(255, 255, 255, 0.8);
-	border-left: 3px solid #2196f3;
+/* Row hover effect - pointer cursor để chỉ ra có thể click */
+:deep(.v-data-table__tr) {
+	cursor: pointer;
 	transition: all 0.2s ease;
 }
 
-.offer-details-section div:hover {
+:deep(.v-data-table__tr:hover) {
+	background-color: rgba(33, 150, 243, 0.08) !important;
+	transform: translateY(-1px);
+	box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
+}
+
+:deep(.v-theme--dark .v-data-table__tr:hover) {
+	background-color: rgba(144, 202, 249, 0.12) !important;
+	box-shadow: 0 2px 8px rgba(144, 202, 249, 0.2);
+}
+
+/* Dialog styling */
+.offer-dialog-content {
+	line-height: 1.7;
+	font-size: 14px;
+}
+
+.offer-dialog-content div {
+	margin-bottom: 12px;
+	padding: 10px 14px;
+	border-radius: 8px;
 	background: rgba(33, 150, 243, 0.05);
+	border-left: 4px solid #2196f3;
+	transition: all 0.2s ease;
+}
+
+.offer-dialog-content div:hover {
+	background: rgba(33, 150, 243, 0.08);
 	transform: translateX(2px);
 }
 
 .offer-config-section {
-	margin-top: 20px;
 	padding: 16px;
 	background: rgba(33, 150, 243, 0.05);
 	border-radius: 8px;
@@ -674,20 +680,25 @@ export default {
 	margin-right: 8px;
 }
 
-.offer-expanded-content .v-divider {
-	margin: 20px 0;
-	border-color: rgba(33, 150, 243, 0.2);
-	border-width: 1px;
+/* Dialog animation */
+:deep(.v-dialog__content) {
+	animation: dialogFadeIn 0.3s ease-out;
+}
+
+@keyframes dialogFadeIn {
+	from {
+		opacity: 0;
+		transform: scale(0.95) translateY(-20px);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1) translateY(0);
+	}
 }
 
 /* Dark theme support */
-:deep(.v-theme--dark) .offer-expanded-content {
-	background: linear-gradient(135deg, rgba(33, 33, 33, 0.98) 0%, rgba(45, 45, 45, 0.98) 100%);
-	border-color: rgba(144, 202, 249, 0.2);
-}
-
-:deep(.v-theme--dark) .offer-details-section div {
-	background: rgba(66, 66, 66, 0.8);
+:deep(.v-theme--dark) .offer-dialog-content div {
+	background: rgba(25, 118, 210, 0.1);
 	border-left-color: #90caf9;
 }
 
@@ -702,20 +713,19 @@ export default {
 
 /* Responsive cho mobile */
 @media (max-width: 600px) {
-	.offer-expanded-content {
-		padding: 16px;
-		margin: 8px 0;
-		border-radius: 8px;
+	:deep(.v-dialog) {
+		margin: 8px;
+		max-width: calc(100vw - 16px) !important;
 	}
 
-	.offer-details-section {
-		margin-bottom: 16px;
+	.offer-dialog-content {
+		font-size: 13px;
 	}
 
-	.offer-details-section div {
-		padding: 6px 8px;
-		margin-bottom: 8px;
-		font-size: 14px;
+	.offer-dialog-content div {
+		padding: 8px 10px;
+		margin-bottom: 10px;
+		font-size: 13px;
 	}
 
 	.config-title {
@@ -725,22 +735,11 @@ export default {
 
 	.offer-config-section {
 		padding: 12px;
-		margin-top: 16px;
 	}
 }
 
-/* Row hover effect */
-:deep(.v-data-table__tr:hover) {
-	background-color: rgba(33, 150, 243, 0.04) !important;
-	transition: background-color 0.2s ease;
-}
-
-:deep(.v-theme--dark .v-data-table__tr:hover) {
-	background-color: rgba(144, 202, 249, 0.08) !important;
-}
-
-/* Expand transition */
-:deep(.v-data-table__expanded-content) {
-	transition: all 0.3s ease;
+/* Prevent checkbox click from triggering row click */
+:deep(.v-checkbox-btn) {
+	pointer-events: auto;
 }
 </style>
