@@ -84,7 +84,7 @@
 
 		<!-- Snackbar for notifications -->
 		<v-snackbar v-model="snack" :timeout="snackTimeout" :color="snackColor" location="top right">
-			{{ snackText }}
+			<div v-html="snackText"></div>
 			<template v-slot:actions>
 				<v-btn color="white" variant="text" @click="snack = false">{{ __("Close") }}</v-btn>
 			</template>
@@ -300,8 +300,17 @@ export default {
 			this.$emit("update-after-delete");
 		},
 		showMessage(data) {
-			this.snackText = data.title;
+			// Hỗ trợ hiển thị thông báo với HTML content
+			if (data.message) {
+				// Tạo nội dung với HTML
+				this.snackText = data.message;
+			} else {
+				// Fallback cho thông báo đơn giản
+				this.snackText = data.title;
+			}
+
 			this.snackColor = data.color || "success";
+			this.snackTimeout = data.timeout || 3000;
 			this.snack = true;
 		},
 		handleFreeze(data) {

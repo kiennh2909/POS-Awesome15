@@ -188,9 +188,14 @@ export default {
 						newOffer.give_item = this.get_give_items(newOffer)[0].item_code;
 					}
 					this.pos_offers.push(newOffer);
+					// Tạo nội dung thông báo chi tiết với format đẹp
+					const offerDetails = this.formatOfferDetails(newOffer);
 					this.eventBus.emit("show_message", {
-						title: __("New Offer Available"),
-						color: "warning",
+						title: __("🎉 New Offer Available!"),
+						message: offerDetails,
+						color: "success",
+						offer: newOffer,
+						timeout: 3000
 					});
 				}
 			});
@@ -237,6 +242,86 @@ export default {
 				(offer) => offer.offer_applied && offer.coupon_based,
 			);
 			this.eventBus.emit("update_pos_coupons", applyedOffers);
+		},
+		formatOfferDetails(offer) {
+			let details = `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;">`;
+
+			// Tên chương trình
+			details += `<div style="font-size: 16px; font-weight: bold; color: #2e7d32; margin-bottom: 8px;">`;
+			details += `📋 ${offer.title || offer.name}`;
+			details += `</div>`;
+
+			// Thời gian khuyến mại
+			if (offer.valid_from || offer.valid_upto) {
+				details += `<div style="font-size: 14px; color: #666; margin-bottom: 6px;">`;
+				details += `📅 Thời gian: `;
+				if (offer.valid_from) {
+					details += `${this.formatDate(offer.valid_from)}`;
+				}
+				if (offer.valid_upto) {
+					details += ` - ${this.formatDate(offer.valid_upto)}`;
+				}
+				details += `</div>`;
+			}
+
+			// Loại khuyến mại
+			details += `<div style="font-size: 14px; color: #1976d2; margin-bottom: 6px;">`;
+			details += `🏷️ Loại: ${this.getOfferTypeText(offer.offer)}`;
+			details += `</div>`;
+
+			// Nội dung khuyến mại
+			if (offer.description) {
+				details += `<div style="font-size: 14px; color: #333; margin-bottom: 6px;">`;
+				details += `📝 ${offer.description}`;
+				details += `</div>`;
+			}
+
+			// Chi tiết giảm giá
+			const discountDetails = this.getDiscountDetails(offer);
+			if (discountDetails) {
+				details += `<div style="font-size: 14px; color: #d32f2f; font-weight: bold;">`;
+				details += `💰 ${discountDetails}`;
+				details += `</div>`;
+			}
+
+			details += `</div>`;
+			return details;
+		},
+		formatDate(dateStr) {
+			if (!dateStr) return '';
+			try {
+				const date = new Date(dateStr);
+				return date.toLocaleDateString('vi-VN', {
+					day: '2-digit',
+					month: '2-digit',
+					year: 'numeric'
+				});
+			} catch (e) {
+				return dateStr;
+			}
+		},
+		getOfferTypeText(offerType) {
+			const types = {
+				'Item Price': 'Giảm giá sản phẩm',
+				'Give Product': 'Tặng sản phẩm',
+				'Grand Total': 'Giảm giá hóa đơn',
+				'Loyalty Point': 'Tích điểm thưởng'
+			};
+			return types[offerType] || offerType;
+		},
+		getDiscountDetails(offer) {
+			if (!offer.discount_type) return null;
+
+			switch (offer.discount_type) {
+				case 'Rate':
+					return `Giá: ${this.formatCurrency(offer.rate)}`;
+				case 'Discount Percentage':
+					return `Giảm: ${offer.discount_percentage}%`;
+				case 'Discount Amount':
+					return `Giảm: ${this.formatCurrency(offer.discount_amount)}`;
+				default:
+					return null;
+			}
 		},
 	},
 
