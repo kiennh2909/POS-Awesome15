@@ -484,6 +484,11 @@ export default {
 }
 
 /* Custom column width for 4-column layout */
+.v-col-3 {
+    flex: 0 0 24% !important;
+    max-width: 24% !important;
+}
+
 .v-col-4 {
     flex: 0 0 32.3333333333% !important;
     max-width: 33.3333333333% !important;
@@ -620,9 +625,23 @@ export default {
 	box-shadow: 0 -4px 12px #00000026 !important;
 	border-top: 2px solid #2ac446 !important;
 	border-left: 3px solid #17d86f !important;
-	max-height: 250px !important;
+	height: 280px !important;
 	overflow-y: auto !important;
 	background: blueviolet !important;
+}
+
+.sticky-invoice-summary[data-v-ab85018a] {
+	position: fixed !important;
+	bottom: 0 !important;
+	right: 0 !important;
+	width: 58% !important;
+	z-index: 1000 !important;
+	box-shadow: 0 -4px 12px #00000026 !important;
+	border-top: 5px solid #d9dfe6 !important;
+	border-left: 5px solid #d9dfe6 !important;
+	height: 280px !important;
+	overflow-y: auto !important;
+	/* background: blueviolet !important; */
 }
 
 
