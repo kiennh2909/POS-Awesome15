@@ -89,7 +89,7 @@
 			</v-col>
 		</v-row>
 
-		<!-- Row 2: SAVE & CLEAR, LOAD DRAFTS, CANCEL SALE -->
+		<!-- Row 2: SAVE & CLEAR, LOAD DRAFTS, CANCEL SALE Bản 11h đêm-->
 		<v-row dense class="mb-0">
 			<v-col cols="12">
 				<v-row dense>
