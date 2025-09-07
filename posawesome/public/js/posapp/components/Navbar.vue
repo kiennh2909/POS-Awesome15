@@ -87,10 +87,9 @@
 			v-model="snack"
 			:timeout="snackTimeout"
 			:color="snackColor"
-			location="top right"
 			class="offer-notification-snackbar"
 			:style="{
-				'--snackbar-bg': snackColor === 'warning' ? '#ffeb3b' : (snackColor === 'primary' ? '#1976d2' : '#4caf50'),
+				'--snackbar-bg': snackColor === 'warning' ? '#ffb74d' : (snackColor === 'primary' ? '#1976d2' : '#4caf50'),
 				'--snackbar-text': snackColor === 'warning' ? '#000000' : '#ffffff',
 				'--snackbar-shadow': '0 4px 12px rgba(0,0,0,0.15)'
 			}"
@@ -408,12 +407,19 @@ nav {
 	box-shadow: var(--snackbar-shadow) !important;
 	max-width: 450px !important;
 	min-width: 350px !important;
+	position: fixed !important;
+	top: 80px !important;
+	right: 20px !important;
+	z-index: 10000 !important;
+	transform: none !important;
 }
 
 .offer-notification-snackbar :deep(.v-snackbar__wrapper) {
 	border-radius: 8px !important;
 	background: var(--snackbar-bg) !important;
 	color: var(--snackbar-text) !important;
+	position: static !important;
+	transform: none !important;
 }
 
 .offer-notification-content {
@@ -465,10 +471,20 @@ nav {
 	.offer-notification-snackbar {
 		max-width: 90vw !important;
 		min-width: 300px !important;
+		top: 70px !important;
+		right: 10px !important;
 	}
 
 	.offer-notification-content {
 		font-size: 13px !important;
+	}
+}
+
+/* Desktop adjustments */
+@media (min-width: 601px) {
+	.offer-notification-snackbar {
+		right: 20px !important;
+		top: 80px !important;
 	}
 }
 </style>
