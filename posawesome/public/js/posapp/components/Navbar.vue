@@ -82,39 +82,50 @@
 			@sync-all="syncPendingInvoices"
 		/>
 
-		<!-- Snackbar for notifications -->
-		<v-snackbar
-			v-model="snack"
-			:timeout="snackTimeout"
-			:color="snackColor"
-			class="offer-notification-snackbar"
-			:style="{
-				'--snackbar-bg': snackColor === 'warning' ? '#ffb74d' : (snackColor === 'primary' ? '#1976d2' : '#4caf50'),
-				'--snackbar-text': snackColor === 'warning' ? '#000000' : '#ffffff',
-				'--snackbar-shadow': '0 4px 12px rgba(0,0,0,0.15)'
-			}"
-		>
-			<div
-				v-html="snackText"
-				class="offer-notification-content"
-				:style="{
-					fontSize: '14px',
-					lineHeight: '1.5',
-					fontWeight: '500'
-				}"
-			></div>
-			<template v-slot:actions>
-				<v-btn
-					:color="snackColor === 'warning' ? 'black' : 'white'"
-					variant="text"
-					@click="snack = false"
-					class="offer-close-btn"
-					size="small"
-				>
-					{{ __("Close") }}
-				</v-btn>
-			</template>
-		</v-snackbar>
+		<!-- Offer Notification Dialog -->
+		<v-dialog v-model="snack" max-width="500" persistent>
+			<v-card class="offer-dialog-card">
+				<v-card-title class="offer-header pa-5">
+					<div class="header-content">
+						<div class="header-icon-wrapper">
+							<v-icon size="24" class="header-icon">mdi-gift</v-icon>
+						</div>
+						<div class="header-text">
+							<h3 class="header-title">{{ __("🎉 New Offer Available!") }}</h3>
+							<p class="header-subtitle">{{ __("Special Promotion") }}</p>
+						</div>
+					</div>
+					<v-btn
+						icon="mdi-close"
+						variant="text"
+						size="default"
+						@click="snack = false"
+						class="close-btn"
+					></v-btn>
+				</v-card-title>
+
+				<v-card-text class="pa-0">
+					<div class="offer-content-container">
+						<div
+							v-html="snackText"
+							class="offer-notification-content"
+						></div>
+					</div>
+				</v-card-text>
+
+				<v-card-actions class="offer-actions pa-4">
+					<v-spacer></v-spacer>
+					<v-btn
+						color="black"
+						variant="tonal"
+						@click="snack = false"
+						class="offer-close-action-btn"
+					>
+						{{ __("Close") }}
+					</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
 	</nav>
 </template>
 
@@ -336,7 +347,8 @@ export default {
 			}
 
 			this.snackColor = data.color || "success";
-			this.snackTimeout = data.timeout || 3000;
+			// Dialog không tự động đóng như snackbar
+			this.snackTimeout = 0; // Không timeout cho dialog
 			this.snack = true;
 		},
 		handleFreeze(data) {
@@ -401,46 +413,121 @@ nav {
 	background-color: var(--background) !important;
 }
 
-/* Custom styling for offer notification snackbar */
-.offer-notification-snackbar {
-	border-radius: 8px !important;
-	box-shadow: var(--snackbar-shadow) !important;
-	max-width: 450px !important;
-	min-width: 350px !important;
-	position: fixed !important;
-	top: 80px !important;
-	right: 20px !important;
-	z-index: 10000 !important;
-	transform: none !important;
+/* Offer Dialog - Centered Popup Style */
+.offer-dialog-card {
+	border-radius: 16px !important;
+	overflow: hidden;
+	background: #ffb74d !important; /* Màu vàng cam */
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+	max-height: 80vh;
+	border: 2px solid #ff9800;
 }
 
-.offer-notification-snackbar :deep(.v-snackbar__wrapper) {
-	border-radius: 8px !important;
-	background: var(--snackbar-bg) !important;
-	color: var(--snackbar-text) !important;
-	position: static !important;
-	transform: none !important;
+/* Header với gradient */
+.offer-header {
+	background: linear-gradient(135deg, #ffb74d 0%, #ff9800 100%) !important;
+	color: #000000 !important;
+	border-bottom: 2px solid #ff9800;
+	position: relative;
+	min-height: auto !important;
+	padding: 20px !important;
+}
+
+.offer-header::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 4px;
+	background: linear-gradient(90deg, #ff6f00 0%, #ff9800 100%);
+}
+
+.header-content {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	padding-right: 60px;
+}
+
+.header-icon-wrapper {
+	background: linear-gradient(135deg, #ff6f00 0%, #ff9800 100%);
+	border-radius: 14px;
+	padding: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: 0 3px 8px rgba(255, 111, 0, 0.3);
+}
+
+.header-icon {
+	color: white !important;
+}
+
+.header-text {
+	flex: 1;
+}
+
+.header-title {
+	margin: 0 0 6px 0;
+	font-weight: 700 !important;
+	color: #000000 !important;
+	font-size: 1.5rem !important;
+	line-height: 1.2;
+	text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+
+.header-subtitle {
+	margin: 0;
+	font-size: 14px;
+	color: #333 !important;
+	font-weight: 500;
+	line-height: 1.2;
+}
+
+.close-btn {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	color: #000000 !important;
+	background: rgba(255, 255, 255, 0.2) !important;
+	border-radius: 50% !important;
+}
+
+/* Content container */
+.offer-content-container {
+	padding: 24px;
+	background: rgba(255, 255, 255, 0.95);
+	min-height: 150px;
+	max-height: 400px;
+	overflow-y: auto;
 }
 
 .offer-notification-content {
-	padding: 4px 0;
 	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-	color: var(--snackbar-text) !important;
+	color: #000000 !important;
+	line-height: 1.6;
 }
 
 .offer-notification-content div {
-	margin-bottom: 6px;
+	margin-bottom: 8px;
+	padding: 8px 12px;
+	background: rgba(255, 255, 255, 0.8);
+	border-radius: 8px;
+	border-left: 3px solid #ff9800;
 }
 
 .offer-notification-content div:last-child {
 	margin-bottom: 0;
 }
 
-/* Tiêu đề to hơn */
+/* Tiêu đề trong content */
 .offer-notification-content div:first-child {
 	font-size: 18px !important;
 	font-weight: bold !important;
-	margin-bottom: 8px !important;
+	margin-bottom: 12px !important;
+	background: rgba(255, 152, 0, 0.1) !important;
+	border-left-color: #ff6f00 !important;
 }
 
 /* Các dòng thông tin khác */
@@ -449,42 +536,70 @@ nav {
 	font-weight: 500 !important;
 }
 
-.offer-close-btn {
+/* Actions */
+.offer-actions {
+	background: rgba(255, 255, 255, 0.9) !important;
+	border-top: 1px solid #ff9800;
+	min-height: auto !important;
+	padding: 16px 24px !important;
+}
+
+.offer-close-action-btn {
+	border-radius: 10px !important;
 	font-weight: 600 !important;
 	text-transform: none !important;
-	min-width: auto !important;
-	padding: 4px 8px !important;
+	height: 40px !important;
+	padding: 0 24px !important;
+	background: #000000 !important;
+	color: #ffb74d !important;
+	border: 2px solid #ff9800 !important;
 }
 
-/* Nút Close màu đen khi background vàng */
-.offer-notification-snackbar :deep(.v-btn--variant-text) {
-	color: var(--snackbar-text) !important;
+.offer-close-action-btn:hover {
+	background: #333 !important;
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-/* Ensure good contrast for readability */
-.offer-notification-snackbar :deep(.v-snackbar__content) {
-	padding: 16px 20px !important;
-}
-
-/* Responsive adjustments */
+/* Responsive Design */
 @media (max-width: 600px) {
-	.offer-notification-snackbar {
-		max-width: 90vw !important;
-		min-width: 300px !important;
-		top: 70px !important;
-		right: 10px !important;
+	.offer-dialog-card {
+		margin: 16px;
+		max-height: 85vh;
+		max-width: 95vw !important;
 	}
 
-	.offer-notification-content {
-		font-size: 13px !important;
+	.header-content {
+		gap: 12px;
+		padding-right: 50px;
+	}
+
+	.offer-content-container {
+		padding: 16px;
+		max-height: 300px;
+	}
+
+	.header-title {
+		font-size: 1.3rem !important;
 	}
 }
 
-/* Desktop adjustments */
-@media (min-width: 601px) {
-	.offer-notification-snackbar {
-		right: 20px !important;
-		top: 80px !important;
-	}
+/* Scrollbar styling */
+.offer-content-container::-webkit-scrollbar {
+	width: 6px;
+}
+
+.offer-content-container::-webkit-scrollbar-track {
+	background: rgba(255, 152, 0, 0.1);
+	border-radius: 3px;
+}
+
+.offer-content-container::-webkit-scrollbar-thumb {
+	background: #ff9800;
+	border-radius: 3px;
+}
+
+.offer-content-container::-webkit-scrollbar-thumb:hover {
+	background: #ff6f00;
 }
 </style>
