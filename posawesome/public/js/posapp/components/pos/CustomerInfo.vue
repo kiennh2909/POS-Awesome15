@@ -199,20 +199,21 @@ export default {
 </script>
 
 <style scoped>
+/* Custom styling for specific component instance */
 .customer-info-section {
-	padding: 16px;
-	background: white;
-	border-radius: 8px;
-	border: 1px solid #e0e0e0;
-	margin-bottom: 16px;
+    padding: 10px;
+    background: #f0e6e6;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    margin-bottom: 10px;
 }
 
 .customer-info-header {
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	margin-bottom: 16px;
-	padding-bottom: 12px;
+	margin-bottom: 10px;
+	padding-bottom: 8px;
 	border-bottom: 1px solid #f0f0f0;
 }
 
