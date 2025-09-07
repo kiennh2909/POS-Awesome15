@@ -40,11 +40,14 @@
 					</template>
 					<template v-slot:expanded-item="{ headers, item }">
 						<td :colspan="headers.length">
-							<v-row class="mt-2">
-								<v-col v-if="item.description">
-									<div class="text-primary" v-html="handleNewLine(item.description)"></div>
-								</v-col>
-								<v-col v-if="item.offer == 'Give Product'">
+							<div class="offer-expanded-content">
+								<!-- Thông tin chi tiết của offer -->
+								<div class="offer-details-section" v-html="formatOfferDetails(item)"></div>
+
+								<!-- Phần cấu hình cho Give Product -->
+								<div v-if="item.offer == 'Give Product'" class="offer-config-section">
+									<v-divider class="my-3"></v-divider>
+									<div class="config-title">Cấu hình sản phẩm tặng:</div>
 									<v-autocomplete
 										v-model="item.give_item"
 										:items="get_give_items(item)"
@@ -52,15 +55,16 @@
 										variant="outlined"
 										density="compact"
 										color="primary"
-										:label="frappe._('Give Item')"
+										:label="frappe._('Chọn sản phẩm tặng')"
 										:disabled="
 											item.apply_type != 'Item Group' ||
 											item.replace_item ||
 											item.replace_cheapest_item
 										"
+										class="mt-2"
 									></v-autocomplete>
-								</v-col>
-							</v-row>
+								</div>
+							</div>
 						</td>
 					</template>
 				</v-data-table>
@@ -264,27 +268,231 @@ export default {
 				details += `</div>`;
 			}
 
-			// Loại khuyến mại - màu đen
+			// Hiển thị thông tin chi tiết theo từng loại offer
+			details += this.getOfferSpecificDetails(offer);
+
+			details += `</div>`;
+			return details;
+		},
+
+		getOfferSpecificDetails(offer) {
+			let details = '';
+
+			switch (offer.offer) {
+				case 'Give Product':
+					details += this.formatGiveProductDetails(offer);
+					break;
+				case 'Item Price':
+					details += this.formatItemPriceDetails(offer);
+					break;
+				case 'Grand Total':
+					details += this.formatGrandTotalDetails(offer);
+					break;
+				case 'Loyalty Point':
+					details += this.formatLoyaltyPointDetails(offer);
+					break;
+				default:
+					details += this.formatDefaultOfferDetails(offer);
+			}
+
+			return details;
+		},
+
+		formatGiveProductDetails(offer) {
+			let details = '';
+
+			// Loại khuyến mại
 			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
-			details += `🏷️ Loại: ${this.getOfferTypeText(offer.offer)}`;
+			details += `🏷️ Loại: Tặng sản phẩm`;
 			details += `</div>`;
 
-			// Nội dung khuyến mại - màu đen
+			// Thông tin sản phẩm được tặng
+			if (offer.apply_item_code) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `🎁 Sản phẩm tặng: <strong>${offer.apply_item_code}</strong>`;
+				details += `</div>`;
+			} else if (offer.apply_item_group) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `🎁 Nhóm sản phẩm tặng: <strong>${offer.apply_item_group}</strong>`;
+				details += `</div>`;
+			}
+
+			// Số lượng tặng
+			if (offer.given_qty) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `📦 Số lượng: <strong>${offer.given_qty}</strong>`;
+				details += `</div>`;
+			}
+
+			// Điều kiện áp dụng
+			if (offer.min_qty || offer.min_amt) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `⚡ Điều kiện: `;
+				if (offer.min_qty) {
+					details += `Mua tối thiểu <strong>${offer.min_qty}</strong> sản phẩm`;
+				}
+				if (offer.min_amt) {
+					if (offer.min_qty) details += ` hoặc `;
+					details += `Tổng tiền tối thiểu <strong>${this.formatCurrency(offer.min_amt)}</strong>`;
+				}
+				details += `</div>`;
+			}
+
+			// Mô tả
 			if (offer.description) {
 				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
 				details += `📝 ${offer.description}`;
 				details += `</div>`;
 			}
 
-			// Chi tiết giảm giá - màu đen, in đậm
+			return details;
+		},
+
+		formatItemPriceDetails(offer) {
+			let details = '';
+
+			// Loại khuyến mại
+			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+			details += `🏷️ Loại: Giảm giá sản phẩm`;
+			details += `</div>`;
+
+			// Sản phẩm được giảm giá
+			if (offer.item) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `🛒 Sản phẩm: <strong>${offer.item}</strong>`;
+				details += `</div>`;
+			} else if (offer.item_group) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `🛒 Nhóm sản phẩm: <strong>${offer.item_group}</strong>`;
+				details += `</div>`;
+			}
+
+			// Chi tiết giảm giá
 			const discountDetails = this.getDiscountDetails(offer);
 			if (discountDetails) {
-				details += `<div style="font-size: 14px; color: #000000; font-weight: bold;">`;
+				details += `<div style="font-size: 14px; color: #ff6f00; font-weight: bold; margin-bottom: 6px;">`;
 				details += `💰 ${discountDetails}`;
 				details += `</div>`;
 			}
 
+			// Điều kiện áp dụng
+			if (offer.min_qty || offer.min_amt) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `⚡ Điều kiện: `;
+				if (offer.min_qty) {
+					details += `Mua tối thiểu <strong>${offer.min_qty}</strong> sản phẩm`;
+				}
+				if (offer.min_amt) {
+					if (offer.min_qty) details += ` hoặc `;
+					details += `Tổng tiền tối thiểu <strong>${this.formatCurrency(offer.min_amt)}</strong>`;
+				}
+				details += `</div>`;
+			}
+
+			// Mô tả
+			if (offer.description) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `📝 ${offer.description}`;
+				details += `</div>`;
+			}
+
+			return details;
+		},
+
+		formatGrandTotalDetails(offer) {
+			let details = '';
+
+			// Loại khuyến mại
+			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+			details += `🏷️ Loại: Giảm giá hóa đơn`;
 			details += `</div>`;
+
+			// Chi tiết giảm giá
+			const discountDetails = this.getDiscountDetails(offer);
+			if (discountDetails) {
+				details += `<div style="font-size: 14px; color: #ff6f00; font-weight: bold; margin-bottom: 6px;">`;
+				details += `💰 ${discountDetails}`;
+				details += `</div>`;
+			}
+
+			// Điều kiện áp dụng
+			if (offer.min_qty || offer.min_amt) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `⚡ Điều kiện: `;
+				if (offer.min_qty) {
+					details += `Tổng số lượng tối thiểu <strong>${offer.min_qty}</strong> sản phẩm`;
+				}
+				if (offer.min_amt) {
+					if (offer.min_qty) details += ` hoặc `;
+					details += `Tổng tiền tối thiểu <strong>${this.formatCurrency(offer.min_amt)}</strong>`;
+				}
+				details += `</div>`;
+			}
+
+			// Mô tả
+			if (offer.description) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `📝 ${offer.description}`;
+				details += `</div>`;
+			}
+
+			return details;
+		},
+
+		formatLoyaltyPointDetails(offer) {
+			let details = '';
+
+			// Loại khuyến mại
+			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+			details += `🏷️ Loại: Tích điểm thưởng`;
+			details += `</div>`;
+
+			// Số điểm thưởng
+			if (offer.loyalty_points) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `⭐ Số điểm: <strong>${offer.loyalty_points}</strong>`;
+				details += `</div>`;
+			}
+
+			// Điều kiện áp dụng
+			if (offer.min_qty || offer.min_amt) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `⚡ Điều kiện: `;
+				if (offer.min_qty) {
+					details += `Mua tối thiểu <strong>${offer.min_qty}</strong> sản phẩm`;
+				}
+				if (offer.min_amt) {
+					if (offer.min_qty) details += ` hoặc `;
+					details += `Tổng tiền tối thiểu <strong>${this.formatCurrency(offer.min_amt)}</strong>`;
+				}
+				details += `</div>`;
+			}
+
+			// Mô tả
+			if (offer.description) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `📝 ${offer.description}`;
+				details += `</div>`;
+			}
+
+			return details;
+		},
+
+		formatDefaultOfferDetails(offer) {
+			let details = '';
+
+			// Loại khuyến mại
+			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+			details += `🏷️ Loại: ${this.getOfferTypeText(offer.offer)}`;
+			details += `</div>`;
+
+			// Mô tả
+			if (offer.description) {
+				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
+				details += `📝 ${offer.description}`;
+				details += `</div>`;
+			}
+
 			return details;
 		},
 		formatDate(dateStr) {
@@ -359,3 +567,49 @@ export default {
 	},
 };
 </script>
+
+<style scoped>
+.offer-expanded-content {
+	padding: 16px;
+	background: rgba(255, 255, 255, 0.95);
+	border-radius: 8px;
+	margin: 8px 0;
+	border: 1px solid #e0e0e0;
+}
+
+.offer-details-section {
+	margin-bottom: 16px;
+}
+
+.offer-config-section {
+	margin-top: 16px;
+}
+
+.config-title {
+	font-size: 14px;
+	font-weight: 600;
+	color: #666;
+	margin-bottom: 8px;
+}
+
+.offer-expanded-content .v-divider {
+	margin: 16px 0;
+	border-color: #e0e0e0;
+}
+
+/* Responsive cho mobile */
+@media (max-width: 600px) {
+	.offer-expanded-content {
+		padding: 12px;
+		margin: 4px 0;
+	}
+
+	.offer-details-section {
+		margin-bottom: 12px;
+	}
+
+	.config-title {
+		font-size: 13px;
+	}
+}
+</style>
