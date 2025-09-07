@@ -91,8 +91,8 @@
 							<v-icon size="24" class="header-icon">mdi-gift</v-icon>
 						</div>
 						<div class="header-text">
-							<h3 class="header-title">{{ __("🎉 New Offer Available!") }}</h3>
-							<p class="header-subtitle">{{ __("Special Promotion") }}</p>
+							<h3 class="header-title">{{ __("Thông báo !") }}</h3>
+							<p class="header-subtitle">{{ __("Nội dung chi tiết") }}</p>
 						</div>
 					</div>
 					<v-btn
