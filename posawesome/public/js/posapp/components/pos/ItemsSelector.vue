@@ -356,7 +356,7 @@
 						</v-btn>
 					</div>
 
-					<div class="control-item">
+					<div class="control-item" v-if="false">
 						<v-btn
 							:color="!scan_add_mode ? 'error' : 'grey'"
 							:variant="!scan_add_mode ? 'flat' : 'outlined'"

@@ -135,7 +135,7 @@
 							{{ __("CANCEL") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="3" class="button-col pa-1">
+					<v-col cols="3" class="button-col pa-1" v-if="false">
 						<v-btn
 							block
 							color="info"
