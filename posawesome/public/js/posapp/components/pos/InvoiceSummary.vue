@@ -17,6 +17,7 @@
 							density="compact"
 							readonly
 							color="accent"
+							class="standard-text-field"
 						/>
 					</v-col>
 					<!-- Additional Discount -->
@@ -34,6 +35,7 @@
 								!pos_profile.posa_allow_user_to_edit_additional_discount ||
 								!!discount_percentage_offer_name
 							"
+							class="standard-text-field"
 						/>
 					</v-col>
 					<v-col cols="3" v-else>
@@ -52,6 +54,7 @@
 								!pos_profile.posa_allow_user_to_edit_additional_discount ||
 								!!discount_percentage_offer_name
 							"
+							class="standard-text-field"
 						/>
 					</v-col>
 					<!-- Items Discount -->
@@ -65,6 +68,7 @@
 							density="compact"
 							color="warning"
 							readonly
+							class="standard-text-field"
 						/>
 					</v-col>
 					<!-- Total (with larger font) -->
@@ -78,7 +82,7 @@
 							density="compact"
 							readonly
 							color="success"
-							class="total-field-large"
+							class="total-field-large standard-text-field"
 						/>
 					</v-col>
 				</v-row>
@@ -479,6 +483,19 @@ export default {
 	font-size: 1.5rem !important;
 }
 
+/* Standard text field styling - match ItemsSelector */
+.standard-text-field :deep(.v-field__input) {
+	font-size: 1.4rem !important;
+	font-weight: 700 !important;
+	min-height: 60px !important;
+}
+
+.standard-text-field :deep(.v-field__input input) {
+	font-size: 1.4rem !important;
+	font-weight: 700 !important;
+	min-height: 60px !important;
+}
+
 /* Large font for Total field */
 .total-field-large :deep(.v-field__input) {
 	font-size: 1.4rem !important;
@@ -548,12 +565,52 @@ export default {
 		max-height: 220px !important;
 		padding: 8px !important;
 	}
+
+	.standard-text-field :deep(.v-field__input) {
+		font-size: 1.2rem !important;
+		min-height: 50px !important;
+	}
+
+	.standard-text-field :deep(.v-field__input input) {
+		font-size: 1.2rem !important;
+		min-height: 50px !important;
+	}
+
+	.total-field-large :deep(.v-field__input) {
+		font-size: 1.2rem !important;
+		min-height: 50px !important;
+	}
+
+	.total-field-large :deep(.v-field__input input) {
+		font-size: 1.2rem !important;
+		min-height: 50px !important;
+	}
 }
 
 @media (max-width: 480px) {
 	.sticky-invoice-summary {
 		max-height: 200px !important;
 		padding: 6px !important;
+	}
+
+	.standard-text-field :deep(.v-field__input) {
+		font-size: 1.1rem !important;
+		min-height: 48px !important;
+	}
+
+	.standard-text-field :deep(.v-field__input input) {
+		font-size: 1.1rem !important;
+		min-height: 48px !important;
+	}
+
+	.total-field-large :deep(.v-field__input) {
+		font-size: 1.1rem !important;
+		min-height: 48px !important;
+	}
+
+	.total-field-large :deep(.v-field__input input) {
+		font-size: 1.1rem !important;
+		min-height: 48px !important;
 	}
 }
 

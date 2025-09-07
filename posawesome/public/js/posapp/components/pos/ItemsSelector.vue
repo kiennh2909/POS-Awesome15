@@ -45,6 +45,7 @@
 								prepend-inner-icon="mdi-magnify"
 								@focus="handleItemSearchFocus"
 								ref="debounce_search"
+								class="standard-text-field"
 							>
 								<!-- Add camera scan button if enabled -->
 								<template v-slot:append-inner v-if="pos_profile.posa_enable_camera_scanning">
@@ -72,6 +73,7 @@
 								@keydown.enter="enter_event"
 								@keydown.esc="esc_event"
 								@focus="clearQty"
+								class="standard-text-field"
 							></v-text-field>
 						</v-col>
 						<v-col cols="12" class="dynamic-margin-xs">
@@ -287,6 +289,7 @@
 						hide-details
 						:model-value="active_price_list"
 						readonly
+						class="standard-text-field"
 					></v-text-field>
 				</v-col>
 				<v-col cols="auto" class="d-flex justify-end align-center" style="gap: 5px;">
@@ -2544,6 +2547,19 @@ export default {
     white-space: nowrap !important;
 }
 
+/* Standard text field styling - match InvoiceSummary */
+.standard-text-field :deep(.v-field__input) {
+    font-size: 1.4rem !important;
+    font-weight: 700 !important;
+    min-height: 60px !important;
+}
+
+.standard-text-field :deep(.v-field__input input) {
+    font-size: 1.4rem !important;
+    font-weight: 700 !important;
+    min-height: 60px !important;
+}
+
 /* ensure long button labels stay within the button */
 .summary-btn :deep(.v-btn__content) {
 	white-space: normal !important;
@@ -2569,6 +2585,16 @@ export default {
 	.summary-btn {
 		min-height: 50px !important;
 		font-size: 1.1rem !important;
+	}
+
+	.standard-text-field :deep(.v-field__input) {
+		font-size: 1.2rem !important;
+		min-height: 50px !important;
+	}
+
+	.standard-text-field :deep(.v-field__input input) {
+		font-size: 1.2rem !important;
+		min-height: 50px !important;
 	}
 }
 
@@ -2605,6 +2631,16 @@ export default {
 		min-height: 48px !important;
 		font-size: 1.0rem !important;
 		padding: 4px 6px !important;
+	}
+
+	.standard-text-field :deep(.v-field__input) {
+		font-size: 1.1rem !important;
+		min-height: 48px !important;
+	}
+
+	.standard-text-field :deep(.v-field__input input) {
+		font-size: 1.1rem !important;
+		min-height: 48px !important;
 	}
 }
 </style>
