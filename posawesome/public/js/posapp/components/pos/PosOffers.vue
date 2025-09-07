@@ -53,7 +53,14 @@
 						</v-card-title>
 						<v-divider></v-divider>
 						<v-card-text class="pa-4">
-							<div class="offer-dialog-content" v-html="formatOfferDetails(selectedOffer)"></div>
+							<!-- Hiển thị loading nếu chưa có dữ liệu -->
+							<div v-if="!formattedOfferContent" class="text-center py-8">
+								<v-progress-circular indeterminate color="primary" size="32"></v-progress-circular>
+								<div class="mt-2 text-caption">Đang tải thông tin...</div>
+							</div>
+
+							<!-- Hiển thị nội dung chi tiết -->
+							<div v-else class="offer-dialog-content" v-html="formattedOfferContent"></div>
 
 							<!-- Phần cấu hình cho Give Product -->
 							<div v-if="selectedOffer.offer == 'Give Product'" class="offer-config-section mt-4">
@@ -77,11 +84,30 @@
 							</div>
 						</v-card-text>
 						<v-card-actions class="pa-4 pt-0">
+							<v-btn
+								color="info"
+								variant="text"
+								size="small"
+								@click="showDebugInfo = !showDebugInfo"
+							>
+								{{ showDebugInfo ? 'Ẩn Debug' : 'Hiện Debug' }}
+							</v-btn>
 							<v-spacer></v-spacer>
 							<v-btn color="primary" variant="tonal" @click="closeOfferDialog">
 								{{ __("Đóng") }}
 							</v-btn>
 						</v-card-actions>
+
+						<!-- Debug Information -->
+						<v-expand-transition>
+							<v-card-text v-if="showDebugInfo" class="pa-4 pt-0">
+								<v-divider class="mb-3"></v-divider>
+								<div class="debug-info">
+									<h4 class="text-h6 mb-2">🔍 Debug Information</h4>
+									<pre class="debug-json">{{ JSON.stringify(selectedOffer, null, 2) }}</pre>
+								</div>
+							</v-card-text>
+						</v-expand-transition>
 					</v-card>
 				</v-dialog>
 			</div>
@@ -118,6 +144,7 @@ export default {
 		itemsPerPage: 1000,
 		offerDialog: false,
 		selectedOffer: null,
+		showDebugInfo: false,
 		items_headers: [
 			{ title: __("Name"), value: "name", align: "start" },
 			{ title: __("Apply On"), value: "apply_on", align: "start" },
@@ -135,6 +162,18 @@ export default {
 		},
 		isDarkTheme() {
 			return this.$theme?.current === "dark";
+		},
+		formattedOfferContent() {
+			if (!this.selectedOffer) return '';
+
+			try {
+				const content = this.formatOfferDetails(this.selectedOffer);
+				console.log('Computed formatted content:', content);
+				return content || this.getFallbackContent();
+			} catch (error) {
+				console.error('Error formatting offer details:', error);
+				return this.getFallbackContent();
+			}
 		},
 	},
 
@@ -273,7 +312,14 @@ export default {
 
 		openOfferDialog(item) {
 			// Mở dialog hiển thị chi tiết offer
+			console.log('Opening offer dialog for item:', item);
 			this.selectedOffer = { ...item };
+			console.log('Selected offer:', this.selectedOffer);
+
+			// Test formatOfferDetails
+			const formattedDetails = this.formatOfferDetails(this.selectedOffer);
+			console.log('Formatted details:', formattedDetails);
+
 			this.offerDialog = true;
 		},
 
@@ -578,6 +624,40 @@ export default {
 					return null;
 			}
 		},
+
+		getFallbackContent() {
+			if (!this.selectedOffer) return '';
+
+			let content = `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;">`;
+
+			// Tên offer
+			content += `<div style="font-size: 18px; font-weight: bold; color: #000000; margin-bottom: 12px;">`;
+			content += `📋 ${this.selectedOffer.title || this.selectedOffer.name || 'Chương trình khuyến mại'}`;
+			content += `</div>`;
+
+			// Thông tin cơ bản
+			content += `<div style="font-size: 14px; color: #000000; margin-bottom: 8px;">`;
+			content += `🏷️ Loại: ${this.getOfferTypeText(this.selectedOffer.offer)}`;
+			content += `</div>`;
+
+			// Mô tả nếu có
+			if (this.selectedOffer.description) {
+				content += `<div style="font-size: 14px; color: #000000; margin-bottom: 8px;">`;
+				content += `📝 ${this.selectedOffer.description}`;
+				content += `</div>`;
+			}
+
+			// Thông tin debug
+			content += `<div style="font-size: 12px; color: #666; margin-top: 16px; padding: 8px; background: #f5f5f5; border-radius: 4px;">`;
+			content += `<strong>Debug Info:</strong><br>`;
+			content += `Offer Type: ${this.selectedOffer.offer}<br>`;
+			content += `Name: ${this.selectedOffer.name}<br>`;
+			content += `Title: ${this.selectedOffer.title}<br>`;
+			content += `</div>`;
+
+			content += `</div>`;
+			return content;
+		},
 	},
 
 	watch: {
@@ -741,5 +821,38 @@ export default {
 /* Prevent checkbox click from triggering row click */
 :deep(.v-checkbox-btn) {
 	pointer-events: auto;
+}
+
+/* Debug information styling */
+.debug-info {
+	background: rgba(255, 235, 59, 0.1);
+	border: 1px solid rgba(255, 235, 59, 0.3);
+	border-radius: 8px;
+	padding: 12px;
+	margin-top: 8px;
+}
+
+.debug-info h4 {
+	color: #f57c00;
+	margin-bottom: 8px;
+}
+
+.debug-json {
+	background: #f5f5f5;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	padding: 8px;
+	font-size: 11px;
+	line-height: 1.4;
+	max-height: 200px;
+	overflow-y: auto;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+:deep(.v-theme--dark) .debug-json {
+	background: #2a2a2a;
+	border-color: #555;
+	color: #e0e0e0;
 }
 </style>
