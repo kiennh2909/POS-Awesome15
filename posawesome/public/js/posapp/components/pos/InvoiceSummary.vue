@@ -136,7 +136,18 @@
 						</v-btn>
 					</v-col>
 					<v-col cols="3" class="button-col pa-1">
-						<!-- Spacer for balance -->
+						<v-btn
+							block
+							color="info"
+							theme="dark"
+							size="small"
+							prepend-icon="mdi-account-plus"
+							@click="$emit('add-customer')"
+							class="summary-btn add-customer-btn"
+							title="Ctrl+<u>A</u> - Add Customer"
+						>
+							{{ __("ADD CUSTOMER") }}
+						</v-btn>
 					</v-col>
 				</v-row>
 			</v-col>
@@ -188,8 +199,19 @@
 							{{ __("RETURN") }}
 						</v-btn>
 					</v-col>
-					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? (pos_profile.posa_allow_return == 1 ? 3 : 6) : (pos_profile.posa_allow_return == 1 ? 4 : 4)" class="button-col pa-1">
-						<!-- Spacer for balance -->
+					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? (pos_profile.posa_allow_return == 1 ? 3 : 6) : (pos_profile.posa_allow_return == 1 ? 4 : 8)" class="button-col pa-1">
+						<v-btn
+							block
+							color="secondary"
+							theme="dark"
+							size="small"
+							prepend-icon="mdi-format-list-bulleted"
+							@click="$emit('list-invoices')"
+							class="summary-btn list-invoices-btn"
+							title="Ctrl+<u>I</u> - List Invoices"
+						>
+							{{ __("LIST INVOICES") }}
+						</v-btn>
 					</v-col>
 				</v-row>
 			</v-col>
@@ -224,6 +246,8 @@ export default {
 		"open-returns",
 		"print-draft",
 		"show-payment",
+		"add-customer",
+		"list-invoices",
 	],
 	computed: {
 		isDarkTheme() {
@@ -321,6 +345,20 @@ export default {
 						}
 					}
 					break;
+				case 'a':
+					if (event.ctrlKey || event.metaKey) {
+						event.preventDefault();
+						this.$emit('add-customer');
+						console.log('Shortcut: Ctrl+A - Add Customer');
+					}
+					break;
+				case 'i':
+					if (event.ctrlKey || event.metaKey) {
+						event.preventDefault();
+						this.$emit('list-invoices');
+						console.log('Shortcut: Ctrl+I - List Invoices');
+					}
+					break;
 			}
 		},
 	},
@@ -378,6 +416,16 @@ export default {
 /* Row spacing */
 .v-row.dense.mb-0 {
 	margin-bottom: 5px !important;
+}
+
+/* Spacing giữa Row 2 và Row 3 */
+.v-row.dense.mb-0 + .v-row.dense {
+	margin-top: 1px !important;
+}
+
+/* Spacing giữa Row 3 và các elements khác */
+.v-row.dense:last-child {
+	margin-bottom: 2px !important;
 }
 
 /* Dense row styling */
@@ -472,6 +520,26 @@ export default {
 	margin: 1px;
 	border-radius: 8px;
 	padding: 8px 12px !important;
+}
+
+/* ADD CUSTOMER button */
+.add-customer-btn {
+	min-height: 60px !important;
+	font-size: 1.1rem !important;
+	font-weight: 600 !important;
+	margin: 1px;
+	border-radius: 6px;
+	padding: 6px 8px !important;
+}
+
+/* LIST INVOICES button */
+.list-invoices-btn {
+	min-height: 60px !important;
+	font-size: 1.1rem !important;
+	font-weight: 600 !important;
+	margin: 1px;
+	border-radius: 6px;
+	padding: 6px 8px !important;
 }
 
 .pay-btn :deep(.v-btn__content) {
@@ -576,6 +644,11 @@ export default {
 		min-height: 50px !important;
 	}
 
+	.add-customer-btn, .list-invoices-btn {
+		font-size: 0.9rem !important;
+		min-height: 50px !important;
+	}
+
 	.total-field-large :deep(.v-field__input) {
 		font-size: 1.2rem !important;
 		min-height: 50px !important;
@@ -600,6 +673,11 @@ export default {
 
 	.standard-text-field :deep(.v-field__input input) {
 		font-size: 1.1rem !important;
+		min-height: 48px !important;
+	}
+
+	.add-customer-btn, .list-invoices-btn {
+		font-size: 0.8rem !important;
 		min-height: 48px !important;
 	}
 
