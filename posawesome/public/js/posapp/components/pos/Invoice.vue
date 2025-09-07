@@ -28,8 +28,17 @@
 				<!-- Top Row: Customer Selection and Invoice Type -->
 				<v-row align="center" class="items px-3 py-2">
 					<v-col :cols="pos_profile.posa_allow_sales_order ? 9 : 12" class="pb-0 pr-0">
-						<!-- Customer selection component -->
-						<Customer />
+						<!-- Customer selection component with Quick View props -->
+						<Customer
+							:pos_profile="pos_profile"
+							:posting_date_display="posting_date_display"
+							:customer_balance="customer_balance"
+							:selected_price_list="selected_price_list"
+							:price_lists="price_lists"
+							:formatCurrency="formatCurrency"
+							@update:posting_date_display="onPostingDateUpdate"
+							@update:priceList="onPriceListUpdate"
+						/>
 					</v-col>
 					<!-- Invoice Type Selection (Only shown if sales orders are allowed) -->
 					<v-col v-if="pos_profile.posa_allow_sales_order" cols="3" class="pb-4">
@@ -48,10 +57,7 @@
 					</v-col>
 				</v-row>
 
-				<!-- Customer Information Display -->
-				<div class="customer-info-section">
-					<CustomerInfo :customer-id="customer" />
-				</div>
+				<!-- REMOVED: CustomerInfo and PostingDateRow - now in Quick View within Customer component -->
 
 				<!-- Delivery Charges Section (Only if enabled in POS profile) -->
 				<!-- <DeliveryCharges
@@ -70,26 +76,6 @@
 						}
 					"
 				/> -->
-
-				<!-- Posting Date and Customer Balance Section -->
-				<PostingDateRow
-					:pos_profile="pos_profile"
-					:posting_date_display="posting_date_display"
-					:customer_balance="customer_balance"
-					:price-list="selected_price_list"
-					:price-lists="price_lists"
-					:formatCurrency="formatCurrency"
-					@update:posting_date_display="
-						(val) => {
-							posting_date_display = val;
-						}
-					"
-					@update:priceList="
-						(val) => {
-							selected_price_list = val;
-						}
-					"
-				/>
 
 				<!-- Multi-Currency Section (Only if enabled in POS profile) -->
 				<MultiCurrencyRow
@@ -279,9 +265,7 @@
 import { evntBus } from "../../bus";
 import format from "../../format";
 import Customer from "./Customer.vue";
-import CustomerInfo from "./CustomerInfo.vue";
 import DeliveryCharges from "./DeliveryCharges.vue";
-import PostingDateRow from "./PostingDateRow.vue";
 import MultiCurrencyRow from "./MultiCurrencyRow.vue";
 import CancelSaleDialog from "./CancelSaleDialog.vue";
 import InvoiceSummary from "./InvoiceSummary.vue";
@@ -358,9 +342,7 @@ export default {
 
 	components: {
 		Customer,
-		CustomerInfo,
 		DeliveryCharges,
-		PostingDateRow,
 		MultiCurrencyRow,
 		InvoiceSummary,
 		CancelSaleDialog,
@@ -616,6 +598,18 @@ export default {
 			if (!date) return;
 			this.posting_date = date;
 			this.$forceUpdate();
+		},
+
+		// Handle posting date update from Quick View
+		onPostingDateUpdate(val) {
+			this.posting_date_display = val;
+			this.updatePostingDate(val);
+		},
+
+		// Handle price list update from Quick View
+		onPriceListUpdate(val) {
+			this.selected_price_list = val;
+			this.update_price_list();
 		},
 		// Override setFormatedFloat for qty field to handle return mode
 		setFormatedQty(item, field_name, precision, no_negative, value) {
