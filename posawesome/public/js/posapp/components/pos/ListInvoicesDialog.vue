@@ -93,93 +93,42 @@
 						<div class="filters-section pa-4">
 							<h4 class="text-h6 mb-4">{{ __("🔍 Advanced Filters") }}</h4>
 							<v-row dense>
-								<v-col cols="12" md="2">
-									<v-select
-										v-model="filters.pos_profile"
-										:items="posProfiles"
-										label="POS Profile"
-										variant="outlined"
-										density="compact"
-										clearable
-										hide-details
-									></v-select>
-								</v-col>
-								<v-col cols="12" md="2">
-									<v-text-field
-										v-model="filters.user_id"
-										label="User ID"
-										variant="outlined"
-										density="compact"
-										clearable
-										hide-details
-									></v-text-field>
-								</v-col>
-								<v-col cols="12" md="2">
-									<v-text-field
-										v-model="filters.customer_name"
-										label="Customer Name"
-										variant="outlined"
-										density="compact"
-										clearable
-										hide-details
-									></v-text-field>
-								</v-col>
-								<v-col cols="12" md="2">
-									<v-text-field
-										v-model="filters.customer_tax_id"
-										label="Tax ID"
-										variant="outlined"
-										density="compact"
-										clearable
-										hide-details
-									></v-text-field>
-								</v-col>
-								<v-col cols="12" md="2">
+								<v-col cols="12" md="4">
 									<v-text-field
 										v-model="filters.invoice_no"
-										label="Invoice No"
+										label="Mã hóa đơn"
 										variant="outlined"
 										density="compact"
 										clearable
 										hide-details
+										placeholder="Nhập mã hóa đơn..."
 									></v-text-field>
 								</v-col>
-								<v-col cols="12" md="2">
-									<v-select
-										v-model="filters.payment_method"
-										:items="paymentMethods"
-										label="Payment Method"
+								<v-col cols="12" md="4">
+									<v-text-field
+										v-model="filters.tax_invoice_no"
+										label="Mã hóa đơn thuế"
 										variant="outlined"
 										density="compact"
 										clearable
 										hide-details
-									></v-select>
+										placeholder="Nhập mã hóa đơn thuế..."
+									></v-text-field>
+								</v-col>
+								<v-col cols="12" md="4">
+									<v-text-field
+										v-model="filters.customer_phone"
+										label="Số ĐT của KH"
+										variant="outlined"
+										density="compact"
+										clearable
+										hide-details
+										placeholder="Nhập số điện thoại..."
+									></v-text-field>
 								</v-col>
 							</v-row>
-							<v-row dense class="mt-2">
-								<v-col cols="12" md="2">
-									<v-text-field
-										v-model="filters.amount_min"
-										label="Min Amount"
-										variant="outlined"
-										density="compact"
-										type="number"
-										:prefix="currencySymbol('USD')"
-										hide-details
-									></v-text-field>
-								</v-col>
-								<v-col cols="12" md="2">
-									<v-text-field
-										v-model="filters.amount_max"
-										label="Max Amount"
-										variant="outlined"
-										density="compact"
-										type="number"
-										:prefix="currencySymbol('USD')"
-										hide-details
-									></v-text-field>
-								</v-col>
-								<v-col cols="12" md="8">
+							<v-row dense class="mt-3">
+								<v-col cols="12">
 									<v-btn
 										color="primary"
 										variant="outlined"
@@ -187,7 +136,7 @@
 										class="mr-2"
 									>
 										<v-icon start>mdi-magnify</v-icon>
-										{{ __("Apply Filters") }}
+										{{ __("Áp dụng bộ lọc") }}
 									</v-btn>
 									<v-btn
 										color="grey"
@@ -196,7 +145,7 @@
 										class="mr-2"
 									>
 										<v-icon start>mdi-refresh</v-icon>
-										{{ __("Clear Filters") }}
+										{{ __("Xóa bộ lọc") }}
 									</v-btn>
 									<v-btn
 										color="success"
@@ -204,7 +153,7 @@
 										@click="exportData"
 									>
 										<v-icon start>mdi-download</v-icon>
-										{{ __("Export") }}
+										{{ __("Xuất dữ liệu") }}
 									</v-btn>
 								</v-col>
 							</v-row>
@@ -759,20 +708,13 @@ export default {
 	name: "ListInvoicesDialog",
 	mixins: [format],
 	data() {
-		return {
-			listInvoicesDialog: false,
-			filters: {
-				pos_profile: '',
-				user_id: '',
-				customer_name: '',
-				customer_tax_id: '',
-				invoice_no: '',
-				amount_min: '',
-				amount_max: '',
-				payment_method: ''
-			},
-			posProfiles: ['Main POS', 'Secondary POS', 'Express POS'],
-			paymentMethods: ['Cash', 'Card', 'Bank', 'M-Pesa'],
+	return {
+		listInvoicesDialog: false,
+		filters: {
+			invoice_no: '',
+			tax_invoice_no: '',
+			customer_phone: ''
+		},
 			tableHeaders: [
 				{ title: '#', key: 'index', width: '60px', sortable: false },
 				{ title: 'POS Profile', key: 'pos_profile', width: '100px' },
@@ -798,6 +740,7 @@ export default {
 					time: '14:25',
 					customer_name: 'John Doe',
 					customer_tax_id: 'TX123456',
+					customer_phone: '0901234567',
 					invoice_no: 'INV-001',
 					total_amount: 125.00,
 					paid_amount: 125.00,
@@ -814,6 +757,7 @@ export default {
 					time: '14:18',
 					customer_name: 'Jane Smith',
 					customer_tax_id: 'TX789012',
+					customer_phone: '0912345678',
 					invoice_no: 'INV-002',
 					total_amount: 89.50,
 					paid_amount: 89.50,
@@ -830,6 +774,7 @@ export default {
 					time: '14:12',
 					customer_name: 'Walk-in Customer',
 					customer_tax_id: '',
+					customer_phone: '',
 					invoice_no: 'INV-003',
 					total_amount: 67.25,
 					paid_amount: 50.00,
@@ -846,6 +791,7 @@ export default {
 					time: '14:08',
 					customer_name: 'Mike Johnson',
 					customer_tax_id: 'TX345678',
+					customer_phone: '0923456789',
 					invoice_no: 'INV-004',
 					total_amount: 203.75,
 					paid_amount: 203.75,
@@ -862,6 +808,7 @@ export default {
 					time: '14:02',
 					customer_name: 'Sarah Wilson',
 					customer_tax_id: 'TX901234',
+					customer_phone: '0934567890',
 					invoice_no: 'INV-005',
 					total_amount: 156.80,
 					paid_amount: 100.00,
@@ -933,29 +880,20 @@ export default {
 		filteredInvoices() {
 			let filtered = this.invoices;
 
-			if (this.filters.pos_profile) {
-				filtered = filtered.filter(inv => inv.pos_profile === this.filters.pos_profile);
-			}
-			if (this.filters.user_id) {
-				filtered = filtered.filter(inv => inv.user_id.toLowerCase().includes(this.filters.user_id.toLowerCase()));
-			}
-			if (this.filters.customer_name) {
-				filtered = filtered.filter(inv => inv.customer_name.toLowerCase().includes(this.filters.customer_name.toLowerCase()));
-			}
-			if (this.filters.customer_tax_id) {
-				filtered = filtered.filter(inv => inv.customer_tax_id.includes(this.filters.customer_tax_id));
-			}
 			if (this.filters.invoice_no) {
-				filtered = filtered.filter(inv => inv.invoice_no.includes(this.filters.invoice_no));
+				filtered = filtered.filter(inv =>
+					inv.invoice_no.toLowerCase().includes(this.filters.invoice_no.toLowerCase())
+				);
 			}
-			if (this.filters.payment_method) {
-				filtered = filtered.filter(inv => inv.payment_method === this.filters.payment_method);
+			if (this.filters.tax_invoice_no) {
+				filtered = filtered.filter(inv =>
+					inv.tax_invoice_no.toLowerCase().includes(this.filters.tax_invoice_no.toLowerCase())
+				);
 			}
-			if (this.filters.amount_min) {
-				filtered = filtered.filter(inv => inv.total_amount >= parseFloat(this.filters.amount_min));
-			}
-			if (this.filters.amount_max) {
-				filtered = filtered.filter(inv => inv.total_amount <= parseFloat(this.filters.amount_max));
+			if (this.filters.customer_phone) {
+				filtered = filtered.filter(inv =>
+					inv.customer_phone && inv.customer_phone.includes(this.filters.customer_phone)
+				);
 			}
 
 			return filtered;
@@ -973,14 +911,9 @@ export default {
 
 		clearFilters() {
 			this.filters = {
-				pos_profile: '',
-				user_id: '',
-				customer_name: '',
-				customer_tax_id: '',
 				invoice_no: '',
-				amount_min: '',
-				amount_max: '',
-				payment_method: ''
+				tax_invoice_no: '',
+				customer_phone: ''
 			};
 		},
 
