@@ -1,0 +1,294 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2025-01-09 23:11:55.513000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "shift_report_id",
+  "pos_opening_shift",
+  "column_break_3",
+  "opening_date",
+  "opening_time",
+  "opened_by",
+  "section_break_8",
+  "opening_amounts",
+  "total_opening_amount",
+  "section_break_12",
+  "expected_closing_amounts",
+  "total_expected_closing",
+  "section_break_16",
+  "actual_closing_amounts",
+  "total_actual_closing",
+  "difference",
+  "section_break_21",
+  "verification_status",
+  "verification_date",
+  "verified_by",
+  "confirmation_date",
+  "confirmed_by",
+  "closing_date",
+  "closed_by",
+  "section_break_30",
+  "status",
+  "invoice_count",
+  "total_sales",
+  "total_returns",
+  "payment_breakdown",
+  "notes",
+  "invoices"
+ ],
+ "fields": [
+  {
+   "fieldname": "shift_report_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Shift Report ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "pos_opening_shift",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "POS Opening Shift",
+   "options": "POS Opening Shift",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "opening_date",
+   "fieldtype": "Date",
+   "label": "Opening Date",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "opening_time",
+   "fieldtype": "Time",
+   "label": "Opening Time",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "opened_by",
+   "fieldtype": "Link",
+   "label": "Opened By",
+   "options": "User",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_8",
+   "fieldtype": "Section Break",
+   "label": "Opening Amounts"
+  },
+  {
+   "fieldname": "opening_amounts",
+   "fieldtype": "JSON",
+   "label": "Opening Amounts",
+   "reqd": 1
+  },
+  {
+   "fieldname": "total_opening_amount",
+   "fieldtype": "Currency",
+   "label": "Total Opening Amount",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_12",
+   "fieldtype": "Section Break",
+   "label": "Expected Closing"
+  },
+  {
+   "fieldname": "expected_closing_amounts",
+   "fieldtype": "JSON",
+   "label": "Expected Closing Amounts"
+  },
+  {
+   "fieldname": "total_expected_closing",
+   "fieldtype": "Currency",
+   "label": "Total Expected Closing",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_16",
+   "fieldtype": "Section Break",
+   "label": "Actual Closing"
+  },
+  {
+   "fieldname": "actual_closing_amounts",
+   "fieldtype": "JSON",
+   "label": "Actual Closing Amounts"
+  },
+  {
+   "fieldname": "total_actual_closing",
+   "fieldtype": "Currency",
+   "label": "Total Actual Closing",
+   "read_only": 1
+  },
+  {
+   "fieldname": "difference",
+   "fieldtype": "Currency",
+   "label": "Difference",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_21",
+   "fieldtype": "Section Break",
+   "label": "Verification & Approval"
+  },
+  {
+   "fieldname": "verification_status",
+   "fieldtype": "Select",
+   "label": "Verification Status",
+   "options": "Pending\nVerified\nConfirmed",
+   "default": "Pending"
+  },
+  {
+   "fieldname": "verification_date",
+   "fieldtype": "Date",
+   "label": "Verification Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "verified_by",
+   "fieldtype": "Link",
+   "label": "Verified By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "confirmation_date",
+   "fieldtype": "Date",
+   "label": "Confirmation Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "confirmed_by",
+   "fieldtype": "Link",
+   "label": "Confirmed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "closing_date",
+   "fieldtype": "Date",
+   "label": "Closing Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "closed_by",
+   "fieldtype": "Link",
+   "label": "Closed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_30",
+   "fieldtype": "Section Break",
+   "label": "Summary & Status"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Open\nClosed",
+   "default": "Open",
+   "reqd": 1
+  },
+  {
+   "fieldname": "invoice_count",
+   "fieldtype": "Int",
+   "label": "Invoice Count",
+   "read_only": 1,
+   "default": "0"
+  },
+  {
+   "fieldname": "total_sales",
+   "fieldtype": "Currency",
+   "label": "Total Sales",
+   "read_only": 1,
+   "default": "0"
+  },
+  {
+   "fieldname": "total_returns",
+   "fieldtype": "Currency",
+   "label": "Total Returns",
+   "read_only": 1,
+   "default": "0"
+  },
+  {
+   "fieldname": "payment_breakdown",
+   "fieldtype": "JSON",
+   "label": "Payment Breakdown"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "invoices",
+   "fieldtype": "Table",
+   "label": "Invoices",
+   "options": "POS Shift Report Invoice",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2025-01-09 23:11:55.513000",
+ "modified_by": "Administrator",
+ "module": "POS Awesome",
+ "name": "POS Shift Report",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales User",
+   "share": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "title_field": "shift_report_id",
+ "track_changes": 1,
+ "track_views": 1
+}
