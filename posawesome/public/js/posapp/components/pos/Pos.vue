@@ -8,7 +8,11 @@
 		<MpesaPayments></MpesaPayments>
 		<Variants></Variants>
 		<TaxRollDialog></TaxRollDialog>
-		<ListInvoicesDialog v-model="showListInvoicesDialog" :shift-report-id="pos_opening_shift"></ListInvoicesDialog>
+		<ListInvoicesDialog
+			v-model="showListInvoicesDialog"
+			:shift-report-id="pos_opening_shift"
+			:pos-profile="pos_profile"
+		></ListInvoicesDialog>
 		<OpeningDialog v-if="dialog" :dialog="dialog"></OpeningDialog>
 		<v-row v-show="!dialog" dense class="ma-0 dynamic-main-row">
 			<v-col
