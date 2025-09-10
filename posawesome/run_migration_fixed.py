@@ -1,40 +1,66 @@
+#!/usr/bin/env python3
+"""
+Fixed Migration Script for POS Shift Report System
+This script creates DocTypes in the correct order to avoid dependency issues.
+"""
+
+import os
+import sys
+
+# Setup environment
+os.environ['FRAPPE_SITE'] = 'erp152-v1.vtcom.online'
+
+# Add paths
+sys.path.insert(0, '/home/frappe/frappe-bench')
+sys.path.insert(0, '/home/frappe/frappe-bench/apps/frappe')
+sys.path.insert(0, '/home/frappe/frappe-bench/apps/erpnext')
+sys.path.insert(0, '/home/frappe/frappe-bench/apps/posawesome')
+
+# Initialize Frappe
 import frappe
-from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+frappe.init(site='erp152-v1.vtcom.online')
+frappe.connect()
 
-def execute():
-    """
-    Migration script to add POS Shift Report tables and related custom fields
-    This script creates:
-    1. POS Shift Report DocType
-    2. POS Shift Report Invoice Child Table
-    3. Custom fields for existing tables
-    4. Migration of existing data
-    """
+def create_module_if_not_exists():
+    """Create POS Awesome module if it doesn't exist"""
+    print("🔍 Checking for POS Awesome module...")
+
+    if frappe.db.exists("Module Def", "POS Awesome"):
+        print("✅ Module POS Awesome already exists")
+        return True
+
+    print("❌ Module POS Awesome not found, creating...")
+
     try:
-        # Create new DocTypes
-        create_pos_shift_report_doctypes()
+        from frappe import get_doc
 
-        # Add custom fields to existing tables
-        create_shift_report_custom_fields()
+        module = get_doc({
+            "doctype": "Module Def",
+            "module_name": "POS Awesome",
+            "app_name": "posawesome"
+        })
 
-        # Migrate existing data if any
-        migrate_existing_shift_data()
-
+        module.insert()
         frappe.db.commit()
-        frappe.logger().info("POS Shift Report migration completed successfully")
+
+        print("✅ Module POS Awesome created successfully!")
+        return True
 
     except Exception as e:
-        frappe.log_error(str(e), "POS Shift Report Migration Error")
-        raise
+        print(f"❌ Error creating module: {e}")
+        return False
 
-def create_pos_shift_report_doctypes():
-    """Create POS Shift Report and related DocTypes"""
+def create_child_table():
+    """Create POS Shift Report Invoice child table first"""
+    print("🔧 Creating POS Shift Report Invoice (Child Table)...")
 
-    # IMPORTANT: Create CHILD TABLE first, then PARENT TABLE
-    # This prevents WrongOptionsDoctypeLinkError
+    if frappe.db.exists("DocType", "POS Shift Report Invoice"):
+        print("✅ POS Shift Report Invoice already exists")
+        return True
 
-    # 1. POS Shift Report Invoice Child Table (Create FIRST)
-    if not frappe.db.exists("DocType", "POS Shift Report Invoice"):
+    try:
+        from frappe import get_doc
+
         pos_shift_report_invoice = {
             "doctype": "DocType",
             "name": "POS Shift Report Invoice",
@@ -117,10 +143,30 @@ def create_pos_shift_report_doctypes():
             "sort_order": "ASC"
         }
 
-        frappe.get_doc(pos_shift_report_invoice).insert()
+        doc = get_doc(pos_shift_report_invoice)
+        doc.insert()
+        frappe.db.commit()
 
-    # 2. POS Shift Report DocType (Create AFTER child table)
-    if not frappe.db.exists("DocType", "POS Shift Report"):
+        print("✅ POS Shift Report Invoice created successfully")
+        return True
+
+    except Exception as e:
+        print(f"❌ Error creating child table: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def create_parent_table():
+    """Create POS Shift Report parent table after child table"""
+    print("🔧 Creating POS Shift Report (Parent Table)...")
+
+    if frappe.db.exists("DocType", "POS Shift Report"):
+        print("✅ POS Shift Report already exists")
+        return True
+
+    try:
+        from frappe import get_doc
+
         pos_shift_report = {
             "doctype": "DocType",
             "name": "POS Shift Report",
@@ -337,93 +383,117 @@ def create_pos_shift_report_doctypes():
             "sort_order": "DESC"
         }
 
-        frappe.get_doc(pos_shift_report).insert()
+        doc = get_doc(pos_shift_report)
+        doc.insert()
+        frappe.db.commit()
 
-def create_shift_report_custom_fields():
-    """Add custom fields to existing DocTypes"""
+        print("✅ POS Shift Report created successfully")
+        return True
 
-    custom_fields = {
-        "POS Opening Shift": [
-            {
-                "fieldname": "shift_report_id",
-                "fieldtype": "Data",
-                "label": "Shift Report ID",
-                "unique": 1,
-                "read_only": 1,
-                "insert_after": "name"
-            },
-            {
-                "fieldname": "shift_report",
-                "fieldtype": "Link",
-                "label": "Shift Report",
-                "options": "POS Shift Report",
-                "read_only": 1,
-                "insert_after": "shift_report_id"
-            }
-        ],
-        "POS Closing Shift": [
-            {
-                "fieldname": "shift_report",
-                "fieldtype": "Link",
-                "label": "Shift Report",
-                "options": "POS Shift Report",
-                "reqd": 1,
-                "read_only": 1,
-                "insert_after": "pos_opening_shift"
-            },
-            {
-                "fieldname": "expected_amounts",
-                "fieldtype": "JSON",
-                "label": "Expected Amounts",
-                "read_only": 1,
-                "insert_after": "shift_report"
-            },
-            {
-                "fieldname": "actual_amounts",
-                "fieldtype": "JSON",
-                "label": "Actual Amounts",
-                "reqd": 1,
-                "insert_after": "expected_amounts"
-            },
-            {
-                "fieldname": "difference_amounts",
-                "fieldtype": "JSON",
-                "label": "Difference Amounts",
-                "read_only": 1,
-                "insert_after": "actual_amounts"
-            },
-            {
-                "fieldname": "verification_status",
-                "fieldtype": "Select",
-                "label": "Verification Status",
-                "options": "Pending\nVerified\nConfirmed",
-                "default": "Pending",
-                "insert_after": "difference_amounts"
-            }
-        ],
-        "Sales Invoice": [
-            {
-                "fieldname": "pos_shift_report",
-                "fieldtype": "Link",
-                "label": "POS Shift Report",
-                "options": "POS Shift Report",
-                "read_only": 1,
-                "insert_after": "pos_profile"
-            },
-            {
-                "fieldname": "shift_report_id",
-                "fieldtype": "Data",
-                "label": "Shift Report ID",
-                "read_only": 1,
-                "insert_after": "pos_shift_report"
-            }
-        ]
-    }
+    except Exception as e:
+        print(f"❌ Error creating parent table: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
-    create_custom_fields(custom_fields)
+def create_custom_fields():
+    """Create custom fields for existing DocTypes"""
+    print("🔧 Creating custom fields...")
 
-def migrate_existing_shift_data():
-    """Migrate existing opening/closing shifts to shift reports"""
+    try:
+        from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+        custom_fields = {
+            "POS Opening Shift": [
+                {
+                    "fieldname": "shift_report_id",
+                    "fieldtype": "Data",
+                    "label": "Shift Report ID",
+                    "unique": 1,
+                    "read_only": 1,
+                    "insert_after": "name"
+                },
+                {
+                    "fieldname": "shift_report",
+                    "fieldtype": "Link",
+                    "label": "Shift Report",
+                    "options": "POS Shift Report",
+                    "read_only": 1,
+                    "insert_after": "shift_report_id"
+                }
+            ],
+            "POS Closing Shift": [
+                {
+                    "fieldname": "shift_report",
+                    "fieldtype": "Link",
+                    "label": "Shift Report",
+                    "options": "POS Shift Report",
+                    "reqd": 1,
+                    "read_only": 1,
+                    "insert_after": "pos_opening_shift"
+                },
+                {
+                    "fieldname": "expected_amounts",
+                    "fieldtype": "JSON",
+                    "label": "Expected Amounts",
+                    "read_only": 1,
+                    "insert_after": "shift_report"
+                },
+                {
+                    "fieldname": "actual_amounts",
+                    "fieldtype": "JSON",
+                    "label": "Actual Amounts",
+                    "reqd": 1,
+                    "insert_after": "expected_amounts"
+                },
+                {
+                    "fieldname": "difference_amounts",
+                    "fieldtype": "JSON",
+                    "label": "Difference Amounts",
+                    "read_only": 1,
+                    "insert_after": "actual_amounts"
+                },
+                {
+                    "fieldname": "verification_status",
+                    "fieldtype": "Select",
+                    "label": "Verification Status",
+                    "options": "Pending\nVerified\nConfirmed",
+                    "default": "Pending",
+                    "insert_after": "difference_amounts"
+                }
+            ],
+            "Sales Invoice": [
+                {
+                    "fieldname": "pos_shift_report",
+                    "fieldtype": "Link",
+                    "label": "POS Shift Report",
+                    "options": "POS Shift Report",
+                    "read_only": 1,
+                    "insert_after": "pos_profile"
+                },
+                {
+                    "fieldname": "shift_report_id",
+                    "fieldtype": "Data",
+                    "label": "Shift Report ID",
+                    "read_only": 1,
+                    "insert_after": "pos_shift_report"
+                }
+            ]
+        }
+
+        create_custom_fields(custom_fields)
+        print("✅ Custom fields created successfully")
+        return True
+
+    except Exception as e:
+        print(f"❌ Error creating custom fields: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def migrate_data():
+    """Migrate existing data"""
+    print("🔧 Migrating existing data...")
 
     try:
         # Get all submitted opening shifts without shift reports
@@ -436,7 +506,7 @@ def migrate_existing_shift_data():
             fields=["name", "posting_date", "posting_time", "owner", "pos_profile"]
         )
 
-        frappe.logger().info(f"Found {len(opening_shifts)} opening shifts to migrate")
+        print(f"Found {len(opening_shifts)} opening shifts to migrate")
 
         for opening_shift in opening_shifts:
             try:
@@ -469,14 +539,63 @@ def migrate_existing_shift_data():
                     }
                 )
 
-                frappe.logger().info(f"Created shift report {shift_report.name} for opening shift {opening_shift.name}")
+                print(f"✅ Created shift report {shift_report.name} for opening shift {opening_shift.name}")
 
             except Exception as e:
-                frappe.logger().error(f"Failed to migrate opening shift {opening_shift.name}: {str(e)}")
+                print(f"❌ Failed to migrate opening shift {opening_shift.name}: {str(e)}")
                 continue
 
-        frappe.logger().info("Migration of existing shift data completed")
+        print("✅ Data migration completed")
+        return True
 
     except Exception as e:
-        frappe.logger().error(f"Migration failed: {str(e)}")
-        # Don't raise error to prevent migration failure
+        print(f"❌ Migration failed: {str(e)}")
+        return False
+
+def main():
+    """Main migration function"""
+    print("🚀 FIXED MIGRATION SCRIPT - POS SHIFT REPORT SYSTEM")
+    print("=" * 60)
+
+    success = True
+
+    # Step 1: Create module
+    if not create_module_if_not_exists():
+        success = False
+
+    # Step 2: Create child table first
+    if success and not create_child_table():
+        success = False
+
+    # Step 3: Create parent table
+    if success and not create_parent_table():
+        success = False
+
+    # Step 4: Create custom fields
+    if success and not create_custom_fields():
+        success = False
+
+    # Step 5: Migrate data
+    if success and not migrate_data():
+        success = False
+
+    # Final result
+    if success:
+        print("\n🎉 MIGRATION COMPLETED SUCCESSFULLY!")
+        print("✅ All DocTypes created")
+        print("✅ All custom fields added")
+        print("✅ Data migration completed")
+        print("\n📋 Next steps:")
+        print("1. Clear cache: bench clear-cache --site erp152-v1.vtcom.online")
+        print("2. Restart services: sudo supervisorctl restart frappe-bench-web:")
+        print("3. Test system: Access POS and create shift reports")
+    else:
+        print("\n❌ MIGRATION FAILED!")
+        print("Check logs for details")
+
+    return success
+
+if __name__ == "__main__":
+    success = main()
+    frappe.destroy()
+    exit(0 if success else 1)
