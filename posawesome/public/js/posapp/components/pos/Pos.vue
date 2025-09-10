@@ -80,6 +80,8 @@ export default {
 			dialog: false,
 			pos_profile: "",
 			pos_opening_shift: "",
+			pos_shift_report: "",
+			shift_report_data: {},
 			payment: false,
 			offers: false,
 			coupons: false,
@@ -119,6 +121,12 @@ export default {
 						this.pos_profile = r.message.pos_profile;
 						this.pos_opening_shift = r.message.pos_opening_shift;
 						this.get_offers(this.pos_profile.name);
+
+						// Load Shift Report data nếu có
+						if (r.message.pos_opening_shift && r.message.pos_opening_shift.shift_report) {
+							this.pos_shift_report = r.message.pos_opening_shift.shift_report;
+							this.load_shift_report_data();
+						}
 						if (this.pos_profile.taxes_and_charges) {
 							frappe.call({
 								method: "frappe.client.get",
@@ -165,7 +173,21 @@ export default {
 						this.create_opening_voucher();
 					}
 				})
-				.catch(() => {
+				.catch((error) => {
+					console.error("Failed to check opening entry:", error);
+
+					// Hiển thị cảnh báo nếu có lỗi nghiêm trọng
+					if (error && error.message && error.message.includes("Critical Error")) {
+						if (window.frappe && frappe.show_alert) {
+							frappe.show_alert({
+								message: error.message,
+								indicator: 'red'
+							});
+						} else {
+							alert(error.message);
+						}
+					}
+
 					const data = getOpeningStorage();
 					if (data) {
 						this.pos_profile = data.pos_profile;
@@ -263,6 +285,30 @@ export default {
 				this.eventBus.emit("set_pos_settings", doc);
 			});
 		},
+
+		load_shift_report_data() {
+			if (!this.pos_shift_report) return;
+
+			frappe.call("posawesome.posawesome.api.shift_reports.get_shift_report", {
+				shift_report_id: this.pos_shift_report
+			}).then((r) => {
+				if (r.message && r.message.success) {
+					this.shift_report_data = r.message.data;
+					this.eventBus.emit("register_shift_report", this.shift_report_data);
+					console.info("Shift Report data loaded:", this.shift_report_data);
+				}
+			}).catch((err) => {
+				console.error("Failed to load shift report data:", err);
+
+				// Hiển thị cảnh báo nếu load shift report thất bại
+				if (window.frappe && frappe.show_alert) {
+					frappe.show_alert({
+						message: __("Warning: Failed to load Shift Report data. Some features may not work properly."),
+						indicator: 'orange'
+					});
+				}
+			});
+		},
 	},
 
 	mounted: function () {
@@ -278,6 +324,12 @@ export default {
 				this.pos_opening_shift = data.pos_opening_shift;
 				this.eventBus.emit("register_pos_profile", data);
 				console.info("LoadPosProfile");
+			});
+
+			this.eventBus.on("register_shift_report", (shift_report_data) => {
+				this.pos_shift_report = shift_report_data.name;
+				this.shift_report_data = shift_report_data;
+				console.info("Shift Report registered:", shift_report_data);
 			});
 			this.eventBus.on("show_payment", (data) => {
 				this.payment = true ? data === "true" : false;
@@ -308,6 +360,7 @@ export default {
 	beforeUnmount() {
 		this.eventBus.off("close_opening_dialog");
 		this.eventBus.off("register_pos_data");
+		this.eventBus.off("register_shift_report");
 		this.eventBus.off("LoadPosProfile");
 		this.eventBus.off("show_offers");
 		this.eventBus.off("show_coupons");

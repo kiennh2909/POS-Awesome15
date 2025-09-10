@@ -260,6 +260,13 @@ export default {
 					if (r.message) {
 						vm.eventBus.emit("register_pos_data", r.message);
 						vm.eventBus.emit("set_company", r.message.company);
+
+						// Handle Shift Report data nếu được tạo tự động
+						if (r.message.shift_report) {
+							vm.eventBus.emit("register_shift_report", r.message.shift_report);
+							console.info("Shift Report created automatically:", r.message.shift_report);
+						}
+
 						try {
 							setOpeningStorage(r.message);
 						} catch (e) {
@@ -268,6 +275,24 @@ export default {
 						vm.close_opening_dialog();
 						vm.is_loading = false;
 					}
+				})
+				.catch((error) => {
+					// ✅ Handle error khi tạo shift report thất bại
+					vm.is_loading = false;
+					console.error("Failed to create opening voucher:", error);
+
+					// Hiển thị popup cảnh báo đỏ nghiêm trọng
+					if (window.frappe && frappe.show_alert) {
+						frappe.show_alert({
+							message: __("Critical Error: Failed to create Shift Report. Opening shift was created but Shift Report creation failed. Please contact administrator."),
+							indicator: 'red'
+						});
+					} else {
+						alert(__("Critical Error: Failed to create Shift Report. Opening shift was created but Shift Report creation failed. Please contact administrator."));
+					}
+
+					// Vẫn đóng dialog và tiếp tục với opening shift đã tạo
+					vm.close_opening_dialog();
 				});
 		},
 

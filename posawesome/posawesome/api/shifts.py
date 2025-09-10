@@ -77,6 +77,18 @@ def create_opening_voucher(pos_profile, company, balance_details):
 	data = {}
 	data["pos_opening_shift"] = new_pos_opening.as_dict()
 	update_opening_shift_data(data, new_pos_opening.pos_profile)
+
+	# Tự động tạo Shift Report ngay sau khi tạo Opening Shift thành công
+	try:
+		shift_report_data = create_shift_report_automatically(
+			new_pos_opening.name, balance_details
+		)
+		data["shift_report"] = shift_report_data
+	except Exception as e:
+		frappe.log_error(f"Failed to create shift report: {str(e)}", "Create Opening Voucher")
+		# Throw error để frontend hiển thị cảnh báo nghiêm trọng
+		frappe.throw(_("Critical Error: Failed to create Shift Report. Please contact administrator. Error: {0}").format(str(e)))
+
 	return data
 
 
@@ -109,3 +121,84 @@ def update_opening_shift_data(data, pos_profile):
 	allow_negative_stock = frappe.get_value("Stock Settings", None, "allow_negative_stock")
 	data["stock_settings"] = {}
 	data["stock_settings"].update({"allow_negative_stock": allow_negative_stock})
+
+
+def create_shift_report_automatically(opening_shift_name, balance_details):
+	"""
+	Tự động tạo Shift Report ngay sau khi tạo Opening Shift thành công
+
+	Args:
+		opening_shift_name (str): Tên của POS Opening Shift vừa tạo
+		balance_details (list): Danh sách balance details từ opening shift
+
+	Returns:
+		dict: Thông tin Shift Report vừa tạo
+	"""
+	try:
+		# Kiểm tra xem Shift Report đã tồn tại chưa
+		existing_report = frappe.db.exists("POS Shift Report",
+			{"pos_opening_shift": opening_shift_name}
+		)
+
+		if existing_report:
+			# Nếu đã tồn tại, trả về thông tin report hiện tại
+			report = frappe.get_doc("POS Shift Report", existing_report)
+			return {
+				"name": report.name,
+				"shift_report_id": report.shift_report_id,
+				"status": "existing"
+			}
+
+		# Lấy thông tin từ opening shift
+		opening_shift = frappe.get_doc("POS Opening Shift", opening_shift_name)
+
+		# Tạo opening amounts dictionary từ balance_details
+		opening_amounts = {}
+		total_opening = 0
+
+		for detail in balance_details:
+			mode_of_payment = detail.get("mode_of_payment")
+			amount = detail.get("amount", 0)
+			if mode_of_payment and amount:
+				opening_amounts[mode_of_payment] = amount
+				total_opening += amount
+
+		# Tạo Shift Report
+		shift_report = frappe.get_doc({
+			"doctype": "POS Shift Report",
+			"shift_report_id": f"SHIFT-{opening_shift_name}",
+			"pos_opening_shift": opening_shift_name,
+			"opening_date": opening_shift.posting_date,
+			"opening_time": opening_shift.period_start_date,
+			"opened_by": opening_shift.user,
+			"opening_amounts": json.dumps(opening_amounts),
+			"total_opening_amount": total_opening,
+			"status": "Open",
+			"verification_status": "Pending"
+		})
+
+		shift_report.insert(ignore_permissions=True)
+
+		# Cập nhật opening shift với shift report reference
+		frappe.db.set_value("POS Opening Shift", opening_shift_name, {
+			"shift_report": shift_report.name,
+			"shift_report_id": shift_report.shift_report_id
+		})
+
+		frappe.db.commit()
+
+		return {
+			"name": shift_report.name,
+			"shift_report_id": shift_report.shift_report_id,
+			"status": "created",
+			"opening_amounts": opening_amounts,
+			"total_opening_amount": total_opening
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error creating shift report automatically: {str(e)}", "Create Shift Report Automatically")
+		# Không throw error để không làm gián đoạn việc tạo opening shift
+		return {
+			"status": "error",
+			"message": str(e)
+		}
