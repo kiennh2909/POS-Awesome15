@@ -424,6 +424,8 @@ export default {
 				// Load payment summary data
 				await this.loadPaymentSummary();
 
+				// Load shift report data for footer status bar
+				await this.loadShiftReportData();
 			} else {
 				console.warn("No invoices found or invalid response format");
 				this.invoices = [];
@@ -446,6 +448,43 @@ export default {
 		}
 	},
 
+	// ✅ LOAD SHIFT REPORT DATA FOR FOOTER STATUS BAR
+	async loadShiftReportData() {
+		if (!this.shiftReportId) return;
+
+		try {
+			console.log("Loading shift report data for footer:", this.shiftReportId);
+
+			// Get shift report data
+			const shiftReportResponse = await frappe.call({
+				method: "frappe.client.get",
+				args: {
+					doctype: "POS Shift Report",
+					name: this.shiftReportId
+				}
+			});
+
+			if (shiftReportResponse.message) {
+				const shiftReportData = shiftReportResponse.message;
+
+				// Emit event to update footer status bar
+				if (this.eventBus) {
+					this.eventBus.emit("register_shift_report", {
+						shift_report_id: shiftReportData.shift_report_id,
+						total_invoices: shiftReportData.invoice_count || 0,
+						total_revenue: (shiftReportData.total_sales || 0) - (shiftReportData.total_returns || 0),
+						last_invoice: shiftReportData.invoices && shiftReportData.invoices.length > 0 ?
+							shiftReportData.invoices[shiftReportData.invoices.length - 1].invoice_no : ""
+					});
+				}
+
+				console.log("Shift report data loaded for footer:", shiftReportData.shift_report_id);
+			}
+		} catch (error) {
+			console.error("Error loading shift report data for footer:", error);
+		}
+	},
+
 	// ✅ LOAD PAYMENT SUMMARY DATA
 	async loadPaymentSummary() {
 		if (!this.shiftReportId) return;
@@ -454,12 +493,30 @@ export default {
 		try {
 			console.log("Loading payment summary for shift:", this.shiftReportId);
 
+			// First, get the shift report to find the opening shift ID
+			const shiftReportResponse = await frappe.call({
+				method: "frappe.client.get",
+				args: {
+					doctype: "POS Shift Report",
+					name: this.shiftReportId
+				}
+			});
+
+			if (!shiftReportResponse.message || !shiftReportResponse.message.pos_opening_shift) {
+				console.warn("Could not find opening shift for shift report:", this.shiftReportId);
+				this.calculatePaymentSummaryFromInvoices();
+				return;
+			}
+
+			const openingShiftId = shiftReportResponse.message.pos_opening_shift;
+			console.log("Found opening shift ID:", openingShiftId);
+
 			// Load opening amounts from POS Opening Shift
 			const openingResponse = await frappe.call({
 				method: "frappe.client.get",
 				args: {
 					doctype: "POS Opening Shift",
-					name: this.shiftReportId
+					name: openingShiftId
 				}
 			});
 
