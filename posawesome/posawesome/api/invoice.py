@@ -29,6 +29,16 @@ def before_submit(doc, method):
 	update_coupon(doc, "used")
 
 
+def on_submit(doc, method):
+	"""Update shift report when invoice is submitted"""
+	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
+		update_shift_report_with_invoice(doc, "submit")
+
+def on_cancel(doc, method):
+	"""Update shift report when invoice is cancelled"""
+	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
+		update_shift_report_with_invoice(doc, "cancel")
+
 def before_cancel(doc, method):
 	update_coupon(doc, "cancelled")
 
@@ -249,6 +259,43 @@ def apply_tax_inclusive(doc):
 		doc.calculate_taxes_and_totals()
 
 
+def get_invoice_payment_method(invoice_doc):
+	"""
+	Get primary payment method from invoice payments
+
+	Args:
+		invoice_doc: Sales Invoice document
+
+	Returns:
+		str: Payment method name
+	"""
+	try:
+		# Check if invoice has payments
+		if hasattr(invoice_doc, 'payments') and invoice_doc.payments:
+			# Get the first payment method (primary payment)
+			for payment in invoice_doc.payments:
+				if payment.amount > 0:
+					return payment.mode_of_payment or "Cash"
+
+		# Fallback: Check payment entries linked to this invoice
+		payment_entries = frappe.get_all("Payment Entry Reference",
+			filters={"reference_name": invoice_doc.name, "reference_doctype": "Sales Invoice"},
+			fields=["parent"]
+		)
+
+		if payment_entries:
+			payment_entry = frappe.get_doc("Payment Entry", payment_entries[0].parent)
+			if payment_entry.payment_type == "Receive" and payment_entry.paid_amount > 0:
+				return payment_entry.mode_of_payment or "Cash"
+
+		# Default fallback
+		return "Cash"
+
+	except Exception as e:
+		frappe.logger().error(f"Error getting payment method for invoice {invoice_doc.name}: {str(e)}")
+		return "Cash"
+
+
 def validate_shift(doc):
 	if doc.posa_pos_opening_shift and doc.pos_profile and doc.is_pos:
 		# check if shift is open
@@ -261,3 +308,77 @@ def validate_shift(doc):
 		# check if shift is for the same company
 		if shift.company != doc.company:
 			frappe.throw(_("POS Opening Shift {0} is not for the same company").format(shift.name))
+
+		# Set shift report reference if available
+		if hasattr(shift, 'shift_report') and shift.shift_report:
+			doc.pos_shift_report = shift.shift_report
+			doc.shift_report_id = shift.shift_report_id
+			frappe.logger().info(f"Set shift report reference for invoice {doc.name}: {shift.shift_report}")
+		else:
+			frappe.logger().warning(f"No shift report found for opening shift {doc.posa_pos_opening_shift}")
+
+
+def update_shift_report_with_invoice(invoice_doc, action):
+	"""
+	Update shift report when invoice is submitted or cancelled
+
+	Args:
+		invoice_doc: Sales Invoice document
+		action: "submit" or "cancel"
+	"""
+	try:
+		if not hasattr(invoice_doc, 'pos_shift_report') or not invoice_doc.pos_shift_report:
+			frappe.logger().warning(f"No shift report reference found for invoice {invoice_doc.name}")
+			return
+
+		# Get shift report
+		shift_report = frappe.get_doc("POS Shift Report", invoice_doc.pos_shift_report)
+
+		if action == "submit":
+			# Add invoice to shift report
+			existing_invoice = None
+			for inv in shift_report.invoices:
+				if inv.invoice_no == invoice_doc.name:
+					existing_invoice = inv
+					break
+
+			if not existing_invoice:
+				# Get payment method from invoice payments
+				payment_method = get_invoice_payment_method(invoice_doc)
+
+				# Add new invoice entry
+				shift_report.append("invoices", {
+					"invoice_no": invoice_doc.name,
+					"invoice_date": invoice_doc.posting_date,
+					"invoice_time": invoice_doc.posting_time,
+					"customer": invoice_doc.customer,
+					"total_amount": invoice_doc.grand_total,
+					"paid_amount": invoice_doc.paid_amount or 0,
+					"tax_amount": invoice_doc.total_taxes_and_charges or 0,
+					"payment_method": payment_method,
+					"is_return": invoice_doc.is_return or False,
+					"status": "Submitted"
+				})
+				frappe.logger().info(f"Added invoice {invoice_doc.name} to shift report {shift_report.name} with payment method: {payment_method}")
+
+		elif action == "cancel":
+			# Remove invoice from shift report or mark as cancelled
+			for inv in shift_report.invoices:
+				if inv.invoice_no == invoice_doc.name:
+					inv.status = "Cancelled"
+					frappe.logger().info(f"Marked invoice {invoice_doc.name} as cancelled in shift report {shift_report.name}")
+					break
+
+		# Update calculated fields
+		shift_report.update_calculated_fields()
+		shift_report.get_payment_breakdown()
+
+		# Save shift report
+		shift_report.save()
+		frappe.db.commit()
+
+		frappe.logger().info(f"Updated shift report {shift_report.name} for invoice {invoice_doc.name} action: {action}")
+
+	except Exception as e:
+		frappe.logger().error(f"Failed to update shift report for invoice {invoice_doc.name}: {str(e)}")
+		# Don't raise error to prevent invoice submission/cancellation failure
