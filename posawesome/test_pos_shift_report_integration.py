@@ -234,7 +234,7 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
             if shift_report.docstatus == 1:  # Submitted
                 shift_report.cancel()
                 frappe.db.commit()
-            frappe.delete_doc("POS Shift Report", shift_report.name, force=True)
+            # frappe.delete_doc("POS Shift Report", shift_report.name, force=True)
             frappe.db.commit()
         except Exception as e:
             print(f"Cleanup error: {e}")
@@ -345,31 +345,39 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
         shift_report.save()
 
         # DON'T submit to avoid linking with POS Opening Shift
-        # shift_report.submit()
-        # frappe.db.commit()
+        shift_report.submit()
+        frappe.db.commit()
 
         # Verify transition
         updated = frappe.get_doc("POS Shift Report", shift_report.name)
         self.assertEqual(updated.verification_status, "Confirmed")  # Changed from "Verified" to "Confirmed"
         self.assertIsNotNone(updated.verification_date)
 
-        # Clean up - No need to cancel since not submitted
-        try:
-            frappe.delete_doc("POS Shift Report", shift_report.name, force=True)
-            frappe.db.commit()
-        except Exception as e:
-            print(f"Cleanup error: {e}")
-            # Continue with test even if cleanup fails
+        # # Clean up - No need to cancel since not submitted
+        # try:
+        #     frappe.delete_doc("POS Shift Report", shift_report.name, force=True)
+        #     frappe.db.commit()
+        # except Exception as e:
+        #     print(f"Cleanup error: {e}")
+        #     # Continue with test even if cleanup fails
 
     def test_11_complete_shift_workflow(self):
         """Test complete shift workflow: Create -> Verify -> Confirm -> Close Shift"""
         print("🔍 Testing Complete Shift Workflow...")
 
         # Step 1: Create shift report with real data
+        opening_shift_doc = frappe.get_doc("POS Opening Shift", "POSA-OS-25-0000103")
+        opening_amounts_dict = self.get_opening_amounts_from_child_table(opening_shift_doc)
+
         shift_report = frappe.get_doc({
             "doctype": "POS Shift Report",
             "shift_report_id": "TEST-COMPLETE-WORKFLOW-001",
             "pos_opening_shift": "POSA-OS-25-0000103",  # Real POS Opening Shift
+            "opening_date": opening_shift_doc.posting_date,  # ✅ ADD
+            "opening_time": opening_shift_doc.period_start_date.time() if opening_shift_doc.period_start_date else time(9, 0, 0),  # ✅ ADD
+            "opened_by": opening_shift_doc.user or self.test_user,  # ✅ ADD
+            "opening_amounts": json.dumps(opening_amounts_dict),  # ✅ ADD
+            "total_opening_amount": sum(opening_amounts_dict.values()),  # ✅ ADD
             "customer": "DY134 Khách lẻ POS ",  # Real customer
         })
 
@@ -433,9 +441,9 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
                 closing_shift.save()
 
             # Always clean up test shift report
-            if shift_report.docstatus == 1:
-                shift_report.cancel()
-            frappe.delete_doc("POS Shift Report", shift_report.name, force=True)
+            # if shift_report.docstatus == 1:
+            #     shift_report.cancel()
+            # frappe.delete_doc("POS Shift Report", shift_report.name, force=True)
 
             frappe.db.commit()
         except Exception as e:
@@ -446,10 +454,18 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
         print("🔍 Testing Shift Verification Workflow...")
 
         # Test 1: Create shift report with missing data
+        opening_shift_doc = frappe.get_doc("POS Opening Shift", "POSA-OS-25-0000103")
+        opening_amounts_dict = self.get_opening_amounts_from_child_table(opening_shift_doc)
+
         shift_report = frappe.get_doc({
             "doctype": "POS Shift Report",
             "shift_report_id": "TEST-VERIFICATION-001",
             "pos_opening_shift": "POSA-OS-25-0000103",
+            "opening_date": opening_shift_doc.posting_date,  # ✅ ADD
+            "opening_time": opening_shift_doc.period_start_date.time() if opening_shift_doc.period_start_date else time(9, 0, 0),  # ✅ ADD
+            "opened_by": opening_shift_doc.user or self.test_user,  # ✅ ADD
+            "opening_amounts": json.dumps(opening_amounts_dict),  # ✅ ADD
+            "total_opening_amount": sum(opening_amounts_dict.values()),  # ✅ ADD
         })
         shift_report.insert()
 
@@ -486,7 +502,7 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
 
         # Clean up
         try:
-            frappe.delete_doc("POS Shift Report", shift_report.name, force=True)
+            # frappe.delete_doc("POS Shift Report", shift_report.name, force=True)
             frappe.db.commit()
         except Exception as e:
             print(f"Cleanup error: {e}")
@@ -496,10 +512,18 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
         print("🔍 Testing Shift Closing Process...")
 
         # Create shift report first with real data
+        opening_shift_doc = frappe.get_doc("POS Opening Shift", "POSA-OS-25-0000103")
+        opening_amounts_dict = self.get_opening_amounts_from_child_table(opening_shift_doc)
+
         shift_report = frappe.get_doc({
             "doctype": "POS Shift Report",
             "shift_report_id": "TEST-CLOSING-001",
             "pos_opening_shift": "POSA-OS-25-0000103",
+            "opening_date": opening_shift_doc.posting_date,  # ✅ ADD
+            "opening_time": opening_shift_doc.period_start_date.time() if opening_shift_doc.period_start_date else time(9, 0, 0),  # ✅ ADD
+            "opened_by": opening_shift_doc.user or self.test_user,  # ✅ ADD
+            "opening_amounts": json.dumps(opening_amounts_dict),  # ✅ ADD
+            "total_opening_amount": sum(opening_amounts_dict.values()),  # ✅ ADD
             "customer": "DY134 Khách lẻ POS ",  # Real customer
         })
 
@@ -554,7 +578,7 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
             # Always clean up test shift report
             if shift_report.docstatus == 1:
                 shift_report.cancel()
-            frappe.delete_doc("POS Shift Report", shift_report.name, force=True)
+            # frappe.delete_doc("POS Shift Report", shift_report.name, force=True)
 
             frappe.db.commit()
         except Exception as e:
@@ -613,7 +637,7 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
             if shift_report1.docstatus == 1:  # Submitted
                 shift_report1.cancel()
                 frappe.db.commit()
-            frappe.delete_doc("POS Shift Report", shift_report1.name, force=True)
+            # frappe.delete_doc("POS Shift Report", shift_report1.name, force=True)
             frappe.db.commit()
         except Exception as e:
             print(f"Cleanup error: {e}")
