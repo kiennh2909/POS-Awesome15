@@ -124,8 +124,11 @@ export default {
 
 						// Load Shift Report data nếu có
 						if (r.message.pos_opening_shift && r.message.pos_opening_shift.shift_report) {
+							console.info("Found shift report in opening shift:", r.message.pos_opening_shift.shift_report);
 							this.pos_shift_report = r.message.pos_opening_shift.shift_report;
 							this.load_shift_report_data();
+						} else {
+							console.warn("No shift report found in opening shift data");
 						}
 						if (this.pos_profile.taxes_and_charges) {
 							frappe.call({
@@ -287,15 +290,23 @@ export default {
 		},
 
 		load_shift_report_data() {
-			if (!this.pos_shift_report) return;
+			if (!this.pos_shift_report) {
+				console.warn("No shift report ID to load");
+				return;
+			}
+
+			console.info("Loading shift report data for:", this.pos_shift_report);
 
 			frappe.call("posawesome.posawesome.api.shift_reports.get_shift_report", {
 				shift_report_id: this.pos_shift_report
 			}).then((r) => {
+				console.info("Shift report API response:", r);
 				if (r.message && r.message.success) {
 					this.shift_report_data = r.message.data;
 					this.eventBus.emit("register_shift_report", this.shift_report_data);
-					console.info("Shift Report data loaded:", this.shift_report_data);
+					console.info("Shift Report data loaded successfully:", this.shift_report_data);
+				} else {
+					console.error("Shift report API returned unsuccessful response:", r.message);
 				}
 			}).catch((err) => {
 				console.error("Failed to load shift report data:", err);

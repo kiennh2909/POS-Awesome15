@@ -1,39 +1,40 @@
 <template>
 	<div class="footer-status-bar">
 		<div class="status-bar-content">
-			<!-- Date and Time -->
+			<!-- Cashier Name -->
 			<div class="status-item">
-				<v-icon size="16" color="primary">mdi-calendar</v-icon>
-				<span class="status-text">{{ currentDate }}</span>
+				<v-icon size="16" color="white">mdi-account-circle</v-icon>
+				<span class="status-text">{{ cashierName || __("No Cashier") }}</span>
 			</div>
 
+			<!-- System Time -->
 			<div class="status-item">
-				<v-icon size="16" color="primary">mdi-clock</v-icon>
+				<v-icon size="16" color="white">mdi-clock-outline</v-icon>
 				<span class="status-text">{{ currentTime }}</span>
 			</div>
 
-			<!-- User Account -->
+			<!-- Shift Report -->
 			<div class="status-item">
-				<v-icon size="16" :color="userStatusColor">mdi-account-circle</v-icon>
-				<span class="status-text">{{ currentUser }}</span>
+				<v-icon size="16" color="white">mdi-chart-line</v-icon>
+				<span class="status-text">{{ shiftReportId || __("No Shift") }}</span>
 			</div>
 
-			<!-- Cash Balance -->
+			<!-- Total Invoices -->
 			<div class="status-item">
-				<v-icon size="16" color="success">mdi-cash</v-icon>
-				<span class="status-text">{{ formatCurrency(cashBalance) }}</span>
+				<v-icon size="16" color="white">mdi-receipt-text-multiple</v-icon>
+				<span class="status-text">{{ totalInvoices || 0 }}</span>
+			</div>
+
+			<!-- Total Revenue -->
+			<div class="status-item">
+				<v-icon size="16" color="white">mdi-cash-multiple</v-icon>
+				<span class="status-text">{{ formatCurrency(totalRevenue || 0) }}</span>
 			</div>
 
 			<!-- Last Invoice -->
 			<div class="status-item">
-				<v-icon size="16" color="info">mdi-receipt</v-icon>
+				<v-icon size="16" color="white">mdi-receipt</v-icon>
 				<span class="status-text">{{ lastInvoice || __("No invoices") }}</span>
-			</div>
-
-			<!-- Today's Sales -->
-			<div class="status-item">
-				<v-icon size="16" color="warning">mdi-chart-line</v-icon>
-				<span class="status-text">{{ formatCurrency(todaySales) }}</span>
 			</div>
 		</div>
 	</div>
@@ -44,13 +45,14 @@ export default {
 	name: "FooterStatusBar",
 	data() {
 		return {
-			currentDate: "",
 			currentTime: "",
-			currentUser: "admin", // Default user
-			cashBalance: 1250.00,
-			lastInvoice: "INV-001",
-			todaySales: 2450.00,
-			timeInterval: null
+			cashierName: "",
+			shiftReportId: "",
+			totalInvoices: 0,
+			totalRevenue: 0,
+			lastInvoice: "",
+			timeInterval: null,
+			shiftReportData: null
 		};
 	},
 	computed: {
@@ -64,11 +66,15 @@ export default {
 		// Update time every second
 		this.timeInterval = setInterval(this.updateDateTime, 1000);
 
-		// Listen for user and sales data updates
+		// Load initial data
+		this.loadInitialData();
+
+		// Listen for events
 		if (this.eventBus) {
-			this.eventBus.on("update_user_info", this.updateUserInfo);
-			this.eventBus.on("update_sales_data", this.updateSalesData);
-			this.eventBus.on("update_cash_balance", this.updateCashBalance);
+			this.eventBus.on("register_pos_profile", this.handlePosProfileUpdate);
+			this.eventBus.on("register_shift_report", this.updateShiftReport);
+			this.eventBus.on("set_last_invoice", this.updateLastInvoice);
+			this.eventBus.on("update_sales_data", this.handleSalesDataUpdate);
 		}
 	},
 	beforeUnmount() {
@@ -76,19 +82,15 @@ export default {
 			clearInterval(this.timeInterval);
 		}
 		if (this.eventBus) {
-			this.eventBus.off("update_user_info", this.updateUserInfo);
-			this.eventBus.off("update_sales_data", this.updateSalesData);
-			this.eventBus.off("update_cash_balance", this.updateCashBalance);
+			this.eventBus.off("register_pos_profile", this.handlePosProfileUpdate);
+			this.eventBus.off("register_shift_report", this.updateShiftReport);
+			this.eventBus.off("set_last_invoice", this.updateLastInvoice);
+			this.eventBus.off("update_sales_data", this.handleSalesDataUpdate);
 		}
 	},
 	methods: {
 		updateDateTime() {
 			const now = new Date();
-			this.currentDate = now.toLocaleDateString('en-US', {
-				year: 'numeric',
-				month: '2-digit',
-				day: '2-digit'
-			});
 			this.currentTime = now.toLocaleTimeString('en-US', {
 				hour12: false,
 				hour: '2-digit',
@@ -97,33 +99,88 @@ export default {
 			});
 		},
 
-		updateUserInfo(userData) {
-			if (userData.name) {
-				this.currentUser = userData.name;
+		async loadInitialData() {
+			try {
+				// Load current user
+				this.cashierName = frappe.session.user_fullname || frappe.session.user || "Unknown";
+
+				// Load shift report data
+				await this.loadShiftReportData();
+
+			} catch (error) {
+				console.error("Error loading initial data:", error);
 			}
 		},
 
-		updateSalesData(salesData) {
-			if (salesData.todaySales !== undefined) {
-				this.todaySales = salesData.todaySales;
-			}
-			if (salesData.lastInvoice) {
-				this.lastInvoice = salesData.lastInvoice;
+		async loadShiftReportData() {
+			try {
+				// Get footer status data from new API
+				const result = await frappe.call("posawesome.posawesome.api.shift_reports.get_footer_status_data");
+
+				if (result.message && result.message.success) {
+					const data = result.message.data;
+					this.updateFooterData(data);
+				} else {
+					console.warn("No footer status data found");
+				}
+			} catch (error) {
+				console.error("Error loading footer status data:", error);
 			}
 		},
 
-		updateCashBalance(balance) {
-			if (typeof balance === 'number') {
-				this.cashBalance = balance;
+		handlePosProfileUpdate(posProfileData) {
+			if (posProfileData && posProfileData.pos_opening_shift) {
+				// Load footer data when POS profile is registered
+				this.loadShiftReportData();
+			}
+		},
+
+		updateShiftReport(shiftReportData) {
+			if (shiftReportData) {
+				this.updateShiftReportData(shiftReportData);
+			}
+		},
+
+		updateFooterData(data) {
+			if (data) {
+				this.cashierName = data.cashier_name || "";
+				this.shiftReportId = data.shift_report_id || "";
+				this.totalInvoices = data.total_invoices || 0;
+				this.totalRevenue = data.total_revenue || 0;
+				this.lastInvoice = data.last_invoice || "";
+			}
+		},
+
+		updateShiftReportData(data) {
+			this.shiftReportData = data;
+			this.shiftReportId = data.shift_report_id || "";
+			this.totalInvoices = data.invoice_count || 0;
+			this.totalRevenue = (data.total_sales || 0) - (data.total_returns || 0);
+
+			// Update last invoice from shift report data
+			if (data.invoices && data.invoices.length > 0) {
+				const lastInvoiceData = data.invoices[data.invoices.length - 1];
+				this.lastInvoice = lastInvoiceData.invoice_no || "";
+			}
+		},
+
+		updateLastInvoice(invoiceId) {
+			this.lastInvoice = invoiceId || "";
+		},
+
+		handleSalesDataUpdate(salesData) {
+			// Reload footer data when sales data changes
+			if (salesData) {
+				this.loadShiftReportData();
 			}
 		},
 
 		formatCurrency(value) {
-			if (value === null || value === undefined) return '$0.00';
-			return new Intl.NumberFormat('en-US', {
+			if (value === null || value === undefined) return '₫0';
+			return new Intl.NumberFormat('vi-VN', {
 				style: 'currency',
-				currency: 'USD',
-				minimumFractionDigits: 2
+				currency: 'VND',
+				minimumFractionDigits: 0
 			}).format(value);
 		}
 	}
@@ -136,12 +193,12 @@ export default {
 	bottom: 0;
 	left: 0;
 	right: 0;
-	height: 40px;
-	background: linear-gradient(135deg, #343a40 0%, #495057 100%);
+	height: 45px;
+	background: #000000;
 	color: white;
-	border-top: 2px solid #17a2b8;
+	border-top: 2px solid #ffffff;
 	z-index: 1000;
-	box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+	box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .status-bar-content {
@@ -188,7 +245,7 @@ export default {
 
 @media (max-width: 768px) {
 	.footer-status-bar {
-		height: 50px;
+		height: 55px;
 	}
 
 	.status-bar-content {
@@ -212,7 +269,7 @@ export default {
 
 @media (max-width: 480px) {
 	.footer-status-bar {
-		height: 60px;
+		height: 65px;
 	}
 
 	.status-bar-content {
@@ -235,8 +292,8 @@ export default {
 /* Dark theme support */
 :deep(.dark-theme) .footer-status-bar,
 :deep(.v-theme--dark) .footer-status-bar {
-	background: linear-gradient(135deg, #1e1e1e 0%, #2a2a2a 100%);
-	border-top-color: #17a2b8;
+	background: #000000;
+	border-top-color: #ffffff;
 }
 
 :deep(.dark-theme) .status-text,

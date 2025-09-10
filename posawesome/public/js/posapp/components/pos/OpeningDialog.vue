@@ -244,11 +244,18 @@ export default {
 
 		submit_dialog() {
 			if (!this.payments_methods.length || !this.company || !this.pos_profile) {
+				console.error("Validation failed: missing required fields");
 				return;
 			}
 
 			this.is_loading = true;
 			const vm = this;
+
+			console.info("Submitting opening voucher with data:", {
+				pos_profile: this.pos_profile,
+				company: this.company,
+				balance_details: this.payments_methods
+			});
 
 			return frappe
 				.call("posawesome.posawesome.api.shifts.create_opening_voucher", {
@@ -257,23 +264,30 @@ export default {
 					balance_details: this.payments_methods,
 				})
 				.then((r) => {
+					console.info("Opening voucher API response:", r);
 					if (r.message) {
+						console.info("Opening shift created successfully:", r.message.pos_opening_shift);
 						vm.eventBus.emit("register_pos_data", r.message);
 						vm.eventBus.emit("set_company", r.message.company);
 
 						// Handle Shift Report data nếu được tạo tự động
 						if (r.message.shift_report) {
+							console.info("Shift Report data received:", r.message.shift_report);
 							vm.eventBus.emit("register_shift_report", r.message.shift_report);
-							console.info("Shift Report created automatically:", r.message.shift_report);
+						} else {
+							console.warn("No shift report data in response");
 						}
 
 						try {
 							setOpeningStorage(r.message);
+							console.info("Opening data cached successfully");
 						} catch (e) {
 							console.error("Failed to cache opening data", e);
 						}
 						vm.close_opening_dialog();
 						vm.is_loading = false;
+					} else {
+						console.error("No message in API response");
 					}
 				})
 				.catch((error) => {

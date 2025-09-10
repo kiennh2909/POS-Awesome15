@@ -214,6 +214,67 @@ def delete_shift_report(shift_report_id):
 		}
 
 @frappe.whitelist()
+def get_footer_status_data():
+	"""
+	Get data for footer status bar
+	Returns cashier info, shift report summary, and sales totals
+	"""
+	try:
+		user = frappe.session.user
+
+		# Get current opening shift for user
+		active_shift = frappe.get_all(
+			"POS Opening Shift",
+			filters={
+				"owner": user,
+				"docstatus": 1,
+				"status": "Open"
+			},
+			fields=["name", "shift_report", "shift_report_id"],
+			limit=1
+		)
+
+		if not active_shift:
+			return {
+				"success": False,
+				"message": "No active opening shift found"
+			}
+
+		shift_data = active_shift[0]
+		result = {
+			"cashier_name": frappe.session.user_fullname or frappe.session.user,
+			"shift_report_id": shift_data.shift_report_id or "",
+			"total_invoices": 0,
+			"total_revenue": 0,
+			"last_invoice": ""
+		}
+
+		# Get shift report data if exists
+		if shift_data.shift_report:
+			shift_report = frappe.get_doc("POS Shift Report", shift_data.shift_report)
+			result.update({
+				"total_invoices": shift_report.invoice_count or 0,
+				"total_revenue": (shift_report.total_sales or 0) - (shift_report.total_returns or 0),
+			})
+
+			# Get last invoice from shift report
+			if shift_report.invoices and len(shift_report.invoices) > 0:
+				last_invoice_data = shift_report.invoices[-1]
+				result["last_invoice"] = last_invoice_data.invoice_no or ""
+
+		return {
+			"success": True,
+			"data": result
+		}
+
+	except Exception as e:
+		frappe.logger().error(f"Error getting footer status data: {str(e)}")
+		return {
+			"success": False,
+			"message": str(e)
+		}
+
+@frappe.whitelist()
 def get_shift_reports(filters=None, limit_page_length=20, limit_start=0):
 	"""
 	Get list of POS Shift Reports
