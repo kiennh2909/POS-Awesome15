@@ -29,9 +29,10 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
 
     def setUp(self):
         """Set up test environment"""
-        self.test_user = "test@example.com"
-        self.test_customer = "Test Customer"
-        self.test_pos_profile = "Test POS Profile"
+        self.test_user = "admin@vtcom.online"  # Use existing admin user
+        self.test_customer = "A TIEN"  # Use existing customer
+        # Use existing POS Profile instead of creating new one
+        self.test_pos_profile = "POS_DY134"  # Existing POS Profile
 
         # Clean up any existing test data
         self.cleanup_test_data()
@@ -74,9 +75,9 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
                 self.assertTrue(frappe.db.exists("DocType", doctype),
                     f"DocType {doctype} does not exist")
 
-                # ✅ FIX: Use correct table name with spaces
-                # Frappe creates tables with spaces: "tabPOS Shift Report"
-                table_name = f"tab{doctype}"
+                # ✅ FIX: Use correct table name format
+                # Frappe creates tables: "tabPOSShiftReport" (no spaces)
+                table_name = f"tab{doctype.replace(' ', '')}"
                 self.assertTrue(frappe.db.has_table(table_name),
                     f"Table {table_name} does not exist")
 
@@ -200,7 +201,9 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
         # Test shift verification API
         try:
             result = frappe.call("posawesome.posawesome.api.shift_verification.get_pending_verifications")
-            self.assertIsInstance(result, list)
+            # API returns dict with success/data format
+            self.assertIsInstance(result, dict)
+            self.assertIn("data", result)
         except Exception as e:
             self.fail(f"get_pending_verifications API failed: {e}")
 

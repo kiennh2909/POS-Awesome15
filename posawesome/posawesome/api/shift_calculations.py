@@ -5,6 +5,66 @@ import json
 from datetime import datetime, timedelta
 
 @frappe.whitelist()
+def calculate_expected_amounts(opening_amounts, sales_amount=0, returns_amount=0):
+    """Calculate expected closing amounts"""
+    try:
+        opening = json.loads(opening_amounts) if isinstance(opening_amounts, str) else opening_amounts
+        expected_total = sum(opening.values()) + sales_amount - returns_amount
+
+        return {
+            "expected_total": expected_total,
+            "breakdown": opening,
+            "sales": sales_amount,
+            "returns": returns_amount
+        }
+    except Exception as e:
+        frappe.throw(f"Calculation error: {str(e)}")
+
+@frappe.whitelist()
+def calculate_difference(expected_breakdown, actual_amounts):
+    """Calculate difference between expected and actual amounts"""
+    try:
+        expected = json.loads(expected_breakdown) if isinstance(expected_breakdown, str) else expected_breakdown
+        actual = json.loads(actual_amounts) if isinstance(actual_amounts, str) else actual_amounts
+
+        expected_total = sum(expected.values())
+        actual_total = sum(actual.values())
+        difference = actual_total - expected_total
+
+        return {
+            "expected_total": expected_total,
+            "actual_total": actual_total,
+            "total_difference": difference,
+            "breakdown": {
+                method: actual.get(method, 0) - expected.get(method, 0)
+                for method in set(expected.keys()) | set(actual.keys())
+            }
+        }
+    except Exception as e:
+        frappe.throw(f"Calculation error: {str(e)}")
+
+@frappe.whitelist()
+def validate_amounts(amounts):
+    """Validate amounts data"""
+    try:
+        if not amounts:
+            return False
+
+        parsed = json.loads(amounts) if isinstance(amounts, str) else amounts
+
+        if not isinstance(parsed, dict):
+            return False
+
+        # Check if all values are numbers
+        for value in parsed.values():
+            if not isinstance(value, (int, float)):
+                return False
+
+        return True
+    except:
+        return False
+
+@frappe.whitelist()
 def calculate_expected_closing_amounts(shift_report_id):
 	"""
 	Calculate expected closing amounts based on opening amounts and invoices
