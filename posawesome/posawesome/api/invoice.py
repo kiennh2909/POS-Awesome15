@@ -370,12 +370,20 @@ def update_shift_report_with_invoice(invoice_doc, action):
 					break
 
 		# Update calculated fields
+		frappe.logger().info(f"Before update_calculated_fields - invoice_count: {shift_report.invoice_count}, total_sales: {shift_report.total_sales}, total_returns: {shift_report.total_returns}")
 		shift_report.update_calculated_fields()
+		frappe.logger().info(f"After update_calculated_fields - invoice_count: {shift_report.invoice_count}, total_sales: {shift_report.total_sales}, total_returns: {shift_report.total_returns}")
+
 		shift_report.get_payment_breakdown()
+		frappe.logger().info(f"After get_payment_breakdown - payment_breakdown: {shift_report.payment_breakdown}")
 
 		# Save shift report
 		shift_report.save()
 		frappe.db.commit()
+
+		# Verify the changes were saved
+		shift_report.reload()
+		frappe.logger().info(f"After save and reload - invoice_count: {shift_report.invoice_count}, total_sales: {shift_report.total_sales}, total_returns: {shift_report.total_returns}")
 
 		frappe.logger().info(f"Updated shift report {shift_report.name} for invoice {invoice_doc.name} action: {action}")
 

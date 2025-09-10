@@ -99,10 +99,13 @@ class POSShiftReport(Document):
 			total_returns = 0
 
 			for invoice in self.invoices:
-				if invoice.is_return:
-					total_returns += invoice.total_amount or 0
-				else:
+				# total_sales: only count Paid invoices (successful sales)
+				if invoice.status == "Paid" and not invoice.is_return:
 					total_sales += invoice.total_amount or 0
+
+				# total_returns: only count Cancelled invoices (cancelled transactions)
+				if invoice.status == "Cancelled":
+					total_returns += invoice.total_amount or 0
 
 			self.total_sales = total_sales
 			self.total_returns = total_returns
@@ -129,13 +132,15 @@ class POSShiftReport(Document):
 
 		if self.invoices:
 			for invoice in self.invoices:
-				payment_method = invoice.payment_method or "Cash"
-				amount = invoice.paid_amount or 0
+				# Only count Paid invoices for payment breakdown (exclude Cancelled)
+				if invoice.status == "Paid":
+					payment_method = invoice.payment_method or "Cash"
+					amount = invoice.paid_amount or 0
 
-				if payment_method in breakdown:
-					breakdown[payment_method] += amount
-				else:
-					breakdown[payment_method] = amount
+					if payment_method in breakdown:
+						breakdown[payment_method] += amount
+					else:
+						breakdown[payment_method] = amount
 
 		self.payment_breakdown = json.dumps(breakdown)
 		return breakdown
