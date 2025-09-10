@@ -31,13 +31,23 @@ def before_submit(doc, method):
 
 def on_submit(doc, method):
 	"""Update shift report when invoice is submitted"""
+	frappe.logger().info(f"[INVOICE_TRACKING] 📤 ON_SUBMIT - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
+
 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
+		frappe.logger().info(f"[INVOICE_TRACKING] 🔄 ON_SUBMIT - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: submit")
 		update_shift_report_with_invoice(doc, "submit")
+	else:
+		frappe.logger().warning(f"[INVOICE_TRACKING] ⚠️ ON_SUBMIT - No shift report reference - Invoice: {doc.name}")
 
 def on_cancel(doc, method):
 	"""Update shift report when invoice is cancelled"""
+	frappe.logger().info(f"[INVOICE_TRACKING] 🗑️ ON_CANCEL - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
+
 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
+		frappe.logger().info(f"[INVOICE_TRACKING] 🔄 ON_CANCEL - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: cancel")
 		update_shift_report_with_invoice(doc, "cancel")
+	else:
+		frappe.logger().warning(f"[INVOICE_TRACKING] ⚠️ ON_CANCEL - No shift report reference - Invoice: {doc.name}")
 
 def before_cancel(doc, method):
 	update_coupon(doc, "cancelled")
@@ -298,24 +308,33 @@ def get_invoice_payment_method(invoice_doc):
 
 def validate_shift(doc):
 	if doc.posa_pos_opening_shift and doc.pos_profile and doc.is_pos:
+		# LOG: Start validation
+		frappe.logger().info(f"[INVOICE_TRACKING] 🔍 VALIDATE_SHIFT - Invoice: {doc.name}, Opening Shift: {doc.posa_pos_opening_shift}")
+
 		# check if shift is open
 		shift = frappe.get_cached_doc("POS Opening Shift", doc.posa_pos_opening_shift)
 		if shift.status != "Open":
+			frappe.logger().error(f"[INVOICE_TRACKING] ❌ VALIDATE_SHIFT - Shift not open - Invoice: {doc.name}, Shift: {shift.name}, Status: {shift.status}")
 			frappe.throw(_("POS Shift {0} is not open").format(shift.name))
+
 		# check if shift is for the same profile
 		if shift.pos_profile != doc.pos_profile:
+			frappe.logger().error(f"[INVOICE_TRACKING] ❌ VALIDATE_SHIFT - Profile mismatch - Invoice: {doc.name}, Invoice Profile: {doc.pos_profile}, Shift Profile: {shift.pos_profile}")
 			frappe.throw(_("POS Opening Shift {0} is not for the same POS Profile").format(shift.name))
+
 		# check if shift is for the same company
 		if shift.company != doc.company:
+			frappe.logger().error(f"[INVOICE_TRACKING] ❌ VALIDATE_SHIFT - Company mismatch - Invoice: {doc.name}, Invoice Company: {doc.company}, Shift Company: {shift.company}")
 			frappe.throw(_("POS Opening Shift {0} is not for the same company").format(shift.name))
 
 		# Set shift report reference if available
 		if hasattr(shift, 'shift_report') and shift.shift_report:
 			doc.pos_shift_report = shift.shift_report
 			doc.shift_report_id = shift.shift_report_id
-			frappe.logger().info(f"Set shift report reference for invoice {doc.name}: {shift.shift_report}")
+			frappe.logger().info(f"[INVOICE_TRACKING] ✅ VALIDATE_SHIFT - Set shift report reference - Invoice: {doc.name}, Shift Report: {shift.shift_report}, Shift Report ID: {shift.shift_report_id}")
 		else:
-			frappe.logger().warning(f"No shift report found for opening shift {doc.posa_pos_opening_shift}")
+			frappe.logger().warning(f"[INVOICE_TRACKING] ⚠️ VALIDATE_SHIFT - No shift report found - Invoice: {doc.name}, Opening Shift: {doc.posa_pos_opening_shift}")
+			frappe.logger().info(f"[INVOICE_TRACKING] ℹ️ VALIDATE_SHIFT - Shift details - Name: {shift.name}, Status: {shift.status}, Has shift_report attr: {hasattr(shift, 'shift_report')}")
 
 
 def update_shift_report_with_invoice(invoice_doc, action):
@@ -326,15 +345,23 @@ def update_shift_report_with_invoice(invoice_doc, action):
 		invoice_doc: Sales Invoice document
 		action: "submit" or "cancel"
 	"""
+	frappe.logger().info(f"[INVOICE_TRACKING] 🎯 UPDATE_SHIFT_REPORT - Start - Invoice: {invoice_doc.name}, Action: {action}, Status: {invoice_doc.status}, Amount: {invoice_doc.grand_total}")
+
 	try:
 		if not hasattr(invoice_doc, 'pos_shift_report') or not invoice_doc.pos_shift_report:
-			frappe.logger().warning(f"No shift report reference found for invoice {invoice_doc.name}")
+			frappe.logger().warning(f"[INVOICE_TRACKING] ❌ UPDATE_SHIFT_REPORT - No shift report reference - Invoice: {invoice_doc.name}")
 			return
+
+		frappe.logger().info(f"[INVOICE_TRACKING] 📋 UPDATE_SHIFT_REPORT - Getting shift report - Invoice: {invoice_doc.name}, Shift Report: {invoice_doc.pos_shift_report}")
 
 		# Get shift report
 		shift_report = frappe.get_doc("POS Shift Report", invoice_doc.pos_shift_report)
 
+		frappe.logger().info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Got shift report - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}, Current Count: {shift_report.invoice_count}, Current Sales: {shift_report.total_sales}, Current Returns: {shift_report.total_returns}")
+
 		if action == "submit":
+			frappe.logger().info(f"[INVOICE_TRACKING] ➕ UPDATE_SHIFT_REPORT - Processing SUBMIT - Invoice: {invoice_doc.name}")
+
 			# Add invoice to shift report
 			existing_invoice = None
 			for inv in shift_report.invoices:
@@ -342,9 +369,12 @@ def update_shift_report_with_invoice(invoice_doc, action):
 					existing_invoice = inv
 					break
 
-			if not existing_invoice:
+			if existing_invoice:
+				frappe.logger().info(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice already exists in shift report - Invoice: {invoice_doc.name}, Existing Status: {existing_invoice.status}")
+			else:
 				# Get payment method from invoice payments
 				payment_method = get_invoice_payment_method(invoice_doc)
+				frappe.logger().info(f"[INVOICE_TRACKING] 💳 UPDATE_SHIFT_REPORT - Payment method detected - Invoice: {invoice_doc.name}, Method: {payment_method}")
 
 				# Add new invoice entry
 				shift_report.append("invoices", {
@@ -359,34 +389,45 @@ def update_shift_report_with_invoice(invoice_doc, action):
 					"is_return": invoice_doc.is_return or False,
 					"status": "Submitted"
 				})
-				frappe.logger().info(f"Added invoice {invoice_doc.name} to shift report {shift_report.name} with payment method: {payment_method}")
+				frappe.logger().info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Added invoice to shift report - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}, Payment Method: {payment_method}, Amount: {invoice_doc.grand_total}")
 
 		elif action == "cancel":
+			frappe.logger().info(f"[INVOICE_TRACKING] ❌ UPDATE_SHIFT_REPORT - Processing CANCEL - Invoice: {invoice_doc.name}")
+
 			# Remove invoice from shift report or mark as cancelled
+			found = False
 			for inv in shift_report.invoices:
 				if inv.invoice_no == invoice_doc.name:
+					old_status = inv.status
 					inv.status = "Cancelled"
-					frappe.logger().info(f"Marked invoice {invoice_doc.name} as cancelled in shift report {shift_report.name}")
+					found = True
+					frappe.logger().info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Marked invoice as cancelled - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}, Old Status: {old_status}, New Status: Cancelled")
 					break
 
+			if not found:
+				frappe.logger().warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice not found in shift report - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}")
+
 		# Update calculated fields
-		frappe.logger().info(f"Before update_calculated_fields - invoice_count: {shift_report.invoice_count}, total_sales: {shift_report.total_sales}, total_returns: {shift_report.total_returns}")
+		frappe.logger().info(f"[INVOICE_TRACKING] 🔢 UPDATE_SHIFT_REPORT - Updating calculated fields - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}")
+		frappe.logger().info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Before update_calculated_fields - Invoice: {invoice_doc.name}, Count: {shift_report.invoice_count}, Sales: {shift_report.total_sales}, Returns: {shift_report.total_returns}")
 		shift_report.update_calculated_fields()
-		frappe.logger().info(f"After update_calculated_fields - invoice_count: {shift_report.invoice_count}, total_sales: {shift_report.total_sales}, total_returns: {shift_report.total_returns}")
+		frappe.logger().info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - After update_calculated_fields - Invoice: {invoice_doc.name}, Count: {shift_report.invoice_count}, Sales: {shift_report.total_sales}, Returns: {shift_report.total_returns}")
 
 		shift_report.get_payment_breakdown()
-		frappe.logger().info(f"After get_payment_breakdown - payment_breakdown: {shift_report.payment_breakdown}")
+		frappe.logger().info(f"[INVOICE_TRACKING] 💰 UPDATE_SHIFT_REPORT - After get_payment_breakdown - Invoice: {invoice_doc.name}, Breakdown: {shift_report.payment_breakdown}")
 
 		# Save shift report
+		frappe.logger().info(f"[INVOICE_TRACKING] 💾 UPDATE_SHIFT_REPORT - Saving shift report - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}")
 		shift_report.save()
 		frappe.db.commit()
 
 		# Verify the changes were saved
 		shift_report.reload()
-		frappe.logger().info(f"After save and reload - invoice_count: {shift_report.invoice_count}, total_sales: {shift_report.total_sales}, total_returns: {shift_report.total_returns}")
+		final_count = len(shift_report.invoices) if shift_report.invoices else 0
+		frappe.logger().info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - After save and reload - Invoice: {invoice_doc.name}, Final Count: {final_count}, Sales: {shift_report.total_sales}, Returns: {shift_report.total_returns}")
 
-		frappe.logger().info(f"Updated shift report {shift_report.name} for invoice {invoice_doc.name} action: {action}")
+		frappe.logger().info(f"[INVOICE_TRACKING] 🎉 UPDATE_SHIFT_REPORT - COMPLETED - Invoice: {invoice_doc.name}, Action: {action}, Shift Report: {shift_report.name}")
 
 	except Exception as e:
-		frappe.logger().error(f"Failed to update shift report for invoice {invoice_doc.name}: {str(e)}")
+		frappe.logger().error(f"[INVOICE_TRACKING] 💥 UPDATE_SHIFT_REPORT - FAILED - Invoice: {invoice_doc.name}, Action: {action}, Error: {str(e)}")
 		# Don't raise error to prevent invoice submission/cancellation failure

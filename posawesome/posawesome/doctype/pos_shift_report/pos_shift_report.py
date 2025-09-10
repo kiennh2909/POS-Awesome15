@@ -92,23 +92,35 @@ class POSShiftReport(Document):
 
 	def update_calculated_fields(self):
 		"""Update calculated fields"""
+		frappe.logger().info(f"[SHIFT_REPORT_CALC] 🔢 UPDATE_CALCULATED_FIELDS - Start - Shift Report: {self.name}")
+
 		# Update invoice count and totals from child table
 		if self.invoices:
 			self.invoice_count = len(self.invoices)
 			total_sales = 0
 			total_returns = 0
 
+			frappe.logger().info(f"[SHIFT_REPORT_CALC] 📊 UPDATE_CALCULATED_FIELDS - Processing {len(self.invoices)} invoices - Shift Report: {self.name}")
+
 			for invoice in self.invoices:
+				frappe.logger().info(f"[SHIFT_REPORT_CALC] 📋 UPDATE_CALCULATED_FIELDS - Processing invoice: {invoice.invoice_no}, Status: {invoice.status}, Amount: {invoice.total_amount}, Is Return: {invoice.is_return}")
+
 				# total_sales: only count Paid invoices (successful sales)
 				if invoice.status == "Paid" and not invoice.is_return:
 					total_sales += invoice.total_amount or 0
+					frappe.logger().info(f"[SHIFT_REPORT_CALC] 💰 UPDATE_CALCULATED_FIELDS - Added to total_sales: {invoice.total_amount} - Invoice: {invoice.invoice_no}")
 
 				# total_returns: only count Cancelled invoices (cancelled transactions)
 				if invoice.status == "Cancelled":
 					total_returns += invoice.total_amount or 0
+					frappe.logger().info(f"[SHIFT_REPORT_CALC] 💸 UPDATE_CALCULATED_FIELDS - Added to total_returns: {invoice.total_amount} - Invoice: {invoice.invoice_no}")
 
 			self.total_sales = total_sales
 			self.total_returns = total_returns
+
+			frappe.logger().info(f"[SHIFT_REPORT_CALC] ✅ UPDATE_CALCULATED_FIELDS - Completed - Shift Report: {self.name}, Count: {self.invoice_count}, Sales: {self.total_sales}, Returns: {self.total_returns}")
+		else:
+			frappe.logger().info(f"[SHIFT_REPORT_CALC] ⚠️ UPDATE_CALCULATED_FIELDS - No invoices found - Shift Report: {self.name}")
 
 	def verify_report(self, verified_by=None):
 		"""Mark report as verified"""
@@ -128,9 +140,13 @@ class POSShiftReport(Document):
 
 	def get_payment_breakdown(self):
 		"""Get payment method breakdown from invoices"""
+		frappe.logger().info(f"[SHIFT_REPORT_CALC] 💳 GET_PAYMENT_BREAKDOWN - Start - Shift Report: {self.name}")
+
 		breakdown = {}
 
 		if self.invoices:
+			frappe.logger().info(f"[SHIFT_REPORT_CALC] 💳 GET_PAYMENT_BREAKDOWN - Processing {len(self.invoices)} invoices - Shift Report: {self.name}")
+
 			for invoice in self.invoices:
 				# Only count Paid invoices for payment breakdown (exclude Cancelled)
 				if invoice.status == "Paid":
@@ -142,7 +158,14 @@ class POSShiftReport(Document):
 					else:
 						breakdown[payment_method] = amount
 
+					frappe.logger().info(f"[SHIFT_REPORT_CALC] 💳 GET_PAYMENT_BREAKDOWN - Added payment: {payment_method} = {amount} - Invoice: {invoice.invoice_no}")
+				else:
+					frappe.logger().info(f"[SHIFT_REPORT_CALC] 🚫 GET_PAYMENT_BREAKDOWN - Skipped invoice (not Paid): {invoice.invoice_no}, Status: {invoice.status}")
+
 		self.payment_breakdown = json.dumps(breakdown)
+
+		frappe.logger().info(f"[SHIFT_REPORT_CALC] ✅ GET_PAYMENT_BREAKDOWN - Completed - Shift Report: {self.name}, Breakdown: {breakdown}")
+
 		return breakdown
 
 	def update_from_invoices(self):
