@@ -302,7 +302,7 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
             "shift_report_id": "TEST-WORKFLOW-001",
             "pos_opening_shift": "POSA-OS-25-0000106",
             "opening_date": opening_shift_doc.posting_date,
-            "opening_time": opening_shift_doc.posting_time,
+            "opening_time": time(9, 0, 0),  # Default time since POS Opening Shift doesn't have posting_time
             "opened_by": opening_shift_doc.user or self.test_user,
             "opening_amounts": json.dumps(opening_amounts_dict),
             "total_opening_amount": sum(opening_amounts_dict.values()),
@@ -628,7 +628,7 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
             "shift_report_id": "TEST-UNIQUE-001",
             "pos_opening_shift": "POSA-OS-25-0000106",
             "opening_date": opening_shift_doc.posting_date,
-            "opening_time": opening_shift_doc.posting_time,
+            "opening_time": time(9, 0, 0),  # Default time since POS Opening Shift doesn't have posting_time
             "opened_by": opening_shift_doc.user or self.test_user,
             "opening_amounts": json.dumps(opening_amounts_dict),
             "total_opening_amount": sum(opening_amounts_dict.values()),
