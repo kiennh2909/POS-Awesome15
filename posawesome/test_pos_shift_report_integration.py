@@ -385,10 +385,15 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
         real_invoices = ["ACC-SINV-2025-00396", "ACC-SINV-2025-00394"]
         for invoice_name in real_invoices:
             if frappe.db.exists("Sales Invoice", invoice_name):
+                invoice_data = frappe.db.get_value("Sales Invoice", invoice_name,
+                                                 ["posting_date", "posting_time", "customer", "grand_total", "paid_amount"], as_dict=True)
                 shift_report.append("invoices", {
-                    "invoice": invoice_name,
-                    "invoice_amount": frappe.db.get_value("Sales Invoice", invoice_name, "grand_total"),
-                    "paid_amount": frappe.db.get_value("Sales Invoice", invoice_name, "paid_amount")
+                    "invoice_no": invoice_name,  # ✅ CORRECT field name
+                    "invoice_date": invoice_data.posting_date,  # ✅ ADD
+                    "invoice_time": invoice_data.posting_time,  # ✅ ADD
+                    "customer": invoice_data.customer,  # ✅ ADD
+                    "total_amount": invoice_data.grand_total,  # ✅ CORRECT field name
+                    "paid_amount": invoice_data.paid_amount  # ✅ ADD
                 })
 
         shift_report.insert()
@@ -531,10 +536,15 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
         real_invoices = ["ACC-SINV-2025-00396", "ACC-SINV-2025-00394"]
         for invoice_name in real_invoices:
             if frappe.db.exists("Sales Invoice", invoice_name):
+                invoice_data = frappe.db.get_value("Sales Invoice", invoice_name,
+                                                 ["posting_date", "posting_time", "customer", "grand_total", "paid_amount"], as_dict=True)
                 shift_report.append("invoices", {
-                    "invoice": invoice_name,
-                    "invoice_amount": frappe.db.get_value("Sales Invoice", invoice_name, "grand_total"),
-                    "paid_amount": frappe.db.get_value("Sales Invoice", invoice_name, "paid_amount")
+                    "invoice_no": invoice_name,  # ✅ CORRECT field name
+                    "invoice_date": invoice_data.posting_date,  # ✅ ADD
+                    "invoice_time": invoice_data.posting_time,  # ✅ ADD
+                    "customer": invoice_data.customer,  # ✅ ADD
+                    "total_amount": invoice_data.grand_total,  # ✅ CORRECT field name
+                    "paid_amount": invoice_data.paid_amount  # ✅ ADD
                 })
 
         shift_report.insert()
