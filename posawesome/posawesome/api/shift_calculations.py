@@ -8,7 +8,18 @@ from datetime import datetime, timedelta
 def calculate_expected_amounts(opening_amounts, sales_amount=0, returns_amount=0):
     """Calculate expected closing amounts"""
     try:
+        # Handle None values
+        if opening_amounts is None:
+            frappe.throw("Opening amounts cannot be None")
+
         opening = json.loads(opening_amounts) if isinstance(opening_amounts, str) else opening_amounts
+
+        if not isinstance(opening, dict):
+            frappe.throw("Opening amounts must be a dictionary")
+
+        sales_amount = sales_amount or 0
+        returns_amount = returns_amount or 0
+
         expected_total = sum(opening.values()) + sales_amount - returns_amount
 
         return {
