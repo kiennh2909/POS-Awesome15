@@ -8,7 +8,7 @@
 		<MpesaPayments></MpesaPayments>
 		<Variants></Variants>
 		<TaxRollDialog></TaxRollDialog>
-		<ListInvoicesDialog></ListInvoicesDialog>
+		<ListInvoicesDialog v-model="showListInvoicesDialog" :shift-report-id="pos_opening_shift"></ListInvoicesDialog>
 		<OpeningDialog v-if="dialog" :dialog="dialog"></OpeningDialog>
 		<v-row v-show="!dialog" dense class="ma-0 dynamic-main-row">
 			<v-col
@@ -79,6 +79,7 @@ export default {
 			payment: false,
 			offers: false,
 			coupons: false,
+			showListInvoicesDialog: false,
 		};
 	},
 
@@ -295,6 +296,9 @@ export default {
 			this.eventBus.on("submit_closing_pos", (data) => {
 				this.submit_closing_pos(data);
 			});
+			this.eventBus.on("open_list_invoices", () => {
+				this.showListInvoicesDialog = true;
+			});
 		});
 	},
 	beforeUnmount() {
@@ -305,6 +309,7 @@ export default {
 		this.eventBus.off("show_coupons");
 		this.eventBus.off("open_closing_dialog");
 		this.eventBus.off("submit_closing_pos");
+		this.eventBus.off("open_list_invoices");
 	},
 	// In the created() or mounted() lifecycle hook
 	created() {
