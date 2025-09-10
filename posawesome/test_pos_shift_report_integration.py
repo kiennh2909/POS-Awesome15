@@ -162,6 +162,13 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
         })
 
         shift_report.insert()
+
+        # Confirm shift report before submission
+        shift_report.verification_status = "Confirmed"
+        shift_report.confirmed_by = self.test_user
+        shift_report.confirmation_date = frappe.utils.nowdate()
+        shift_report.save()
+
         shift_report.submit()
         frappe.db.commit()
 
@@ -267,6 +274,14 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
         shift_report.verification_date = date.today()
         shift_report.verified_by = self.test_user
         shift_report.save()
+
+        # Confirm before submission
+        shift_report.verification_status = "Confirmed"
+        shift_report.confirmed_by = self.test_user
+        shift_report.confirmation_date = frappe.utils.nowdate()
+        shift_report.save()
+
+        shift_report.submit()
         frappe.db.commit()
 
         # Verify transition
@@ -297,6 +312,12 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
             "status": "Open"
         })
         shift_report1.insert()
+
+        # Confirm before testing unique constraint
+        shift_report1.verification_status = "Confirmed"
+        shift_report1.confirmed_by = self.test_user
+        shift_report1.confirmation_date = frappe.utils.nowdate()
+        shift_report1.save()
         frappe.db.commit()
 
         # Try to create duplicate shift_report_id
