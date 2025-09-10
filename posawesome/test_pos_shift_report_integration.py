@@ -74,8 +74,9 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
                 self.assertTrue(frappe.db.exists("DocType", doctype),
                     f"DocType {doctype} does not exist")
 
-                # Check table exists in database
-                table_name = f"tab{doctype.replace(' ', '')}"
+                # ✅ FIX: Use correct table name with spaces
+                # Frappe creates tables with spaces: "tabPOS Shift Report"
+                table_name = f"tab{doctype}"
                 self.assertTrue(frappe.db.has_table(table_name),
                     f"Table {table_name} does not exist")
 
@@ -190,7 +191,9 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
         # Test shift reports API
         try:
             result = frappe.call("posawesome.posawesome.api.shift_reports.get_shift_reports")
-            self.assertIsInstance(result, list)
+            # API returns dict with success/data format
+            self.assertIsInstance(result, dict)
+            self.assertIn("data", result)
         except Exception as e:
             self.fail(f"get_shift_reports API failed: {e}")
 
@@ -355,7 +358,7 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
 
         # Test API with invalid parameters
         try:
-            result = frappe.call("posawesome.posawesome.api.shift_reports.get_shift_report", shift_id="INVALID")
+            result = frappe.call("posawesome.posawesome.api.shift_reports.get_shift_report", shift_report_id="INVALID")
             # Should return None or empty result gracefully
             self.assertTrue(result is None or isinstance(result, dict))
         except Exception as e:
