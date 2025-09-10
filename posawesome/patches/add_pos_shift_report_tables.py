@@ -35,7 +35,7 @@ def create_pos_shift_report_doctypes():
         pos_shift_report = {
             "doctype": "DocType",
             "name": "POS Shift Report",
-            "module": "POS Awesome",
+            "module": "POSAwesome",
             "custom": 0,
             "is_submittable": 1,
             "track_changes": 1,
