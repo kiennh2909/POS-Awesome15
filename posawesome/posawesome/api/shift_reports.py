@@ -89,10 +89,27 @@ def get_shift_report(shift_report_id):
 				limit=1
 			)
 
-			if not shift_reports:
-				frappe.throw(_("Shift report not found"))
+			if shift_reports:
+				shift_report = frappe.get_doc("POS Shift Report", shift_reports[0].name)
+			else:
+				# ✅ CHECK IF THIS IS A POS OPENING SHIFT THAT SHOULD HAVE A SHIFT REPORT
+				if frappe.db.exists("POS Opening Shift", shift_report_id):
+					opening_shift = frappe.get_doc("POS Opening Shift", shift_report_id)
 
-			shift_report = frappe.get_doc("POS Shift Report", shift_reports[0].name)
+					# Check if opening shift has shift_report field set
+					if hasattr(opening_shift, 'shift_report') and opening_shift.shift_report:
+						# Opening shift has shift_report reference, but shift report doesn't exist
+						# This is an error condition - data inconsistency
+						frappe.logger().error(f"Data inconsistency: POS Opening Shift {shift_report_id} references non-existent shift report {opening_shift.shift_report}")
+						frappe.throw(_("Data inconsistency: Shift report reference exists but shift report not found. Please contact administrator."))
+					else:
+						# Opening shift exists but no shift_report reference
+						# This means shift report was never created during opening shift creation
+						frappe.logger().error(f"POS Opening Shift {shift_report_id} exists but has no shift_report reference")
+						frappe.throw(_("Shift report was not created during opening shift. Please contact administrator."))
+				else:
+					# Not a POS Opening Shift name
+					frappe.throw(_("Shift report not found"))
 
 		# ✅ RETURN FORMAT COMPATIBLE WITH frappe.client.get
 		# Vue component expects: shiftReportResponse.message (direct data)
