@@ -75,7 +75,7 @@ def get_shift_report(shift_report_id):
 		shift_report_id (str): Shift report ID or name
 
 	Returns:
-		dict: Shift report data
+		dict: Shift report data (compatible with frappe.client.get format)
 	"""
 	try:
 		if not frappe.db.exists("POS Shift Report", shift_report_id):
@@ -83,58 +83,55 @@ def get_shift_report(shift_report_id):
 
 		shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
 
+		# ✅ RETURN FORMAT COMPATIBLE WITH frappe.client.get
+		# Vue component expects: shiftReportResponse.message (direct data)
 		return {
-			"success": True,
-			"data": {
-				"name": shift_report.name,
-				"shift_report_id": shift_report.shift_report_id,
-				"pos_opening_shift": shift_report.pos_opening_shift,
-				"opening_date": shift_report.opening_date,
-				"opening_time": shift_report.opening_time,
-				"opened_by": shift_report.opened_by,
-				"opening_amounts": json.loads(shift_report.opening_amounts or "{}"),
-				"expected_closing_amounts": json.loads(shift_report.expected_closing_amounts or "{}"),
-				"actual_closing_amounts": json.loads(shift_report.actual_closing_amounts or "{}"),
-				"total_opening_amount": shift_report.total_opening_amount,
-				"total_expected_closing": shift_report.total_expected_closing,
-				"total_actual_closing": shift_report.total_actual_closing,
-				"difference": shift_report.difference,
-				"verification_status": shift_report.verification_status,
-				"verification_date": shift_report.verification_date,
-				"verified_by": shift_report.verified_by,
-				"confirmation_date": shift_report.confirmation_date,
-				"confirmed_by": shift_report.confirmed_by,
-				"closing_date": shift_report.closing_date,
-				"closed_by": shift_report.closed_by,
-				"status": shift_report.status,
-				"invoice_count": shift_report.invoice_count,
-				"total_sales": shift_report.total_sales,
-				"total_returns": shift_report.total_returns,
-				"payment_breakdown": json.loads(shift_report.payment_breakdown or "{}"),
-				"notes": shift_report.notes,
-				"invoices": [
-					{
-						"invoice_no": invoice.invoice_no,
-						"invoice_date": invoice.invoice_date,
-						"invoice_time": invoice.invoice_time,
-						"customer": invoice.customer,
-						"total_amount": invoice.total_amount,
-						"paid_amount": invoice.paid_amount,
-						"tax_amount": invoice.tax_amount,
-						"payment_method": invoice.payment_method,
-						"is_return": invoice.is_return,
-						"status": invoice.status
-					} for invoice in shift_report.invoices
-				] if shift_report.invoices else []
-			}
+			"name": shift_report.name,
+			"shift_report_id": shift_report.shift_report_id,
+			"pos_opening_shift": shift_report.pos_opening_shift,
+			"opening_date": shift_report.opening_date,
+			"opening_time": shift_report.opening_time,
+			"opened_by": shift_report.opened_by,
+			"opening_amounts": json.loads(shift_report.opening_amounts or "{}"),
+			"expected_closing_amounts": json.loads(shift_report.expected_closing_amounts or "{}"),
+			"actual_closing_amounts": json.loads(shift_report.actual_closing_amounts or "{}"),
+			"total_opening_amount": shift_report.total_opening_amount,
+			"total_expected_closing": shift_report.total_expected_closing,
+			"total_actual_closing": shift_report.total_actual_closing,
+			"difference": shift_report.difference,
+			"verification_status": shift_report.verification_status,
+			"verification_date": shift_report.verification_date,
+			"verified_by": shift_report.verified_by,
+			"confirmation_date": shift_report.confirmation_date,
+			"confirmed_by": shift_report.confirmed_by,
+			"closing_date": shift_report.closing_date,
+			"closed_by": shift_report.closed_by,
+			"status": shift_report.status,
+			"invoice_count": shift_report.invoice_count,
+			"total_sales": shift_report.total_sales,
+			"total_returns": shift_report.total_returns,
+			"payment_breakdown": json.loads(shift_report.payment_breakdown or "{}"),
+			"notes": shift_report.notes,
+			"invoices": [
+				{
+					"invoice_no": invoice.invoice_no,
+					"invoice_date": invoice.invoice_date,
+					"invoice_time": invoice.invoice_time,
+					"customer": invoice.customer,
+					"total_amount": invoice.total_amount,
+					"paid_amount": invoice.paid_amount,
+					"tax_amount": invoice.tax_amount,
+					"payment_method": invoice.payment_method,
+					"is_return": invoice.is_return,
+					"status": invoice.status
+				} for invoice in shift_report.invoices
+			] if shift_report.invoices else []
 		}
 
 	except Exception as e:
 		frappe.log_error(str(e), "Get Shift Report Error")
-		return {
-			"success": False,
-			"message": str(e)
-		}
+		# ✅ RETURN ERROR IN COMPATIBLE FORMAT
+		frappe.throw(_("Error getting shift report: {0}").format(str(e)))
 
 @frappe.whitelist()
 def update_shift_report(shift_report_id, data):

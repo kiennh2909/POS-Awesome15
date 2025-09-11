@@ -450,21 +450,26 @@ export default {
 
 	// ✅ LOAD SHIFT REPORT DATA FOR FOOTER STATUS BAR
 	async loadShiftReportData() {
-		if (!this.shiftReportId) return;
+		if (!this.shiftReportId) {
+			console.warn("[SHIFT_REPORT] No shiftReportId provided");
+			return;
+		}
 
 		try {
-			console.log("Loading shift report data for footer:", this.shiftReportId);
+			console.log("[SHIFT_REPORT] Loading shift report data for footer:", this.shiftReportId);
 
-			// Get shift report data
+			// ✅ USE CUSTOM API INSTEAD OF GENERIC frappe.client.get
 			const shiftReportResponse = await frappe.call({
-				method: "frappe.client.get",
+				method: "posawesome.posawesome.api.shift_reports.get_shift_report",
 				args: {
-					doctype: "POS Shift Report",
-					name: this.shiftReportId
+					shift_report_id: this.shiftReportId
 				}
 			});
 
+			console.log("[SHIFT_REPORT] API Response:", shiftReportResponse);
+
 			if (shiftReportResponse.message) {
+				// ✅ HANDLE UPDATED API RESPONSE FORMAT (direct data)
 				const shiftReportData = shiftReportResponse.message;
 
 				// Emit event to update footer status bar
@@ -478,10 +483,22 @@ export default {
 					});
 				}
 
-				console.log("Shift report data loaded for footer:", shiftReportData.shift_report_id);
+				console.log("[SHIFT_REPORT] Shift report data loaded for footer:", shiftReportData.shift_report_id);
+			} else {
+				console.error("[SHIFT_REPORT] API call failed - no data returned");
 			}
 		} catch (error) {
-			console.error("Error loading shift report data for footer:", error);
+			console.error("[SHIFT_REPORT] Error loading shift report data for footer:", error);
+
+			// ✅ FALLBACK: Try to emit with default values
+			if (this.eventBus) {
+				this.eventBus.emit("register_shift_report", {
+					shift_report_id: this.shiftReportId,
+					total_invoices: 0,
+					total_revenue: 0,
+					last_invoice: ""
+				});
+			}
 		}
 	},
 
