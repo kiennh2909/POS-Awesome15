@@ -457,8 +457,8 @@ export default {
 
 		try {
 			console.log("[SHIFT_REPORT] Loading shift report data for footer:", this.shiftReportId);
-
-			// ✅ USE CUSTOM API INSTEAD OF GENERIC frappe.client.get
+			// ✅ USE CUSTOM API - Now handles both name and shift_report_id field lookup
+			console.log("[SHIFT_REPORT] Using custom API with ID:", this.shiftReportId);
 			const shiftReportResponse = await frappe.call({
 				method: "posawesome.posawesome.api.shift_reports.get_shift_report",
 				args: {
@@ -466,9 +466,13 @@ export default {
 				}
 			});
 
-			console.log("[SHIFT_REPORT] API Response:", shiftReportResponse);
+			console.log("[SHIFT_REPORT] Generic API Response:", shiftReportResponse);
 
-			if (shiftReportResponse.message) {
+			console.log("[SHIFT_REPORT] API Response:", shiftReportResponse);
+			console.log("[SHIFT_REPORT] Response type:", typeof shiftReportResponse);
+			console.log("[SHIFT_REPORT] Has message:", shiftReportResponse && 'message' in shiftReportResponse);
+
+			if (shiftReportResponse && shiftReportResponse.message) {
 				// ✅ HANDLE UPDATED API RESPONSE FORMAT (direct data)
 				const shiftReportData = shiftReportResponse.message;
 

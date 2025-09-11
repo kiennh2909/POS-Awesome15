@@ -69,19 +69,30 @@ def create_shift_report(data):
 @frappe.whitelist()
 def get_shift_report(shift_report_id):
 	"""
-	Get POS Shift Report by ID
+	Get POS Shift Report by ID or shift_report_id field
 
 	Args:
-		shift_report_id (str): Shift report ID or name
+		shift_report_id (str): Shift report ID, shift_report_id field, or name
 
 	Returns:
 		dict: Shift report data (compatible with frappe.client.get format)
 	"""
 	try:
-		if not frappe.db.exists("POS Shift Report", shift_report_id):
-			frappe.throw(_("Shift report not found"))
+		# First try direct name lookup
+		if frappe.db.exists("POS Shift Report", shift_report_id):
+			shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
+		else:
+			# Try to find by shift_report_id field
+			shift_reports = frappe.get_all("POS Shift Report",
+				filters={"shift_report_id": shift_report_id},
+				fields=["name"],
+				limit=1
+			)
 
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
+			if not shift_reports:
+				frappe.throw(_("Shift report not found"))
+
+			shift_report = frappe.get_doc("POS Shift Report", shift_reports[0].name)
 
 		# ✅ RETURN FORMAT COMPATIBLE WITH frappe.client.get
 		# Vue component expects: shiftReportResponse.message (direct data)
