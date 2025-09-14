@@ -55,7 +55,7 @@ def create_payment_summaries_for_shift(shift_report_name):
 		# 2. Get all invoices for this shift (optimized query)
 		invoices = frappe.get_all("Sales Invoice",
 			filters={
-				"pos_opening_shift": shift_report.pos_opening_shift,
+				"posa_pos_opening_shift": shift_report.pos_opening_shift,
 				"docstatus": 1
 			},
 			fields=["name", "grand_total", "is_return"]
