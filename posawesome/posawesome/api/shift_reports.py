@@ -82,6 +82,9 @@ def get_shift_report(shift_report_id):
 		dict: Shift report data (compatible with frappe.client.get format)
 	"""
 	log.info(f"[SHIFT_REPORT_API] 🎯 GET_SHIFT_REPORT - Start - Shift Report ID: {shift_report_id}")
+	log.info(f"[SHIFT_REPORT_API] 📋 GET_SHIFT_REPORT - ID Type: {type(shift_report_id)}")
+	if isinstance(shift_report_id, str):
+		log.info(f"[SHIFT_REPORT_API] 📋 GET_SHIFT_REPORT - ID Length: {len(shift_report_id)}")
 
 	try:
 		# First try direct name lookup

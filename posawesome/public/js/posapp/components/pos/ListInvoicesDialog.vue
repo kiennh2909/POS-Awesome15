@@ -458,24 +458,29 @@ export default {
 			let actualShiftReportId = this.shiftReportId;
 
 			if (typeof this.shiftReportId === 'object' && this.shiftReportId !== null) {
-				console.error("[SHIFT_REPORT] ERROR: shiftReportId is an object, not a string!");
+				console.log("[SHIFT_REPORT] 📋 shiftReportId is an object, extracting ID...");
 				console.log("[SHIFT_REPORT] Object keys:", Object.keys(this.shiftReportId));
-				console.log("[SHIFT_REPORT] Object content:", JSON.stringify(this.shiftReportId, null, 2));
 
-				// ✅ PRIORITY: Try shift_report_id first (most reliable)
-				if (this.shiftReportId.shift_report_id) {
-					console.log("[SHIFT_REPORT] ✅ Found shift_report_id in object:", this.shiftReportId.shift_report_id);
+				// ✅ PRIORITY 1: Try shift_report field (actual shift report ID)
+				if (this.shiftReportId.shift_report) {
+					console.log("[SHIFT_REPORT] ✅ Found shift_report in object:", this.shiftReportId.shift_report);
+					actualShiftReportId = this.shiftReportId.shift_report;
+				}
+				// ✅ PRIORITY 2: Try shift_report_id field (display name)
+				else if (this.shiftReportId.shift_report_id) {
+					console.log("[SHIFT_REPORT] ⚠️  shift_report not found, using shift_report_id:", this.shiftReportId.shift_report_id);
 					actualShiftReportId = this.shiftReportId.shift_report_id;
 				}
-				// ✅ SECOND: Try name field
+				// ✅ PRIORITY 3: Try name field
 				else if (this.shiftReportId.name) {
 					console.log("[SHIFT_REPORT] ⚠️  shift_report_id not found, using name:", this.shiftReportId.name);
 					actualShiftReportId = this.shiftReportId.name;
 				}
 				// ❌ LAST RESORT: Cannot extract, this will cause API error
 				else {
-					console.error("[SHIFT_REPORT] ❌ Cannot extract ID from object - no shift_report_id or name field");
+					console.error("[SHIFT_REPORT] ❌ Cannot extract ID from object - no shift_report, shift_report_id or name field");
 					console.error("[SHIFT_REPORT] Available fields:", Object.keys(this.shiftReportId));
+					console.error("[SHIFT_REPORT] Object content:", JSON.stringify(this.shiftReportId, null, 2));
 					// Don't proceed with API call
 					return;
 				}
@@ -488,6 +493,8 @@ export default {
 			}
 
 			console.log("[SHIFT_REPORT] ✅ Final shiftReportId to use:", actualShiftReportId);
+			console.log("[SHIFT_REPORT] 📊 Original object had shift_report:", this.shiftReportId.shift_report);
+			console.log("[SHIFT_REPORT] 📊 Original object had shift_report_id:", this.shiftReportId.shift_report_id);
 
 			console.log("[SHIFT_REPORT] Using custom API with ID:", actualShiftReportId);
 			const shiftReportResponse = await frappe.call({
