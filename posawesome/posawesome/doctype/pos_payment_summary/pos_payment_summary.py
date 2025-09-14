@@ -238,6 +238,27 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 		transaction_amount = data["transaction_amount"]
 		closing_amount = opening_amount + transaction_amount
 
+		# Create datetime values for shift times
+		shift_start_time = None
+		shift_end_time = None
+
+		try:
+			# Combine opening_date and opening_time for shift_start_time
+			if shift_report.opening_date and shift_report.opening_time:
+				from frappe.utils import get_datetime
+				shift_start_time = get_datetime(f"{shift_report.opening_date} {shift_report.opening_time}")
+			elif shift_report.opening_date:
+				# If only date available, use date at start of day
+				from frappe.utils import getdate
+				shift_start_time = getdate(shift_report.opening_date)
+
+			# For shift_end_time, use closing_date if available, otherwise None
+			if shift_report.closing_date:
+				from frappe.utils import getdate
+				shift_end_time = getdate(shift_report.closing_date)
+		except Exception as e:
+			log.warning(f"[PAYMENT_SUMMARY] Could not create datetime for shift times: {str(e)}")
+
 		if existing:
 			# Update existing
 			payment_summary = frappe.get_doc("POS Payment Summary", existing)
@@ -258,8 +279,8 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 				"pos_shift_report": shift_report.name,
 				"pos_opening_shift": shift_report.pos_opening_shift,
 				"posting_date": shift_report.opening_date,
-				"shift_start_time": shift_report.opening_time,
-				"shift_end_time": shift_report.closing_date,
+				"shift_start_time": shift_start_time,
+				"shift_end_time": shift_end_time,
 				"payment_method": method,
 				"payment_method_type": get_payment_method_type(method),
 				"currency": currency,
@@ -415,13 +436,35 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 				})
 
 				if not existing:
+					# Create datetime values for shift times
+					shift_start_time = None
+					shift_end_time = None
+
+					try:
+						# Combine opening_date and opening_time for shift_start_time
+						if shift_report.opening_date and shift_report.opening_time:
+							from frappe.utils import get_datetime
+							shift_start_time = get_datetime(f"{shift_report.opening_date} {shift_report.opening_time}")
+						elif shift_report.opening_date:
+							# If only date available, use date at start of day
+							from frappe.utils import getdate
+							shift_start_time = getdate(shift_report.opening_date)
+
+						# For shift_end_time, use closing_date if available, otherwise None
+						if shift_report.closing_date:
+							from frappe.utils import getdate
+							shift_end_time = getdate(shift_report.closing_date)
+					except Exception as e:
+						log.warning(f"[PAYMENT_SUMMARY] Could not create datetime for shift times: {str(e)}")
+
 					payment_summary = frappe.get_doc({
 						"doctype": "POS Payment Summary",
 						"shift_report_id": f"{shift_report.shift_report_id}_{method}",
 						"pos_shift_report": shift_report.name,
 						"pos_opening_shift": shift_report.pos_opening_shift,
 						"posting_date": shift_report.opening_date,
-						"shift_start_time": shift_report.opening_time,
+						"shift_start_time": shift_start_time,
+						"shift_end_time": shift_end_time,
 						"payment_method": method,
 						"payment_method_type": get_payment_method_type(method),
 						"currency": currency,
