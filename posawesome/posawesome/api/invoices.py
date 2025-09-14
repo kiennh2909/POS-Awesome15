@@ -22,6 +22,10 @@ from posawesome.posawesome.api.utilities import (
 	ensure_child_doctype,
 	set_batch_nos_for_bundels,
 )  # Updated imports
+from posawesome.posawesome.utils.logging import get_logger
+
+# Initialize logger
+log = get_logger("invoice")
 
 
 def get_latest_rate(from_currency: str, to_currency: str):
@@ -82,29 +86,50 @@ def validate_return_items(original_invoice_name, return_items):
 
 @frappe.whitelist()
 def update_invoice(data):
+	log.info(f"[UPDATE_INVOICE] 🎯 START - Processing invoice update")
+
 	data = json.loads(data)
+	invoice_name = data.get("name")
+
+	log.info(f"[UPDATE_INVOICE] 📋 Invoice data - Name: {invoice_name}, Customer: {data.get('customer', 'N/A')}, Amount: {data.get('grand_total', 0)}")
+
 	if data.get("name"):
+		log.info(f"[UPDATE_INVOICE] 📝 Loading existing invoice: {invoice_name}")
 		invoice_doc = frappe.get_doc("Sales Invoice", data.get("name"))
 		invoice_doc.update(data)
+		log.info(f"[UPDATE_INVOICE] ✅ Existing invoice loaded and updated: {invoice_name}")
 	else:
+		log.info(f"[UPDATE_INVOICE] 🆕 Creating new invoice document")
 		invoice_doc = frappe.get_doc(data)
+		log.info(f"[UPDATE_INVOICE] ✅ New invoice document created")
 
 	# Set currency from data before set_missing_values
 	# Validate return items if this is a return invoice
 	if (data.get("is_return") or invoice_doc.is_return) and invoice_doc.get("return_against"):
+		log.info(f"[UPDATE_INVOICE] 🔍 Validating return items for invoice: {invoice_doc.get('return_against')}")
 		validation = validate_return_items(
 			invoice_doc.return_against, [d.as_dict() for d in invoice_doc.items]
 		)
 		if not validation.get("valid"):
+			log.error(f"[UPDATE_INVOICE] ❌ Return validation failed: {validation.get('message')}")
 			frappe.throw(validation.get("message"))
+		log.info(f"[UPDATE_INVOICE] ✅ Return validation passed")
+
 	selected_currency = data.get("currency")
 	price_list_currency = data.get("price_list_currency")
+
+	log.info(f"[UPDATE_INVOICE] 💱 Currency setup - Selected: {selected_currency}, Price List: {price_list_currency}")
+
 	if not price_list_currency and invoice_doc.get("selling_price_list"):
 		price_list_currency = frappe.db.get_value("Price List", invoice_doc.selling_price_list, "currency")
+		log.info(f"[UPDATE_INVOICE] 📋 Price list currency resolved from selling_price_list: {price_list_currency}")
 
 	# Ensure customer exists before setting missing values
 	customer_name = invoice_doc.get("customer")
+	log.info(f"[UPDATE_INVOICE] 👤 Customer validation - Name: {customer_name}")
+
 	if customer_name and not frappe.db.exists("Customer", customer_name):
+		log.info(f"[UPDATE_INVOICE] 🆕 Customer not found, creating new customer: {customer_name}")
 		try:
 			cust = frappe.get_doc(
 				{
@@ -119,66 +144,97 @@ def update_invoice(data):
 			cust.insert()
 			invoice_doc.customer = cust.name
 			invoice_doc.customer_name = cust.customer_name
+			log.info(f"[UPDATE_INVOICE] ✅ Customer created successfully: {cust.name}")
 		except Exception as e:
+			log.error(f"[UPDATE_INVOICE] ❌ Failed to create customer {customer_name}: {str(e)}")
 			frappe.log_error(f"Failed to create customer {customer_name}: {e}")
+	else:
+		log.info(f"[UPDATE_INVOICE] ✅ Customer exists: {customer_name}")
 
 	# Set missing values first
+	log.info(f"[UPDATE_INVOICE] 🔧 Setting missing values for invoice")
 	invoice_doc.set_missing_values()
+	log.info(f"[UPDATE_INVOICE] ✅ Missing values set")
 
 	# Ensure selected currency is preserved after set_missing_values
 	if selected_currency:
+		log.info(f"[UPDATE_INVOICE] 💱 Processing currency conversion setup")
 		invoice_doc.currency = selected_currency
 		company_currency = frappe.get_cached_value("Company", invoice_doc.company, "default_currency")
 		price_list_currency = price_list_currency or company_currency
 
+		log.info(f"[UPDATE_INVOICE] 💱 Currency details - Invoice: {selected_currency}, Company: {company_currency}, Price List: {price_list_currency}")
+
 		conversion_rate = 1
 		exchange_rate_date = invoice_doc.posting_date
 		if invoice_doc.currency != company_currency:
+			log.info(f"[UPDATE_INVOICE] 🔄 Getting exchange rate: {invoice_doc.currency} -> {company_currency}")
 			conversion_rate, exchange_rate_date = get_latest_rate(
 				invoice_doc.currency,
 				company_currency,
 			)
 			if not conversion_rate:
+				log.error(f"[UPDATE_INVOICE] ❌ No exchange rate found: {invoice_doc.currency} -> {company_currency}")
 				frappe.throw(
 					_(
 						"Unable to find exchange rate for {0} to {1}. Please create a Currency Exchange record manually"
 					).format(invoice_doc.currency, company_currency)
 				)
+			log.info(f"[UPDATE_INVOICE] ✅ Exchange rate found: {conversion_rate} (Date: {exchange_rate_date})")
 
 		plc_conversion_rate = 1
 		if price_list_currency != invoice_doc.currency:
+			log.info(f"[UPDATE_INVOICE] 🔄 Getting price list exchange rate: {price_list_currency} -> {invoice_doc.currency}")
 			plc_conversion_rate, _ignored = get_latest_rate(
 				price_list_currency,
 				invoice_doc.currency,
 			)
 			if not plc_conversion_rate:
+				log.error(f"[UPDATE_INVOICE] ❌ No price list exchange rate found: {price_list_currency} -> {invoice_doc.currency}")
 				frappe.throw(
 					_(
 						"Unable to find exchange rate for {0} to {1}. Please create a Currency Exchange record manually"
 					).format(price_list_currency, invoice_doc.currency)
 				)
+			log.info(f"[UPDATE_INVOICE] ✅ Price list exchange rate found: {plc_conversion_rate}")
 
 		invoice_doc.conversion_rate = conversion_rate
 		invoice_doc.plc_conversion_rate = plc_conversion_rate
 		invoice_doc.price_list_currency = price_list_currency
+		log.info(f"[UPDATE_INVOICE] ✅ Currency rates set - Conversion: {conversion_rate}, PLC: {plc_conversion_rate}")
+	else:
+		log.info(f"[UPDATE_INVOICE] 💱 No currency conversion needed")
 
 		# Update rates and amounts for all items using multiplication
+		log.info(f"[UPDATE_INVOICE] 📊 Updating item rates and amounts for {len(invoice_doc.items)} items")
 		for item in invoice_doc.items:
 			if item.price_list_rate:
+				old_rate = item.base_price_list_rate
 				item.base_price_list_rate = flt(
 					item.price_list_rate * (conversion_rate / plc_conversion_rate),
 					item.precision("base_price_list_rate"),
 				)
+				log.debug(f"[UPDATE_INVOICE] 📊 Item {item.item_code}: base_price_list_rate {old_rate} -> {item.base_price_list_rate}")
+
 			if item.rate:
+				old_rate = item.base_rate
 				item.base_rate = flt(item.rate * conversion_rate, item.precision("base_rate"))
+				log.debug(f"[UPDATE_INVOICE] 📊 Item {item.item_code}: base_rate {old_rate} -> {item.base_rate}")
+
 			if item.amount:
+				old_amount = item.base_amount
 				item.base_amount = flt(item.amount * conversion_rate, item.precision("base_amount"))
+				log.debug(f"[UPDATE_INVOICE] 📊 Item {item.item_code}: base_amount {old_amount} -> {item.base_amount}")
 
 		# Update payment amounts
+		log.info(f"[UPDATE_INVOICE] 💰 Updating payment amounts for {len(invoice_doc.payments)} payments")
 		for payment in invoice_doc.payments:
+			old_amount = payment.base_amount
 			payment.base_amount = flt(payment.amount * conversion_rate, payment.precision("base_amount"))
+			log.debug(f"[UPDATE_INVOICE] 💰 Payment {payment.mode_of_payment}: base_amount {old_amount} -> {payment.base_amount}")
 
 		# Update invoice level amounts
+		log.info(f"[UPDATE_INVOICE] 🧮 Updating invoice level amounts")
 		invoice_doc.base_total = flt(invoice_doc.total * conversion_rate, invoice_doc.precision("base_total"))
 		invoice_doc.base_net_total = flt(
 			invoice_doc.net_total * conversion_rate,
@@ -194,47 +250,72 @@ def update_invoice(data):
 		)
 		invoice_doc.base_in_words = money_in_words(invoice_doc.base_rounded_total, company_currency)
 
+		log.info(f"[UPDATE_INVOICE] ✅ Invoice amounts updated - Grand Total: {invoice_doc.base_grand_total}")
+
 		# Update data to be sent back to frontend
 		data["conversion_rate"] = conversion_rate
 		data["plc_conversion_rate"] = plc_conversion_rate
 		data["exchange_rate_date"] = exchange_rate_date
+		log.info(f"[UPDATE_INVOICE] 📤 Updated response data with currency rates")
 
+	log.info(f"[UPDATE_INVOICE] 💾 Preparing to save invoice")
 	invoice_doc.flags.ignore_permissions = True
 	frappe.flags.ignore_account_permission = True
 	invoice_doc.docstatus = 0
+
+	log.info(f"[UPDATE_INVOICE] 💾 Saving invoice: {invoice_doc.name}")
 	invoice_doc.save()
+	log.info(f"[UPDATE_INVOICE] ✅ Invoice saved successfully: {invoice_doc.name}")
 
 	# Return both the invoice doc and the updated data
+	log.info(f"[UPDATE_INVOICE] 📤 Preparing response data")
 	response = invoice_doc.as_dict()
 	response["conversion_rate"] = invoice_doc.conversion_rate
 	response["plc_conversion_rate"] = invoice_doc.plc_conversion_rate
 	response["exchange_rate_date"] = exchange_rate_date
+
+	log.info(f"[UPDATE_INVOICE] 🎉 COMPLETED - Invoice: {invoice_doc.name}, Grand Total: {invoice_doc.grand_total}")
 	return response
 
 
 @frappe.whitelist()
 def submit_invoice(invoice, data):
+	log.info(f"[SUBMIT_INVOICE] 🎯 START - Processing invoice submission")
+
 	data = json.loads(data)
 	invoice = json.loads(invoice)
 	invoice_name = invoice.get("name")
+
+	log.info(f"[SUBMIT_INVOICE] 📋 Invoice data - Name: {invoice_name}, Customer: {invoice.get('customer', 'N/A')}, Amount: {invoice.get('grand_total', 0)}")
+
 	if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
+		log.info(f"[SUBMIT_INVOICE] 🆕 Creating new invoice")
 		created = update_invoice(json.dumps(invoice))
 		invoice_name = created.get("name")
 		invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
+		log.info(f"[SUBMIT_INVOICE] ✅ New invoice created: {invoice_name}")
 	else:
+		log.info(f"[SUBMIT_INVOICE] 📝 Updating existing invoice: {invoice_name}")
 		invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
 		invoice_doc.update(invoice)
+		log.info(f"[SUBMIT_INVOICE] ✅ Invoice updated: {invoice_name}")
 	if invoice.get("posa_delivery_date"):
 		invoice_doc.update_stock = 0
+		log.info(f"[SUBMIT_INVOICE] 📅 Delivery date set - disabling stock update")
+
 	mop_cash_list = [
 		i.mode_of_payment
 		for i in invoice_doc.payments
 		if "cash" in i.mode_of_payment.lower() and i.type == "Cash"
 	]
+	log.info(f"[SUBMIT_INVOICE] 💰 Cash payment methods found: {len(mop_cash_list)}")
+
 	if len(mop_cash_list) > 0:
 		cash_account = get_bank_cash_account(mop_cash_list[0], invoice_doc.company)
+		log.info(f"[SUBMIT_INVOICE] 🏦 Cash account resolved: {cash_account.get('account', 'N/A')}")
 	else:
 		cash_account = {"account": frappe.get_value("Company", invoice_doc.company, "default_cash_account")}
+		log.info(f"[SUBMIT_INVOICE] 🏦 Using default cash account: {cash_account.get('account', 'N/A')}")
 
 	# Update remarks with items details
 	items = []
@@ -251,6 +332,7 @@ def submit_invoice(invoice, data):
 
 	# creating advance payment
 	if data.get("credit_change"):
+		log.info(f"[SUBMIT_INVOICE] 💳 Creating advance payment - Amount: {data.get('credit_change')}")
 		advance_payment_entry = frappe.get_doc(
 			{
 				"doctype": "Payment Entry",
@@ -269,16 +351,22 @@ def submit_invoice(invoice, data):
 		frappe.flags.ignore_account_permission = True
 		advance_payment_entry.save()
 		advance_payment_entry.submit()
+		log.info(f"[SUBMIT_INVOICE] ✅ Advance payment created: {advance_payment_entry.name}")
+	else:
+		log.info(f"[SUBMIT_INVOICE] 💸 No credit change - skipping advance payment")
 
 	# calculating cash
 	total_cash = 0
 	if data.get("redeemed_customer_credit"):
 		total_cash = invoice_doc.total - float(data.get("redeemed_customer_credit"))
+		log.info(f"[SUBMIT_INVOICE] 💰 Calculated total cash after credit redemption: {total_cash}")
 
 	is_payment_entry = 0
 	if data.get("redeemed_customer_credit"):
+		log.info(f"[SUBMIT_INVOICE] 🎫 Processing customer credit redemption")
 		for row in data.get("customer_credit_dict"):
 			if row["type"] == "Advance" and row["credit_to_redeem"]:
+				log.info(f"[SUBMIT_INVOICE] 🔄 Processing advance credit: {row['credit_origin']}, Amount: {row['credit_to_redeem']}")
 				advance = frappe.get_doc("Payment Entry", row["credit_origin"])
 
 				advance_payment = {
@@ -294,6 +382,9 @@ def submit_invoice(invoice, data):
 				ensure_child_doctype(invoice_doc, "advances", "Sales Invoice Advance")
 				invoice_doc.is_pos = 0
 				is_payment_entry = 1
+				log.info(f"[SUBMIT_INVOICE] ✅ Advance credit processed: {advance.name}")
+	else:
+		log.info(f"[SUBMIT_INVOICE] 🎫 No customer credit redemption")
 
 	payments = invoice_doc.payments
 
@@ -328,18 +419,25 @@ def submit_invoice(invoice, data):
 	# 	frappe.log_error(f"[POSA] Failed to attach customer tax_id to invoice {invoice_doc.name}: {e}")
 
 # === Attach Customer Tax ID to Invoice (simple mode, corrected) ===
+	log.info(f"[UPDATE_INVOICE] 🆔 Attaching customer tax ID")
 	try:
 		if invoice_doc.get("customer"):
 			cust_tax_id = frappe.db.get_value("Customer", invoice_doc.customer, "tax_id")
+			log.info(f"[UPDATE_INVOICE] 🆔 Customer tax ID: {cust_tax_id}")
+
 			if cust_tax_id:
 				has_tax_id = invoice_doc.meta.has_field("tax_id")
 				has_customer_tax_id = invoice_doc.meta.has_field("customer_tax_id")
 
+				log.info(f"[UPDATE_INVOICE] 🆔 Field availability - tax_id: {has_tax_id}, customer_tax_id: {has_customer_tax_id}")
+
 				# Ưu tiên set vào đúng tên trường
 				if has_tax_id:
 					invoice_doc.tax_id = cust_tax_id
+					log.info(f"[UPDATE_INVOICE] ✅ Set tax_id field: {cust_tax_id}")
 				if has_customer_tax_id:
 					invoice_doc.customer_tax_id = cust_tax_id
+					log.info(f"[UPDATE_INVOICE] ✅ Set customer_tax_id field: {cust_tax_id}")
 
 				# Nếu không có field nào trên Invoice → fallback ghi vào remarks
 				if not (has_tax_id or has_customer_tax_id):
@@ -347,7 +445,13 @@ def submit_invoice(invoice, data):
 					current = (invoice_doc.remarks or "")
 					if line not in current:
 						invoice_doc.remarks = (current + "\n" if current else "") + line
+						log.info(f"[UPDATE_INVOICE] ✅ Added tax ID to remarks: {cust_tax_id}")
+			else:
+				log.info(f"[UPDATE_INVOICE] ℹ️ No tax ID found for customer: {invoice_doc.customer}")
+		else:
+			log.info(f"[UPDATE_INVOICE] ℹ️ No customer specified for tax ID attachment")
 	except Exception as e:
+		log.error(f"[UPDATE_INVOICE] ❌ Failed to attach customer tax_id to invoice {invoice_doc.name}: {str(e)}")
 		frappe.log_error(f"[POSA] Failed to attach customer tax_id to invoice {invoice_doc.name}: {e}")
 
 	invoice_doc.save()
@@ -366,6 +470,7 @@ def submit_invoice(invoice, data):
 		invoice_doc.pos_profile,
 		"posa_allow_submissions_in_background_job",
 	):
+		log.info(f"[SUBMIT_INVOICE] 🔄 Background job enabled - queuing invoices")
 		invoices_list = frappe.get_all(
 			"Sales Invoice",
 			filters={
@@ -374,7 +479,10 @@ def submit_invoice(invoice, data):
 				"posa_is_printed": 1,
 			},
 		)
+		log.info(f"[SUBMIT_INVOICE] 📋 Found {len(invoices_list)} invoices for background processing")
+
 		for invoice in invoices_list:
+			log.info(f"[SUBMIT_INVOICE] ⏳ Queuing invoice: {invoice.name}")
 			enqueue(
 				method=submit_in_background_job,
 				queue="short",
@@ -389,14 +497,23 @@ def submit_invoice(invoice, data):
 					"payments": payments,
 				},
 			)
+		log.info(f"[SUBMIT_INVOICE] ✅ All invoices queued for background processing")
 	else:
+		log.info(f"[SUBMIT_INVOICE] ⚡ Submitting invoice immediately")
 		invoice_doc.submit()
-		redeeming_customer_credit(invoice_doc, data, is_payment_entry, total_cash, cash_account, payments)
+		log.info(f"[SUBMIT_INVOICE] ✅ Invoice submitted successfully: {invoice_doc.name}")
 
-	return {"name": invoice_doc.name, "status": invoice_doc.docstatus}
+		redeeming_customer_credit(invoice_doc, data, is_payment_entry, total_cash, cash_account, payments)
+		log.info(f"[SUBMIT_INVOICE] ✅ Customer credit redeemed")
+
+	result = {"name": invoice_doc.name, "status": invoice_doc.docstatus}
+	log.info(f"[SUBMIT_INVOICE] 🎉 COMPLETED - Invoice: {invoice_doc.name}, Status: {invoice_doc.docstatus}")
+	return result
 
 
 def submit_in_background_job(kwargs):
+	log.info(f"[BACKGROUND_JOB] 🎯 START - Processing invoice in background: {kwargs.get('invoice')}")
+
 	invoice = kwargs.get("invoice")
 	invoice_doc = kwargs.get("invoice_doc")
 	data = kwargs.get("data")
@@ -405,7 +522,9 @@ def submit_in_background_job(kwargs):
 	cash_account = kwargs.get("cash_account")
 	payments = kwargs.get("payments")
 
+	log.info(f"[BACKGROUND_JOB] 📋 Loading invoice document: {invoice}")
 	invoice_doc = frappe.get_doc("Sales Invoice", invoice)
+	log.info(f"[BACKGROUND_JOB] ✅ Invoice loaded: {invoice_doc.name}")
 
 	# Update remarks with items details for background job
 	items = []
@@ -443,11 +562,16 @@ def submit_in_background_job(kwargs):
 		frappe.log_error(f"[POSA] Failed to attach customer tax_id to invoice {invoice_doc.name}: {e}")
 
 	invoice_doc.save()
-
+	log.info(f"[BACKGROUND_JOB] 💾 Invoice saved: {invoice_doc.name}")
 
 	invoice_doc.save()
 	invoice_doc.submit()
+	log.info(f"[BACKGROUND_JOB] ✅ Invoice submitted: {invoice_doc.name}")
+
 	redeeming_customer_credit(invoice_doc, data, is_payment_entry, total_cash, cash_account, payments)
+	log.info(f"[BACKGROUND_JOB] ✅ Customer credit redeemed for: {invoice_doc.name}")
+
+	log.info(f"[BACKGROUND_JOB] 🎉 COMPLETED - Background processing finished for: {invoice_doc.name}")
 
 
 @frappe.whitelist()
