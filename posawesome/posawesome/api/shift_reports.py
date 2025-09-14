@@ -83,8 +83,31 @@ def get_shift_report(shift_report_id):
 	"""
 	log.info(f"[SHIFT_REPORT_API] 🎯 GET_SHIFT_REPORT - Start - Shift Report ID: {shift_report_id}")
 	log.info(f"[SHIFT_REPORT_API] 📋 GET_SHIFT_REPORT - ID Type: {type(shift_report_id)}")
+
+	# ✅ HANDLE JSON STRING OBJECT (Vue component sends object as JSON string)
+	if isinstance(shift_report_id, str) and shift_report_id.startswith('{'):
+		log.info(f"[SHIFT_REPORT_API] 🔄 GET_SHIFT_REPORT - Detected JSON string object, parsing...")
+		try:
+			import json
+			parsed_obj = json.loads(shift_report_id)
+			log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Parsed object successfully")
+
+			# Extract actual shift report ID from parsed object
+			if 'shift_report' in parsed_obj and parsed_obj['shift_report']:
+				shift_report_id = parsed_obj['shift_report']
+				log.info(f"[SHIFT_REPORT_API] 🎯 GET_SHIFT_REPORT - Extracted shift_report ID: {shift_report_id}")
+			elif 'shift_report_id' in parsed_obj and parsed_obj['shift_report_id']:
+				shift_report_id = parsed_obj['shift_report_id']
+				log.info(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT - Extracted shift_report_id: {shift_report_id}")
+			else:
+				log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - No valid ID found in parsed object")
+				frappe.throw(_("Invalid shift report ID format"))
+		except json.JSONDecodeError as e:
+			log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Failed to parse JSON: {str(e)}")
+			frappe.throw(_("Invalid shift report ID format"))
+
 	if isinstance(shift_report_id, str):
-		log.info(f"[SHIFT_REPORT_API] 📋 GET_SHIFT_REPORT - ID Length: {len(shift_report_id)}")
+		log.info(f"[SHIFT_REPORT_API]  GET_SHIFT_REPORT - Final ID Length: {len(shift_report_id)}")
 
 	try:
 		# First try direct name lookup
