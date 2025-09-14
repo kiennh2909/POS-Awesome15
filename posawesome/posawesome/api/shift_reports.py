@@ -604,21 +604,31 @@ def get_shift_report_with_payment_summary(shift_report_id):
 
 		# Create/update payment summaries for this shift report
 		try:
-			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import create_payment_summaries_for_shift
+			# Try simple version first for testing
+			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary_simple import create_payment_summaries_for_shift
+			log.info(f"[SHIFT_REPORT_API] Using simple version for testing")
 			payment_result = create_payment_summaries_for_shift(shift_report_data["name"])
 		except ImportError as ie:
-			log.error(f"[SHIFT_REPORT_API] ImportError for create_payment_summaries_for_shift: {str(ie)}")
-			log.error(f"[SHIFT_REPORT_API] Available functions in pos_payment_summary module:")
-			try:
-				import posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary as ps_module
-				log.error(f"[SHIFT_REPORT_API] Module functions: {[name for name in dir(ps_module) if not name.startswith('_')]}")
-			except Exception as e2:
-				log.error(f"[SHIFT_REPORT_API] Could not inspect module: {str(e2)}")
+			log.error(f"[SHIFT_REPORT_API] ImportError for simple version: {str(ie)}")
 
-			# Fallback: return without payment summaries
-			shift_report_data["payment_summaries"] = []
-			log.warning(f"[SHIFT_REPORT_API] Returning without payment summaries due to import error")
-			return shift_report_data
+			# Try original version
+			try:
+				from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import create_payment_summaries_for_shift
+				log.info(f"[SHIFT_REPORT_API] Using original version")
+				payment_result = create_payment_summaries_for_shift(shift_report_data["name"])
+			except ImportError as ie2:
+				log.error(f"[SHIFT_REPORT_API] ImportError for original version: {str(ie2)}")
+				log.error(f"[SHIFT_REPORT_API] Available functions in pos_payment_summary module:")
+				try:
+					import posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary as ps_module
+					log.error(f"[SHIFT_REPORT_API] Module functions: {[name for name in dir(ps_module) if not name.startswith('_')]}")
+				except Exception as e2:
+					log.error(f"[SHIFT_REPORT_API] Could not inspect module: {str(e2)}")
+
+				# Fallback: return without payment summaries
+				shift_report_data["payment_summaries"] = []
+				log.warning(f"[SHIFT_REPORT_API] Returning without payment summaries due to import error")
+				return shift_report_data
 
 		if payment_result["success"]:
 			log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Payment summaries processed: {payment_result['data']}")
