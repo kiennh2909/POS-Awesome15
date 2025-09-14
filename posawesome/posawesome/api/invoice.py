@@ -25,17 +25,6 @@ def validate(doc, method):
 	auto_set_delivery_charges(doc)
 	calc_delivery_charges(doc)
 	apply_tax_inclusive(doc)
-	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
-		log.info(f"[INVOICE_TRACKING] 🔄 ON_SUBMIT - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: submit")
-		update_shift_report_with_invoice(doc, "Paid")
-	else:
-		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_SUBMIT - No shift report reference - Invoice: {doc.name}")
-
-	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
-		log.info(f"[INVOICE_TRACKING] 🔄 ON_CANCEL - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: cancel")
-		update_shift_report_with_invoice(doc, "Cancelled")
-	else:
-		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_CANCEL - No shift report reference - Invoice: {doc.name}")
 
 
 def before_submit(doc, method):
@@ -44,30 +33,25 @@ def before_submit(doc, method):
 	update_coupon(doc, "used")
 
 
-# def on_submit(doc, method):
-# 	"""Update shift report when invoice is submitted"""
-# 	# DEBUG: Add multiple log levels to ensure visibility
-# 	log.debug(f"🔥 ON SUBMIT on_submit called for {doc.name}")
-# 	print(f"🔥 DEBUG PRINT: on_submit called for {doc.name}")
-# 	log.debug(f"[INVOICE_TRACKING] 🔍 DEBUG - on_submit called - Method: {method}")
-# 	log.info(f"[INVOICE_TRACKING] 📤 ON_SUBMIT - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
-# 	log.warning(f"[INVOICE_TRACKING] ⚠️ WARNING - on_submit executed for invoice {doc.name}")
+def on_submit(doc, method):
+	"""Update shift report when invoice is submitted"""
+	log.info(f"[INVOICE_TRACKING] 📤 ON_SUBMIT - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
 
-# 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
-# 		log.info(f"[INVOICE_TRACKING] 🔄 ON_SUBMIT - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: submit")
-# 		update_shift_report_with_invoice(doc, "Paid")
-# 	else:
-# 		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_SUBMIT - No shift report reference - Invoice: {doc.name}")
+	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
+		log.info(f"[INVOICE_TRACKING] 🔄 ON_SUBMIT - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: submit")
+		update_shift_report_with_invoice(doc, "Paid")
+	else:
+		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_SUBMIT - No shift report reference - Invoice: {doc.name}")
 
-# def on_cancel(doc, method):
-# 	"""Update shift report when invoice is cancelled"""
-# 	log.info(f"[INVOICE_TRACKING] 🗑️ ON_CANCEL - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
+def on_cancel(doc, method):
+	"""Update shift report when invoice is cancelled"""
+	log.info(f"[INVOICE_TRACKING] 🗑️ ON_CANCEL - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
 
-# 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
-# 		log.info(f"[INVOICE_TRACKING] 🔄 ON_CANCEL - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: cancel")
-# 		update_shift_report_with_invoice(doc, "Cancelled")
-# 	else:
-# 		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_CANCEL - No shift report reference - Invoice: {doc.name}")
+	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
+		log.info(f"[INVOICE_TRACKING] 🔄 ON_CANCEL - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: cancel")
+		update_shift_report_with_invoice(doc, "Cancelled")
+	else:
+		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_CANCEL - No shift report reference - Invoice: {doc.name}")
 
 def before_cancel(doc, method):
 	update_coupon(doc, "Cancelled")
@@ -359,94 +343,140 @@ def validate_shift(doc):
 def update_shift_report_with_invoice(invoice_doc, action):
 	"""
 	Update shift report when invoice is submitted or cancelled
+	Optimized version: Direct database operations with minimal queries
 
 	Args:
 		invoice_doc: Sales Invoice document
 		action: "Paid" or "Cancelled"
 	"""
-	# LOG: Start update process
-	log.info(f"[INVOICE_TRACKING] 🎯 UPDATE_SHIFT_REPORT - Start - Invoice: {invoice_doc.name}, Action: {action}, Status: {invoice_doc.status}, Amount: {invoice_doc.grand_total}")
+	log.info(f"[INVOICE_TRACKING] 🎯 UPDATE_SHIFT_REPORT - Start - Invoice: {invoice_doc.name}, Action: {action}")
 
 	try:
 		if not hasattr(invoice_doc, 'pos_shift_report') or not invoice_doc.pos_shift_report:
 			log.warning(f"[INVOICE_TRACKING] ❌ UPDATE_SHIFT_REPORT - No shift report reference - Invoice: {invoice_doc.name}")
 			return
 
-		log.info(f"[INVOICE_TRACKING] 📋 UPDATE_SHIFT_REPORT - Getting shift report - Invoice: {invoice_doc.name}, Shift Report: {invoice_doc.pos_shift_report}")
+		shift_report_name = invoice_doc.pos_shift_report
+		invoice_amount = invoice_doc.grand_total or 0
 
-		# Get shift report
-		shift_report = frappe.get_doc("POS Shift Report", invoice_doc.pos_shift_report)
+		log.info(f"[INVOICE_TRACKING] 📋 UPDATE_SHIFT_REPORT - Processing: {shift_report_name}, Amount: {invoice_amount}")
 
-		log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Got shift report - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}, Current Count: {shift_report.invoice_count}, Current Sales: {shift_report.total_sales}, Current Returns: {shift_report.total_returns}")
+		# OPTIMIZED: Single transaction for all operations
+		with frappe.db.transaction():
+			if action == "Paid":
+				log.info(f"[INVOICE_TRACKING] ➕ UPDATE_SHIFT_REPORT - Processing SUBMIT")
 
-		if action == "Paid":
-			log.info(f"[INVOICE_TRACKING] ➕ UPDATE_SHIFT_REPORT - Processing SUBMIT - Invoice: {invoice_doc.name}")
-
-			# Add invoice to shift report
-			existing_invoice = None
-			for inv in shift_report.invoices:
-				if inv.invoice_no == invoice_doc.name:
-					existing_invoice = inv
-					break
-
-			if existing_invoice:
-				log.info(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice already exists in shift report - Invoice: {invoice_doc.name}, Existing Status: {existing_invoice.status}")
-			else:
-				# Get payment method from invoice payments
-				payment_method = get_invoice_payment_method(invoice_doc)
-				log.info(f"[INVOICE_TRACKING] 💳 UPDATE_SHIFT_REPORT - Payment method detected - Invoice: {invoice_doc.name}, Method: {payment_method}")
-
-				# Add new invoice entry
-				shift_report.append("invoices", {
-					"invoice_no": invoice_doc.name,
-					"invoice_date": invoice_doc.posting_date,
-					"invoice_time": invoice_doc.posting_time,
-					"customer": invoice_doc.customer,
-					"total_amount": invoice_doc.grand_total,
-					"paid_amount": invoice_doc.paid_amount or 0,
-					"tax_amount": invoice_doc.total_taxes_and_charges or 0,
-					"payment_method": payment_method,
-					"is_return": invoice_doc.is_return or False,
-					"status": "Paid"
+				# Check if invoice already exists (optimized query)
+				existing_count = frappe.db.count("POS Shift Report Invoice", {
+					"parent": shift_report_name,
+					"invoice_no": invoice_doc.name
 				})
-				log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Added invoice to shift report - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}, Payment Method: {payment_method}, Amount: {invoice_doc.grand_total}")
 
-		elif action == "Cancelled":
-			log.info(f"[INVOICE_TRACKING] ❌ UPDATE_SHIFT_REPORT - Processing CANCEL - Invoice: {invoice_doc.name}")
+				if existing_count > 0:
+					log.info(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice already exists")
+					return
 
-			# Remove invoice from shift report or mark as cancelled
-			found = False
-			for inv in shift_report.invoices:
-				if inv.invoice_no == invoice_doc.name:
-					old_status = inv.status
-					inv.status = "Cancelled"
-					found = True
-					log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Marked invoice as cancelled - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}, Old Status: {old_status}, New Status: Cancelled")
-					break
+				# Get payment method
+				payment_method = get_invoice_payment_method(invoice_doc)
 
-			if not found:
-				log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice not found in shift report - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}")
+				# FIX: Generate name for child table row
+				child_name = frappe.generate_hash(length=10)
 
-		# Update calculated fields
-		log.info(f"[INVOICE_TRACKING] 🔢 UPDATE_SHIFT_REPORT - Updating calculated fields - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}")
-		log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Before update_calculated_fields - Invoice: {invoice_doc.name}, Count: {shift_report.invoice_count}, Sales: {shift_report.total_sales}, Returns: {shift_report.total_returns}")
-		shift_report.update_calculated_fields()
-		# log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - After update_calculated_fields - Invoice: {invoice_doc.name}, Count: {shift_report.invoice_count}, Sales: {shift_report.total_sales}, Returns: {shift_report.total_returns}")
+				# FIX: Normalize boolean to tinyint (0/1)
+				is_return_value = 1 if (invoice_doc.is_return or False) else 0
 
-		# shift_report.get_payment_breakdown()
-		# log.info(f"[INVOICE_TRACKING] 💰 UPDATE_SHIFT_REPORT - After get_payment_breakdown - Invoice: {invoice_doc.name}, Breakdown: {shift_report.payment_breakdown}")
+				# FIX: Handle race condition with INSERT ... ON DUPLICATE KEY UPDATE
+				try:
+					frappe.db.sql("""
+						INSERT INTO `tabPOS Shift Report Invoice`
+						(name, parent, parenttype, parentfield, invoice_no, invoice_date, invoice_time,
+						 customer, total_amount, paid_amount, tax_amount, payment_method,
+						 is_return, status, creation, modified, modified_by, owner)
+						VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s, %s)
+						ON DUPLICATE KEY UPDATE
+							status = VALUES(status),
+							modified = NOW(),
+							modified_by = VALUES(modified_by)
+					""", (
+						child_name, shift_report_name, "POS Shift Report", "invoices",
+						invoice_doc.name, invoice_doc.posting_date, invoice_doc.posting_time,
+						invoice_doc.customer, invoice_amount, invoice_doc.paid_amount or 0,
+						invoice_doc.total_taxes_and_charges or 0, payment_method,
+						is_return_value, "Paid",
+						frappe.session.user, frappe.session.user
+					))
 
-		# Save shift report
-		log.info(f"[INVOICE_TRACKING] 💾 UPDATE_SHIFT_REPORT - Saving shift report - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}")
-		shift_report.save()
-		frappe.db.commit()
+					log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Added invoice to shift report")
 
-		# Verify the changes were saved
-		shift_report.reload()
-		final_count = len(shift_report.invoices) if shift_report.invoices else 0
-		log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - After save and reload - Invoice: {invoice_doc.name}, Final Count: {final_count}, Sales: {shift_report.total_sales}, Returns: {shift_report.total_returns}")
+				except Exception as insert_error:
+					log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Insert failed (duplicate?): {str(insert_error)}")
+					# Continue to totals recalculation
 
-		log.info(f"[INVOICE_TRACKING] 🎉 UPDATE_SHIFT_REPORT - COMPLETED - Invoice: {invoice_doc.name}, Action: {action}, Shift Report: {shift_report.name}")
+			elif action == "Cancelled":
+				log.info(f"[INVOICE_TRACKING] ❌ UPDATE_SHIFT_REPORT - Processing CANCEL")
+
+				# FIX: Check affected rows properly
+				before_count = frappe.db.count("POS Shift Report Invoice", {
+					"parent": shift_report_name,
+					"invoice_no": invoice_doc.name,
+					"status": ["!=", "Cancelled"]
+				})
+
+				# OPTIMIZED: Direct update without select
+				frappe.db.sql("""
+					UPDATE `tabPOS Shift Report Invoice`
+					SET status = 'Cancelled', modified = NOW(), modified_by = %s
+					WHERE parent = %s AND invoice_no = %s AND status != 'Cancelled'
+				""", (frappe.session.user, shift_report_name, invoice_doc.name))
+
+				after_count = frappe.db.count("POS Shift Report Invoice", {
+					"parent": shift_report_name,
+					"invoice_no": invoice_doc.name,
+					"status": ["!=", "Cancelled"]
+				})
+
+				affected_rows = before_count - after_count
+
+				if affected_rows > 0:
+					log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Marked invoice as cancelled ({affected_rows} rows)")
+				else:
+					log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice not found or already cancelled")
+
+			# FIX: Updated totals calculation with proper return semantics
+			# total_sales: Paid invoices that are NOT returns
+			# total_returns: Paid invoices that ARE returns OR Cancelled invoices
+			log.info(f"[INVOICE_TRACKING] 🔢 UPDATE_SHIFT_REPORT - Recalculating totals")
+
+			totals_result = frappe.db.sql("""
+				SELECT
+					COALESCE(SUM(CASE WHEN status = 'Paid' AND is_return = 0
+						THEN total_amount ELSE 0 END), 0) as total_sales,
+					COALESCE(SUM(CASE WHEN (status = 'Paid' AND is_return = 1) OR status = 'Cancelled'
+						THEN total_amount ELSE 0 END), 0) as total_returns,
+					COUNT(*) as invoice_count
+				FROM `tabPOS Shift Report Invoice`
+				WHERE parent = %s AND parenttype = 'POS Shift Report'
+			""", (shift_report_name,), as_dict=True)
+
+			if totals_result and len(totals_result) > 0:
+				new_sales = float(totals_result[0].total_sales or 0)
+				new_returns = float(totals_result[0].total_returns or 0)
+				new_count = int(totals_result[0].invoice_count or 0)
+
+				log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Totals: Sales={new_sales}, Returns={new_returns}, Count={new_count}")
+
+				# OPTIMIZED: Single update for all fields
+				frappe.db.set_value("POS Shift Report", shift_report_name, {
+					"invoice_count": new_count,
+					"total_sales": new_sales,
+					"total_returns": new_returns
+				})
+
+				log.info(f"[INVOICE_TRACKING] 💾 UPDATE_SHIFT_REPORT - Updated shift report successfully")
+			else:
+				log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - No data found for recalculation")
+
+		log.info(f"[INVOICE_TRACKING] 🎉 UPDATE_SHIFT_REPORT - COMPLETED - Invoice: {invoice_doc.name}, Action: {action}")
 
 	except Exception as e:
 		log.error(f"[INVOICE_TRACKING] 💥 UPDATE_SHIFT_REPORT - FAILED - Invoice: {invoice_doc.name}, Action: {action}, Error: {str(e)}")
