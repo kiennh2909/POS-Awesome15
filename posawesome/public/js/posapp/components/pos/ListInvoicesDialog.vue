@@ -466,29 +466,73 @@ export default {
 			if (typeof this.shiftReportId === 'object' && this.shiftReportId !== null) {
 				console.log("[SHIFT_REPORT] 📋 shiftReportId is an object, extracting ID...");
 				console.log("[SHIFT_REPORT] Object keys:", Object.keys(this.shiftReportId));
+				console.log("[SHIFT_REPORT] Object doctype:", this.shiftReportId.doctype);
 
-				// ✅ PRIORITY 1: Try shift_report field (actual shift report ID)
-				if (this.shiftReportId.shift_report) {
-					console.log("[SHIFT_REPORT] ✅ Found shift_report in object:", this.shiftReportId.shift_report);
-					actualShiftReportId = this.shiftReportId.shift_report;
+				// ✅ CHECK IF THIS IS POS OPENING SHIFT (wrong object type)
+				if (this.shiftReportId.doctype === "POS Opening Shift") {
+					console.log("[SHIFT_REPORT] ⚠️  Received POS Opening Shift object, need to get associated shift report");
+
+					// Try to get shift report from opening shift
+					if (this.shiftReportId.shift_report) {
+						console.log("[SHIFT_REPORT] ✅ Opening shift has shift_report:", this.shiftReportId.shift_report);
+						actualShiftReportId = this.shiftReportId.shift_report;
+					} else {
+						console.error("[SHIFT_REPORT] ❌ Opening shift has no associated shift report");
+						console.error("[SHIFT_REPORT] Opening shift details:", {
+							name: this.shiftReportId.name,
+							status: this.shiftReportId.status,
+							user: this.shiftReportId.user
+						});
+						this.showError("No shift report found for this opening shift. Please create a shift report first.");
+						return;
+					}
 				}
-				// ✅ PRIORITY 2: Try shift_report_id field (display name)
-				else if (this.shiftReportId.shift_report_id) {
-					console.log("[SHIFT_REPORT] ⚠️  shift_report not found, using shift_report_id:", this.shiftReportId.shift_report_id);
-					actualShiftReportId = this.shiftReportId.shift_report_id;
+				// ✅ THIS IS ALREADY A POS SHIFT REPORT OBJECT
+				else if (this.shiftReportId.doctype === "POS Shift Report") {
+					console.log("[SHIFT_REPORT] ✅ Received POS Shift Report object directly");
+
+					// Use the name field as the ID
+					if (this.shiftReportId.name) {
+						actualShiftReportId = this.shiftReportId.name;
+						console.log("[SHIFT_REPORT] ✅ Using shift report name:", actualShiftReportId);
+					} else {
+						console.error("[SHIFT_REPORT] ❌ POS Shift Report object missing name field");
+						this.showError("Invalid shift report object - missing name field");
+						return;
+					}
 				}
-				// ✅ PRIORITY 3: Try name field
-				else if (this.shiftReportId.name) {
-					console.log("[SHIFT_REPORT] ⚠️  shift_report_id not found, using name:", this.shiftReportId.name);
-					actualShiftReportId = this.shiftReportId.name;
-				}
-				// ❌ LAST RESORT: Cannot extract, this will cause API error
+				// ✅ UNKNOWN OBJECT TYPE - Try to extract any valid ID
 				else {
-					console.error("[SHIFT_REPORT] ❌ Cannot extract ID from object - no shift_report, shift_report_id or name field");
-					console.error("[SHIFT_REPORT] Available fields:", Object.keys(this.shiftReportId));
-					console.error("[SHIFT_REPORT] Object content:", JSON.stringify(this.shiftReportId, null, 2));
-					// Don't proceed with API call
-					return;
+					console.log("[SHIFT_REPORT] ⚠️  Unknown object type, trying to extract ID...");
+
+					// Priority: name > shift_report_id > any string field
+					if (this.shiftReportId.name) {
+						actualShiftReportId = this.shiftReportId.name;
+						console.log("[SHIFT_REPORT] ✅ Using name field:", actualShiftReportId);
+					} else if (this.shiftReportId.shift_report_id) {
+						actualShiftReportId = this.shiftReportId.shift_report_id;
+						console.log("[SHIFT_REPORT] ✅ Using shift_report_id field:", actualShiftReportId);
+					} else {
+						// Try any string field
+						let foundId = null;
+						for (const [key, value] of Object.entries(this.shiftReportId)) {
+							if (typeof value === 'string' && value && value.trim().length > 0 && value.length < 50) {
+								console.log(`[SHIFT_REPORT] ⚠️  Found potential ID in '${key}': ${value}`);
+								foundId = value.trim();
+								break;
+							}
+						}
+
+						if (foundId) {
+							actualShiftReportId = foundId;
+							console.log("[SHIFT_REPORT] ✅ Using found field as ID:", actualShiftReportId);
+						} else {
+							console.error("[SHIFT_REPORT] ❌ Cannot extract valid ID from unknown object");
+							console.error("[SHIFT_REPORT] Object details:", JSON.stringify(this.shiftReportId, null, 2));
+							this.showError("Cannot identify shift report from the provided data");
+							return;
+						}
+					}
 				}
 			}
 

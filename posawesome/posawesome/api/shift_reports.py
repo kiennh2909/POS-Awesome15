@@ -87,24 +87,36 @@ def get_shift_report(shift_report_id):
 	# ✅ HANDLE JSON STRING OBJECT (Vue component sends object as JSON string)
 	if isinstance(shift_report_id, str) and shift_report_id.startswith('{'):
 		log.info(f"[SHIFT_REPORT_API] 🔄 GET_SHIFT_REPORT - Detected JSON string object, parsing...")
+
 		try:
 			parsed_obj = json.loads(shift_report_id)
-			log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Parsed object successfully")
+			log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Parsed object successfully: {parsed_obj}")
 
 			# Extract actual shift report ID from parsed object
+			# Priority order: shift_report > shift_report_id > name > any string field
 			if 'shift_report' in parsed_obj and parsed_obj['shift_report']:
 				shift_report_id = parsed_obj['shift_report']
 				log.info(f"[SHIFT_REPORT_API] 🎯 GET_SHIFT_REPORT - Extracted shift_report ID: {shift_report_id}")
 			elif 'shift_report_id' in parsed_obj and parsed_obj['shift_report_id']:
 				shift_report_id = parsed_obj['shift_report_id']
 				log.info(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT - Extracted shift_report_id: {shift_report_id}")
+			elif 'name' in parsed_obj and parsed_obj['name']:
+				shift_report_id = parsed_obj['name']
+				log.info(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT - Extracted name: {shift_report_id}")
 			else:
-				log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - No valid ID found in parsed object")
-				frappe.throw(_("Invalid shift report ID format"))
+				# Try to find any string field that might be the ID
+				for key, value in parsed_obj.items():
+					if isinstance(value, str) and value and len(value.strip()) > 0:
+						shift_report_id = value.strip()
+						log.info(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT - Extracted from field '{key}': {shift_report_id}")
+						break
+				else:
+					log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - No valid ID found in parsed object: {parsed_obj}")
+					frappe.throw(_("Invalid shift report ID format - no valid ID field found"))
 		except json.JSONDecodeError as e:
 			log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Failed to parse JSON: {str(e)}")
-			frappe.throw(_("Invalid shift report ID format"))
-
+			log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Original string: {shift_report_id}")
+			frappe.throw(_("Invalid shift report ID format - JSON parsing failed"))
 	if isinstance(shift_report_id, str):
 		log.info(f"[SHIFT_REPORT_API]  GET_SHIFT_REPORT - Final ID Length: {len(shift_report_id)}")
 
