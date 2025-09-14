@@ -246,6 +246,7 @@ def get_footer_status_data():
 	"""
 	try:
 		user = frappe.session.user
+		current_time = frappe.utils.now_datetime()
 
 		# Get current opening shift for user
 		active_shift = frappe.get_all(
@@ -259,20 +260,28 @@ def get_footer_status_data():
 			limit=1
 		)
 
+		# Initialize result with default values
+		result = {
+			"cashier_name": frappe.session.user_fullname or frappe.session.user,
+			"current_date": current_time.strftime("%Y-%m-%d"),
+			"current_time": current_time.strftime("%H:%M:%S"),
+			"shift_report_id": "",
+			"total_invoices": 0,
+			"total_revenue": 0,
+			"cash_balance": 0,
+			"today_sales": 0,
+			"last_invoice": ""
+		}
+
 		if not active_shift:
+			# No active shift, return basic info
 			return {
-				"success": False,
-				"message": "No active opening shift found"
+				"success": True,
+				"data": result
 			}
 
 		shift_data = active_shift[0]
-		result = {
-			"cashier_name": frappe.session.user_fullname or frappe.session.user,
-			"shift_report_id": shift_data.shift_report_id or "",
-			"total_invoices": 0,
-			"total_revenue": 0,
-			"last_invoice": ""
-		}
+		result["shift_report_id"] = shift_data.shift_report_id or ""
 
 		# Get shift report data if exists
 		if shift_data.shift_report:
@@ -280,12 +289,24 @@ def get_footer_status_data():
 			result.update({
 				"total_invoices": shift_report.invoice_count or 0,
 				"total_revenue": (shift_report.total_sales or 0) - (shift_report.total_returns or 0),
+				"today_sales": shift_report.total_sales or 0,  # Today's sales from shift report
 			})
 
 			# Get last invoice from shift report
 			if shift_report.invoices and len(shift_report.invoices) > 0:
 				last_invoice_data = shift_report.invoices[-1]
 				result["last_invoice"] = last_invoice_data.invoice_no or ""
+
+		# Get cash balance from opening shift
+		if active_shift:
+			opening_shift = frappe.get_doc("POS Opening Shift", active_shift[0].name)
+
+			# Calculate cash balance from opening amounts
+			if hasattr(opening_shift, 'balances') and opening_shift.balances:
+				for balance in opening_shift.balances:
+					if balance.mode_of_payment and balance.mode_of_payment.lower() in ['cash', 'tiền mặt']:
+						result["cash_balance"] = balance.amount or 0
+						break
 
 		return {
 			"success": True,

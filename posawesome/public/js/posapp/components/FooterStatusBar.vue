@@ -1,10 +1,10 @@
 <template>
 	<div class="footer-status-bar">
 		<div class="status-bar-content">
-			<!-- Cashier Name -->
+			<!-- Current Date -->
 			<div class="status-item">
-				<v-icon size="16" color="white">mdi-account-circle</v-icon>
-				<span class="status-text">{{ cashierName || __("No Cashier") }}</span>
+				<v-icon size="16" color="white">mdi-calendar</v-icon>
+				<span class="status-text">{{ currentDate }}</span>
 			</div>
 
 			<!-- System Time -->
@@ -13,28 +13,28 @@
 				<span class="status-text">{{ currentTime }}</span>
 			</div>
 
-			<!-- Shift Report -->
+			<!-- Cashier Name -->
 			<div class="status-item">
-				<v-icon size="16" color="white">mdi-chart-line</v-icon>
-				<span class="status-text">{{ shiftReportId || __("No Shift") }}</span>
+				<v-icon size="16" color="white">mdi-account-circle</v-icon>
+				<span class="status-text">{{ cashierName || __("No Cashier") }}</span>
 			</div>
 
-			<!-- Total Invoices -->
+			<!-- Cash Balance -->
 			<div class="status-item">
-				<v-icon size="16" color="white">mdi-receipt-text-multiple</v-icon>
-				<span class="status-text">{{ totalInvoices || 0 }}</span>
-			</div>
-
-			<!-- Total Revenue -->
-			<div class="status-item">
-				<v-icon size="16" color="white">mdi-cash-multiple</v-icon>
-				<span class="status-text">{{ formatCurrency(totalRevenue || 0) }}</span>
+				<v-icon size="16" color="white">mdi-cash</v-icon>
+				<span class="status-text">{{ formatCurrency(cashBalance || 0) }}</span>
 			</div>
 
 			<!-- Last Invoice -->
 			<div class="status-item">
 				<v-icon size="16" color="white">mdi-receipt</v-icon>
 				<span class="status-text">{{ lastInvoice || __("No invoices") }}</span>
+			</div>
+
+			<!-- Today's Sales -->
+			<div class="status-item">
+				<v-icon size="16" color="white">mdi-chart-line</v-icon>
+				<span class="status-text">{{ formatCurrency(todaySales || 0) }}</span>
 			</div>
 		</div>
 	</div>
@@ -45,12 +45,12 @@ export default {
 	name: "FooterStatusBar",
 	data() {
 		return {
+			currentDate: "",
 			currentTime: "",
 			cashierName: "",
-			shiftReportId: "",
-			totalInvoices: 0,
-			totalRevenue: 0,
+			cashBalance: 0,
 			lastInvoice: "",
+			todaySales: 0,
 			timeInterval: null,
 			shiftReportData: null
 		};
@@ -91,6 +91,11 @@ export default {
 	methods: {
 		updateDateTime() {
 			const now = new Date();
+			this.currentDate = now.toLocaleDateString('en-US', {
+				year: 'numeric',
+				month: '2-digit',
+				day: '2-digit'
+			});
 			this.currentTime = now.toLocaleTimeString('en-US', {
 				hour12: false,
 				hour: '2-digit',
@@ -144,18 +149,17 @@ export default {
 		updateFooterData(data) {
 			if (data) {
 				this.cashierName = data.cashier_name || "";
-				this.shiftReportId = data.shift_report_id || "";
-				this.totalInvoices = data.total_invoices || 0;
-				this.totalRevenue = data.total_revenue || 0;
+				this.currentDate = data.current_date || "";
+				this.currentTime = data.current_time || "";
+				this.cashBalance = data.cash_balance || 0;
 				this.lastInvoice = data.last_invoice || "";
+				this.todaySales = data.today_sales || 0;
 			}
 		},
 
 		updateShiftReportData(data) {
 			this.shiftReportData = data;
-			this.shiftReportId = data.shift_report_id || "";
-			this.totalInvoices = data.invoice_count || 0;
-			this.totalRevenue = (data.total_sales || 0) - (data.total_returns || 0);
+			this.todaySales = data.total_sales || 0;
 
 			// Update last invoice from shift report data
 			if (data.invoices && data.invoices.length > 0) {

@@ -10,13 +10,24 @@ def execute():
     try:
         # Update the field type for existing installations
         if frappe.db.exists("DocType", "POS Shift Report Invoice"):
-            # Get the existing field
-            field = frappe.get_doc("DocType", "POS Shift Report Invoice").get_field("payment_method")
+            # Get the DocType meta
+            meta = frappe.get_meta("POS Shift Report Invoice")
 
-            if field and field.fieldtype == "Data":
-                # Update field type to JSON
-                frappe.db.set_value("DocType Field", field.name, "fieldtype", "JSON")
-                frappe.db.set_value("DocType Field", field.name, "label", "Payment Method Breakdown")
+            # Find the payment_method field
+            payment_field = None
+            for field in meta.fields:
+                if field.fieldname == "payment_method":
+                    payment_field = field
+                    break
+
+            if payment_field and payment_field.fieldtype == "Data":
+                # Update field type to JSON using the correct table
+                frappe.db.sql("""
+                    UPDATE `tabDocType Field`
+                    SET fieldtype = 'JSON', label = 'Payment Method Breakdown'
+                    WHERE parent = 'POS Shift Report Invoice'
+                    AND fieldname = 'payment_method'
+                """)
 
                 frappe.logger().info("Updated payment_method field to JSON type in POS Shift Report Invoice")
 
