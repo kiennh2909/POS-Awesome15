@@ -570,3 +570,84 @@ def cancel_shift_report(shift_report_id):
 			"success": False,
 			"message": str(e)
 		}
+
+
+@frappe.whitelist()
+def get_shift_report_with_payment_summary(shift_report_id):
+	"""
+	Get POS Shift Report with Payment Summary data
+	This method creates/updates payment summaries when called
+
+	Args:
+		shift_report_id (str): Shift report ID, shift_report_id field, or name
+
+	Returns:
+		dict: Shift report data with payment summary
+	"""
+	log.info(f"[SHIFT_REPORT_API] 🎯 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Start - Shift Report ID: {shift_report_id}")
+
+	try:
+		# First get the basic shift report data
+		shift_report_data = get_shift_report(shift_report_id)
+
+		# Create/update payment summaries for this shift report
+		from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import create_payment_summaries_for_shift
+
+		payment_result = create_payment_summaries_for_shift(shift_report_data["name"])
+
+		if payment_result["success"]:
+			log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Payment summaries processed: {payment_result['data']}")
+
+			# Get the updated payment summaries
+			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import get_payment_summaries_for_shift
+			payment_summaries = get_payment_summaries_for_shift(shift_report_data["name"])
+
+			if payment_summaries["success"]:
+				shift_report_data["payment_summaries"] = payment_summaries["data"]
+				log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Added {len(payment_summaries['data'])} payment summaries")
+			else:
+				log.warning(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Could not get payment summaries: {payment_summaries['message']}")
+				shift_report_data["payment_summaries"] = []
+		else:
+			log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Failed to create payment summaries: {payment_result['message']}")
+			shift_report_data["payment_summaries"] = []
+
+		log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Completed for: {shift_report_data['name']}")
+
+		return shift_report_data
+
+	except Exception as e:
+		log.error(f"[SHIFT_REPORT_API] 💥 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - FAILED - Shift Report ID: {shift_report_id}, Error: {str(e)}")
+		frappe.log_error(str(e), "Get Shift Report With Payment Summary Error")
+		frappe.throw(_("Error getting shift report with payment summary: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def initialize_payment_summaries(shift_report_name):
+	"""
+	Initialize payment summary records for a shift report
+	Called when shift is opened and shift report is created
+
+	Args:
+		shift_report_name (str): Name of the POS Shift Report
+
+	Returns:
+		dict: Initialization result
+	"""
+	log.info(f"[SHIFT_REPORT_API] 🎯 INITIALIZE_PAYMENT_SUMMARIES - Start - Shift Report: {shift_report_name}")
+
+	try:
+		from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import initialize_payment_summaries_for_shift
+
+		result = initialize_payment_summaries_for_shift(shift_report_name)
+
+		log.info(f"[SHIFT_REPORT_API] ✅ INITIALIZE_PAYMENT_SUMMARIES - Completed: {result}")
+
+		return result
+
+	except Exception as e:
+		log.error(f"[SHIFT_REPORT_API] 💥 INITIALIZE_PAYMENT_SUMMARIES - FAILED - Shift Report: {shift_report_name}, Error: {str(e)}")
+		return {
+			"success": False,
+			"message": f"Error initializing payment summaries: {str(e)}"
+		}

@@ -369,9 +369,9 @@ export default {
 		try {
 			console.log("Loading invoices for shift:", this.shiftReportId);
 
-			// ✅ REAL API CALL - Sử dụng đúng API method
+			// ✅ REAL API CALL - Sử dụng API mới với payment summary
 			const response = await frappe.call({
-				method: "posawesome.posawesome.api.shift_reports.get_shift_report",
+				method: "posawesome.posawesome.api.shift_reports.get_shift_report_with_payment_summary",
 				args: {
 					shift_report_id: this.shiftReportId
 				}
@@ -414,8 +414,14 @@ export default {
 				console.log(`Loaded ${this.invoices.length} invoices for shift ${this.shiftReportId}`);
 				console.log("Summary:", this.summary);
 
-				// Load payment summary data from shift report payment_breakdown
-				this.loadPaymentSummaryFromShiftReport(shiftReportData);
+				// ✅ LOAD PAYMENT SUMMARY FROM NEW API RESPONSE
+				if (shiftReportData.payment_summaries) {
+					this.paymentSummaryData = shiftReportData.payment_summaries;
+					console.log("Payment summary loaded from API:", this.paymentSummaryData);
+				} else {
+					// Fallback to old method if payment_summaries not available
+					this.loadPaymentSummaryFromShiftReport(shiftReportData);
+				}
 
 				// Load shift report data for footer status bar
 				await this.loadShiftReportData();
@@ -498,7 +504,7 @@ export default {
 
 			console.log("[SHIFT_REPORT] Using custom API with ID:", actualShiftReportId);
 			const shiftReportResponse = await frappe.call({
-				method: "posawesome.posawesome.api.shift_reports.get_shift_report",
+				method: "posawesome.posawesome.api.shift_reports.get_shift_report_with_payment_summary",
 				args: {
 					shift_report_id: actualShiftReportId
 				}
