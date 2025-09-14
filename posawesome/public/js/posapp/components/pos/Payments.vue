@@ -1061,6 +1061,22 @@ export default {
 				this.ensureReturnPaymentsAreNegative();
 			}
 		},
+		// Watch payment amounts for changes (for debugging payment switching)
+		'invoice_doc.payments': {
+			handler(newPayments, oldPayments) {
+				if (newPayments && oldPayments) {
+					console.log("🔄 [PAYMENT WATCH] Payments array changed:");
+					newPayments.forEach((payment, index) => {
+						const oldPayment = oldPayments[index];
+						if (oldPayment && payment.amount !== oldPayment.amount) {
+							console.log(`   Payment ${index} (${payment.mode_of_payment}): ${oldPayment.amount} → ${payment.amount}`);
+						}
+					});
+				}
+			},
+			deep: true,
+			immediate: false
+		},
 	},
 	methods: {
 		// Go back to invoice view and reset customer readonly
@@ -2034,32 +2050,134 @@ export default {
 		// Set full amount for a payment method when clicked
 
 		set_full_amount(idx, ev) {
-		const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
-		const totalAmount = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
+			console.log("🔄 [PAYMENT] set_full_amount called with idx:", idx);
+			console.log("📋 [PAYMENT] Event object:", ev);
+			console.log("📄 [PAYMENT] Current invoice_doc:", {
+				name: this.invoice_doc?.name,
+				is_return: this.invoice_doc?.is_return,
+				invoiceType: this.invoiceType,
+				rounded_total: this.invoice_doc?.rounded_total,
+				grand_total: this.invoice_doc?.grand_total,
+				currency: this.invoice_doc?.currency
+			});
 
-		// Reset all payment amounts trước
-		this.invoice_doc.payments.forEach((payment) => {
-			payment.amount = 0;
-			if (payment.base_amount !== undefined) {
-			payment.base_amount = 0;
+			const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
+			const totalAmount = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
+
+			console.log("💰 [PAYMENT] Calculated values:", {
+				isReturn,
+				totalAmount,
+				currency: this.invoice_doc?.currency
+			});
+
+			// Reset all payment amounts trước
+			console.log("🔄 [PAYMENT] Resetting all payment amounts...");
+			let resetCount = 0;
+			this.invoice_doc.payments.forEach((payment, index) => {
+				const oldAmount = payment.amount;
+				const oldBaseAmount = payment.base_amount;
+
+				console.log(`💸 [PAYMENT] Resetting payment ${index}:`, {
+					idx: payment.idx,
+					mode_of_payment: payment.mode_of_payment,
+					old_amount: oldAmount,
+					old_base_amount: oldBaseAmount,
+					has_base_amount: payment.hasOwnProperty('base_amount')
+				});
+
+				// Ensure we're setting to exactly 0
+				payment.amount = 0;
+				if (payment.hasOwnProperty('base_amount')) {
+					payment.base_amount = 0;
+				}
+
+				// Track changes
+				if (oldAmount !== 0 || (oldBaseAmount !== undefined && oldBaseAmount !== 0)) {
+					resetCount++;
+				}
+			});
+			console.log(`✅ [PAYMENT] Reset ${resetCount} payments with non-zero amounts`);
+
+			// Tìm payment theo idx (ổn định hơn text nút)
+			console.log("🔍 [PAYMENT] Finding payment with idx:", idx);
+			const clickedPayment = this.invoice_doc.payments.find((p) => p.idx === idx);
+
+			if (clickedPayment) {
+				console.log("✅ [PAYMENT] Found clicked payment:", {
+					idx: clickedPayment.idx,
+					mode_of_payment: clickedPayment.mode_of_payment,
+					type: clickedPayment.type,
+					default: clickedPayment.default
+				});
+
+				let amount = isReturn ? -Math.abs(totalAmount) : totalAmount;
+				console.log("💵 [PAYMENT] Setting amount:", {
+					original_total: totalAmount,
+					isReturn,
+					calculated_amount: amount,
+					will_be_negative: isReturn
+				});
+
+				clickedPayment.amount = amount;
+				if (clickedPayment.hasOwnProperty('base_amount')) {
+					clickedPayment.base_amount = isReturn ? -Math.abs(amount) : amount;
+					console.log("🔄 [PAYMENT] Set base_amount:", clickedPayment.base_amount);
+				}
+
+				console.log("✅ [PAYMENT] Final payment state:", {
+					idx: clickedPayment.idx,
+					mode_of_payment: clickedPayment.mode_of_payment,
+					amount: clickedPayment.amount,
+					base_amount: clickedPayment.base_amount
+				});
+
+				// Trigger reactive update
+				this.$nextTick(() => {
+					console.log("🔄 [PAYMENT] Triggering reactive update...");
+	
+					// Force update computed properties
+					this.$forceUpdate();
+	
+					// Emit event để update totals
+					this.eventBus.emit("payment_amount_changed");
+					console.log("📢 [PAYMENT] Emitted payment_amount_changed event");
+	
+					// Additional reactive triggers
+					this.$emit('payment-updated', {
+						payment_idx: idx,
+						amount: clickedPayment.amount,
+						mode_of_payment: clickedPayment.mode_of_payment
+					});
+	
+					console.log("📊 [PAYMENT] Current totals after update:", {
+						total_payments: this.total_payments,
+						diff_payment: this.diff_payment,
+						credit_change: this.credit_change
+					});
+				});
+
+			} else {
+				console.error("❌ [PAYMENT] No payment found for idx:", idx);
+				console.log("📋 [PAYMENT] Available payments:", this.invoice_doc.payments.map(p => ({
+					idx: p.idx,
+					mode_of_payment: p.mode_of_payment
+				})));
+
+				this.eventBus.emit("show_message", {
+					title: __("Payment method not found"),
+					color: "error"
+				});
 			}
-		});
 
-		// Tìm payment theo idx (ổn định hơn text nút)
-		const clickedPayment = this.invoice_doc.payments.find((p) => p.idx === idx);
+			// Log final state of all payments
+			console.log("📊 [PAYMENT] Final state of all payments:");
+			this.invoice_doc.payments.forEach((payment, index) => {
+				console.log(`   ${index}: ${payment.mode_of_payment} (idx: ${payment.idx}) = ${payment.amount}`);
+			});
 
-		if (clickedPayment) {
-			let amount = isReturn ? -Math.abs(totalAmount) : totalAmount;
-			clickedPayment.amount = amount;
-			if (clickedPayment.base_amount !== undefined) {
-			clickedPayment.base_amount = isReturn ? -Math.abs(amount) : amount;
-			}
-		} else {
-			console.warn("No payment found for idx:", idx);
-		}
-
-		// Force Vue update khi cần
-		this.$forceUpdate();
+			// Force Vue update khi cần
+			this.$forceUpdate();
+			console.log("🔄 [PAYMENT] Forced Vue update completed");
 		},
 
 
@@ -2123,6 +2241,48 @@ export default {
 			this.invoice_doc.payments.forEach((payment) => {
 				payment.amount = 0;
 			});
+		},
+		// Debug method to log current payment state
+		// Usage in browser console:
+		// 1. Find Payments component: document.querySelector('[data-component="payments"]')
+		// 2. Get Vue instance: vm = $0.__vue__
+		// 3. Call debug: vm.debugPayments()
+		debugPayments() {
+			console.log("🐛 [DEBUG] Current Payment State:");
+			console.log("📄 Invoice:", {
+				name: this.invoice_doc?.name,
+				total: this.invoice_doc?.grand_total,
+				is_return: this.invoice_doc?.is_return,
+				currency: this.invoice_doc?.currency
+			});
+
+			console.log("💰 Payments Array:");
+			this.invoice_doc.payments.forEach((payment, index) => {
+				console.log(`   ${index}: ${payment.mode_of_payment}`, {
+					idx: payment.idx,
+					amount: payment.amount,
+					base_amount: payment.base_amount,
+					type: payment.type,
+					default: payment.default
+				});
+			});
+
+			console.log("📊 Calculated Values:", {
+				total_payments: this.total_payments,
+				diff_payment: this.diff_payment,
+				credit_change: this.credit_change,
+				isReturn: this.invoice_doc?.is_return || this.invoiceType === "Return"
+			});
+
+			return {
+				invoice: this.invoice_doc,
+				payments: this.invoice_doc.payments,
+				totals: {
+					total_payments: this.total_payments,
+					diff_payment: this.diff_payment,
+					credit_change: this.credit_change
+				}
+			};
 		},
 		// Open print page for invoice
 		// load_print_page() {
