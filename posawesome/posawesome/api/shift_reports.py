@@ -2,6 +2,10 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate, nowtime
 import json
+from posawesome.posawesome.utils.logging import get_logger
+
+# Initialize logger
+log = get_logger("shift_reports")
 
 @frappe.whitelist()
 def create_shift_report(data):
@@ -77,12 +81,17 @@ def get_shift_report(shift_report_id):
 	Returns:
 		dict: Shift report data (compatible with frappe.client.get format)
 	"""
+	log.info(f"[SHIFT_REPORT_API] 🎯 GET_SHIFT_REPORT - Start - Shift Report ID: {shift_report_id}")
+
 	try:
 		# First try direct name lookup
+		log.info(f"[SHIFT_REPORT_API] 🔍 GET_SHIFT_REPORT - Trying direct name lookup: {shift_report_id}")
 		if frappe.db.exists("POS Shift Report", shift_report_id):
+			log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Found by direct name: {shift_report_id}")
 			shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
 		else:
 			# Try to find by shift_report_id field
+			log.info(f"[SHIFT_REPORT_API] 🔍 GET_SHIFT_REPORT - Direct lookup failed, trying shift_report_id field: {shift_report_id}")
 			shift_reports = frappe.get_all("POS Shift Report",
 				filters={"shift_report_id": shift_report_id},
 				fields=["name"],
@@ -90,30 +99,37 @@ def get_shift_report(shift_report_id):
 			)
 
 			if shift_reports:
+				log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Found by shift_report_id field: {shift_reports[0].name}")
 				shift_report = frappe.get_doc("POS Shift Report", shift_reports[0].name)
 			else:
 				# ✅ CHECK IF THIS IS A POS OPENING SHIFT THAT SHOULD HAVE A SHIFT REPORT
+				log.info(f"[SHIFT_REPORT_API] 🔍 GET_SHIFT_REPORT - Not found, checking if it's a POS Opening Shift: {shift_report_id}")
 				if frappe.db.exists("POS Opening Shift", shift_report_id):
+					log.info(f"[SHIFT_REPORT_API] 📋 GET_SHIFT_REPORT - Found POS Opening Shift: {shift_report_id}")
 					opening_shift = frappe.get_doc("POS Opening Shift", shift_report_id)
 
 					# Check if opening shift has shift_report field set
 					if hasattr(opening_shift, 'shift_report') and opening_shift.shift_report:
 						# Opening shift has shift_report reference, but shift report doesn't exist
 						# This is an error condition - data inconsistency
-						frappe.logger().error(f"Data inconsistency: POS Opening Shift {shift_report_id} references non-existent shift report {opening_shift.shift_report}")
+						log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Data inconsistency: POS Opening Shift {shift_report_id} references non-existent shift report {opening_shift.shift_report}")
 						frappe.throw(_("Data inconsistency: Shift report reference exists but shift report not found. Please contact administrator."))
 					else:
 						# Opening shift exists but no shift_report reference
 						# This means shift report was never created during opening shift creation
-						frappe.logger().error(f"POS Opening Shift {shift_report_id} exists but has no shift_report reference")
+						log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - POS Opening Shift {shift_report_id} exists but has no shift_report reference")
 						frappe.throw(_("Shift report was not created during opening shift. Please contact administrator."))
 				else:
 					# Not a POS Opening Shift name
+					log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Shift report not found: {shift_report_id}")
 					frappe.throw(_("Shift report not found"))
 
 		# ✅ RETURN FORMAT COMPATIBLE WITH frappe.client.get
 		# Vue component expects: shiftReportResponse.message (direct data)
-		return {
+		log.info(f"[SHIFT_REPORT_API] 📊 GET_SHIFT_REPORT - Preparing response data for: {shift_report.name}")
+		log.info(f"[SHIFT_REPORT_API] 📈 GET_SHIFT_REPORT - Summary: Count={shift_report.invoice_count}, Sales={shift_report.total_sales}, Returns={shift_report.total_returns}")
+
+		response_data = {
 			"name": shift_report.name,
 			"shift_report_id": shift_report.shift_report_id,
 			"pos_opening_shift": shift_report.pos_opening_shift,
@@ -156,7 +172,11 @@ def get_shift_report(shift_report_id):
 			] if shift_report.invoices else []
 		}
 
+		log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - COMPLETED - Shift Report: {shift_report.name}, Invoices: {len(response_data['invoices'])}")
+		return response_data
+
 	except Exception as e:
+		log.error(f"[SHIFT_REPORT_API] 💥 GET_SHIFT_REPORT - FAILED - Shift Report ID: {shift_report_id}, Error: {str(e)}")
 		frappe.log_error(str(e), "Get Shift Report Error")
 		# ✅ RETURN ERROR IN COMPATIBLE FORMAT
 		frappe.throw(_("Error getting shift report: {0}").format(str(e)))
