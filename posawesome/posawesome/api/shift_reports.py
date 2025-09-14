@@ -88,7 +88,6 @@ def get_shift_report(shift_report_id):
 	if isinstance(shift_report_id, str) and shift_report_id.startswith('{'):
 		log.info(f"[SHIFT_REPORT_API] 🔄 GET_SHIFT_REPORT - Detected JSON string object, parsing...")
 		try:
-			import json
 			parsed_obj = json.loads(shift_report_id)
 			log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Parsed object successfully")
 
