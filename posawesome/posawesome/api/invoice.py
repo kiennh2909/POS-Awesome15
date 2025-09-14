@@ -35,7 +35,7 @@ def on_submit(doc, method):
 
 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
 		frappe.logger().info(f"[INVOICE_TRACKING] 🔄 ON_SUBMIT - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: submit")
-		update_shift_report_with_invoice(doc, "submit")
+		update_shift_report_with_invoice(doc, "Paid")
 	else:
 		frappe.logger().warning(f"[INVOICE_TRACKING] ⚠️ ON_SUBMIT - No shift report reference - Invoice: {doc.name}")
 
@@ -45,13 +45,12 @@ def on_cancel(doc, method):
 
 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
 		frappe.logger().info(f"[INVOICE_TRACKING] 🔄 ON_CANCEL - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: cancel")
-		update_shift_report_with_invoice(doc, "cancel")
+		update_shift_report_with_invoice(doc, "Cancelled")
 	else:
 		frappe.logger().warning(f"[INVOICE_TRACKING] ⚠️ ON_CANCEL - No shift report reference - Invoice: {doc.name}")
 
 def before_cancel(doc, method):
-	update_coupon(doc, "cancelled")
-
+	update_coupon(doc, "Cancelled")
 
 def add_loyalty_point(invoice_doc):
 	for offer in invoice_doc.posa_offers:
@@ -343,7 +342,7 @@ def update_shift_report_with_invoice(invoice_doc, action):
 
 	Args:
 		invoice_doc: Sales Invoice document
-		action: "submit" or "cancel"
+		action: "Paid" or "Cancelled"
 	"""
 	frappe.logger().info(f"[INVOICE_TRACKING] 🎯 UPDATE_SHIFT_REPORT - Start - Invoice: {invoice_doc.name}, Action: {action}, Status: {invoice_doc.status}, Amount: {invoice_doc.grand_total}")
 
@@ -359,7 +358,7 @@ def update_shift_report_with_invoice(invoice_doc, action):
 
 		frappe.logger().info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Got shift report - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}, Current Count: {shift_report.invoice_count}, Current Sales: {shift_report.total_sales}, Current Returns: {shift_report.total_returns}")
 
-		if action == "submit":
+		if action == "Paid":
 			frappe.logger().info(f"[INVOICE_TRACKING] ➕ UPDATE_SHIFT_REPORT - Processing SUBMIT - Invoice: {invoice_doc.name}")
 
 			# Add invoice to shift report
@@ -387,11 +386,11 @@ def update_shift_report_with_invoice(invoice_doc, action):
 					"tax_amount": invoice_doc.total_taxes_and_charges or 0,
 					"payment_method": payment_method,
 					"is_return": invoice_doc.is_return or False,
-					"status": "Submitted"
+					"status": "Paid"
 				})
 				frappe.logger().info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Added invoice to shift report - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}, Payment Method: {payment_method}, Amount: {invoice_doc.grand_total}")
 
-		elif action == "cancel":
+		elif action == "Cancelled":
 			frappe.logger().info(f"[INVOICE_TRACKING] ❌ UPDATE_SHIFT_REPORT - Processing CANCEL - Invoice: {invoice_doc.name}")
 
 			# Remove invoice from shift report or mark as cancelled
@@ -411,10 +410,10 @@ def update_shift_report_with_invoice(invoice_doc, action):
 		frappe.logger().info(f"[INVOICE_TRACKING] 🔢 UPDATE_SHIFT_REPORT - Updating calculated fields - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}")
 		frappe.logger().info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Before update_calculated_fields - Invoice: {invoice_doc.name}, Count: {shift_report.invoice_count}, Sales: {shift_report.total_sales}, Returns: {shift_report.total_returns}")
 		shift_report.update_calculated_fields()
-		frappe.logger().info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - After update_calculated_fields - Invoice: {invoice_doc.name}, Count: {shift_report.invoice_count}, Sales: {shift_report.total_sales}, Returns: {shift_report.total_returns}")
+		# frappe.logger().info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - After update_calculated_fields - Invoice: {invoice_doc.name}, Count: {shift_report.invoice_count}, Sales: {shift_report.total_sales}, Returns: {shift_report.total_returns}")
 
-		shift_report.get_payment_breakdown()
-		frappe.logger().info(f"[INVOICE_TRACKING] 💰 UPDATE_SHIFT_REPORT - After get_payment_breakdown - Invoice: {invoice_doc.name}, Breakdown: {shift_report.payment_breakdown}")
+		# shift_report.get_payment_breakdown()
+		# frappe.logger().info(f"[INVOICE_TRACKING] 💰 UPDATE_SHIFT_REPORT - After get_payment_breakdown - Invoice: {invoice_doc.name}, Breakdown: {shift_report.payment_breakdown}")
 
 		# Save shift report
 		frappe.logger().info(f"[INVOICE_TRACKING] 💾 UPDATE_SHIFT_REPORT - Saving shift report - Invoice: {invoice_doc.name}, Shift Report: {shift_report.name}")
