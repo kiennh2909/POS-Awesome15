@@ -302,11 +302,19 @@ def get_footer_status_data():
 			opening_shift = frappe.get_doc("POS Opening Shift", active_shift[0].name)
 
 			# Calculate cash balance from opening amounts
+			# Support multiple cash payment methods
+			cash_payment_methods = ['cash', 'tiền mặt', 'tiền mặt - pos', 'cash - pos']
+
 			if hasattr(opening_shift, 'balances') and opening_shift.balances:
+				total_cash_balance = 0
 				for balance in opening_shift.balances:
-					if balance.mode_of_payment and balance.mode_of_payment.lower() in ['cash', 'tiền mặt']:
-						result["cash_balance"] = balance.amount or 0
-						break
+					if balance.mode_of_payment:
+						mode_lower = balance.mode_of_payment.lower()
+						# Check if this is a cash payment method
+						if any(cash_type in mode_lower for cash_type in cash_payment_methods):
+							total_cash_balance += balance.amount or 0
+
+				result["cash_balance"] = total_cash_balance
 
 		return {
 			"success": True,

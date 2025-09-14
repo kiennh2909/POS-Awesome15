@@ -19,6 +19,12 @@
 				<span class="status-text">{{ cashierName || __("No Cashier") }}</span>
 			</div>
 
+			<!-- POS Shift Report ID -->
+			<div class="status-item">
+				<v-icon size="16" color="white">mdi-clipboard-text</v-icon>
+				<span class="status-text">{{ shiftReportId || __("No Shift") }}</span>
+			</div>
+
 			<!-- Cash Balance -->
 			<div class="status-item">
 				<v-icon size="16" color="white">mdi-cash</v-icon>
@@ -48,6 +54,7 @@ export default {
 			currentDate: "",
 			currentTime: "",
 			cashierName: "",
+			shiftReportId: "",
 			cashBalance: 0,
 			lastInvoice: "",
 			todaySales: 0,
@@ -151,6 +158,7 @@ export default {
 				this.cashierName = data.cashier_name || "";
 				this.currentDate = data.current_date || "";
 				this.currentTime = data.current_time || "";
+				this.shiftReportId = data.shift_report_id || "";
 				this.cashBalance = data.cash_balance || 0;
 				this.lastInvoice = data.last_invoice || "";
 				this.todaySales = data.today_sales || 0;
