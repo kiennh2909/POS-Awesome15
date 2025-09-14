@@ -36,23 +36,21 @@ class POSPaymentSummary(Document):
 
 @frappe.whitelist()
 def create_payment_summaries_for_shift(shift_report_name):
-	"""
-	Create payment summary records for a shift report
-	Optimized version - simplified and more efficient
-
-	Args:
-		shift_report_name (str): Name of the POS Shift Report
-
-	Returns:
-		dict: Result with success status and data
-	"""
-	log.info(f"[PAYMENT_SUMMARY] Creating payment summaries for: {shift_report_name}")
+    
+	log.info(f"[PAYMENT_SUMMARY] Tao bang tong hop du lieu Shift Summary: {shift_report_name}")
 
 	try:
+		log.info(f"[PAYMENT_SUMMARY] 🚀 START: Creating payment summaries for shift: {shift_report_name}")
+
 		# 1. Get shift report data
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 1: Retrieving shift report data")
 		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 1: Found shift report: {shift_report.name} (ID: {shift_report.shift_report_id})")
 
 		# 2. Get all invoices for this shift (optimized query)
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 2: Querying invoices from database")
+		log.info(f"[PAYMENT_SUMMARY] 🔍 STEP 2: POS Opening Shift: {shift_report.pos_opening_shift}")
+
 		invoices = frappe.get_all("Sales Invoice",
 			filters={
 				"posa_pos_opening_shift": shift_report.pos_opening_shift,
@@ -61,8 +59,13 @@ def create_payment_summaries_for_shift(shift_report_name):
 			fields=["name", "grand_total", "is_return"]
 		)
 
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 2: Found {len(invoices)} submitted invoices")
+
 		# Get payment methods from payments child table
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 3: Retrieving payment methods from child tables")
 		invoice_payments = {}
+		payment_methods_found = 0
+
 		for invoice in invoices:
 			payments = frappe.get_all("Sales Invoice Payment",
 				filters={"parent": invoice.name},
@@ -74,6 +77,7 @@ def create_payment_summaries_for_shift(shift_report_name):
 					"payment_method": payments[0].mode_of_payment or "Cash",
 					"amount": payments[0].amount or 0
 				}
+				payment_methods_found += 1
 			else:
 				# Fallback if no payments found
 				invoice_payments[invoice.name] = {
@@ -81,33 +85,49 @@ def create_payment_summaries_for_shift(shift_report_name):
 					"amount": invoice.grand_total or 0
 				}
 
-		log.info(f"[PAYMENT_SUMMARY] Processing {len(invoices)} invoices")
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 3: Retrieved payment methods for {payment_methods_found}/{len(invoices)} invoices")
 
 		# 3. Group and calculate payment methods (optimized)
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 4: Grouping and calculating payment methods")
 		payment_data = _calculate_payment_methods(invoices, invoice_payments)
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 4: Grouped into {len(payment_data)} payment methods")
+
+		# Log payment method details
+		for method, data in payment_data.items():
+			log.info(f"[PAYMENT_SUMMARY] 📊 STEP 4: {method} - {data['transaction_count']} transactions, Amount: {data['transaction_amount']}")
 
 		# 4. Get opening and expected amounts
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 5: Parsing opening and expected amounts")
 		opening_amounts = _parse_json_safe(shift_report.opening_amounts, {})
 		expected_closing = _parse_json_safe(shift_report.expected_closing_amounts, {})
 
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 5: Opening amounts: {len(opening_amounts)} methods, Expected: {len(expected_closing)} methods")
+
 		# 5. Create/update payment summaries
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 6: Creating/updating payment summary records")
 		payment_summaries = []
 		created_count = 0
 		updated_count = 0
 
 		for method, data in payment_data.items():
+			log.info(f"[PAYMENT_SUMMARY] 🔄 STEP 6: Processing payment method: {method}")
 			result = _create_or_update_payment_summary(
 				shift_report, method, data, opening_amounts, expected_closing
 			)
 
-			if result["created"]:
+			if result and result["created"]:
 				created_count += 1
 			else:
 				updated_count += 1
 
-			payment_summaries.append(result["summary"])
+			if result:
+				payment_summaries.append(result["summary"])
 
-		log.info(f"[PAYMENT_SUMMARY] Completed: {created_count} created, {updated_count} updated")
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 6: Processed {len(payment_summaries)} payment methods")
+		log.info(f"[PAYMENT_SUMMARY] 📈 STEP 6: Summary - Created: {created_count}, Updated: {updated_count}")
+
+		# 6. Final summary and return
+		log.info(f"[PAYMENT_SUMMARY] 🎉 COMPLETED: Successfully processed {len(payment_summaries)} payment methods for shift {shift_report_name}")
 
 		return {
 			"success": True,
