@@ -51,7 +51,7 @@ def on_submit(doc, method):
 
 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
 		log.info(f"[INVOICE_TRACKING] 🔄 ON_SUBMIT - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: submit")
-		update_shift_report_with_invoice(doc, "Paid")
+		update_shift_report_with_invoice(doc, "submit")  # Use correct action
 	else:
 		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_SUBMIT - No shift report reference - Invoice: {doc.name}")
 
@@ -61,7 +61,7 @@ def on_cancel(doc, method):
 
 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
 		log.info(f"[INVOICE_TRACKING] 🔄 ON_CANCEL - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: cancel")
-		update_shift_report_with_invoice(doc, "Cancelled")
+		update_shift_report_with_invoice(doc, "cancel")  # Use correct action
 	else:
 		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_CANCEL - No shift report reference - Invoice: {doc.name}")
 
@@ -482,9 +482,14 @@ def update_shift_report_with_invoice(invoice_doc, action):
 
 	Args:
 		invoice_doc: Sales Invoice document
-		action: "Paid" or "Cancelled"
+		action: "submit" or "cancel"
 	"""
 	log.info(f"[INVOICE_TRACKING] 🎯 UPDATE_SHIFT_REPORT - Start - Invoice: {invoice_doc.name}, Action: {action}")
+
+	# FIX: Validate action parameter
+	if action not in ["submit", "cancel"]:
+		log.error(f"[INVOICE_TRACKING] ❌ UPDATE_SHIFT_REPORT - Invalid action: {action}")
+		return
 
 	try:
 		if not hasattr(invoice_doc, 'pos_shift_report') or not invoice_doc.pos_shift_report:
@@ -498,7 +503,9 @@ def update_shift_report_with_invoice(invoice_doc, action):
 
 		# OPTIMIZED: Single transaction for all operations
 		with frappe.db.transaction():
-			if action == "Paid":
+			needs_totals_update = False  # Track if we need to update totals
+
+			if action == "submit":
 				log.info(f"[INVOICE_TRACKING] ➕ UPDATE_SHIFT_REPORT - Processing SUBMIT")
 
 				# Check if invoice already exists (optimized query)
@@ -508,46 +515,51 @@ def update_shift_report_with_invoice(invoice_doc, action):
 				})
 
 				if existing_count > 0:
-					log.info(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice already exists")
-					return
+					log.info(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice already exists, will update totals")
+					needs_totals_update = True  # Still need to update totals
+				else:
+					# Get payment method
+					payment_method = get_invoice_payment_method(invoice_doc)
 
-				# Get payment method
-				payment_method = get_invoice_payment_method(invoice_doc)
+					# FIX: Generate name for child table row
+					child_name = frappe.generate_hash(length=10)
 
-				# FIX: Generate name for child table row
-				child_name = frappe.generate_hash(length=10)
+					# FIX: Normalize boolean to tinyint (0/1)
+					is_return_value = 1 if (invoice_doc.is_return or False) else 0
 
-				# FIX: Normalize boolean to tinyint (0/1)
-				is_return_value = 1 if (invoice_doc.is_return or False) else 0
+					# FIX: Use actual invoice status instead of hardcoded "Paid"
+					status_value = invoice_doc.status or "Paid"
+					log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Using invoice status: {status_value}")
 
-				# FIX: Handle race condition with INSERT ... ON DUPLICATE KEY UPDATE
-				try:
-					frappe.db.sql("""
-						INSERT INTO `tabPOS Shift Report Invoice`
-						(name, parent, parenttype, parentfield, invoice_no, invoice_date, invoice_time,
-						 customer, total_amount, paid_amount, tax_amount, payment_method,
-						 is_return, status, creation, modified, modified_by, owner)
-						VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s, %s)
-						ON DUPLICATE KEY UPDATE
-							status = VALUES(status),
-							modified = NOW(),
-							modified_by = VALUES(modified_by)
-					""", (
-						child_name, shift_report_name, "POS Shift Report", "invoices",
-						invoice_doc.name, invoice_doc.posting_date, invoice_doc.posting_time,
-						invoice_doc.customer, invoice_amount, invoice_doc.paid_amount or 0,
-						invoice_doc.total_taxes_and_charges or 0, payment_method,
-						is_return_value, "Paid",
-						frappe.session.user, frappe.session.user
-					))
+					# FIX: Handle race condition with INSERT ... ON DUPLICATE KEY UPDATE
+					try:
+						frappe.db.sql("""
+							INSERT INTO `tabPOS Shift Report Invoice`
+							(name, parent, parenttype, parentfield, invoice_no, invoice_date, invoice_time,
+							 customer, total_amount, paid_amount, tax_amount, payment_method,
+							 is_return, status, creation, modified, modified_by, owner)
+							VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s, %s)
+							ON DUPLICATE KEY UPDATE
+								status = VALUES(status),
+								modified = NOW(),
+								modified_by = VALUES(modified_by)
+						""", (
+							child_name, shift_report_name, "POS Shift Report", "invoices",
+							invoice_doc.name, invoice_doc.posting_date, invoice_doc.posting_time,
+							invoice_doc.customer, invoice_amount, invoice_doc.paid_amount or 0,
+							invoice_doc.total_taxes_and_charges or 0, payment_method,
+							is_return_value, status_value,  # Use actual status
+							frappe.session.user, frappe.session.user
+						))
 
-					log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Added invoice to shift report")
+						log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Added invoice to shift report with status: {status_value}")
+						needs_totals_update = True
 
-				except Exception as insert_error:
-					log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Insert failed (duplicate?): {str(insert_error)}")
-					# Continue to totals recalculation
+					except Exception as insert_error:
+						log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Insert failed (duplicate?): {str(insert_error)}")
+						needs_totals_update = True  # Still need to update totals
 
-			elif action == "Cancelled":
+			elif action == "cancel":
 				log.info(f"[INVOICE_TRACKING] ❌ UPDATE_SHIFT_REPORT - Processing CANCEL")
 
 				# FIX: Check affected rows properly
@@ -574,45 +586,48 @@ def update_shift_report_with_invoice(invoice_doc, action):
 
 				if affected_rows > 0:
 					log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Marked invoice as cancelled ({affected_rows} rows)")
+					needs_totals_update = True
 				else:
 					log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice not found or already cancelled")
 
-			# FIX: Updated totals calculation with proper return semantics
-			# total_sales: Paid invoices that are NOT returns
-			# total_returns: Paid invoices that ARE returns OR Cancelled invoices
-			log.info(f"[INVOICE_TRACKING] 🔢 UPDATE_SHIFT_REPORT - Recalculating totals")
+			# FIX: Always recalculate totals if needed
+			if needs_totals_update:
+				log.info(f"[INVOICE_TRACKING] 🔢 UPDATE_SHIFT_REPORT - Recalculating totals")
 
-			totals_result = frappe.db.sql("""
-				SELECT
-					COALESCE(SUM(CASE WHEN status = 'Paid' AND is_return = 0
-						THEN total_amount ELSE 0 END), 0) as total_sales,
-					COALESCE(SUM(CASE WHEN (status = 'Paid' AND is_return = 1) OR status = 'Cancelled'
-						THEN total_amount ELSE 0 END), 0) as total_returns,
-					COUNT(*) as invoice_count
-				FROM `tabPOS Shift Report Invoice`
-				WHERE parent = %s AND parenttype = 'POS Shift Report'
-			""", (shift_report_name,), as_dict=True)
+				totals_result = frappe.db.sql("""
+					SELECT
+						COALESCE(SUM(CASE WHEN status = 'Paid' AND is_return = 0
+							THEN total_amount ELSE 0 END), 0) as total_sales,
+						COALESCE(SUM(CASE WHEN (status = 'Paid' AND is_return = 1) OR status = 'Cancelled'
+							THEN total_amount ELSE 0 END), 0) as total_returns,
+						COUNT(*) as invoice_count
+					FROM `tabPOS Shift Report Invoice`
+					WHERE parent = %s AND parenttype = 'POS Shift Report'
+				""", (shift_report_name,), as_dict=True)
 
-			if totals_result and len(totals_result) > 0:
-				new_sales = float(totals_result[0].total_sales or 0)
-				new_returns = float(totals_result[0].total_returns or 0)
-				new_count = int(totals_result[0].invoice_count or 0)
+				if totals_result and len(totals_result) > 0:
+					new_sales = float(totals_result[0].total_sales or 0)
+					new_returns = float(totals_result[0].total_returns or 0)
+					new_count = int(totals_result[0].invoice_count or 0)
 
-				log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Totals: Sales={new_sales}, Returns={new_returns}, Count={new_count}")
+					log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Totals: Sales={new_sales}, Returns={new_returns}, Count={new_count}")
 
-				# OPTIMIZED: Single update for all fields
-				frappe.db.set_value("POS Shift Report", shift_report_name, {
-					"invoice_count": new_count,
-					"total_sales": new_sales,
-					"total_returns": new_returns
-				})
+					# OPTIMIZED: Single update for all fields
+					frappe.db.set_value("POS Shift Report", shift_report_name, {
+						"invoice_count": new_count,
+						"total_sales": new_sales,
+						"total_returns": new_returns
+					})
 
-				log.info(f"[INVOICE_TRACKING] 💾 UPDATE_SHIFT_REPORT - Updated shift report successfully")
+					log.info(f"[INVOICE_TRACKING] 💾 UPDATE_SHIFT_REPORT - Updated shift report successfully")
+				else:
+					log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - No data found for recalculation")
 			else:
-				log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - No data found for recalculation")
+				log.info(f"[INVOICE_TRACKING] ℹ️ UPDATE_SHIFT_REPORT - No totals update needed")
 
 		log.info(f"[INVOICE_TRACKING] 🎉 UPDATE_SHIFT_REPORT - COMPLETED - Invoice: {invoice_doc.name}, Action: {action}")
 
 	except Exception as e:
 		log.error(f"[INVOICE_TRACKING] 💥 UPDATE_SHIFT_REPORT - FAILED - Invoice: {invoice_doc.name}, Action: {action}, Error: {str(e)}")
 		# Don't raise error to prevent invoice submission/cancellation failure
+  
