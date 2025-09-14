@@ -111,22 +111,35 @@ def create_payment_summaries_for_shift(shift_report_name):
 
 		for method, data in payment_data.items():
 			log.info(f"[PAYMENT_SUMMARY] 🔄 STEP 6: Processing payment method: {method}")
-			result = _create_or_update_payment_summary(
-				shift_report, method, data, opening_amounts, expected_closing
-			)
+			try:
+				result = _create_or_update_payment_summary(
+					shift_report, method, data, opening_amounts, expected_closing
+				)
 
-			if result and result["created"]:
-				created_count += 1
-			else:
-				updated_count += 1
+				if result and result["created"]:
+					created_count += 1
+					log.info(f"[PAYMENT_SUMMARY] ✅ Created payment summary for {method}")
+				elif result:
+					updated_count += 1
+					log.info(f"[PAYMENT_SUMMARY] ✅ Updated payment summary for {method}")
 
-			if result:
-				payment_summaries.append(result["summary"])
+				if result:
+					payment_summaries.append(result["summary"])
+				else:
+					log.warning(f"[PAYMENT_SUMMARY] ⚠️ Failed to process payment method: {method}")
+			except Exception as e:
+				log.error(f"[PAYMENT_SUMMARY] ❌ Error processing {method}: {str(e)}")
+				continue
 
 		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 6: Processed {len(payment_summaries)} payment methods")
 		log.info(f"[PAYMENT_SUMMARY] 📈 STEP 6: Summary - Created: {created_count}, Updated: {updated_count}")
 
-		# 6. Final summary and return
+		# 7. Commit database changes
+		log.info(f"[PAYMENT_SUMMARY] 💾 STEP 7: Committing database changes")
+		frappe.db.commit()
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: Database changes committed")
+
+		# 8. Final summary and return
 		log.info(f"[PAYMENT_SUMMARY] 🎉 COMPLETED: Successfully processed {len(payment_summaries)} payment methods for shift {shift_report_name}")
 
 		return {
@@ -223,14 +236,14 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 				"shift_report_id": shift_report_id,
 				"pos_shift_report": shift_report.name,
 				"pos_opening_shift": shift_report.pos_opening_shift,
-				"posting_date": shift_report.posting_date or shift_report.opening_date,
+				"posting_date": shift_report.opening_date,
 				"shift_start_time": shift_report.opening_time,
 				"shift_end_time": shift_report.closing_date,
 				"payment_method": method,
 				"payment_method_type": get_payment_method_type(method),
 				"currency": "VND",
 				"transaction_count": data["transaction_count"],
-				"company": shift_report.company,
+				"company": shift_report.company or "Default Company",
 				"pos_profile": shift_report.pos_profile,
 				"opening_amount": opening_amount,
 				"transaction_amount": transaction_amount,
@@ -366,12 +379,12 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 						"shift_report_id": f"{shift_report.shift_report_id}_{method}",
 						"pos_shift_report": shift_report.name,
 						"pos_opening_shift": shift_report.pos_opening_shift,
-						"posting_date": shift_report.posting_date or shift_report.opening_date,
+						"posting_date": shift_report.opening_date,
 						"shift_start_time": shift_report.opening_time,
 						"payment_method": method,
 						"payment_method_type": get_payment_method_type(method),
 						"currency": "VND",
-						"company": shift_report.company,
+						"company": shift_report.company or "Default Company",
 						"pos_profile": shift_report.pos_profile,
 						"opening_amount": opening_amount,
 						"transaction_amount": 0,
