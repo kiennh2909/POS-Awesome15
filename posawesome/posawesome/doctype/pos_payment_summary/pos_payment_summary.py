@@ -206,6 +206,27 @@ def _parse_json_safe(json_string, default=None):
 def _create_or_update_payment_summary(shift_report, method, data, opening_amounts, expected_closing):
 	"""Create or update a single payment summary record"""
 	try:
+		# Get company, pos_profile, and currency from opening shift
+		company = "NVL-DaiLoan"
+		pos_profile = ""
+		currency = "TWD"
+
+		try:
+			opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
+			if hasattr(opening_shift, 'company') and opening_shift.company:
+				company = opening_shift.company
+			if hasattr(opening_shift, 'pos_profile') and opening_shift.pos_profile:
+				pos_profile = opening_shift.pos_profile
+				# Get currency from POS Profile
+				try:
+					pos_profile_doc = frappe.get_doc("POS Profile", pos_profile)
+					if hasattr(pos_profile_doc, 'currency') and pos_profile_doc.currency:
+						currency = pos_profile_doc.currency
+				except Exception as e:
+					log.warning(f"[PAYMENT_SUMMARY] Could not get currency from POS Profile: {str(e)}")
+		except Exception as e:
+			log.warning(f"[PAYMENT_SUMMARY] Could not get company/pos_profile from opening shift: {str(e)}")
+
 		# Check if exists
 		shift_report_id = f"{shift_report.shift_report_id}_{method}"
 		existing = frappe.db.exists("POS Payment Summary", {
@@ -241,10 +262,10 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 				"shift_end_time": shift_report.closing_date,
 				"payment_method": method,
 				"payment_method_type": get_payment_method_type(method),
-				"currency": "VND",
+				"currency": currency,
 				"transaction_count": data["transaction_count"],
-				"company": shift_report.company or "Default Company",
-				"pos_profile": shift_report.pos_profile,
+				"company": company,
+				"pos_profile": pos_profile,
 				"opening_amount": opening_amount,
 				"transaction_amount": transaction_amount,
 				"expected_closing_amount": expected_closing.get(method, 0),
@@ -318,42 +339,62 @@ def get_payment_summaries_for_shift(shift_report_name):
 
 def get_payment_method_type(payment_method):
 	"""
-	Determine payment method type based on payment method name
+	Determine payment method type based on Mode of Payment doctype
 
 	Args:
 		payment_method (str): Payment method name
 
 	Returns:
-		str: Payment method type
+		str: Payment method type from Mode of Payment doctype
 	"""
-	method_lower = payment_method.lower()
+	try:
+		# Query Mode of Payment doctype to get the type
+		mode_of_payment = frappe.get_all("Mode of Payment",
+			filters={
+				"mode_of_payment": payment_method,
+				"enabled": 1
+			},
+			fields=["type"],
+			limit=1
+		)
 
-	if "cash" in method_lower:
-		return "Cash"
-	elif any(card_type in method_lower for card_type in ["card", "visa", "master", "amex"]):
-		return "Card"
-	elif any(digital_type in method_lower for digital_type in ["m-pesa", "mpesa", "mobile", "digital"]):
-		return "Digital"
-	else:
+		if mode_of_payment and mode_of_payment[0].get("type"):
+			return mode_of_payment[0]["type"]
+		else:
+			log.warning(f"[PAYMENT_SUMMARY] Payment method '{payment_method}' not found in Mode of Payment or has no type")
+			return "Other"
+
+	except Exception as e:
+		log.error(f"[PAYMENT_SUMMARY] Error getting payment method type for '{payment_method}': {str(e)}")
 		return "Other"
 
 
 @frappe.whitelist()
 def initialize_payment_summaries_for_shift(shift_report_name):
-	"""
-	Initialize payment summary records when shift is opened
-	This creates empty records that will be populated when List Invoice is clicked
-
-	Args:
-		shift_report_name (str): Name of the POS Shift Report
-
-	Returns:
-		dict: Result
-	"""
 	log.info(f"[PAYMENT_SUMMARY] Initializing payment summaries for shift report: {shift_report_name}")
 
 	try:
 		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
+
+		# Get company, pos_profile, and currency from opening shift
+		company = "NVL-DaiLoan"
+		pos_profile = ""
+		currency = "TWD"
+		try:
+			opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
+			if hasattr(opening_shift, 'company') and opening_shift.company:
+				company = opening_shift.company
+			if hasattr(opening_shift, 'pos_profile') and opening_shift.pos_profile:
+				pos_profile = opening_shift.pos_profile
+				# Get currency from POS Profile
+				try:
+					pos_profile_doc = frappe.get_doc("POS Profile", pos_profile)
+					if hasattr(pos_profile_doc, 'currency') and pos_profile_doc.currency:
+						currency = pos_profile_doc.currency
+				except Exception as e:
+					log.warning(f"[PAYMENT_SUMMARY] Could not get currency from POS Profile: {str(e)}")
+		except Exception as e:
+			log.warning(f"[PAYMENT_SUMMARY] Could not get company/pos_profile from opening shift: {str(e)}")
 
 		# Get opening amounts to determine payment methods
 		opening_amounts = {}
@@ -383,9 +424,9 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 						"shift_start_time": shift_report.opening_time,
 						"payment_method": method,
 						"payment_method_type": get_payment_method_type(method),
-						"currency": "VND",
-						"company": shift_report.company or "Default Company",
-						"pos_profile": shift_report.pos_profile,
+						"currency": currency,
+						"company": company,
+						"pos_profile": pos_profile,
 						"opening_amount": opening_amount,
 						"transaction_amount": 0,
 						"closing_amount": opening_amount,
