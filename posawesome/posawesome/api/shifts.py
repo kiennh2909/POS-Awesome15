@@ -232,11 +232,11 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 				total_opening += amount
 
 		if not opening_amounts:
-			frappe.logger().error("No valid opening amounts found")
-			return {
-				"status": "error",
-				"message": "No valid opening amounts found"
-			}
+			frappe.logger().warning("No valid opening amounts found - all amounts are 0 or invalid")
+			# Allow creation with zero amounts - use default Cash: 0
+			opening_amounts = {"Cash": 0}
+			total_opening = 0
+			frappe.logger().info("Using default zero amounts for shift report creation")
 
 		frappe.logger().info(f"Opening amounts: {opening_amounts}, Total: {total_opening}")
 
