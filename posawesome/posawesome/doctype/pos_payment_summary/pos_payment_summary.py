@@ -58,13 +58,33 @@ def create_payment_summaries_for_shift(shift_report_name):
 				"pos_opening_shift": shift_report.pos_opening_shift,
 				"docstatus": 1
 			},
-			fields=["payment_method", "grand_total", "is_return"]
+			fields=["name", "grand_total", "is_return"]
 		)
+
+		# Get payment methods from payments child table
+		invoice_payments = {}
+		for invoice in invoices:
+			payments = frappe.get_all("Sales Invoice Payment",
+				filters={"parent": invoice.name},
+				fields=["mode_of_payment", "amount"]
+			)
+			if payments:
+				# Use primary payment method (first one)
+				invoice_payments[invoice.name] = {
+					"payment_method": payments[0].mode_of_payment or "Cash",
+					"amount": payments[0].amount or 0
+				}
+			else:
+				# Fallback if no payments found
+				invoice_payments[invoice.name] = {
+					"payment_method": "Cash",
+					"amount": invoice.grand_total or 0
+				}
 
 		log.info(f"[PAYMENT_SUMMARY] Processing {len(invoices)} invoices")
 
 		# 3. Group and calculate payment methods (optimized)
-		payment_data = _calculate_payment_methods(invoices)
+		payment_data = _calculate_payment_methods(invoices, invoice_payments)
 
 		# 4. Get opening and expected amounts
 		opening_amounts = _parse_json_safe(shift_report.opening_amounts, {})
@@ -108,12 +128,14 @@ def create_payment_summaries_for_shift(shift_report_name):
 		}
 
 
-def _calculate_payment_methods(invoices):
-	"""Calculate payment method totals from invoices"""
+def _calculate_payment_methods(invoices, invoice_payments):
+	"""Calculate payment method totals from invoices and payments"""
 	payment_methods = {}
 
 	for invoice in invoices:
-		method = invoice.payment_method or "Cash"
+		# Get payment method from payments data
+		payment_info = invoice_payments.get(invoice.name, {})
+		method = payment_info.get("payment_method", "Cash")
 		amount = invoice.grand_total or 0
 
 		if method not in payment_methods:
