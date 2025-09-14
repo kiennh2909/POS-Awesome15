@@ -1,0 +1,238 @@
+{
+ "actions": [],
+ "allow_copy": 0,
+ "autoname": "field:shift_report_id",
+ "creation": "2025-09-14 17:35:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_1",
+  "shift_report_id",
+  "pos_shift_report",
+  "pos_opening_shift",
+  "column_break_5",
+  "posting_date",
+  "shift_start_time",
+  "shift_end_time",
+  "section_break_9",
+  "payment_method",
+  "payment_method_type",
+  "currency",
+  "column_break_13",
+  "transaction_count",
+  "company",
+  "pos_profile",
+  "section_break_17",
+  "opening_amount",
+  "transaction_amount",
+  "expected_closing_amount",
+  "column_break_21",
+  "closing_amount",
+  "difference",
+  "section_break_25",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Shift Information"
+  },
+  {
+   "fieldname": "shift_report_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Shift Report ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "pos_shift_report",
+   "fieldtype": "Link",
+   "label": "POS Shift Report",
+   "options": "POS Shift Report",
+   "reqd": 1
+  },
+  {
+   "fieldname": "pos_opening_shift",
+   "fieldtype": "Link",
+   "label": "POS Opening Shift",
+   "options": "POS Opening Shift",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "shift_start_time",
+   "fieldtype": "Datetime",
+   "label": "Shift Start Time"
+  },
+  {
+   "fieldname": "shift_end_time",
+   "fieldtype": "Datetime",
+   "label": "Shift End Time"
+  },
+  {
+   "fieldname": "section_break_9",
+   "fieldtype": "Section Break",
+   "label": "Payment Method Information"
+  },
+  {
+   "fieldname": "payment_method",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Payment Method",
+   "reqd": 1
+  },
+  {
+   "fieldname": "payment_method_type",
+   "fieldtype": "Select",
+   "label": "Payment Method Type",
+   "options": "Cash\nCard\nDigital\nOther",
+   "reqd": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_13",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "transaction_count",
+   "fieldtype": "Int",
+   "label": "Transaction Count",
+   "default": "0"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "pos_profile",
+   "fieldtype": "Link",
+   "label": "POS Profile",
+   "options": "POS Profile",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_17",
+   "fieldtype": "Section Break",
+   "label": "Amount Details"
+  },
+  {
+   "fieldname": "opening_amount",
+   "fieldtype": "Currency",
+   "label": "Opening Amount",
+   "reqd": 1,
+   "default": "0"
+  },
+  {
+   "fieldname": "transaction_amount",
+   "fieldtype": "Currency",
+   "label": "Transaction Amount",
+   "reqd": 1,
+   "default": "0"
+  },
+  {
+   "fieldname": "expected_closing_amount",
+   "fieldtype": "Currency",
+   "label": "Expected Closing Amount",
+   "default": "0"
+  },
+  {
+   "fieldname": "column_break_21",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "closing_amount",
+   "fieldtype": "Currency",
+   "label": "Closing Amount",
+   "reqd": 1,
+   "default": "0"
+  },
+  {
+   "fieldname": "difference",
+   "fieldtype": "Currency",
+   "label": "Difference",
+   "default": "0"
+  },
+  {
+   "fieldname": "section_break_25",
+   "fieldtype": "Section Break",
+   "label": "Additional Information"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 0,
+ "links": [],
+ "modified": "2025-09-14 17:35:00.000000",
+ "modified_by": "Administrator",
+ "module": "POS Awesome",
+ "name": "POS Payment Summary",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "POS Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Cashier",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "shift_report_id",
+ "track_changes": 1
+}
