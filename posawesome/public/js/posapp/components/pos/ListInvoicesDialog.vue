@@ -369,65 +369,60 @@ export default {
 		try {
 			console.log("Loading invoices for shift:", this.shiftReportId);
 
-			// ✅ REAL API CALL - Thay thế mock data
+			// ✅ REAL API CALL - Sử dụng đúng API method
 			const response = await frappe.call({
-				method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.get_pos_invoices",
+				method: "posawesome.posawesome.api.shift_reports.get_shift_report",
 				args: {
-					pos_opening_shift: this.shiftReportId
+					shift_report_id: this.shiftReportId
 				}
 			});
 
 			console.log("API Response:", response);
 
-			if (response.message && Array.isArray(response.message)) {
-				// ✅ MAP DATA STRUCTURE từ API response
-				let mappedInvoices = response.message.map(invoice => ({
-					invoice_no: invoice.name,
-					invoice_date: invoice.posting_date,
-					invoice_time: this.formatTime(invoice.posting_time),
-					customer: invoice.customer || "-",
-					total_amount: invoice.grand_total || 0,
-					paid_amount: invoice.paid_amount || 0,
-					tax_amount: invoice.total_taxes_and_charges || 0,
-					payment_method: this.getPaymentMethod(invoice),
-					is_return: invoice.is_return || false,
-					status: invoice.docstatus === 1 ? "Submitted" : "Draft",
-					// Add sorting fields
-					posting_date: invoice.posting_date,
-					posting_time: invoice.posting_time,
-					creation: invoice.creation
-				}));
+			if (response.message && response.message.invoices) {
+				// ✅ HANDLE SHIFT REPORT DATA - API trả về object với invoices array
+				const shiftReportData = response.message;
+
+				console.log("Shift Report Data:", shiftReportData);
+
+				// ✅ SET INVOICES DIRECTLY FROM SHIFT REPORT
+				this.invoices = shiftReportData.invoices || [];
 
 				// ✅ SORT BY NEWEST FIRST (descending order)
-				this.invoices = mappedInvoices.sort((a, b) => {
-					// First sort by posting date (newest first)
-					const dateA = new Date(a.posting_date + ' ' + (a.posting_time || '00:00:00'));
-					const dateB = new Date(b.posting_date + ' ' + (b.posting_time || '00:00:00'));
+				this.invoices = this.invoices.sort((a, b) => {
+					// First sort by invoice_date (newest first)
+					const dateA = new Date(a.invoice_date + ' ' + (a.invoice_time || '00:00:00'));
+					const dateB = new Date(b.invoice_date + ' ' + (b.invoice_time || '00:00:00'));
 
-					// If dates are the same, sort by creation time
+					// If dates are the same, sort by invoice_no
 					if (dateA.getTime() === dateB.getTime()) {
-						const creationA = new Date(a.creation || 0);
-						const creationB = new Date(b.creation || 0);
-						return creationB.getTime() - creationA.getTime();
+						return b.invoice_no.localeCompare(a.invoice_no);
 					}
 
 					return dateB.getTime() - dateA.getTime();
 				});
 
-				console.log("Mapped invoices:", this.invoices);
+				// ✅ SET SUMMARY DATA FROM SHIFT REPORT
+				this.summary = {
+					total_invoices: shiftReportData.invoice_count || 0,
+					total_sales: shiftReportData.total_sales || 0,
+					total_returns: shiftReportData.total_returns || 0
+				};
 
-				this.calculateSummary();
 				this.totalInvoices = this.invoices.length;
 
 				console.log(`Loaded ${this.invoices.length} invoices for shift ${this.shiftReportId}`);
+				console.log("Summary:", this.summary);
 
-				// Load payment summary data
-				await this.loadPaymentSummary();
+				// Load payment summary data from shift report payment_breakdown
+				this.loadPaymentSummaryFromShiftReport(shiftReportData);
 
 				// Load shift report data for footer status bar
 				await this.loadShiftReportData();
+
 			} else {
-				console.warn("No invoices found or invalid response format");
+				console.warn("No shift report data found or invalid response format");
+				console.log("Response structure:", response);
 				this.invoices = [];
 				this.totalInvoices = 0;
 				this.summary = {
@@ -542,97 +537,48 @@ export default {
 		}
 	},
 
-	// ✅ LOAD PAYMENT SUMMARY DATA
-	async loadPaymentSummary() {
-		if (!this.shiftReportId) return;
-
-		this.loadingSummary = true;
+	// ✅ LOAD PAYMENT SUMMARY FROM SHIFT REPORT DATA
+	loadPaymentSummaryFromShiftReport(shiftReportData) {
 		try {
-			console.log("Loading payment summary for shift:", this.shiftReportId);
+			console.log("Loading payment summary from shift report data");
 
-			// First, get the shift report to find the opening shift ID
-			const shiftReportResponse = await frappe.call({
-				method: "frappe.client.get",
-				args: {
-					doctype: "POS Shift Report",
-					name: this.shiftReportId
-				}
-			});
-
-			if (!shiftReportResponse.message || !shiftReportResponse.message.pos_opening_shift) {
-				console.warn("Could not find opening shift for shift report:", this.shiftReportId);
-				this.calculatePaymentSummaryFromInvoices();
+			if (!shiftReportData || !shiftReportData.payment_breakdown) {
+				console.warn("No payment breakdown data in shift report");
+				this.paymentSummaryData = [];
 				return;
 			}
 
-			const openingShiftId = shiftReportResponse.message.pos_opening_shift;
-			console.log("Found opening shift ID:", openingShiftId);
+			// Convert payment_breakdown object to array format for UI
+			const paymentMethods = [];
+			const breakdown = shiftReportData.payment_breakdown;
 
-			// Load opening amounts from POS Opening Shift
-			const openingResponse = await frappe.call({
-				method: "frappe.client.get",
-				args: {
-					doctype: "POS Opening Shift",
-					name: openingShiftId
-				}
-			});
+			// Get opening amounts from shift report (if available)
+			const openingAmounts = shiftReportData.opening_amounts || {};
+			const expectedClosing = shiftReportData.expected_closing_amounts || {};
 
-			// Calculate transaction amounts from invoices
-			const paymentMethods = {};
-			this.invoices.forEach(invoice => {
-				const method = invoice.payment_method || "Cash";
-				const amount = parseFloat(invoice.total_amount) || 0;
+			Object.keys(breakdown).forEach(method => {
+				const transactionAmount = breakdown[method] || 0;
+				const openingAmount = openingAmounts[method] || 0;
+				const expectedAmount = expectedClosing[method] || openingAmount;
 
-				if (!paymentMethods[method]) {
-					paymentMethods[method] = {
-						payment_method: method,
-						opening_amount: 0,
-						transaction_amount: 0,
-						closing_amount: 0
-					};
-				}
-
-				// Add to transactions (positive for sales, negative for returns)
-				paymentMethods[method].transaction_amount += invoice.is_return ? -amount : amount;
-			});
-
-			// Set opening amounts from POS Opening Shift
-			if (openingResponse.message && openingResponse.message.balance_details) {
-				openingResponse.message.balance_details.forEach(balance => {
-					const method = balance.mode_of_payment || "Cash";
-					const amount = parseFloat(balance.amount) || 0;
-
-					if (paymentMethods[method]) {
-						paymentMethods[method].opening_amount = amount;
-					} else {
-						paymentMethods[method] = {
-							payment_method: method,
-							opening_amount: amount,
-							transaction_amount: 0,
-							closing_amount: 0
-						};
-					}
+				paymentMethods.push({
+					payment_method: method,
+					opening_amount: openingAmount,
+					transaction_amount: transactionAmount,
+					closing_amount: openingAmount + transactionAmount
 				});
-			}
-
-			// Calculate closing amounts
-			Object.values(paymentMethods).forEach(method => {
-				method.closing_amount = method.opening_amount + method.transaction_amount;
 			});
 
-			// Convert to array and sort
-			this.paymentSummaryData = Object.values(paymentMethods).sort((a, b) =>
+			// Sort by payment method name
+			this.paymentSummaryData = paymentMethods.sort((a, b) =>
 				a.payment_method.localeCompare(b.payment_method)
 			);
 
-			console.log("Payment summary loaded:", this.paymentSummaryData);
+			console.log("Payment summary loaded from shift report:", this.paymentSummaryData);
 
 		} catch (error) {
-			console.error("Error loading payment summary:", error);
-			// Fallback to basic calculation from invoices only
-			this.calculatePaymentSummaryFromInvoices();
-		} finally {
-			this.loadingSummary = false;
+			console.error("Error loading payment summary from shift report:", error);
+			this.paymentSummaryData = [];
 		}
 	},
 

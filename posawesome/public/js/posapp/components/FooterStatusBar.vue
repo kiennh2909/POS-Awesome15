@@ -28,7 +28,7 @@
 			<!-- Cash Balance -->
 			<div class="status-item">
 				<v-icon size="16" color="white">mdi-cash</v-icon>
-				<span class="status-text">{{ formatCurrency(cashBalance || 0) }}</span>
+				<span class="status-text">Cash: {{ formatCurrency(cashBalance || 0) }}</span>
 			</div>
 
 			<!-- Last Invoice -->
@@ -40,7 +40,7 @@
 			<!-- Today's Sales -->
 			<div class="status-item">
 				<v-icon size="16" color="white">mdi-chart-line</v-icon>
-				<span class="status-text">{{ formatCurrency(todaySales || 0) }}</span>
+				<span class="status-text">Today: {{ formatCurrency(todaySales || 0) }}</span>
 			</div>
 		</div>
 	</div>
@@ -58,6 +58,7 @@ export default {
 			cashBalance: 0,
 			lastInvoice: "",
 			todaySales: 0,
+			currency: "VND",  // Add currency property
 			timeInterval: null,
 			shiftReportData: null
 		};
@@ -162,6 +163,7 @@ export default {
 				this.cashBalance = data.cash_balance || 0;
 				this.lastInvoice = data.last_invoice || "";
 				this.todaySales = data.today_sales || 0;
+				this.currency = data.currency || "VND";  // Add currency from API
 			}
 		},
 
@@ -188,12 +190,25 @@ export default {
 		},
 
 		formatCurrency(value) {
-			if (value === null || value === undefined) return '₫0';
-			return new Intl.NumberFormat('vi-VN', {
-				style: 'currency',
-				currency: 'VND',
-				minimumFractionDigits: 0
-			}).format(value);
+			if (value === null || value === undefined) return `${this.currency}0`;
+
+			// Use different formatting based on currency
+			if (this.currency === 'USD' || this.currency === '$') {
+				return new Intl.NumberFormat('en-US', {
+					style: 'currency',
+					currency: 'USD',
+					minimumFractionDigits: 2
+				}).format(value);
+			} else if (this.currency === 'VND' || this.currency === '₫') {
+				return new Intl.NumberFormat('vi-VN', {
+					style: 'currency',
+					currency: 'VND',
+					minimumFractionDigits: 0
+				}).format(value);
+			} else {
+				// Generic formatting for other currencies
+				return `${this.currency}${value.toLocaleString()}`;
+			}
 		}
 	}
 };

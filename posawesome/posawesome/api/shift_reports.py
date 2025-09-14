@@ -260,11 +260,24 @@ def get_footer_status_data():
 			limit=1
 		)
 
+		# Get currency from POS Profile
+		currency = "VND"  # Default
+		if active_shift:
+			try:
+				opening_shift = frappe.get_doc("POS Opening Shift", active_shift[0].name)
+				if opening_shift.pos_profile:
+					pos_profile = frappe.get_doc("POS Profile", opening_shift.pos_profile)
+					if pos_profile.currency:
+						currency = pos_profile.currency
+			except Exception as e:
+				frappe.logger().warning(f"Could not get currency from POS Profile: {str(e)}")
+
 		# Initialize result with default values
 		result = {
 			"cashier_name": frappe.session.user_fullname or frappe.session.user,
 			"current_date": current_time.strftime("%Y-%m-%d"),
 			"current_time": current_time.strftime("%H:%M:%S"),
+			"currency": currency,  # Add currency to result
 			"shift_report_id": "",
 			"total_invoices": 0,
 			"total_revenue": 0,
@@ -297,24 +310,34 @@ def get_footer_status_data():
 				last_invoice_data = shift_report.invoices[-1]
 				result["last_invoice"] = last_invoice_data.invoice_no or ""
 
-		# Get cash balance from opening shift
-		if active_shift:
-			opening_shift = frappe.get_doc("POS Opening Shift", active_shift[0].name)
+		# Calculate cash balance from paid invoices in current shift
+		# Cash Balance = Total amount paid by "Tiền mặt - POS" in Sales Invoice Payment table
+		if shift_data.shift_report:
+			shift_report = frappe.get_doc("POS Shift Report", shift_data.shift_report)
 
-			# Calculate cash balance from opening amounts
-			# Support multiple cash payment methods
-			cash_payment_methods = ['cash', 'tiền mặt', 'tiền mặt - pos', 'cash - pos']
+			total_cash_balance = 0
 
-			if hasattr(opening_shift, 'balances') and opening_shift.balances:
-				total_cash_balance = 0
-				for balance in opening_shift.balances:
-					if balance.mode_of_payment:
-						mode_lower = balance.mode_of_payment.lower()
-						# Check if this is a cash payment method
-						if any(cash_type in mode_lower for cash_type in cash_payment_methods):
-							total_cash_balance += balance.amount or 0
+			# Get all paid invoices from shift report
+			if shift_report.invoices:
+				for invoice_entry in shift_report.invoices:
+					if invoice_entry.status == "Paid":
+						# Get the actual Sales Invoice document
+						try:
+							invoice_doc = frappe.get_doc("Sales Invoice", invoice_entry.invoice_no)
 
-				result["cash_balance"] = total_cash_balance
+							# Check payments in the invoice
+							if hasattr(invoice_doc, 'payments') and invoice_doc.payments:
+								for payment in invoice_doc.payments:
+									if (payment.mode_of_payment == "Tiền mặt - POS" and
+										payment.amount and payment.amount > 0):
+										total_cash_balance += payment.amount
+
+						except Exception as e:
+							# Skip if invoice not found or error
+							frappe.logger().warning(f"Could not get invoice {invoice_entry.invoice_no}: {str(e)}")
+							continue
+
+			result["cash_balance"] = total_cash_balance
 
 		return {
 			"success": True,
