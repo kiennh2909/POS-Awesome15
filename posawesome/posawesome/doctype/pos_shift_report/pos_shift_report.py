@@ -4,6 +4,7 @@ from frappe.model.document import Document
 from frappe.utils import nowdate, nowtime, get_datetime
 import json
 from posawesome.posawesome.utils.logging import get_logger
+from posawesome.posawesome.api.invoice import get_invoice_payment_method
 
 # Initialize logger
 log = get_logger("shift_report")
@@ -143,7 +144,11 @@ class POSShiftReport(Document):
 			self.save()
 
 	def get_payment_breakdown(self):
-		"""Get payment method breakdown from invoices"""
+		"""Get payment method breakdown from invoices
+
+		Now handles payment_method as JSON string containing payment breakdown dict
+		Format: {"Credit Card": 100, "Cash": 50, "Bank Transfer": 25}
+		"""
 		log.info(f"[SHIFT_REPORT_CALC] 💳 GET_PAYMENT_BREAKDOWN - Start - Shift Report: {self.name}")
 
 		breakdown = {}
@@ -154,15 +159,37 @@ class POSShiftReport(Document):
 			for invoice in self.invoices:
 				# Only count Paid invoices for payment breakdown (exclude Cancelled)
 				if invoice.status == "Paid":
-					payment_method = invoice.payment_method or "Cash"
-					amount = invoice.paid_amount or 0
+					try:
+						# Parse payment_method JSON string to dict
+						if invoice.payment_method:
+							payment_data = json.loads(invoice.payment_method)
+							log.debug(f"[SHIFT_REPORT_CALC] 💳 GET_PAYMENT_BREAKDOWN - Invoice {invoice.invoice_no} payment data: {payment_data}")
 
-					if payment_method in breakdown:
-						breakdown[payment_method] += amount
-					else:
-						breakdown[payment_method] = amount
+							# Merge payment data into breakdown
+							for method, amount in payment_data.items():
+								if method in breakdown:
+									breakdown[method] += amount
+								else:
+									breakdown[method] = amount
 
-					log.info(f"[SHIFT_REPORT_CALC] 💳 GET_PAYMENT_BREAKDOWN - Added payment: {payment_method} = {amount} - Invoice: {invoice.invoice_no}")
+							log.info(f"[SHIFT_REPORT_CALC] 💳 GET_PAYMENT_BREAKDOWN - Added payments from invoice {invoice.invoice_no}: {payment_data}")
+						else:
+							# Fallback for old format or missing data
+							log.warning(f"[SHIFT_REPORT_CALC] ⚠️ GET_PAYMENT_BREAKDOWN - No payment method data for invoice {invoice.invoice_no}")
+							breakdown["Cash"] = breakdown.get("Cash", 0) + (invoice.paid_amount or 0)
+
+					except (json.JSONDecodeError, TypeError) as e:
+						# Handle old string format or invalid JSON
+						log.warning(f"[SHIFT_REPORT_CALC] ⚠️ GET_PAYMENT_BREAKDOWN - Failed to parse payment method for invoice {invoice.invoice_no}: {str(e)}")
+						payment_method = invoice.payment_method or "Cash"
+						amount = invoice.paid_amount or 0
+
+						if payment_method in breakdown:
+							breakdown[payment_method] += amount
+						else:
+							breakdown[payment_method] = amount
+
+						log.info(f"[SHIFT_REPORT_CALC] 💳 GET_PAYMENT_BREAKDOWN - Used fallback for invoice {invoice.invoice_no}: {payment_method} = {amount}")
 				else:
 					log.info(f"[SHIFT_REPORT_CALC] 🚫 GET_PAYMENT_BREAKDOWN - Skipped invoice (not Paid): {invoice.invoice_no}, Status: {invoice.status}")
 
@@ -195,6 +222,13 @@ class POSShiftReport(Document):
 
 		# Add invoice entries
 		for invoice in invoices:
+			# Get complete payment breakdown for this invoice
+			invoice_doc = frappe.get_doc("Sales Invoice", invoice.name)
+			payment_breakdown = get_invoice_payment_method(invoice_doc)
+			payment_method_json = frappe.as_json(payment_breakdown)
+
+			log.info(f"[SHIFT_REPORT_UPDATE] 💳 Adding invoice {invoice.name} with payment breakdown: {payment_breakdown}")
+
 			self.append("invoices", {
 				"invoice_no": invoice.name,
 				"invoice_date": invoice.posting_date,
@@ -203,7 +237,7 @@ class POSShiftReport(Document):
 				"total_amount": invoice.grand_total,
 				"paid_amount": invoice.paid_amount,
 				"tax_amount": 0,  # Will be calculated from invoice taxes
-				"payment_method": "Cash",  # Default, will be updated from payments
+				"payment_method": payment_method_json,  # Store complete breakdown as JSON
 				"is_return": invoice.is_return or False,
 				"status": invoice.status
 			})

@@ -409,39 +409,76 @@ def apply_tax_inclusive(doc):
 
 def get_invoice_payment_method(invoice_doc):
 	"""
-	Get primary payment method from invoice payments
+	Get complete payment method breakdown from invoice payments
+
+	Returns full payment breakdown as JSON structure:
+	{"Credit Card": 100, "Cash": 50, "Bank Transfer": 25}
+
+	This allows storing complete payment information in shift reports
+	instead of just the primary payment method.
+
+	Based on tabSales Invoice Payment table structure:
+	- mode_of_payment: Payment method (Credit Card, Cash, Bank Transfer, etc.)
+	- amount: Payment amount
+	- default: Default payment flag
+	- parent: Linked to Sales Invoice
 
 	Args:
 		invoice_doc: Sales Invoice document
 
 	Returns:
-		str: Payment method name
+		dict: Complete payment breakdown {payment_method: total_amount, ...}
 	"""
 	try:
-		# Check if invoice has payments
+		breakdown = {}
+
+		# Check if invoice has payments child table
 		if hasattr(invoice_doc, 'payments') and invoice_doc.payments:
-			# Get the first payment method (primary payment)
+			log.debug(f"[PAYMENT_METHOD] Found {len(invoice_doc.payments)} payment entries for invoice {invoice_doc.name}")
+
 			for payment in invoice_doc.payments:
 				if payment.amount > 0:
-					return payment.mode_of_payment or "Cash"
+					method = payment.mode_of_payment or "Cash"
+					if method in breakdown:
+						breakdown[method] += payment.amount
+					else:
+						breakdown[method] = payment.amount
+
+			if breakdown:
+				log.debug(f"[PAYMENT_METHOD] Payment breakdown: {breakdown}")
+				return breakdown
 
 		# Fallback: Check payment entries linked to this invoice
+		log.debug(f"[PAYMENT_METHOD] No payments found in child table, checking Payment Entry references")
 		payment_entries = frappe.get_all("Payment Entry Reference",
 			filters={"reference_name": invoice_doc.name, "reference_doctype": "Sales Invoice"},
 			fields=["parent"]
 		)
 
 		if payment_entries:
-			payment_entry = frappe.get_doc("Payment Entry", payment_entries[0].parent)
-			if payment_entry.payment_type == "Receive" and payment_entry.paid_amount > 0:
-				return payment_entry.mode_of_payment or "Cash"
+			log.debug(f"[PAYMENT_METHOD] Found {len(payment_entries)} payment entry references")
+			for entry_ref in payment_entries:
+				payment_entry = frappe.get_doc("Payment Entry", entry_ref.parent)
+				if payment_entry.payment_type == "Receive" and payment_entry.paid_amount > 0:
+					method = payment_entry.mode_of_payment or "Cash"
+					if method in breakdown:
+						breakdown[method] += payment_entry.paid_amount
+					else:
+						breakdown[method] = payment_entry.paid_amount
 
 		# Default fallback
-		return "Cash"
+		if not breakdown:
+			log.debug(f"[PAYMENT_METHOD] No payment methods found, using default: Cash")
+			breakdown = {"Cash": invoice_doc.grand_total or 0}
+
+		log.debug(f"[PAYMENT_METHOD] Final breakdown: {breakdown}")
+		return breakdown
 
 	except Exception as e:
-		log.error(f"Error getting payment method for invoice {invoice_doc.name}: {str(e)}")
-		return "Cash"
+		log.error(f"[PAYMENT_METHOD] Error getting payment method for invoice {invoice_doc.name}: {str(e)}")
+		return {"Cash": invoice_doc.grand_total or 0}
+
+
 
 
 def validate_shift(doc):
@@ -517,8 +554,14 @@ def update_shift_report_with_invoice(invoice_doc, action):
 				log.info(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice already exists, will update totals")
 				needs_totals_update = True  # Still need to update totals
 			else:
-				# Get payment method
-				payment_method = get_invoice_payment_method(invoice_doc)
+				# Get COMPLETE payment breakdown (now returns dict)
+				payment_breakdown = get_invoice_payment_method(invoice_doc)
+
+				# Convert to JSON string for database storage
+				payment_method_json = frappe.as_json(payment_breakdown)
+
+				log.info(f"[INVOICE_TRACKING] 💳 UPDATE_SHIFT_REPORT - Payment breakdown: {payment_breakdown}")
+				log.debug(f"[INVOICE_TRACKING] 📄 UPDATE_SHIFT_REPORT - JSON for storage: {payment_method_json}")
 
 				# FIX: Generate name for child table row
 				child_name = frappe.generate_hash(length=10)
@@ -546,12 +589,14 @@ def update_shift_report_with_invoice(invoice_doc, action):
 						child_name, shift_report_name, "POS Shift Report", "invoices",
 						invoice_doc.name, invoice_doc.posting_date, invoice_doc.posting_time,
 						invoice_doc.customer, invoice_amount, invoice_doc.paid_amount or 0,
-						invoice_doc.total_taxes_and_charges or 0, payment_method,
+						invoice_doc.total_taxes_and_charges or 0, payment_method_json,  # Store JSON
 						is_return_value, status_value,  # Use actual status
 						frappe.session.user, frappe.session.user
 					))
 
-					log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Added invoice to shift report with status: {status_value}")
+					log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Added invoice to shift report with payment breakdown: {payment_breakdown}")
+					if len(payment_breakdown) > 1:
+						log.info(f"[INVOICE_TRACKING] ℹ️ UPDATE_SHIFT_REPORT - Invoice has {len(payment_breakdown)} payment methods")
 					needs_totals_update = True
 
 				except Exception as insert_error:
