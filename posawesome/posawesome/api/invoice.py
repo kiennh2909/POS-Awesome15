@@ -40,6 +40,10 @@ def validate(doc, method):
 
 # 	log.info(f"[BEFORE_SUBMIT] ✅ COMPLETED - Invoice: {doc.name}")
 
+def before_submit(doc, method):
+	log.info(f"[BEFORE_SUBMIT] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}, Amount: {doc.grand_total}")
+	log.info(f"[BEFORE_SUBMIT] ✅ COMPLETED - Invoice: {doc.name}")
+
 
 def on_submit(doc, method):
 	"""Update shift report when invoice is submitted"""
