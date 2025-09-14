@@ -38,7 +38,7 @@ class POSPaymentSummary(Document):
 def create_payment_summaries_for_shift(shift_report_name):
 	"""
 	Create payment summary records for a shift report
-	This is called when user clicks "List Invoice" button
+	Optimized version - simplified and more efficient
 
 	Args:
 		shift_report_name (str): Name of the POS Shift Report
@@ -46,138 +46,52 @@ def create_payment_summaries_for_shift(shift_report_name):
 	Returns:
 		dict: Result with success status and data
 	"""
-	log.info(f"[PAYMENT_SUMMARY] Creating payment summaries for shift report: {shift_report_name}")
+	log.info(f"[PAYMENT_SUMMARY] Creating payment summaries for: {shift_report_name}")
 
 	try:
-		# Get shift report
+		# 1. Get shift report data
 		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
-		log.info(f"[PAYMENT_SUMMARY] Found shift report: {shift_report.name}")
 
-		# Get all invoices for this shift
+		# 2. Get all invoices for this shift (optimized query)
 		invoices = frappe.get_all("Sales Invoice",
 			filters={
 				"pos_opening_shift": shift_report.pos_opening_shift,
-				"docstatus": 1  # Only submitted invoices
+				"docstatus": 1
 			},
-			fields=[
-				"name", "payment_method", "grand_total", "paid_amount",
-				"is_return", "status", "posting_date", "posting_time"
-			]
+			fields=["payment_method", "grand_total", "is_return"]
 		)
 
-		log.info(f"[PAYMENT_SUMMARY] Found {len(invoices)} invoices for shift report")
+		log.info(f"[PAYMENT_SUMMARY] Processing {len(invoices)} invoices")
 
-		# Group invoices by payment method
-		payment_methods = {}
+		# 3. Group and calculate payment methods (optimized)
+		payment_data = _calculate_payment_methods(invoices)
 
-		for invoice in invoices:
-			method = invoice.payment_method or "Cash"
-			amount = invoice.grand_total or 0
+		# 4. Get opening and expected amounts
+		opening_amounts = _parse_json_safe(shift_report.opening_amounts, {})
+		expected_closing = _parse_json_safe(shift_report.expected_closing_amounts, {})
 
-			if method not in payment_methods:
-				payment_methods[method] = {
-					"transaction_count": 0,
-					"transaction_amount": 0,
-					"sales_amount": 0,
-					"returns_amount": 0
-				}
-
-			payment_methods[method]["transaction_count"] += 1
-
-			# Handle returns (negative amounts)
-			if invoice.is_return:
-				payment_methods[method]["returns_amount"] += abs(amount)
-				payment_methods[method]["transaction_amount"] -= abs(amount)
-			else:
-				payment_methods[method]["sales_amount"] += amount
-				payment_methods[method]["transaction_amount"] += amount
-
-		# Get opening amounts from shift report
-		opening_amounts = {}
-		if shift_report.opening_amounts:
-			try:
-				opening_amounts = frappe.parse_json(shift_report.opening_amounts)
-			except:
-				log.warning(f"[PAYMENT_SUMMARY] Could not parse opening amounts for shift {shift_report.name}")
-
-		# Get expected closing amounts
-		expected_closing = {}
-		if shift_report.expected_closing_amounts:
-			try:
-				expected_closing = frappe.parse_json(shift_report.expected_closing_amounts)
-			except:
-				log.warning(f"[PAYMENT_SUMMARY] Could not parse expected closing amounts for shift {shift_report.name}")
-
-		# Create payment summary records
+		# 5. Create/update payment summaries
 		payment_summaries = []
 		created_count = 0
 		updated_count = 0
 
-		for method, data in payment_methods.items():
-			try:
-				# Check if payment summary already exists
-				existing = frappe.db.exists("POS Payment Summary", {
-					"shift_report_id": f"{shift_report.shift_report_id}_{method}",
-					"pos_shift_report": shift_report.name
-				})
+		for method, data in payment_data.items():
+			result = _create_or_update_payment_summary(
+				shift_report, method, data, opening_amounts, expected_closing
+			)
 
-				if existing:
-					# Update existing record
-					payment_summary = frappe.get_doc("POS Payment Summary", existing)
-					payment_summary.transaction_count = data["transaction_count"]
-					payment_summary.transaction_amount = data["transaction_amount"]
-					payment_summary.closing_amount = (opening_amounts.get(method, 0) + data["transaction_amount"])
-					payment_summary.expected_closing_amount = expected_closing.get(method, 0)
-					payment_summary.difference = payment_summary.closing_amount - payment_summary.expected_closing_amount
-					payment_summary.save()
-					updated_count += 1
-					log.info(f"[PAYMENT_SUMMARY] Updated payment summary for {method}")
-				else:
-					# Create new record
-					payment_summary = frappe.get_doc({
-						"doctype": "POS Payment Summary",
-						"shift_report_id": f"{shift_report.shift_report_id}_{method}",
-						"pos_shift_report": shift_report.name,
-						"pos_opening_shift": shift_report.pos_opening_shift,
-						"posting_date": shift_report.posting_date or shift_report.opening_date,
-						"shift_start_time": shift_report.opening_time,
-						"shift_end_time": shift_report.closing_date,
-						"payment_method": method,
-						"payment_method_type": get_payment_method_type(method),
-						"currency": "VND",  # Default, can be updated from POS Profile
-						"transaction_count": data["transaction_count"],
-						"company": shift_report.company,
-						"pos_profile": shift_report.pos_profile,
-						"opening_amount": opening_amounts.get(method, 0),
-						"transaction_amount": data["transaction_amount"],
-						"expected_closing_amount": expected_closing.get(method, 0),
-						"closing_amount": opening_amounts.get(method, 0) + data["transaction_amount"],
-						"notes": f"Auto-generated from shift report {shift_report.name}"
-					})
+			if result["created"]:
+				created_count += 1
+			else:
+				updated_count += 1
 
-					payment_summary.insert()
-					created_count += 1
-					log.info(f"[PAYMENT_SUMMARY] Created payment summary for {method}")
+			payment_summaries.append(result["summary"])
 
-				payment_summaries.append({
-					"payment_method": method,
-					"opening_amount": opening_amounts.get(method, 0),
-					"transaction_amount": data["transaction_amount"],
-					"closing_amount": opening_amounts.get(method, 0) + data["transaction_amount"],
-					"transaction_count": data["transaction_count"],
-					"sales_amount": data["sales_amount"],
-					"returns_amount": data["returns_amount"]
-				})
-
-			except Exception as e:
-				log.error(f"[PAYMENT_SUMMARY] Error creating payment summary for {method}: {str(e)}")
-				continue
-
-		log.info(f"[PAYMENT_SUMMARY] Completed: Created {created_count}, Updated {updated_count} payment summaries")
+		log.info(f"[PAYMENT_SUMMARY] Completed: {created_count} created, {updated_count} updated")
 
 		return {
 			"success": True,
-			"message": f"Payment summaries processed successfully. Created: {created_count}, Updated: {updated_count}",
+			"message": f"Processed {len(payment_summaries)} payment methods",
 			"data": {
 				"payment_summaries": payment_summaries,
 				"created_count": created_count,
@@ -187,11 +101,121 @@ def create_payment_summaries_for_shift(shift_report_name):
 		}
 
 	except Exception as e:
-		log.error(f"[PAYMENT_SUMMARY] Error creating payment summaries: {str(e)}")
+		log.error(f"[PAYMENT_SUMMARY] Error: {str(e)}")
 		return {
 			"success": False,
 			"message": f"Error creating payment summaries: {str(e)}"
 		}
+
+
+def _calculate_payment_methods(invoices):
+	"""Calculate payment method totals from invoices"""
+	payment_methods = {}
+
+	for invoice in invoices:
+		method = invoice.payment_method or "Cash"
+		amount = invoice.grand_total or 0
+
+		if method not in payment_methods:
+			payment_methods[method] = {
+				"transaction_count": 0,
+				"transaction_amount": 0,
+				"sales_amount": 0,
+				"returns_amount": 0
+			}
+
+		payment_methods[method]["transaction_count"] += 1
+
+		if invoice.is_return:
+			payment_methods[method]["returns_amount"] += abs(amount)
+			payment_methods[method]["transaction_amount"] -= abs(amount)
+		else:
+			payment_methods[method]["sales_amount"] += amount
+			payment_methods[method]["transaction_amount"] += amount
+
+	return payment_methods
+
+
+def _parse_json_safe(json_string, default=None):
+	"""Safely parse JSON string"""
+	if not json_string:
+		return default or {}
+
+	try:
+		return frappe.parse_json(json_string)
+	except:
+		log.warning(f"[PAYMENT_SUMMARY] Could not parse JSON: {json_string[:50]}...")
+		return default or {}
+
+
+def _create_or_update_payment_summary(shift_report, method, data, opening_amounts, expected_closing):
+	"""Create or update a single payment summary record"""
+	try:
+		# Check if exists
+		shift_report_id = f"{shift_report.shift_report_id}_{method}"
+		existing = frappe.db.exists("POS Payment Summary", {
+			"shift_report_id": shift_report_id,
+			"pos_shift_report": shift_report.name
+		})
+
+		opening_amount = opening_amounts.get(method, 0)
+		transaction_amount = data["transaction_amount"]
+		closing_amount = opening_amount + transaction_amount
+
+		if existing:
+			# Update existing
+			payment_summary = frappe.get_doc("POS Payment Summary", existing)
+			payment_summary.transaction_count = data["transaction_count"]
+			payment_summary.transaction_amount = transaction_amount
+			payment_summary.closing_amount = closing_amount
+			payment_summary.expected_closing_amount = expected_closing.get(method, 0)
+			payment_summary.difference = closing_amount - payment_summary.expected_closing_amount
+			payment_summary.save()
+
+			log.info(f"[PAYMENT_SUMMARY] Updated: {method}")
+			created = False
+		else:
+			# Create new
+			payment_summary = frappe.get_doc({
+				"doctype": "POS Payment Summary",
+				"shift_report_id": shift_report_id,
+				"pos_shift_report": shift_report.name,
+				"pos_opening_shift": shift_report.pos_opening_shift,
+				"posting_date": shift_report.posting_date or shift_report.opening_date,
+				"shift_start_time": shift_report.opening_time,
+				"shift_end_time": shift_report.closing_date,
+				"payment_method": method,
+				"payment_method_type": get_payment_method_type(method),
+				"currency": "VND",
+				"transaction_count": data["transaction_count"],
+				"company": shift_report.company,
+				"pos_profile": shift_report.pos_profile,
+				"opening_amount": opening_amount,
+				"transaction_amount": transaction_amount,
+				"expected_closing_amount": expected_closing.get(method, 0),
+				"closing_amount": closing_amount,
+				"notes": f"Auto-generated from shift report {shift_report.name}"
+			})
+
+			payment_summary.insert()
+			log.info(f"[PAYMENT_SUMMARY] Created: {method}")
+			created = True
+
+		summary = {
+			"payment_method": method,
+			"opening_amount": opening_amount,
+			"transaction_amount": transaction_amount,
+			"closing_amount": closing_amount,
+			"transaction_count": data["transaction_count"],
+			"sales_amount": data["sales_amount"],
+			"returns_amount": data["returns_amount"]
+		}
+
+		return {"created": created, "summary": summary}
+
+	except Exception as e:
+		log.error(f"[PAYMENT_SUMMARY] Error processing {method}: {str(e)}")
+		return None
 
 
 @frappe.whitelist()
