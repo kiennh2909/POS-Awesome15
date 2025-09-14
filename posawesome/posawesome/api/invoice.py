@@ -25,6 +25,17 @@ def validate(doc, method):
 	auto_set_delivery_charges(doc)
 	calc_delivery_charges(doc)
 	apply_tax_inclusive(doc)
+	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
+		log.info(f"[INVOICE_TRACKING] 🔄 ON_SUBMIT - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: submit")
+		update_shift_report_with_invoice(doc, "Paid")
+	else:
+		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_SUBMIT - No shift report reference - Invoice: {doc.name}")
+
+	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
+		log.info(f"[INVOICE_TRACKING] 🔄 ON_CANCEL - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: cancel")
+		update_shift_report_with_invoice(doc, "Cancelled")
+	else:
+		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_CANCEL - No shift report reference - Invoice: {doc.name}")
 
 
 def before_submit(doc, method):
@@ -33,30 +44,30 @@ def before_submit(doc, method):
 	update_coupon(doc, "used")
 
 
-def on_submit(doc, method):
-	"""Update shift report when invoice is submitted"""
-	# DEBUG: Add multiple log levels to ensure visibility
-	log.debug(f"🔥 ON SUBMIT on_submit called for {doc.name}")
-	print(f"🔥 DEBUG PRINT: on_submit called for {doc.name}")
-	log.debug(f"[INVOICE_TRACKING] 🔍 DEBUG - on_submit called - Method: {method}")
-	log.info(f"[INVOICE_TRACKING] 📤 ON_SUBMIT - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
-	log.warning(f"[INVOICE_TRACKING] ⚠️ WARNING - on_submit executed for invoice {doc.name}")
+# def on_submit(doc, method):
+# 	"""Update shift report when invoice is submitted"""
+# 	# DEBUG: Add multiple log levels to ensure visibility
+# 	log.debug(f"🔥 ON SUBMIT on_submit called for {doc.name}")
+# 	print(f"🔥 DEBUG PRINT: on_submit called for {doc.name}")
+# 	log.debug(f"[INVOICE_TRACKING] 🔍 DEBUG - on_submit called - Method: {method}")
+# 	log.info(f"[INVOICE_TRACKING] 📤 ON_SUBMIT - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
+# 	log.warning(f"[INVOICE_TRACKING] ⚠️ WARNING - on_submit executed for invoice {doc.name}")
 
-	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
-		log.info(f"[INVOICE_TRACKING] 🔄 ON_SUBMIT - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: submit")
-		update_shift_report_with_invoice(doc, "Paid")
-	else:
-		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_SUBMIT - No shift report reference - Invoice: {doc.name}")
+# 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
+# 		log.info(f"[INVOICE_TRACKING] 🔄 ON_SUBMIT - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: submit")
+# 		update_shift_report_with_invoice(doc, "Paid")
+# 	else:
+# 		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_SUBMIT - No shift report reference - Invoice: {doc.name}")
 
-def on_cancel(doc, method):
-	"""Update shift report when invoice is cancelled"""
-	log.info(f"[INVOICE_TRACKING] 🗑️ ON_CANCEL - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
+# def on_cancel(doc, method):
+# 	"""Update shift report when invoice is cancelled"""
+# 	log.info(f"[INVOICE_TRACKING] 🗑️ ON_CANCEL - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
 
-	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
-		log.info(f"[INVOICE_TRACKING] 🔄 ON_CANCEL - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: cancel")
-		update_shift_report_with_invoice(doc, "Cancelled")
-	else:
-		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_CANCEL - No shift report reference - Invoice: {doc.name}")
+# 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
+# 		log.info(f"[INVOICE_TRACKING] 🔄 ON_CANCEL - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: cancel")
+# 		update_shift_report_with_invoice(doc, "Cancelled")
+# 	else:
+# 		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_CANCEL - No shift report reference - Invoice: {doc.name}")
 
 def before_cancel(doc, method):
 	update_coupon(doc, "Cancelled")
