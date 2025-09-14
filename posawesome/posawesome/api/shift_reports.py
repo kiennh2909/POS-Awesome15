@@ -81,7 +81,7 @@ def get_shift_report(shift_report_id):
 	Returns:
 		dict: Shift report data (compatible with frappe.client.get format)
 	"""
-	log.info(f"[SHIFT_REPORT_API] 🎯 GET_SHIFT_REPORT - Start - Shift Report ID: {shift_report_id}")
+	log.info(f"[SHIFT_REPORT_API] 🎯 GET_SHIFT_REPORT - Start - Shift Report ID - THAM SO : {shift_report_id}")
 	log.info(f"[SHIFT_REPORT_API] 📋 GET_SHIFT_REPORT - ID Type: {type(shift_report_id)}")
 
 	# ✅ HANDLE JSON STRING OBJECT (Vue component sends object as JSON string)
@@ -603,9 +603,22 @@ def get_shift_report_with_payment_summary(shift_report_id):
 		shift_report_data = get_shift_report(shift_report_id)
 
 		# Create/update payment summaries for this shift report
-		from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import create_payment_summaries_for_shift
+		try:
+			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import create_payment_summaries_for_shift
+			payment_result = create_payment_summaries_for_shift(shift_report_data["name"])
+		except ImportError as ie:
+			log.error(f"[SHIFT_REPORT_API] ImportError for create_payment_summaries_for_shift: {str(ie)}")
+			log.error(f"[SHIFT_REPORT_API] Available functions in pos_payment_summary module:")
+			try:
+				import posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary as ps_module
+				log.error(f"[SHIFT_REPORT_API] Module functions: {[name for name in dir(ps_module) if not name.startswith('_')]}")
+			except Exception as e2:
+				log.error(f"[SHIFT_REPORT_API] Could not inspect module: {str(e2)}")
 
-		payment_result = create_payment_summaries_for_shift(shift_report_data["name"])
+			# Fallback: return without payment summaries
+			shift_report_data["payment_summaries"] = []
+			log.warning(f"[SHIFT_REPORT_API] Returning without payment summaries due to import error")
+			return shift_report_data
 
 		if payment_result["success"]:
 			log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Payment summaries processed: {payment_result['data']}")
