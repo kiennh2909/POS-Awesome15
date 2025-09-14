@@ -31,6 +31,7 @@ def before_submit(doc, method):
 
 def on_submit(doc, method):
 	"""Update shift report when invoice is submitted"""
+	logger = frappe.logger("update_invoice")
 	frappe.logger().info(f"[INVOICE_TRACKING] 📤 ON_SUBMIT - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
 
 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
@@ -344,6 +345,8 @@ def update_shift_report_with_invoice(invoice_doc, action):
 		invoice_doc: Sales Invoice document
 		action: "Paid" or "Cancelled"
 	"""
+	# LOG: Start update process
+	logger = frappe.logger("update_invoice")
 	frappe.logger().info(f"[INVOICE_TRACKING] 🎯 UPDATE_SHIFT_REPORT - Start - Invoice: {invoice_doc.name}, Action: {action}, Status: {invoice_doc.status}, Amount: {invoice_doc.grand_total}")
 
 	try:
