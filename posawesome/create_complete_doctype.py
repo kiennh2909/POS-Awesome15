@@ -44,7 +44,7 @@ def create_complete_pos_payment_summary_doctype():
         doctype_doc = frappe.get_doc({
             "doctype": "DocType",
             "name": doctype_name,
-            "module": "POS Awesome",
+            "module": "POSAwesome",
             "custom": 0,
             "is_submittable": 0,
             "autoname": "field:shift_report_id",
