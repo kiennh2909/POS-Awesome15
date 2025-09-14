@@ -20,17 +20,25 @@ log = get_logger("invoice")
 
 
 def validate(doc, method):
+	log.info(f"[INVOICE_VALIDATION] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}, Amount: {doc.grand_total}")
+
 	validate_shift(doc)
 	set_patient(doc)
 	auto_set_delivery_charges(doc)
 	calc_delivery_charges(doc)
 	apply_tax_inclusive(doc)
 
+	log.info(f"[INVOICE_VALIDATION] ✅ COMPLETED - Invoice: {doc.name}")
 
-def before_submit(doc, method):
-	add_loyalty_point(doc)
-	create_sales_order(doc)
-	update_coupon(doc, "used")
+
+# def before_submit(doc, method):
+# 	log.info(f"[BEFORE_SUBMIT] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}, Amount: {doc.grand_total}")
+
+# 	add_loyalty_point(doc)
+# 	create_sales_order(doc)
+# 	update_coupon(doc, "used")
+
+# 	log.info(f"[BEFORE_SUBMIT] ✅ COMPLETED - Invoice: {doc.name}")
 
 
 def on_submit(doc, method):
@@ -54,16 +62,27 @@ def on_cancel(doc, method):
 		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_CANCEL - No shift report reference - Invoice: {doc.name}")
 
 def before_cancel(doc, method):
+	log.info(f"[BEFORE_CANCEL] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}, Amount: {doc.grand_total}")
+
 	update_coupon(doc, "Cancelled")
 
+	log.info(f"[BEFORE_CANCEL] ✅ COMPLETED - Invoice: {doc.name}")
+
 def add_loyalty_point(invoice_doc):
+	log.info(f"[LOYALTY_POINTS] 🎯 START - Invoice: {invoice_doc.name}, Customer: {invoice_doc.customer}")
+
+	loyalty_points_added = 0
 	for offer in invoice_doc.posa_offers:
 		if offer.offer == "Loyalty Point":
+			log.info(f"[LOYALTY_POINTS] 🎫 Processing offer: {offer.offer_name}")
 			original_offer = frappe.get_doc("POS Offer", offer.offer_name)
 			if original_offer.loyalty_points > 0:
 				loyalty_program = frappe.get_value("Customer", invoice_doc.customer, "loyalty_program")
 				if not loyalty_program:
 					loyalty_program = original_offer.loyalty_program
+
+				log.info(f"[LOYALTY_POINTS] 💰 Adding {original_offer.loyalty_points} points to program: {loyalty_program}")
+
 				doc = frappe.get_doc(
 					{
 						"doctype": "Loyalty Point Entry",
@@ -79,32 +98,58 @@ def add_loyalty_point(invoice_doc):
 					}
 				)
 				doc.insert(ignore_permissions=True)
+				loyalty_points_added += original_offer.loyalty_points
+				log.info(f"[LOYALTY_POINTS] ✅ Added loyalty points entry: {doc.name}")
+
+	log.info(f"[LOYALTY_POINTS] 🎉 COMPLETED - Total points added: {loyalty_points_added}")
 
 
 def create_sales_order(doc):
-	if (
+	log.info(f"[SALES_ORDER] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}")
+
+	# Check conditions for creating sales order
+	conditions_met = (
 		doc.posa_pos_opening_shift
 		and doc.pos_profile
 		and doc.is_pos
 		and doc.posa_delivery_date
 		and not doc.update_stock
 		and frappe.get_value("POS Profile", doc.pos_profile, "posa_allow_sales_order")
-	):
+	)
+
+	log.info(f"[SALES_ORDER] 🔍 Conditions check - Opening Shift: {bool(doc.posa_pos_opening_shift)}, POS Profile: {bool(doc.pos_profile)}, Is POS: {bool(doc.is_pos)}, Delivery Date: {bool(doc.posa_delivery_date)}, Update Stock: {bool(doc.update_stock)}, Allow Sales Order: {bool(frappe.get_value('POS Profile', doc.pos_profile, 'posa_allow_sales_order'))}")
+
+	if conditions_met:
+		log.info(f"[SALES_ORDER] ✅ Conditions met, creating sales order")
 		sales_order_doc = make_sales_order(doc.name)
 		if sales_order_doc:
+			log.info(f"[SALES_ORDER] 📋 Sales order created: {sales_order_doc.name}")
 			sales_order_doc.posa_notes = doc.posa_notes
 			sales_order_doc.flags.ignore_permissions = True
 			sales_order_doc.flags.ignore_account_permission = True
 			sales_order_doc.save()
+			log.info(f"[SALES_ORDER] 💾 Sales order saved: {sales_order_doc.name}")
+
 			sales_order_doc.submit()
+			log.info(f"[SALES_ORDER] ✅ Sales order submitted: {sales_order_doc.name}")
+
 			url = frappe.utils.get_url_to_form(sales_order_doc.doctype, sales_order_doc.name)
 			msgprint = "Sales Order Created at <a href='{0}'>{1}</a>".format(url, sales_order_doc.name)
 			frappe.msgprint(_(msgprint), title="Sales Order Created", indicator="green", alert=True)
+
 			i = 0
 			for item in sales_order_doc.items:
 				doc.items[i].sales_order = sales_order_doc.name
 				doc.items[i].so_detail = item.name
 				i += 1
+
+			log.info(f"[SALES_ORDER] 🔗 Linked {i} items to sales order")
+		else:
+			log.warning(f"[SALES_ORDER] ⚠️ Failed to create sales order for invoice: {doc.name}")
+	else:
+		log.info(f"[SALES_ORDER] ℹ️ Conditions not met, skipping sales order creation")
+
+	log.info(f"[SALES_ORDER] 🎉 COMPLETED - Invoice: {doc.name}")
 
 
 def make_sales_order(source_name, target_doc=None, ignore_permissions=True):
@@ -151,27 +196,58 @@ def make_sales_order(source_name, target_doc=None, ignore_permissions=True):
 
 
 def update_coupon(doc, transaction_type):
+	log.info(f"[COUPON_UPDATE] 🎯 START - Invoice: {doc.name}, Transaction Type: {transaction_type}")
+
+	coupons_updated = 0
 	for coupon in doc.posa_coupons:
 		if not coupon.applied:
+			log.debug(f"[COUPON_UPDATE] ⏭️ Skipping unapplied coupon: {coupon.coupon}")
 			continue
+
+		log.info(f"[COUPON_UPDATE] 🎫 Updating coupon: {coupon.coupon}")
 		update_coupon_code_count(coupon.coupon, transaction_type)
+		coupons_updated += 1
+
+	log.info(f"[COUPON_UPDATE] ✅ COMPLETED - Updated {coupons_updated} coupons")
 
 
 def set_patient(doc):
+	log.info(f"[PATIENT_SETUP] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}")
+
 	domain = get_company_domain(doc.company)
+	log.info(f"[PATIENT_SETUP] 🏥 Company domain: {domain}")
+
 	if domain != "Healthcare":
+		log.info(f"[PATIENT_SETUP] ℹ️ Not healthcare domain, skipping patient setup")
 		return
+
+	log.info(f"[PATIENT_SETUP] 🔍 Looking for patient linked to customer: {doc.customer}")
 	patient_list = frappe.get_all("Patient", filters={"customer": doc.customer}, page_length=1)
+
 	if len(patient_list) > 0:
 		doc.patient = patient_list[0].name
+		log.info(f"[PATIENT_SETUP] ✅ Patient set: {doc.patient}")
+	else:
+		log.info(f"[PATIENT_SETUP] ℹ️ No patient found for customer: {doc.customer}")
+
+	log.info(f"[PATIENT_SETUP] 🎉 COMPLETED - Invoice: {doc.name}")
 
 
 def auto_set_delivery_charges(doc):
+	log.info(f"[DELIVERY_CHARGES] 🎯 START - Invoice: {doc.name}, POS Profile: {doc.pos_profile}")
+
 	if not doc.pos_profile:
-		return
-	if not frappe.get_cached_value("POS Profile", doc.pos_profile, "posa_auto_set_delivery_charges"):
+		log.info(f"[DELIVERY_CHARGES] ℹ️ No POS profile, skipping delivery charges setup")
 		return
 
+	auto_set_enabled = frappe.get_cached_value("POS Profile", doc.pos_profile, "posa_auto_set_delivery_charges")
+	log.info(f"[DELIVERY_CHARGES] 🔧 Auto set delivery charges enabled: {bool(auto_set_enabled)}")
+
+	if not auto_set_enabled:
+		log.info(f"[DELIVERY_CHARGES] ℹ️ Auto set delivery charges disabled, skipping")
+		return
+
+	log.info(f"[DELIVERY_CHARGES] 🔍 Getting applicable delivery charges")
 	delivery_charges = get_applicable_delivery_charges(
 		doc.company,
 		doc.pos_profile,
@@ -181,46 +257,75 @@ def auto_set_delivery_charges(doc):
 		restrict=True,
 	)
 
+	log.info(f"[DELIVERY_CHARGES] 📋 Found {len(delivery_charges)} applicable delivery charges")
+
 	if doc.posa_delivery_charges:
+		log.info(f"[DELIVERY_CHARGES] 📦 Delivery charges already set: {doc.posa_delivery_charges}")
 		if doc.posa_delivery_charges_rate:
+			log.info(f"[DELIVERY_CHARGES] 💰 Delivery charges rate already set: {doc.posa_delivery_charges_rate}")
 			return
 		else:
 			if len(delivery_charges) > 0:
 				doc.posa_delivery_charges_rate = delivery_charges[0].rate
+				log.info(f"[DELIVERY_CHARGES] ✅ Set delivery charges rate: {delivery_charges[0].rate}")
+			else:
+				log.info(f"[DELIVERY_CHARGES] ℹ️ No applicable delivery charges found")
 	else:
 		if len(delivery_charges) > 0:
 			doc.posa_delivery_charges = delivery_charges[0].name
 			doc.posa_delivery_charges_rate = delivery_charges[0].rate
+			log.info(f"[DELIVERY_CHARGES] ✅ Set delivery charges: {delivery_charges[0].name} at rate {delivery_charges[0].rate}")
 		else:
 			doc.posa_delivery_charges = None
 			doc.posa_delivery_charges_rate = None
+			log.info(f"[DELIVERY_CHARGES] ℹ️ No delivery charges applicable, set to None")
+
+	log.info(f"[DELIVERY_CHARGES] 🎉 COMPLETED - Invoice: {doc.name}")
 
 
 def calc_delivery_charges(doc):
+	log.info(f"[CALC_DELIVERY_CHARGES] 🎯 START - Invoice: {doc.name}, POS Profile: {doc.pos_profile}")
+
 	if not doc.pos_profile:
+		log.info(f"[CALC_DELIVERY_CHARGES] ℹ️ No POS profile, skipping calculation")
 		return
 
 	old_doc = None
 	calculate_taxes_and_totals = False
+
 	if not doc.is_new():
 		old_doc = doc.get_doc_before_save()
+		log.info(f"[CALC_DELIVERY_CHARGES] 📝 Existing document, checking for changes")
 		if not doc.posa_delivery_charges and not old_doc.posa_delivery_charges:
+			log.info(f"[CALC_DELIVERY_CHARGES] ℹ️ No delivery charges in both old and new, skipping")
 			return
 	else:
+		log.info(f"[CALC_DELIVERY_CHARGES] 🆕 New document")
 		if not doc.posa_delivery_charges:
+			log.info(f"[CALC_DELIVERY_CHARGES] ℹ️ No delivery charges set, skipping")
 			return
+
 	if not doc.posa_delivery_charges:
 		doc.posa_delivery_charges_rate = 0
+		log.info(f"[CALC_DELIVERY_CHARGES] ℹ️ No delivery charges, set rate to 0")
 
 	charges_doc = None
 	if doc.posa_delivery_charges:
+		log.info(f"[CALC_DELIVERY_CHARGES] 📦 Loading delivery charges document: {doc.posa_delivery_charges}")
 		charges_doc = frappe.get_cached_doc("Delivery Charges", doc.posa_delivery_charges)
 		doc.posa_delivery_charges_rate = charges_doc.default_rate
+		log.info(f"[CALC_DELIVERY_CHARGES] 💰 Set default rate: {charges_doc.default_rate}")
+
 		charges_profile = next((i for i in charges_doc.profiles if i.pos_profile == doc.pos_profile), None)
 		if charges_profile:
 			doc.posa_delivery_charges_rate = charges_profile.rate
+			log.info(f"[CALC_DELIVERY_CHARGES] ✅ Applied profile-specific rate: {charges_profile.rate}")
+		else:
+			log.info(f"[CALC_DELIVERY_CHARGES] ℹ️ No profile-specific rate found, using default")
 
+	# Remove old delivery charges from taxes if changed
 	if old_doc and old_doc.posa_delivery_charges:
+		log.info(f"[CALC_DELIVERY_CHARGES] 🔄 Checking for old delivery charges to remove")
 		old_charges = next(
 			(
 				i
@@ -232,8 +337,11 @@ def calc_delivery_charges(doc):
 		if old_charges:
 			doc.taxes.remove(old_charges)
 			calculate_taxes_and_totals = True
+			log.info(f"[CALC_DELIVERY_CHARGES] 🗑️ Removed old delivery charges from taxes")
 
+	# Add new delivery charges to taxes
 	if doc.posa_delivery_charges:
+		log.info(f"[CALC_DELIVERY_CHARGES] ➕ Adding delivery charges to taxes")
 		doc.append(
 			"taxes",
 			{
@@ -245,31 +353,54 @@ def calc_delivery_charges(doc):
 			},
 		)
 		calculate_taxes_and_totals = True
+		log.info(f"[CALC_DELIVERY_CHARGES] ✅ Added delivery charges to taxes: {doc.posa_delivery_charges_rate}")
 
 	if calculate_taxes_and_totals:
+		log.info(f"[CALC_DELIVERY_CHARGES] 🧮 Recalculating taxes and totals")
 		doc.calculate_taxes_and_totals()
+		log.info(f"[CALC_DELIVERY_CHARGES] ✅ Taxes and totals recalculated")
+
+	log.info(f"[CALC_DELIVERY_CHARGES] 🎉 COMPLETED - Invoice: {doc.name}")
 
 
 def apply_tax_inclusive(doc):
 	"""Mark taxes as inclusive based on POS Profile setting."""
+	log.info(f"[TAX_INCLUSIVE] 🎯 START - Invoice: {doc.name}, POS Profile: {doc.pos_profile}")
+
 	if not doc.pos_profile:
+		log.info(f"[TAX_INCLUSIVE] ℹ️ No POS profile, skipping tax inclusive setup")
 		return
+
 	try:
 		tax_inclusive = frappe.get_cached_value("POS Profile", doc.pos_profile, "posa_tax_inclusive")
-	except Exception:
+		log.info(f"[TAX_INCLUSIVE] 🔧 Tax inclusive setting: {bool(tax_inclusive)}")
+	except Exception as e:
 		tax_inclusive = 0
+		log.warning(f"[TAX_INCLUSIVE] ⚠️ Failed to get tax inclusive setting: {str(e)}")
 
 	if not tax_inclusive:
+		log.info(f"[TAX_INCLUSIVE] ℹ️ Tax inclusive disabled, skipping")
 		return
 
+	log.info(f"[TAX_INCLUSIVE] 📊 Processing {len(doc.get('taxes', []))} tax entries")
 	has_changes = False
+	changes_count = 0
+
 	for tax in doc.get("taxes", []):
 		if not tax.included_in_print_rate:
+			log.debug(f"[TAX_INCLUSIVE] 🔄 Setting tax inclusive for: {tax.description}")
 			tax.included_in_print_rate = 1
 			has_changes = True
+			changes_count += 1
+
+	log.info(f"[TAX_INCLUSIVE] ✅ Made {changes_count} tax entries inclusive")
 
 	if has_changes:
+		log.info(f"[TAX_INCLUSIVE] 🧮 Recalculating taxes and totals")
 		doc.calculate_taxes_and_totals()
+		log.info(f"[TAX_INCLUSIVE] ✅ Taxes and totals recalculated")
+
+	log.info(f"[TAX_INCLUSIVE] 🎉 COMPLETED - Invoice: {doc.name}")
 
 
 def get_invoice_payment_method(invoice_doc):
