@@ -142,12 +142,77 @@ def get_shift_report(shift_report_id):
 						log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Found existing shift report: {opening_shift.shift_report}")
 						shift_report = frappe.get_doc("POS Shift Report", opening_shift.shift_report)
 					else:
-						log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Data inconsistency: referenced shift report {opening_shift.shift_report} doesn't exist")
-						frappe.throw(_("Data inconsistency: Referenced shift report not found."))
+						# Data inconsistency - clean up and auto-create
+						log.warning(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT - Data inconsistency detected: referenced shift report {opening_shift.shift_report} doesn't exist")
+						log.info(f"[SHIFT_REPORT_API] 🔄 GET_SHIFT_REPORT - Cleaning up invalid references and auto-creating new shift report")
+
+						# Clean up invalid references
+						frappe.db.set_value("POS Opening Shift", opening_shift.name, {
+							"shift_report": "",
+							"shift_report_id": ""
+						})
+
+						# Auto-create new shift report
+						try:
+							create_result = create_shift_report({
+								"pos_opening_shift": opening_shift.name,
+								"opening_amounts": "{}"
+							})
+
+							if create_result.get("success"):
+								new_shift_report_name = create_result["data"]["name"]
+								new_shift_report_id = create_result["data"]["shift_report_id"]
+								log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Auto-created shift report: {new_shift_report_name} (ID: {new_shift_report_id})")
+
+								# Update opening shift with new references
+								frappe.db.set_value("POS Opening Shift", opening_shift.name, {
+									"shift_report": new_shift_report_name,
+									"shift_report_id": new_shift_report_id
+								})
+
+								shift_report = frappe.get_doc("POS Shift Report", new_shift_report_name)
+							else:
+								log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Failed to auto-create: {create_result.get('message')}")
+								frappe.throw(_("Failed to create shift report automatically."))
+						except Exception as e:
+							log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Error auto-creating: {str(e)}")
+							frappe.throw(_("Error creating shift report automatically."))
 				elif has_shift_report_ref or has_shift_report_id:
-					# Partial reference exists - inconsistency
-					log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Partial inconsistency: incomplete shift report references")
-					frappe.throw(_("Data inconsistency: Incomplete shift report references."))
+					# Partial reference exists - clean up and auto-create
+					log.warning(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT - Partial inconsistency: incomplete shift report references")
+					log.info(f"[SHIFT_REPORT_API] 🔄 GET_SHIFT_REPORT - Cleaning up partial references and auto-creating shift report")
+
+					# Clean up partial references
+					frappe.db.set_value("POS Opening Shift", opening_shift.name, {
+						"shift_report": "",
+						"shift_report_id": ""
+					})
+
+					# Auto-create shift report
+					try:
+						create_result = create_shift_report({
+							"pos_opening_shift": opening_shift.name,
+							"opening_amounts": "{}"
+						})
+
+						if create_result.get("success"):
+							new_shift_report_name = create_result["data"]["name"]
+							new_shift_report_id = create_result["data"]["shift_report_id"]
+							log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Auto-created shift report: {new_shift_report_name} (ID: {new_shift_report_id})")
+
+							# Update opening shift with new references
+							frappe.db.set_value("POS Opening Shift", opening_shift.name, {
+								"shift_report": new_shift_report_name,
+								"shift_report_id": new_shift_report_id
+							})
+
+							shift_report = frappe.get_doc("POS Shift Report", new_shift_report_name)
+						else:
+							log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Failed to auto-create: {create_result.get('message')}")
+							frappe.throw(_("Failed to create shift report automatically."))
+					except Exception as e:
+						log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Error auto-creating: {str(e)}")
+						frappe.throw(_("Error creating shift report automatically."))
 				else:
 					# No references exist - auto-create shift report
 					log.info(f"[SHIFT_REPORT_API] 🔄 GET_SHIFT_REPORT - No references found, auto-creating shift report for: {shift_report_id}")
@@ -172,6 +237,7 @@ def get_shift_report(shift_report_id):
 						else:
 							log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Failed to auto-create: {create_result.get('message')}")
 							frappe.throw(_("Failed to create shift report automatically."))
+
 					except Exception as e:
 						log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Error auto-creating: {str(e)}")
 						frappe.throw(_("Error creating shift report automatically."))
@@ -209,14 +275,82 @@ def get_shift_report(shift_report_id):
 					has_shift_report_id = hasattr(opening_shift, 'shift_report_id') and opening_shift.shift_report_id
 
 					if has_shift_report_ref and has_shift_report_id:
-						# Opening shift has both references, but shift report doesn't exist
-						# This is an error condition - data inconsistency
-						log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Data inconsistency: POS Opening Shift {shift_report_id} references non-existent shift report {opening_shift.shift_report}")
-						frappe.throw(_("Data inconsistency: Shift report reference exists but shift report not found. Please contact administrator."))
+						# Opening shift has both references - check if shift report actually exists
+						if frappe.db.exists("POS Shift Report", opening_shift.shift_report):
+							log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Found existing shift report: {opening_shift.shift_report}")
+							shift_report = frappe.get_doc("POS Shift Report", opening_shift.shift_report)
+						else:
+							# Data inconsistency - shift report reference exists but shift report doesn't exist
+							log.warning(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT - Data inconsistency detected: POS Opening Shift {shift_report_id} references non-existent shift report {opening_shift.shift_report}")
+							log.info(f"[SHIFT_REPORT_API] 🔄 GET_SHIFT_REPORT - Cleaning up invalid references and auto-creating new shift report")
+
+							# Clean up invalid references
+							frappe.db.set_value("POS Opening Shift", opening_shift.name, {
+								"shift_report": "",
+								"shift_report_id": ""
+							})
+
+							# Auto-create new shift report
+							try:
+								create_result = create_shift_report({
+									"pos_opening_shift": opening_shift.name,
+									"opening_amounts": "{}"
+								})
+
+								if create_result.get("success"):
+									new_shift_report_name = create_result["data"]["name"]
+									new_shift_report_id = create_result["data"]["shift_report_id"]
+									log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Auto-created shift report: {new_shift_report_name} (ID: {new_shift_report_id})")
+
+									# Update opening shift with new references
+									frappe.db.set_value("POS Opening Shift", opening_shift.name, {
+										"shift_report": new_shift_report_name,
+										"shift_report_id": new_shift_report_id
+									})
+
+									shift_report = frappe.get_doc("POS Shift Report", new_shift_report_name)
+								else:
+									log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Failed to auto-create shift report: {create_result.get('message')}")
+									frappe.throw(_("Failed to create shift report automatically. Please contact administrator."))
+							except Exception as create_error:
+								log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Error auto-creating shift report: {str(create_error)}")
+								frappe.throw(_("Error creating shift report automatically. Please contact administrator."))
 					elif has_shift_report_ref or has_shift_report_id:
-						# Partial reference exists - this is also an inconsistency
-						log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Partial data inconsistency: POS Opening Shift {shift_report_id} has incomplete shift report references")
-						frappe.throw(_("Data inconsistency: Incomplete shift report references. Please contact administrator."))
+						# Partial reference exists - clean up and auto-create
+						log.warning(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT - Partial data inconsistency: POS Opening Shift {shift_report_id} has incomplete shift report references")
+						log.info(f"[SHIFT_REPORT_API] 🔄 GET_SHIFT_REPORT - Cleaning up partial references and auto-creating shift report")
+
+						# Clean up partial references
+						frappe.db.set_value("POS Opening Shift", opening_shift.name, {
+							"shift_report": "",
+							"shift_report_id": ""
+						})
+
+						# Auto-create shift report
+						try:
+							create_result = create_shift_report({
+								"pos_opening_shift": opening_shift.name,
+								"opening_amounts": "{}"
+							})
+
+							if create_result.get("success"):
+								new_shift_report_name = create_result["data"]["name"]
+								new_shift_report_id = create_result["data"]["shift_report_id"]
+								log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT - Auto-created shift report: {new_shift_report_name} (ID: {new_shift_report_id})")
+
+								# Update opening shift with new references
+								frappe.db.set_value("POS Opening Shift", opening_shift.name, {
+									"shift_report": new_shift_report_name,
+									"shift_report_id": new_shift_report_id
+								})
+
+								shift_report = frappe.get_doc("POS Shift Report", new_shift_report_name)
+							else:
+								log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Failed to auto-create shift report: {create_result.get('message')}")
+								frappe.throw(_("Failed to create shift report automatically. Please contact administrator."))
+						except Exception as create_error:
+							log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT - Error auto-creating shift report: {str(create_error)}")
+							frappe.throw(_("Error creating shift report automatically. Please contact administrator."))
 					else:
 						# Opening shift exists but no shift_report references
 						# Auto-create shift report for this opening shift
