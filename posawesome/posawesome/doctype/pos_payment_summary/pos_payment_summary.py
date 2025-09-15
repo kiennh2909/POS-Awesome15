@@ -123,34 +123,43 @@ def create_payment_summaries_for_shift(shift_report_name):
 
 		# 6. Create/update payment summaries
 		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 7: Creating/updating payment summary records")
+		log.info(f"[PAYMENT_SUMMARY] 📊 STEP 7: Processing {len(payment_data)} payment methods from invoices")
 		payment_summaries = []
 		created_count = 0
 		updated_count = 0
 
 		for method, data in payment_data.items():
-			log.info(f"[PAYMENT_SUMMARY] 🔄 STEP 6: Processing payment method: {method}")
+			log.info(f"[PAYMENT_SUMMARY] 🔄 STEP 7: Processing payment method: '{method}'")
+			log.info(f"[PAYMENT_SUMMARY] 📈 STEP 7: {method} - Transaction Count: {data['transaction_count']}, Amount: {data['transaction_amount']}")
+
 			try:
+				# Log opening amount info
+				opening_amount = opening_amounts.get(method, 0)
+				log.info(f"[PAYMENT_SUMMARY] 💰 STEP 7: {method} - Opening Amount: {opening_amount}")
+
 				result = _create_or_update_payment_summary(
 					shift_report, method, data, opening_amounts, expected_closing
 				)
 
 				if result and result["created"]:
 					created_count += 1
-					log.info(f"[PAYMENT_SUMMARY] ✅ Created payment summary for {method}")
+					log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: CREATED payment summary for '{method}' (ID: {result['summary'].get('name', 'N/A')})")
 				elif result:
 					updated_count += 1
-					log.info(f"[PAYMENT_SUMMARY] ✅ Updated payment summary for {method}")
+					log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: UPDATED payment summary for '{method}' (ID: {result['summary'].get('name', 'N/A')})")
 
 				if result:
 					payment_summaries.append(result["summary"])
+					log.info(f"[PAYMENT_SUMMARY] 📊 STEP 7: {method} - Final Amount: {result['summary'].get('closing_amount', 0)}")
 				else:
-					log.warning(f"[PAYMENT_SUMMARY] ⚠️ Failed to process payment method: {method}")
+					log.warning(f"[PAYMENT_SUMMARY] ⚠️ STEP 7: FAILED to process payment method: '{method}' - No result returned")
 			except Exception as e:
-				log.error(f"[PAYMENT_SUMMARY] ❌ Error processing {method}: {str(e)}")
+				log.error(f"[PAYMENT_SUMMARY] ❌ STEP 7: ERROR processing '{method}': {str(e)}")
+				log.error(f"[PAYMENT_SUMMARY] ❌ STEP 7: {method} - Exception details: {type(e).__name__}")
 				continue
 
-		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: Processed {len(payment_summaries)} payment methods")
-		log.info(f"[PAYMENT_SUMMARY] 📈 STEP 7: Summary - Created: {created_count}, Updated: {updated_count}")
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: COMPLETED processing {len(payment_summaries)}/{len(payment_data)} payment methods")
+		log.info(f"[PAYMENT_SUMMARY] 📈 STEP 7: SUMMARY - Created: {created_count}, Updated: {updated_count}, Failed: {len(payment_data) - len(payment_summaries)}")
 
 		# 7. Validate data consistency
 		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 8: Validating data consistency")
@@ -288,15 +297,24 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 		# Sử dụng shift_report_id CHUNG cho tất cả payment methods của cùng shift
 		shift_report_id = shift_report.shift_report_id  # "SHIFT-POSA-OS-25-0000119"
 
+		log.info(f"[PAYMENT_SUMMARY] 🔍 Checking existing record for '{method}' in shift '{shift_report_id}'")
+
 		existing = frappe.db.exists("POS Payment Summary", {
 			"shift_report_id": shift_report_id,
 			"payment_method": method,  # Unique constraint: shift_report_id + payment_method
 			"pos_shift_report": shift_report.name
 		})
 
+		if existing:
+			log.info(f"[PAYMENT_SUMMARY] 📋 Found existing record: {existing} for '{method}'")
+		else:
+			log.info(f"[PAYMENT_SUMMARY] 📋 No existing record found for '{method}' - will create new")
+
 		opening_amount = opening_amounts.get(method, 0)
 		transaction_amount = data["transaction_amount"]
 		closing_amount = opening_amount + transaction_amount
+
+		log.info(f"[PAYMENT_SUMMARY] 💰 {method} - Opening: {opening_amount}, Transaction: {transaction_amount}, Closing: {closing_amount}")
 
 		# Create datetime values for shift times
 		shift_start_time = None
@@ -321,7 +339,14 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 
 		if existing:
 			# Update existing
+			log.info(f"[PAYMENT_SUMMARY] 🔄 Updating existing record for '{method}'")
 			payment_summary = frappe.get_doc("POS Payment Summary", existing)
+
+			# Log before update
+			old_transaction_count = payment_summary.transaction_count or 0
+			old_transaction_amount = payment_summary.transaction_amount or 0
+			log.info(f"[PAYMENT_SUMMARY] 📊 {method} - Before: Count={old_transaction_count}, Amount={old_transaction_amount}")
+
 			payment_summary.transaction_count = data["transaction_count"]
 			payment_summary.transaction_amount = transaction_amount
 			payment_summary.closing_amount = closing_amount
@@ -329,10 +354,11 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 			payment_summary.difference = closing_amount - payment_summary.expected_closing_amount
 			payment_summary.save()
 
-			log.info(f"[PAYMENT_SUMMARY] Updated: {method}")
+			log.info(f"[PAYMENT_SUMMARY] ✅ Updated '{method}': Count={data['transaction_count']} (+{data['transaction_count'] - old_transaction_count}), Amount={transaction_amount} (+{transaction_amount - old_transaction_amount})")
 			created = False
 		else:
 			# Create new - Quan hệ 1-n với shift_report_id chung
+			log.info(f"[PAYMENT_SUMMARY] 🆕 Creating new record for '{method}'")
 			payment_summary = frappe.get_doc({
 				"doctype": "POS Payment Summary",
 				"shift_report_id": shift_report_id,  # "SHIFT-POSA-OS-25-0000119" (chung)
@@ -355,7 +381,7 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 			})
 
 			payment_summary.insert()
-			log.info(f"[PAYMENT_SUMMARY] Created: {method}")
+			log.info(f"[PAYMENT_SUMMARY] ✅ Created new record for '{method}': ID={payment_summary.name}, Opening={opening_amount}, Transaction={transaction_amount}")
 			created = True
 
 		summary = {
@@ -589,17 +615,23 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 					"shift_report_id": shift_report.shift_report_id,
 					"pos_shift_report": shift_report.name
 				},
-				fields=["name"]
+				fields=["name", "payment_method"]
 			)
 
+			log.info(f"[PAYMENT_SUMMARY] 📊 Found {len(existing_records)} existing records to clean up")
+
 			for record in existing_records:
+				log.info(f"[PAYMENT_SUMMARY] 🗑️ Deleting existing record: {record.name} ({record.payment_method})")
 				frappe.delete_doc("POS Payment Summary", record.name, ignore_permissions=True)
 
 			if existing_records:
-				log.info(f"[PAYMENT_SUMMARY] 🗑️ Cleaned up {len(existing_records)} existing records")
+				log.info(f"[PAYMENT_SUMMARY] ✅ Successfully cleaned up {len(existing_records)} existing records")
+			else:
+				log.info(f"[PAYMENT_SUMMARY] ℹ️ No existing records found - fresh initialization")
 
 		except Exception as e:
-			log.warning(f"[PAYMENT_SUMMARY] Could not clean up existing records: {str(e)}")
+			log.warning(f"[PAYMENT_SUMMARY] ⚠️ Could not clean up existing records: {str(e)}")
+			log.warning(f"[PAYMENT_SUMMARY] ⚠️ Continuing with initialization despite cleanup failure")
 
 		# Create payment summary records for each payment method
 		# ALWAYS CREATE FRESH RECORDS - Don't check existing for initialization
