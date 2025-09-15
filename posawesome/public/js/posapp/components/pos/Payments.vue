@@ -1126,13 +1126,19 @@ export default {
 			});
 		},
 		submit(event, payment_received = false, print = false, tax = false ) {
-		// CHẶN DOUBLE-SUBMIT
-		if (this.loading) return;
+			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Submit Payment Start
+			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_PAYMENT_START - Invoice: ${this.invoice_doc?.name}, User: ${frappe.session.user}, Print: ${print}, Tax: ${tax}`);
 
-		// For return invoices, ensure payment amounts are negative
-		if (this.invoice_doc.is_return) {
-			this.ensureReturnPaymentsAreNegative();
-		}
+			// CHẶN DOUBLE-SUBMIT
+			if (this.loading) {
+				console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_PAYMENT_WARNING - Double submit prevented for invoice: ${this.invoice_doc?.name}`);
+				return;
+			}
+
+			// For return invoices, ensure payment amounts are negative
+			if (this.invoice_doc.is_return) {
+				this.ensureReturnPaymentsAreNegative();
+			}
 		// Validate total payments only if not credit sale and invoice total is not zero
 		if (
 			!this.is_credit_sale &&
@@ -1252,6 +1258,9 @@ export default {
 		this.submit_invoice(print , tax);
 		},
 	submit_invoice(print, tax) {
+	// [SHIFT_CLOSE_WORKFLOW] Vue Component - Submit Invoice Start
+	console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_INVOICE_START - Invoice: ${this.invoice_doc?.name}, User: ${frappe.session.user}, Print: ${print}, Tax: ${tax}`);
+
 	// === BƯỚC 1: CHUẨN BỊ DỮ LIỆU ===
 	if (this.invoice_doc.is_return) {
 		this.ensureReturnPaymentsAreNegative();
@@ -1271,6 +1280,8 @@ export default {
 
 	const vm = this;
 	const original_invoice_doc = { ...this.invoice_doc };
+
+	console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_INVOICE_PROCESS - Prepared data for invoice: ${this.invoice_doc?.name}`);
 
 	// === BƯỚC 2: GỌI SERVER ===
 	const req = frappe.call({
@@ -1301,6 +1312,8 @@ export default {
 			...original_invoice_doc,
 			name: r.message.name
 		};
+
+		console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_INVOICE_SUCCESS - Invoice submitted successfully: ${invoice_to_print.name}`);
 
 		// Thông báo & cập nhật
 		vm.eventBus.emit("show_message", {
@@ -2050,6 +2063,9 @@ export default {
 		// Set full amount for a payment method when clicked
 
 		set_full_amount(idx, ev) {
+			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Set Full Amount Start
+			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SET_FULL_AMOUNT_START - Invoice: ${this.invoice_doc?.name}, Payment idx: ${idx}, User: ${frappe.session.user}`);
+
 			console.log("🔄 [PAYMENT] set_full_amount called with idx:", idx);
 			console.log("📋 [PAYMENT] Event object:", ev);
 			console.log("📄 [PAYMENT] Current invoice_doc:", {

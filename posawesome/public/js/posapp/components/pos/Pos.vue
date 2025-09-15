@@ -218,8 +218,12 @@ export default {
 			this.dialog = true;
 		},
 		get_closing_data() {
+			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Get Closing Data Start
+			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_START - Opening shift: ${this.pos_opening_shift}, User: ${frappe.session.user}`);
+
 			// Validate opening shift exists
 			if (!this.pos_opening_shift) {
+				console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_ERROR - No active opening shift found`);
 				this.eventBus.emit("show_message", {
 					title: __("No active opening shift found"),
 					color: "error",
@@ -236,6 +240,8 @@ export default {
 				color: "blue",
 			});
 
+			const startTime = Date.now();
+
 			return frappe
 				.call(
 					"posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.make_closing_shift_from_opening",
@@ -244,13 +250,17 @@ export default {
 					},
 				)
 				.then((r) => {
+					const processingTime = Date.now() - startTime;
+
 					if (r.message) {
+						console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_SUCCESS - Closing shift data loaded successfully - Processing time: ${processingTime}ms`);
 						this.eventBus.emit("open_ClosingDialog", r.message);
 						this.eventBus.emit("show_message", {
 							title: __("Closing shift data loaded"),
 							color: "success",
 						});
 					} else {
+						console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_WARNING - No closing shift data received - Processing time: ${processingTime}ms`);
 						this.eventBus.emit("show_message", {
 							title: __("No closing shift data received"),
 							color: "warning",
@@ -258,8 +268,10 @@ export default {
 					}
 				})
 				.catch((error) => {
+					const processingTime = Date.now() - startTime;
 					const error_message = error.message || __("Failed to load closing shift data");
-					console.error("Get closing data error:", error);
+
+					console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_ERROR - Failed to load closing shift data - Processing time: ${processingTime}ms - Error:`, error);
 
 					this.eventBus.emit("show_message", {
 						title: error_message,
@@ -271,8 +283,12 @@ export default {
 				});
 		},
 		submit_closing_pos(data) {
+			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Submit Closing POS Start
+			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_START - Opening shift: ${data?.pos_opening_shift}, User: ${frappe.session.user}`);
+
 			// Validate input data
 			if (!data || !data.pos_opening_shift) {
+				console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_ERROR - Invalid closing shift data`);
 				this.eventBus.emit("show_message", {
 					title: __("Invalid closing shift data"),
 					color: "error",
@@ -290,6 +306,8 @@ export default {
 				color: "blue",
 			});
 
+			const startTime = Date.now();
+
 			frappe
 				.call(
 					"posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift",
@@ -298,7 +316,11 @@ export default {
 					},
 				)
 				.then((r) => {
+					const processingTime = Date.now() - startTime;
+
 					if (r.message && r.message.success) {
+						console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_SUCCESS - POS Shift closed successfully - Processing time: ${processingTime}ms - Request ID: ${r.message.request_id}`);
+
 						// Success handling
 						this.last_error = null;
 
@@ -326,20 +348,22 @@ export default {
 						const error_message = r.message?.message || __("Failed to close POS shift");
 						this.last_error = error_message;
 
+						console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_ERROR - API returned unsuccessful response - Processing time: ${processingTime}ms - Error:`, r.message);
+
 						this.eventBus.emit("show_message", {
 							title: error_message,
 							color: "error",
 						});
-
-						console.error("Submit closing shift error:", r.message);
 					}
 				})
 				.catch((error) => {
+					const processingTime = Date.now() - startTime;
+
 					// Handle network/other errors
 					const error_message = error.message || __("Network error while closing shift");
 					this.last_error = error_message;
 
-					console.error("Submit closing shift network error:", error);
+					console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_ERROR - Network error while closing shift - Processing time: ${processingTime}ms - Error:`, error);
 
 					this.eventBus.emit("show_message", {
 						title: error_message,
@@ -386,26 +410,32 @@ export default {
 		},
 
 		load_shift_report_data() {
+			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Load Shift Report Data Start
+			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_START - Shift report: ${this.pos_shift_report}, User: ${frappe.session.user}`);
+
 			if (!this.pos_shift_report) {
-				console.warn("No shift report ID to load");
+				console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_WARNING - No shift report ID to load`);
 				return;
 			}
 
-			console.info("Loading shift report data for:", this.pos_shift_report);
+			const startTime = Date.now();
 
 			frappe.call("posawesome.posawesome.api.shift_reports.get_shift_report", {
 				shift_report_id: this.pos_shift_report
 			}).then((r) => {
-				console.info("Shift report API response:", r);
+				const processingTime = Date.now() - startTime;
+
 				if (r.message && r.message.success) {
 					this.shift_report_data = r.message.data;
 					this.eventBus.emit("register_shift_report", this.shift_report_data);
-					console.info("Shift Report data loaded successfully:", this.shift_report_data);
+					console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_SUCCESS - Shift Report data loaded successfully - Processing time: ${processingTime}ms`);
 				} else {
-					console.error("Shift report API returned unsuccessful response:", r.message);
+					console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_ERROR - API returned unsuccessful response - Processing time: ${processingTime}ms - Response:`, r.message);
 				}
 			}).catch((err) => {
-				console.error("Failed to load shift report data:", err);
+				const processingTime = Date.now() - startTime;
+
+				console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_ERROR - Failed to load shift report data - Processing time: ${processingTime}ms - Error:`, err);
 
 				// Hiển thị cảnh báo nếu load shift report thất bại
 				if (window.frappe && frappe.show_alert) {
