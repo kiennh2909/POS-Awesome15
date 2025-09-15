@@ -1001,7 +1001,6 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 				"shift_report_id": shift_report_id,
 				"payment_method": method,
 				"pos_shift_report": shift_report.name,
-				"pos_profile": pos_profile,  # ràng buộc bổ sung
 			},
 		)
 
@@ -1145,8 +1144,6 @@ def validate_payment_summary_consistency(shift_report):
 			"shift_report_id": shift_report.shift_report_id,
 			"pos_shift_report": shift_report.name,
 		}
-		if pos_profile:
-			filters["pos_profile"] = pos_profile
 
 		summ_rows = frappe.get_all(
 			"POS Payment Summary",

@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_copy": 0,
- "autoname": "field:shift_report_id",
+ "autoname": "eval:doc.shift_report_id + '-' + frappe.utils.cstr(doc.payment_method).replace(' ', '_').replace('-', '_')",
  "creation": "2025-09-14 17:35:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -43,8 +43,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Shift Report ID",
-   "reqd": 1,
-   "unique": 1
+   "reqd": 1
   },
   {
    "fieldname": "pos_shift_report",
