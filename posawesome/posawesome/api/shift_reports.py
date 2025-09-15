@@ -53,6 +53,23 @@ def create_shift_report(data):
 
 		shift_report.insert()
 
+		# ✅ AUTO-CREATE POS PAYMENT SUMMARY RECORDS
+		log.info(f"[SHIFT_REPORT_API] 🔄 CREATE_SHIFT_REPORT - Auto-creating POS Payment Summary records for: {shift_report.name}")
+		try:
+			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import initialize_payment_summaries_for_shift
+
+			init_result = initialize_payment_summaries_for_shift(shift_report.name)
+
+			if init_result.get("success"):
+				log.info(f"[SHIFT_REPORT_API] ✅ CREATE_SHIFT_REPORT - Auto-created {init_result['data']['initialized_count']} POS Payment Summary records")
+			else:
+				log.warning(f"[SHIFT_REPORT_API] ⚠️ CREATE_SHIFT_REPORT - Failed to auto-create POS Payment Summary: {init_result.get('message')}")
+
+		except Exception as init_error:
+			log.error(f"[SHIFT_REPORT_API] ❌ CREATE_SHIFT_REPORT - Error auto-creating POS Payment Summary: {str(init_error)}")
+			# Don't fail the entire operation if payment summary creation fails
+			# Just log the error and continue
+
 		return {
 			"success": True,
 			"message": _("Shift report created successfully"),
