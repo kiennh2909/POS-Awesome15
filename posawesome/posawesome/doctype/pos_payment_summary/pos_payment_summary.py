@@ -87,17 +87,21 @@ def create_payment_summaries_for_shift(shift_report_name):
 
 		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 3: Retrieved payment methods for {payment_methods_found}/{len(invoices)} invoices")
 
-		# 3. Group and calculate payment methods (optimized)
-		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 4: Grouping and calculating payment methods")
-		payment_data = _calculate_payment_methods(invoices, invoice_payments)
-		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 4: Grouped into {len(payment_data)} payment methods")
+		# 3. Get valid payment methods for validation
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 4: Getting valid payment methods for validation")
+		valid_payment_methods = get_valid_payment_methods_for_shift(shift_report)
+
+		# 4. Group and calculate payment methods with validation
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 5: Grouping and calculating payment methods with validation")
+		payment_data = _calculate_payment_methods(invoices, invoice_payments, valid_payment_methods)
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 5: Grouped into {len(payment_data)} payment methods")
 
 		# Log payment method details
 		for method, data in payment_data.items():
 			log.info(f"[PAYMENT_SUMMARY] 📊 STEP 4: {method} - {data['transaction_count']} transactions, Amount: {data['transaction_amount']}")
 
-		# 4. Get opening and expected amounts from POS Opening Shift Detail
-		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 5: Parsing opening and expected amounts from POS Opening Shift Detail")
+		# 5. Get opening and expected amounts from POS Opening Shift Detail
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 6: Parsing opening and expected amounts from POS Opening Shift Detail")
 
 		# Get opening amounts from POS Opening Shift Detail (balance_details)
 		opening_amounts = {}
@@ -106,19 +110,19 @@ def create_payment_summaries_for_shift(shift_report_name):
 			if hasattr(opening_shift, 'balance_details') and opening_shift.balance_details:
 				for detail in opening_shift.balance_details:
 					opening_amounts[detail.mode_of_payment] = detail.amount or 0
-				log.info(f"[PAYMENT_SUMMARY] ✅ STEP 5: Loaded {len(opening_amounts)} opening amounts from POS Opening Shift Detail")
+				log.info(f"[PAYMENT_SUMMARY] ✅ STEP 6: Loaded {len(opening_amounts)} opening amounts from POS Opening Shift Detail")
 			else:
-				log.warning(f"[PAYMENT_SUMMARY] ⚠️ STEP 5: No balance_details found in POS Opening Shift")
+				log.warning(f"[PAYMENT_SUMMARY] ⚠️ STEP 6: No balance_details found in POS Opening Shift")
 		except Exception as e:
-			log.error(f"[PAYMENT_SUMMARY] ❌ STEP 5: Error loading opening amounts from POS Opening Shift Detail: {str(e)}")
+			log.error(f"[PAYMENT_SUMMARY] ❌ STEP 6: Error loading opening amounts from POS Opening Shift Detail: {str(e)}")
 
 		# Get expected closing amounts (fallback to shift report if available)
 		expected_closing = _parse_json_safe(shift_report.expected_closing_amounts, {})
 
-		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 5: Opening amounts: {len(opening_amounts)} methods, Expected: {len(expected_closing)} methods")
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 6: Opening amounts: {len(opening_amounts)} methods, Expected: {len(expected_closing)} methods")
 
-		# 5. Create/update payment summaries
-		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 6: Creating/updating payment summary records")
+		# 6. Create/update payment summaries
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 7: Creating/updating payment summary records")
 		payment_summaries = []
 		created_count = 0
 		updated_count = 0
@@ -145,25 +149,38 @@ def create_payment_summaries_for_shift(shift_report_name):
 				log.error(f"[PAYMENT_SUMMARY] ❌ Error processing {method}: {str(e)}")
 				continue
 
-		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 6: Processed {len(payment_summaries)} payment methods")
-		log.info(f"[PAYMENT_SUMMARY] 📈 STEP 6: Summary - Created: {created_count}, Updated: {updated_count}")
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: Processed {len(payment_summaries)} payment methods")
+		log.info(f"[PAYMENT_SUMMARY] 📈 STEP 7: Summary - Created: {created_count}, Updated: {updated_count}")
 
-		# 7. Commit database changes
-		log.info(f"[PAYMENT_SUMMARY] 💾 STEP 7: Committing database changes")
+		# 7. Validate data consistency
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 8: Validating data consistency")
+		try:
+			validate_payment_summary_consistency(shift_report)
+			log.info(f"[PAYMENT_SUMMARY] ✅ STEP 8: Data consistency validated")
+		except Exception as e:
+			log.error(f"[PAYMENT_SUMMARY] ❌ STEP 8: Data consistency validation failed: {str(e)}")
+			return {
+				"success": False,
+				"message": f"Data consistency validation failed: {str(e)}"
+			}
+
+		# 8. Commit database changes
+		log.info(f"[PAYMENT_SUMMARY] 💾 STEP 9: Committing database changes")
 		frappe.db.commit()
-		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: Database changes committed")
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 9: Database changes committed")
 
-		# 8. Final summary and return
+		# 9. Final summary and return
 		log.info(f"[PAYMENT_SUMMARY] 🎉 COMPLETED: Successfully processed {len(payment_summaries)} payment methods for shift {shift_report_name}")
 
 		return {
 			"success": True,
-			"message": f"Processed {len(payment_summaries)} payment methods",
+			"message": f"Processed {len(payment_summaries)} payment methods with validation",
 			"data": {
 				"payment_summaries": payment_summaries,
 				"created_count": created_count,
 				"updated_count": updated_count,
-				"total_methods": len(payment_summaries)
+				"total_methods": len(payment_summaries),
+				"validation_passed": True
 			}
 		}
 
@@ -175,9 +192,29 @@ def create_payment_summaries_for_shift(shift_report_name):
 		}
 
 
-def _calculate_payment_methods(invoices, invoice_payments):
-	"""Calculate payment method totals from invoices and payments"""
+def _calculate_payment_methods(invoices, invoice_payments, valid_payment_methods=None):
+	"""
+	Calculate payment method totals from invoices and payments with validation
+
+	Args:
+		invoices: List of invoice documents
+		invoice_payments: Dict of payment info per invoice
+		valid_payment_methods: List of valid payment methods (optional)
+
+	Returns:
+		dict: Payment method totals
+	"""
 	payment_methods = {}
+
+	# If valid_payment_methods provided, initialize with all valid methods
+	if valid_payment_methods:
+		for method in valid_payment_methods:
+			payment_methods[method] = {
+				"transaction_count": 0,
+				"transaction_amount": 0,
+				"sales_amount": 0,
+				"returns_amount": 0
+			}
 
 	for invoice in invoices:
 		# Get payment method from payments data
@@ -185,6 +222,12 @@ def _calculate_payment_methods(invoices, invoice_payments):
 		method = payment_info.get("payment_method", "Tiền mặt - POS")
 		amount = invoice.grand_total or 0
 
+		# Validate payment method if validation list provided
+		if valid_payment_methods and method not in valid_payment_methods:
+			log.warning(f"[PAYMENT_SUMMARY] Skipping invalid payment method '{method}' for invoice {invoice.name}")
+			continue
+
+		# Initialize method if not exists
 		if method not in payment_methods:
 			payment_methods[method] = {
 				"transaction_count": 0,
@@ -373,6 +416,85 @@ def get_payment_summaries_for_shift(shift_report_name):
 			"success": False,
 			"message": f"Error getting payment summaries: {str(e)}"
 		}
+
+
+def get_valid_payment_methods_for_shift(shift_report):
+	"""
+	Get list of valid payment methods for a shift from POS Payment Summary
+
+	Args:
+		shift_report: POS Shift Report document
+
+	Returns:
+		list: List of valid payment method names
+	"""
+	try:
+		payment_summaries = frappe.get_all("POS Payment Summary",
+			filters={
+				"shift_report_id": shift_report.shift_report_id,
+				"pos_shift_report": shift_report.name
+			},
+			fields=["payment_method"]
+		)
+
+		valid_methods = [ps.payment_method for ps in payment_summaries]
+		log.info(f"[PAYMENT_SUMMARY] Found {len(valid_methods)} valid payment methods: {valid_methods}")
+		return valid_methods
+
+	except Exception as e:
+		log.error(f"[PAYMENT_SUMMARY] Error getting valid payment methods: {str(e)}")
+		return []
+
+
+def validate_payment_summary_consistency(shift_report):
+	"""
+	Validate that POS Payment Summary records match POS Opening Shift Detail records
+
+	Args:
+		shift_report: POS Shift Report document
+
+	Raises:
+		frappe.ValidationError: If consistency check fails
+	"""
+	try:
+		# 1. Get opening shift details count
+		opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
+		opening_details_count = len(opening_shift.balance_details or [])
+
+		# 2. Get payment summaries count
+		payment_summaries_count = frappe.db.count("POS Payment Summary", {
+			"shift_report_id": shift_report.shift_report_id,
+			"pos_shift_report": shift_report.name
+		})
+
+		# 3. Validate counts match
+		if payment_summaries_count != opening_details_count:
+			error_msg = f"Tính nhất quán dữ liệu bị vi phạm: {payment_summaries_count} payment summaries vs {opening_details_count} opening details"
+			log.error(f"[PAYMENT_SUMMARY] {error_msg}")
+			frappe.throw(error_msg)
+
+		# 4. Validate payment methods match
+		opening_methods = [d.mode_of_payment for d in opening_shift.balance_details or []]
+		summary_methods = frappe.get_all("POS Payment Summary",
+			filters={
+				"shift_report_id": shift_report.shift_report_id,
+				"pos_shift_report": shift_report.name
+			},
+			fields=["payment_method"]
+		)
+		summary_methods = [ps.payment_method for ps in summary_methods]
+
+		if set(opening_methods) != set(summary_methods):
+			error_msg = f"Payment methods không khớp: Opening={opening_methods}, Summary={summary_methods}"
+			log.error(f"[PAYMENT_SUMMARY] {error_msg}")
+			frappe.throw(error_msg)
+
+		log.info(f"[PAYMENT_SUMMARY] ✅ Data consistency validated: {payment_summaries_count} records match")
+
+	except Exception as e:
+		log.error(f"[PAYMENT_SUMMARY] Error validating consistency: {str(e)}")
+		if "Tính nhất quán dữ liệu" not in str(e):
+			frappe.throw(f"Lỗi validate tính nhất quán: {str(e)}")
 
 
 def get_payment_method_type(payment_method):
