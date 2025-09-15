@@ -86,6 +86,11 @@ export default {
 			offers: false,
 			coupons: false,
 			showListInvoicesDialog: false,
+			// Loading states
+			loading: false,
+			submitting_closing: false,
+			// Error handling
+			last_error: null,
 		};
 	},
 
@@ -213,6 +218,24 @@ export default {
 			this.dialog = true;
 		},
 		get_closing_data() {
+			// Validate opening shift exists
+			if (!this.pos_opening_shift) {
+				this.eventBus.emit("show_message", {
+					title: __("No active opening shift found"),
+					color: "error",
+				});
+				return;
+			}
+
+			// Set loading state
+			this.loading = true;
+
+			// Show loading message
+			this.eventBus.emit("show_message", {
+				title: __("Loading closing shift data..."),
+				color: "blue",
+			});
+
 			return frappe
 				.call(
 					"posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.make_closing_shift_from_opening",
@@ -223,36 +246,109 @@ export default {
 				.then((r) => {
 					if (r.message) {
 						this.eventBus.emit("open_ClosingDialog", r.message);
+						this.eventBus.emit("show_message", {
+							title: __("Closing shift data loaded"),
+							color: "success",
+						});
 					} else {
-						// console.log(r);
+						this.eventBus.emit("show_message", {
+							title: __("No closing shift data received"),
+							color: "warning",
+						});
 					}
+				})
+				.catch((error) => {
+					const error_message = error.message || __("Failed to load closing shift data");
+					console.error("Get closing data error:", error);
+
+					this.eventBus.emit("show_message", {
+						title: error_message,
+						color: "error",
+					});
+				})
+				.finally(() => {
+					this.loading = false;
 				});
 		},
 		submit_closing_pos(data) {
+			// Validate input data
+			if (!data || !data.pos_opening_shift) {
+				this.eventBus.emit("show_message", {
+					title: __("Invalid closing shift data"),
+					color: "error",
+				});
+				return;
+			}
+
+			// Set loading state
+			this.submitting_closing = true;
+			this.last_error = null;
+
+			// Show loading message
+			this.eventBus.emit("show_message", {
+				title: __("Submitting closing shift..."),
+				color: "blue",
+			});
+
 			frappe
 				.call(
 					"posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift",
 					{
-						closing_shift: data,
+						closing_shift: JSON.stringify(data),
 					},
 				)
 				.then((r) => {
-					if (r.message) {
+					if (r.message && r.message.success) {
+						// Success handling
+						this.last_error = null;
+
 						// Clear the cached opening shift data
 						this.pos_opening_shift = null;
 						this.pos_profile = null;
+						this.pos_shift_report = null;
+						this.shift_report_data = {};
 
 						// Clear from local storage
 						clearOpeningStorage();
 
 						this.eventBus.emit("show_message", {
-							title: `POS Shift Closed`,
+							title: __("POS Shift Closed Successfully"),
 							color: "success",
 						});
-						this.check_opening_entry();
+
+						// Reload opening entry after a short delay
+						setTimeout(() => {
+							this.check_opening_entry();
+						}, 1000);
+
 					} else {
-						console.log(r);
+						// Handle API error response
+						const error_message = r.message?.message || __("Failed to close POS shift");
+						this.last_error = error_message;
+
+						this.eventBus.emit("show_message", {
+							title: error_message,
+							color: "error",
+						});
+
+						console.error("Submit closing shift error:", r.message);
 					}
+				})
+				.catch((error) => {
+					// Handle network/other errors
+					const error_message = error.message || __("Network error while closing shift");
+					this.last_error = error_message;
+
+					console.error("Submit closing shift network error:", error);
+
+					this.eventBus.emit("show_message", {
+						title: error_message,
+						color: "error",
+					});
+				})
+				.finally(() => {
+					// Always clear loading state
+					this.submitting_closing = false;
 				});
 		},
 		get_offers(pos_profile) {

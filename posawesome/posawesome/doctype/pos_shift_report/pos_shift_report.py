@@ -35,14 +35,8 @@ class POSShiftReport(Document):
 				"shift_report_id": self.shift_report_id
 			})
 
-		# Update related closing shift if exists
-		closing_shifts = frappe.get_all("POS Closing Shift",
-			filters={"pos_opening_shift": self.pos_opening_shift, "docstatus": 1}
-		)
-		if closing_shifts:
-			frappe.db.set_value("POS Closing Shift", closing_shifts[0].name, {
-				"shift_report": self.name
-			})
+		# Update related closing shift if exists with enhanced integration
+		self.update_related_closing_shift()
 
 	def validate_shift_report_id(self):
 		"""Validate shift report ID format"""
@@ -245,6 +239,39 @@ class POSShiftReport(Document):
 		# Update calculated fields
 		self.update_calculated_fields()
 		self.get_payment_breakdown()
+
+	def update_related_closing_shift(self):
+		"""Update related closing shift with proper field validation"""
+		try:
+			# Find related closing shift
+			closing_shifts = frappe.get_all("POS Closing Shift",
+				filters={"pos_opening_shift": self.pos_opening_shift, "docstatus": 1}
+			)
+
+			if not closing_shifts:
+				frappe.logger().info(f"No submitted closing shift found for opening shift {self.pos_opening_shift}")
+				return
+
+			closing_shift_name = closing_shifts[0].name
+			closing_shift = frappe.get_doc("POS Closing Shift", closing_shift_name)
+
+			# Update shift report reference
+			closing_shift.shift_report = self.name
+
+			# Update verification status based on shift report status
+			if self.verification_status == "Confirmed":
+				closing_shift.verification_status = "Verified"
+			else:
+				closing_shift.verification_status = "Pending"
+
+			# Save with proper error handling
+			closing_shift.save(ignore_permissions=True)
+
+			frappe.logger().info(f"Updated closing shift {closing_shift_name} with shift report {self.name}")
+
+		except Exception as e:
+			frappe.logger().error(f"Failed to update related closing shift for {self.name}: {str(e)}")
+			# Don't raise error to prevent shift report submission failure
 
 @frappe.whitelist()
 def create_shift_report_from_opening(opening_shift_name):

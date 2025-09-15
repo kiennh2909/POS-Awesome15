@@ -17,6 +17,9 @@
   "column_break_7",
   "pos_profile",
   "user",
+  "section_break_shift_report",
+  "shift_report",
+  "verification_status",
   "section_break_12",
   "pos_transactions",
   "section_break_9",
@@ -25,6 +28,10 @@
   "payment_reconciliation_details",
   "section_break_11",
   "payment_reconciliation",
+  "section_break_amounts",
+  "expected_amounts",
+  "actual_amounts",
+  "difference_amounts",
   "section_break_13",
   "grand_total",
   "net_total",
@@ -130,6 +137,29 @@
    "options": "POS Closing Shift Detail"
   },
   {
+   "fieldname": "section_break_amounts",
+   "fieldtype": "Section Break",
+   "label": "Payment Reconciliation Amounts"
+  },
+  {
+   "fieldname": "expected_amounts",
+   "fieldtype": "JSON",
+   "label": "Expected Amounts",
+   "read_only": 1
+  },
+  {
+   "fieldname": "actual_amounts",
+   "fieldtype": "JSON",
+   "label": "Actual Amounts",
+   "read_only": 1
+  },
+  {
+   "fieldname": "difference_amounts",
+   "fieldtype": "JSON",
+   "label": "Difference Amounts",
+   "read_only": 1
+  },
+  {
    "collapsible": 1,
    "collapsible_depends_on": "eval:doc.docstatus==0",
    "fieldname": "section_break_13",
@@ -186,6 +216,26 @@
    "label": "POS Opening Shift",
    "options": "POS Opening Shift",
    "reqd": 1
+  },
+  {
+   "fieldname": "section_break_shift_report",
+   "fieldtype": "Section Break",
+   "label": "Shift Report Integration"
+  },
+  {
+   "fieldname": "shift_report",
+   "fieldtype": "Link",
+   "label": "Shift Report",
+   "options": "POS Shift Report",
+   "read_only": 1
+  },
+  {
+   "fieldname": "verification_status",
+   "fieldtype": "Select",
+   "label": "Verification Status",
+   "options": "Pending\nVerified\nConfirmed",
+   "default": "Pending",
+   "read_only": 1
   },
   {
    "fieldname": "pos_payments",
