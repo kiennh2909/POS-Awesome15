@@ -185,9 +185,6 @@ class POSClosingShift(Document):
         # Calculate and store amounts as JSON for reporting
         self.calculate_payment_amounts()
 
-        # Calculate and store amounts as JSON for reporting
-        self.calculate_payment_amounts()
-
     def calculate_payment_amounts(self):
         """Calculate expected, actual, and difference amounts as JSON với logging thống nhất"""
         start_time = time.time()
@@ -320,8 +317,8 @@ class POSClosingShift(Document):
             else:
                 self.verification_status = "Pending"
 
-            # Save the verification status
-            self.save(ignore_permissions=True)
+            # Note: Don't call save() here as it will trigger validate() again causing infinite loop
+            # Verification status will be saved when the document is saved normally
 
             verification_result = {
                 "old_status": old_status,
