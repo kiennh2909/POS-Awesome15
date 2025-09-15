@@ -1251,7 +1251,7 @@ def get_payment_method_type(payment_method):
 			return pick("Tiền mặt", "Cash")
 
 		if db_type in ("bank", "mobile payment", "wallet", "upi", "qr"):
-			return pick("Digital", "Mobile Payment", "Bank")
+			return pick("Bank", "Mobile Payment", "Digital")
 
 		if db_type in ("card", "credit card", "debit card"):
 			return pick("Card", "Bank")
