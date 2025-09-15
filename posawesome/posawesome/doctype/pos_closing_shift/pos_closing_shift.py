@@ -62,23 +62,8 @@ class POSClosingShift(Document):
         return step_info
 
     def log_performance_metric(self, operation, start_time, end_time=None, metadata=None):
-        """Log performance metrics với prefix thống nhất"""
-        if not end_time:
-            end_time = time.time()
-
-        duration = end_time - start_time
-
-        perf_data = {
-            "operation": operation,
-            "duration_seconds": duration,
-            "duration_ms": duration * 1000,
-            "document": self.name,
-            "metadata": metadata or {}
-        }
-
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] PERFORMANCE - {operation} completed in {duration:.3f}s - Doc: {self.name}")
-
-        return perf_data
+        """Log performance metrics với prefix thống nhất - DISABLED FOR PERFORMANCE"""
+        return {"operation": operation, "disabled": True}
 
     def validate(self):
         """Enhanced validate method với logging thống nhất SHIFT_CLOSE_WORKFLOW"""
@@ -129,10 +114,8 @@ class POSClosingShift(Document):
                 )
 
             # Enhanced calculations with logging
-            calc_start = time.time()
             self.update_payment_reconciliation()
             self.calculate_payment_amounts()
-            self.log_performance_metric("CALCULATIONS", calc_start)
 
             # Verification status update
             self.update_verification_status()
@@ -143,15 +126,12 @@ class POSClosingShift(Document):
                 "total_difference": sum(flt(p.difference or 0) for p in self.payment_reconciliation)
             })
 
-            self.log_performance_metric("VALIDATE_TOTAL", start_time)
-
         except Exception as e:
             self.log_workflow_step("VALIDATE_ERROR", {
                 "error": str(e),
                 "error_type": type(e).__name__
             }, "ERROR")
 
-            self.log_performance_metric("VALIDATE_FAILED", start_time)
             raise
 
     def update_payment_reconciliation(self):
@@ -185,13 +165,10 @@ class POSClosingShift(Document):
                     "mode_of_payment": d.mode_of_payment,
                     "expected_amount": expected,
                     "closing_amount": actual,
-                    "difference": difference,
-                    "processing_time": time.time() - payment_start
+                    "difference": difference
                 }
 
                 processed_payments.append(payment_info)
-
-                self.log_workflow_step("PAYMENT_PROCESSED", payment_info, "DEBUG")
 
             except Exception as e:
                 self.log_workflow_step("PAYMENT_PROCESSING_ERROR", {
@@ -202,11 +179,11 @@ class POSClosingShift(Document):
 
         self.log_workflow_step("PAYMENT_RECONCILIATION_SUCCESS", {
             "total_payments": len(processed_payments),
-            "total_difference": total_difference,
-            "processing_time": time.time() - start_time
+            "total_difference": total_difference
         })
 
-        self.log_performance_metric("PAYMENT_RECONCILIATION", start_time)
+        # Calculate and store amounts as JSON for reporting
+        self.calculate_payment_amounts()
 
         # Calculate and store amounts as JSON for reporting
         self.calculate_payment_amounts()
@@ -244,7 +221,6 @@ class POSClosingShift(Document):
             }
 
             self.log_workflow_step("AMOUNT_CALCULATION_SUCCESS", calculation_result)
-            self.log_performance_metric("AMOUNT_CALCULATION", start_time)
 
         except Exception as e:
             self.log_workflow_step("AMOUNT_CALCULATION_ERROR", {
@@ -257,7 +233,6 @@ class POSClosingShift(Document):
             self.actual_amounts = "{}"
             self.difference_amounts = "{}"
 
-            self.log_performance_metric("AMOUNT_CALCULATION_FAILED", start_time)
             frappe.logger().warning(f"Failed to calculate payment amounts for {self.name}: {str(e)}")
 
     def on_submit(self):
@@ -279,28 +254,23 @@ class POSClosingShift(Document):
             opening_entry.save()
 
             self.log_workflow_step("OPENING_SHIFT_UPDATED", {
-                "opening_shift": self.pos_opening_shift,
-                "processing_time": time.time() - opening_update_start
+                "opening_shift": self.pos_opening_shift
             })
 
             # Delete draft invoices
             invoice_delete_start = time.time()
             self.delete_draft_invoices()
-            self.log_workflow_step("DRAFT_INVOICES_DELETED", {
-                "processing_time": time.time() - invoice_delete_start
-            })
+            self.log_workflow_step("DRAFT_INVOICES_DELETED", {})
 
             # Update verification status based on business rules
             verification_start = time.time()
             self.update_verification_status()
             self.log_workflow_step("VERIFICATION_STATUS_UPDATED", {
-                "new_status": self.verification_status,
-                "processing_time": time.time() - verification_start
+                "new_status": self.verification_status
             })
 
             # Final success log
             self.log_workflow_step("ON_SUBMIT_SUCCESS", {
-                "total_processing_time": time.time() - workflow_start,
                 "final_status": self.verification_status
             })
 
@@ -309,8 +279,7 @@ class POSClosingShift(Document):
         except Exception as e:
             self.log_workflow_step("ON_SUBMIT_ERROR", {
                 "error": str(e),
-                "error_type": type(e).__name__,
-                "processing_time": time.time() - workflow_start
+                "error_type": type(e).__name__
             }, "ERROR")
 
             log.error(f"[SHIFT_CLOSE_WORKFLOW] FAILED - POS Closing Shift {self.name} submission failed: {str(e)}")
@@ -364,7 +333,6 @@ class POSClosingShift(Document):
             }
 
             self.log_workflow_step("VERIFICATION_STATUS_UPDATE_SUCCESS", verification_result)
-            self.log_performance_metric("VERIFICATION_STATUS_UPDATE", start_time)
 
         except Exception as e:
             self.log_workflow_step("VERIFICATION_STATUS_UPDATE_ERROR", {
@@ -373,7 +341,6 @@ class POSClosingShift(Document):
             }, "ERROR")
 
             self.verification_status = "Pending"
-            self.log_performance_metric("VERIFICATION_STATUS_UPDATE_FAILED", start_time)
             frappe.logger().warning(f"Failed to update verification status for {self.name}: {str(e)}")
 
     def on_cancel(self):
@@ -407,17 +374,14 @@ class POSClosingShift(Document):
                     "opening_shift": self.pos_opening_shift
                 }, "WARNING")
 
-            self.log_workflow_step("ON_CANCEL_SUCCESS", {
-                "processing_time": time.time() - start_time
-            })
+            self.log_workflow_step("ON_CANCEL_SUCCESS", {})
 
             log.info(f"[SHIFT_CLOSE_WORKFLOW] CANCELLED - POS Closing Shift {self.name} cancelled successfully by user {frappe.session.user}")
 
         except Exception as e:
             self.log_workflow_step("ON_CANCEL_ERROR", {
                 "error": str(e),
-                "error_type": type(e).__name__,
-                "processing_time": time.time() - start_time
+                "error_type": type(e).__name__
             }, "ERROR")
 
             log.error(f"[SHIFT_CLOSE_WORKFLOW] CANCEL_FAILED - POS Closing Shift {self.name} cancellation failed: {str(e)}")
@@ -538,12 +502,12 @@ def get_pos_invoices(pos_opening_shift):
                     error_count += 1
                     continue
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] API_SUCCESS - get_pos_invoices - Request: {request_id} - Processed {processed_count} invoices, {error_count} errors - Processing time: {time.time() - api_start:.3f}s")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] API_SUCCESS - get_pos_invoices - Request: {request_id} - Processed {processed_count} invoices, {error_count} errors")
 
         return result
 
     except Exception as e:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - get_pos_invoices - Request: {request_id} - Failed: {str(e)} - Processing time: {time.time() - api_start:.3f}s")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - get_pos_invoices - Request: {request_id} - Failed: {str(e)}")
         frappe.log_error(f"Error getting POS invoices for shift {pos_opening_shift}: {str(e)}")
         return []
 
@@ -715,12 +679,12 @@ def make_closing_shift_from_opening(opening_shift):
         closing_shift.set("taxes", taxes)
         closing_shift.set("pos_payments", pos_payments_table)
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] API_SUCCESS - make_closing_shift_from_opening - Request: {request_id} - Created closing shift with {len(payments)} payment methods, {len(pos_transactions)} transactions - Processing time: {time.time() - api_start:.3f}s")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] API_SUCCESS - make_closing_shift_from_opening - Request: {request_id} - Created closing shift with {len(payments)} payment methods, {len(pos_transactions)} transactions")
 
         return closing_shift
 
     except Exception as e:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - make_closing_shift_from_opening - Request: {request_id} - Failed: {str(e)} - Processing time: {time.time() - api_start:.3f}s")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - make_closing_shift_from_opening - Request: {request_id} - Failed: {str(e)}")
         frappe.throw(f"Failed to create closing shift: {str(e)}")
 
 
@@ -821,7 +785,7 @@ def submit_closing_shift(closing_shift):
         # Submit document
         try:
             closing_shift_doc.submit()
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] API_SUCCESS - submit_closing_shift - Request: {request_id} - Document submitted successfully: {closing_shift_doc.name} - Processing time: {time.time() - api_start:.3f}s")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] API_SUCCESS - submit_closing_shift - Request: {request_id} - Document submitted successfully: {closing_shift_doc.name}")
         except frappe.ValidationError:
             log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Validation error during submit")
             # Re-raise validation errors as-is
@@ -845,8 +809,7 @@ def submit_closing_shift(closing_shift):
                 "name": closing_shift_doc.name,
                 "status": closing_shift_doc.status
             },
-            "request_id": request_id,
-            "processing_time": time.time() - api_start
+            "request_id": request_id
         }
 
     except frappe.ValidationError:
@@ -855,15 +818,14 @@ def submit_closing_shift(closing_shift):
         raise
     except Exception as e:
         # Log unexpected errors
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] API_UNEXPECTED_ERROR - submit_closing_shift - Request: {request_id} - Unexpected error: {str(e)} - Processing time: {time.time() - api_start:.3f}s")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] API_UNEXPECTED_ERROR - submit_closing_shift - Request: {request_id} - Unexpected error: {str(e)}")
         frappe.log_error(f"Unexpected error in submit_closing_shift: {str(e)}",
-                        "POS Closing Shift Submit Error")
+                         "POS Closing Shift Submit Error")
 
         return {
             "success": False,
             "message": _("An unexpected error occurred while submitting closing shift: {0}").format(str(e)),
-            "request_id": request_id,
-            "processing_time": time.time() - api_start
+            "request_id": request_id
         }
 
 
@@ -894,15 +856,15 @@ def submit_printed_invoices(pos_opening_shift):
                 invoice_doc.submit()
                 submitted_count += 1
 
-                log.debug(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_SUCCESS - Submitted invoice: {invoice.name}")
+                # Invoice submitted successfully
 
             except Exception as e:
                 log.error(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_ERROR - Failed to submit invoice {invoice.name}: {str(e)}")
                 error_count += 1
                 continue
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_COMPLETE - Submitted {submitted_count} invoices, {error_count} errors - Processing time: {time.time() - start_time:.3f}s")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_COMPLETE - Submitted {submitted_count} invoices, {error_count} errors")
 
     except Exception as e:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_FAILED - Failed to submit printed invoices for shift {pos_opening_shift}: {str(e)} - Processing time: {time.time() - start_time:.3f}s")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_FAILED - Failed to submit printed invoices for shift {pos_opening_shift}: {str(e)}")
         frappe.log_error(f"Error submitting printed invoices for shift {pos_opening_shift}: {str(e)}")
