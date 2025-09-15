@@ -121,21 +121,35 @@ def create_payment_summaries_for_shift(shift_report_name):
 
 		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 6: Opening amounts: {len(opening_amounts)} methods, Expected: {len(expected_closing)} methods")
 
-		# 6. Create/update payment summaries
-		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 7: Creating/updating payment summary records")
+		# 6. Initialize payment summaries for all opening shift methods first
+		log.info(f"[PAYMENT_SUMMARY] 🎯 STEP 6: Initializing payment summaries for all opening shift methods")
+		try:
+			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import initialize_payment_summaries_for_shift
+			init_result = initialize_payment_summaries_for_shift(shift_report.name)
+	
+			if init_result.get("success"):
+				log.info(f"[PAYMENT_SUMMARY] ✅ STEP 6: Initialized {init_result['data']['initialized_count']} payment summary records")
+			else:
+				log.warning(f"[PAYMENT_SUMMARY] ⚠️ STEP 6: Failed to initialize payment summaries: {init_result.get('message')}")
+		except Exception as init_error:
+			log.error(f"[PAYMENT_SUMMARY] ❌ STEP 6: Error initializing payment summaries: {str(init_error)}")
+			# Continue with processing even if initialization fails
+	
+		# 7. Create/update payment summaries from invoice data
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 7: Creating/updating payment summary records from invoices")
 		log.info(f"[PAYMENT_SUMMARY] 📊 STEP 7: Processing {len(payment_data)} payment methods from invoices")
 		payment_summaries = []
 		created_count = 0
 		updated_count = 0
 
 		for method, data in payment_data.items():
-			log.info(f"[PAYMENT_SUMMARY] 🔄 STEP 7: Processing payment method: '{method}'")
-			log.info(f"[PAYMENT_SUMMARY] 📈 STEP 7: {method} - Transaction Count: {data['transaction_count']}, Amount: {data['transaction_amount']}")
+			log.info(f"[PAYMENT_SUMMARY] 🔄 STEP 8: Processing payment method: '{method}'")
+			log.info(f"[PAYMENT_SUMMARY] 📈 STEP 8: {method} - Transaction Count: {data['transaction_count']}, Amount: {data['transaction_amount']}")
 
 			try:
 				# Log opening amount info
 				opening_amount = opening_amounts.get(method, 0)
-				log.info(f"[PAYMENT_SUMMARY] 💰 STEP 7: {method} - Opening Amount: {opening_amount}")
+				log.info(f"[PAYMENT_SUMMARY] 💰 STEP 8: {method} - Opening Amount: {opening_amount}")
 
 				result = _create_or_update_payment_summary(
 					shift_report, method, data, opening_amounts, expected_closing
@@ -143,42 +157,42 @@ def create_payment_summaries_for_shift(shift_report_name):
 
 				if result and result["created"]:
 					created_count += 1
-					log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: CREATED payment summary for '{method}' (ID: {result['summary'].get('name', 'N/A')})")
+					log.info(f"[PAYMENT_SUMMARY] ✅ STEP 8: CREATED payment summary for '{method}' (ID: {result['summary'].get('name', 'N/A')})")
 				elif result:
 					updated_count += 1
-					log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: UPDATED payment summary for '{method}' (ID: {result['summary'].get('name', 'N/A')})")
+					log.info(f"[PAYMENT_SUMMARY] ✅ STEP 8: UPDATED payment summary for '{method}' (ID: {result['summary'].get('name', 'N/A')})")
 
 				if result:
 					payment_summaries.append(result["summary"])
-					log.info(f"[PAYMENT_SUMMARY] 📊 STEP 7: {method} - Final Amount: {result['summary'].get('closing_amount', 0)}")
+					log.info(f"[PAYMENT_SUMMARY] 📊 STEP 8: {method} - Final Amount: {result['summary'].get('closing_amount', 0)}")
 				else:
-					log.warning(f"[PAYMENT_SUMMARY] ⚠️ STEP 7: FAILED to process payment method: '{method}' - No result returned")
+					log.warning(f"[PAYMENT_SUMMARY] ⚠️ STEP 8: FAILED to process payment method: '{method}' - No result returned")
 			except Exception as e:
-				log.error(f"[PAYMENT_SUMMARY] ❌ STEP 7: ERROR processing '{method}': {str(e)}")
-				log.error(f"[PAYMENT_SUMMARY] ❌ STEP 7: {method} - Exception details: {type(e).__name__}")
+				log.error(f"[PAYMENT_SUMMARY] ❌ STEP 8: ERROR processing '{method}': {str(e)}")
+				log.error(f"[PAYMENT_SUMMARY] ❌ STEP 8: {method} - Exception details: {type(e).__name__}")
 				continue
 
-		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: COMPLETED processing {len(payment_summaries)}/{len(payment_data)} payment methods")
-		log.info(f"[PAYMENT_SUMMARY] 📈 STEP 7: SUMMARY - Created: {created_count}, Updated: {updated_count}, Failed: {len(payment_data) - len(payment_summaries)}")
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 8: COMPLETED processing {len(payment_summaries)}/{len(payment_data)} payment methods")
+		log.info(f"[PAYMENT_SUMMARY] 📈 STEP 8: SUMMARY - Created: {created_count}, Updated: {updated_count}, Failed: {len(payment_data) - len(payment_summaries)}")
 
-		# 7. Validate data consistency
-		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 8: Validating data consistency")
+		# 8. Validate data consistency
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 9: Validating data consistency")
 		try:
 			validate_payment_summary_consistency(shift_report)
-			log.info(f"[PAYMENT_SUMMARY] ✅ STEP 8: Data consistency validated")
+			log.info(f"[PAYMENT_SUMMARY] ✅ STEP 9: Data consistency validated")
 		except Exception as e:
-			log.error(f"[PAYMENT_SUMMARY] ❌ STEP 8: Data consistency validation failed: {str(e)}")
+			log.error(f"[PAYMENT_SUMMARY] ❌ STEP 9: Data consistency validation failed: {str(e)}")
 			return {
 				"success": False,
 				"message": f"Data consistency validation failed: {str(e)}"
 			}
 
-		# 8. Commit database changes
-		log.info(f"[PAYMENT_SUMMARY] 💾 STEP 9: Committing database changes")
+		# 9. Commit database changes
+		log.info(f"[PAYMENT_SUMMARY] 💾 STEP 10: Committing database changes")
 		frappe.db.commit()
-		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 9: Database changes committed")
+		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 10: Database changes committed")
 
-		# 9. Final summary and return
+		# 10. Final summary and return
 		log.info(f"[PAYMENT_SUMMARY] 🎉 COMPLETED: Successfully processed {len(payment_summaries)} payment methods for shift {shift_report_name}")
 
 		return {
