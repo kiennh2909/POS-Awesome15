@@ -1221,29 +1221,53 @@ def validate_payment_summary_consistency(shift_report):
 		raise
 
 
-def get_payment_method_type(payment_method):
-	"""Lookup Type từ Mode of Payment và map về 4 nhóm chính."""
+def _resolve_allowed_payment_types():
+	"""Đọc danh sách payment method types cho phép từ DocType definition."""
 	try:
-		mop_type = frappe.db.get_value("Mode of Payment", payment_method, "type")
-		if not mop_type:
-			log.warning(f"[PAYMENT_SUMMARY] MOP '{payment_method}' no type -> default 'Cash'")
-			return "Cash"
-
-		mapping = {
-			"Cash": "Cash",
-			"Bank": "Bank",
-			"General": "General",
-			"Mobile Payment": "Mobile Payment",
-			# chuẩn hoá biến thể thường gặp
-			"Card": "Bank",
-			"Credit Card": "Bank",
-			"Wallet": "Mobile Payment",
-			"UPI": "Mobile Payment",
-		}
-		return mapping.get(mop_type, mop_type)
+		df = frappe.get_meta("POS Payment Summary").get_field("payment_method_type")
+		raw = (df.options or "").split("\n")
+		return [o.strip() for o in raw if o and o.strip()]
 	except Exception as e:
-		log.error(f"[PAYMENT_SUMMARY] Error getting MOP type '{payment_method}': {str(e)}")
-		return "Cash"
+		log.warning(f"[PAYMENT_SUMMARY] Cannot read field options for payment_method_type: {str(e)}")
+		return ["Tiền mặt", "Card", "Digital", "Khác"]
+
+
+def get_payment_method_type(payment_method):
+	"""
+	Smart mapping từ Mode of Payment type sang allowed values.
+	Hỗ trợ multi-language và comprehensive fallbacks.
+	"""
+	allowed = _resolve_allowed_payment_types()
+	allowed_set = set(allowed)
+
+	def pick(*cands):
+		"""Pick first candidate available in allowed set."""
+		for c in cands:
+			if c in allowed_set:
+				return c
+		return allowed[0] if allowed else "Tiền mặt"
+
+	try:
+		db_type = (frappe.db.get_value("Mode of Payment", payment_method, "type") or "").strip().casefold()
+
+		if db_type in ("cash", "tiền mặt"):
+			return pick("Tiền mặt", "Cash")
+
+		if db_type in ("bank", "mobile payment", "wallet", "upi", "qr"):
+			return pick("Digital", "Mobile Payment", "Bank")
+
+		if db_type in ("card", "credit card", "debit card"):
+			return pick("Card", "Bank")
+
+		if db_type in ("general", "other", "khác"):
+			return pick("Khác", "General")
+
+		# Fallback for unrecognized types
+		return pick("Khác", "General", "Tiền mặt")
+
+	except Exception as e:
+		log.error(f"[PAYMENT_SUMMARY] Error getting type for '{payment_method}': {str(e)}")
+		return pick("Tiền mặt", "Cash", "Khác")
 
 
 @frappe.whitelist()
