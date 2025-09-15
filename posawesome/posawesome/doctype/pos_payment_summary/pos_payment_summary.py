@@ -581,68 +581,81 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 		except Exception as e:
 			log.error(f"[PAYMENT_SUMMARY] Error loading opening amounts from POS Opening Shift Detail: {str(e)}")
 
+		# Clean up existing records first to ensure fresh initialization
+		log.info(f"[PAYMENT_SUMMARY] 🧹 Cleaning up existing POS Payment Summary records for shift: {shift_report.name}")
+		try:
+			existing_records = frappe.get_all("POS Payment Summary",
+				filters={
+					"shift_report_id": shift_report.shift_report_id,
+					"pos_shift_report": shift_report.name
+				},
+				fields=["name"]
+			)
+
+			for record in existing_records:
+				frappe.delete_doc("POS Payment Summary", record.name, ignore_permissions=True)
+
+			if existing_records:
+				log.info(f"[PAYMENT_SUMMARY] 🗑️ Cleaned up {len(existing_records)} existing records")
+
+		except Exception as e:
+			log.warning(f"[PAYMENT_SUMMARY] Could not clean up existing records: {str(e)}")
+
 		# Create payment summary records for each payment method
+		# ALWAYS CREATE FRESH RECORDS - Don't check existing for initialization
 		created_count = 0
 		for method, opening_amount in opening_amounts.items():
 			try:
-				# Check if already exists - Quan hệ 1-n với shift_report_id chung
-				existing = frappe.db.exists("POS Payment Summary", {
+				# Create datetime values for shift times
+				shift_start_time = None
+				shift_end_time = None
+
+				try:
+					# Combine opening_date and opening_time for shift_start_time
+					if shift_report.opening_date and shift_report.opening_time:
+						from frappe.utils import get_datetime
+						shift_start_time = get_datetime(f"{shift_report.opening_date} {shift_report.opening_time}")
+					elif shift_report.opening_date:
+						# If only date available, use date at start of day
+						from frappe.utils import getdate
+						shift_start_time = getdate(shift_report.opening_date)
+
+					# For shift_end_time, use closing_date if available, otherwise None
+					if shift_report.closing_date:
+						from frappe.utils import getdate
+						shift_end_time = getdate(shift_report.closing_date)
+				except Exception as e:
+					log.warning(f"[PAYMENT_SUMMARY] Could not create datetime for shift times: {str(e)}")
+
+				payment_summary = frappe.get_doc({
+					"doctype": "POS Payment Summary",
 					"shift_report_id": shift_report.shift_report_id,  # Sử dụng shift_report_id chung
-					"payment_method": method,  # Unique với payment_method
-					"pos_shift_report": shift_report.name
+					"pos_shift_report": shift_report.name,
+					"pos_opening_shift": shift_report.pos_opening_shift,
+					"posting_date": shift_report.opening_date,
+					"shift_start_time": shift_start_time,
+					"shift_end_time": shift_end_time,
+					"payment_method": method,
+					"payment_method_type": get_payment_method_type(method),
+					"currency": currency,
+					"company": company,
+					"pos_profile": pos_profile,
+					"opening_amount": opening_amount,
+					"transaction_amount": 0,
+					"closing_amount": opening_amount,
+					"transaction_count": 0,
+					"notes": f"Initialized for shift report {shift_report.name}"
 				})
 
-				if not existing:
-					# Create datetime values for shift times
-					shift_start_time = None
-					shift_end_time = None
-
-					try:
-						# Combine opening_date and opening_time for shift_start_time
-						if shift_report.opening_date and shift_report.opening_time:
-							from frappe.utils import get_datetime
-							shift_start_time = get_datetime(f"{shift_report.opening_date} {shift_report.opening_time}")
-						elif shift_report.opening_date:
-							# If only date available, use date at start of day
-							from frappe.utils import getdate
-							shift_start_time = getdate(shift_report.opening_date)
-
-						# For shift_end_time, use closing_date if available, otherwise None
-						if shift_report.closing_date:
-							from frappe.utils import getdate
-							shift_end_time = getdate(shift_report.closing_date)
-					except Exception as e:
-						log.warning(f"[PAYMENT_SUMMARY] Could not create datetime for shift times: {str(e)}")
-
-					payment_summary = frappe.get_doc({
-						"doctype": "POS Payment Summary",
-						"shift_report_id": shift_report.shift_report_id,  # Sử dụng shift_report_id chung
-						"pos_shift_report": shift_report.name,
-						"pos_opening_shift": shift_report.pos_opening_shift,
-						"posting_date": shift_report.opening_date,
-						"shift_start_time": shift_start_time,
-						"shift_end_time": shift_end_time,
-						"payment_method": method,
-						"payment_method_type": get_payment_method_type(method),
-						"currency": currency,
-						"company": company,
-						"pos_profile": pos_profile,
-						"opening_amount": opening_amount,
-						"transaction_amount": 0,
-						"closing_amount": opening_amount,
-						"transaction_count": 0,
-						"notes": f"Initialized for shift report {shift_report.name}"
-					})
-
-					payment_summary.insert()
-					created_count += 1
-					log.info(f"[PAYMENT_SUMMARY] Initialized payment summary for {method}")
+				payment_summary.insert(ignore_permissions=True)
+				created_count += 1
+				log.info(f"[PAYMENT_SUMMARY] ✅ Initialized payment summary for {method}")
 
 			except Exception as e:
-				log.error(f"[PAYMENT_SUMMARY] Error initializing payment summary for {method}: {str(e)}")
+				log.error(f"[PAYMENT_SUMMARY] ❌ Error initializing payment summary for {method}: {str(e)}")
 				continue
 
-		log.info(f"[PAYMENT_SUMMARY] Initialized {created_count} payment summary records")
+		log.info(f"[PAYMENT_SUMMARY] ✅ Initialized {created_count} payment summary records (fresh initialization)")
 
 		return {
 			"success": True,
