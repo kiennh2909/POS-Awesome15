@@ -113,6 +113,41 @@ class POSClosingShift(Document):
                     title=_("Invalid Opening Entry"),
                 )
 
+            # Set shift_report field if not provided
+            if not self.shift_report and self.pos_opening_shift:
+                # Try to find existing shift report for this opening shift
+                shift_report = frappe.db.exists("POS Shift Report", {
+                    "pos_opening_shift": self.pos_opening_shift
+                })
+
+                if shift_report:
+                    self.shift_report = shift_report
+                    self.log_workflow_step("SHIFT_REPORT_LINKED", {
+                        "shift_report": shift_report,
+                        "pos_opening_shift": self.pos_opening_shift
+                    })
+                else:
+                    # Try to create shift report automatically
+                    try:
+                        from posawesome.posawesome.doctype.pos_shift_report.pos_shift_report import create_shift_report_from_opening
+                        new_shift_report = create_shift_report_from_opening(self.pos_opening_shift)
+
+                        if new_shift_report:
+                            self.shift_report = new_shift_report.name
+                            self.log_workflow_step("SHIFT_REPORT_CREATED", {
+                                "shift_report": new_shift_report.name,
+                                "pos_opening_shift": self.pos_opening_shift
+                            })
+                        else:
+                            self.log_workflow_step("SHIFT_REPORT_CREATION_FAILED", {
+                                "pos_opening_shift": self.pos_opening_shift
+                            }, "ERROR")
+                    except Exception as e:
+                        self.log_workflow_step("SHIFT_REPORT_CREATION_ERROR", {
+                            "pos_opening_shift": self.pos_opening_shift,
+                            "error": str(e)
+                        }, "ERROR")
+
             # Enhanced calculations with logging
             self.update_payment_reconciliation()
             self.calculate_payment_amounts()
@@ -263,7 +298,15 @@ class POSClosingShift(Document):
                     "required_status": ["Verified", "Confirmed"],
                     "total_difference": total_difference
                 }, "ERROR")
-                frappe.throw(_("Cannot submit closing shift with verification status '{0}'. Status must be 'Verified' or 'Confirmed'.").format(self.verification_status))
+
+                # Allow submission with warning if shift_report exists but verification is pending
+                if self.shift_report and self.verification_status == "Pending":
+                    self.log_workflow_step("ON_SUBMIT_ALLOW_PENDING", {
+                        "shift_report": self.shift_report,
+                        "total_difference": total_difference
+                    }, "WARNING")
+                else:
+                    frappe.throw(_("Cannot submit closing shift with verification status '{0}'. Status must be 'Verified' or 'Confirmed'.").format(self.verification_status))
 
             # Update opening shift reference
             opening_update_start = time.time()
@@ -705,6 +748,28 @@ def make_closing_shift_from_opening(opening_shift):
                     )
                 )
 
+        # Set shift_report field if exists
+        shift_report = frappe.db.exists("POS Shift Report", {
+            "pos_opening_shift": opening_shift_data.get("name")
+        })
+
+        if shift_report:
+            closing_shift.shift_report = shift_report
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] API_PROCESS - make_closing_shift_from_opening - Request: {request_id} - Linked to shift report: {shift_report}")
+        else:
+            # Try to create shift report automatically
+            try:
+                from posawesome.posawesome.doctype.pos_shift_report.pos_shift_report import create_shift_report_from_opening
+                new_shift_report = create_shift_report_from_opening(opening_shift_data.get("name"))
+
+                if new_shift_report:
+                    closing_shift.shift_report = new_shift_report.name
+                    log.info(f"[SHIFT_CLOSE_WORKFLOW] API_PROCESS - make_closing_shift_from_opening - Request: {request_id} - Created new shift report: {new_shift_report.name}")
+                else:
+                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] API_WARNING - make_closing_shift_from_opening - Request: {request_id} - Failed to create shift report for opening shift: {opening_shift_data.get('name')}")
+            except Exception as e:
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - make_closing_shift_from_opening - Request: {request_id} - Error creating shift report: {str(e)}")
+
         # Set child tables
         closing_shift.set("pos_transactions", pos_transactions)
         closing_shift.set("payment_reconciliation", payments)
@@ -798,6 +863,31 @@ def submit_closing_shift(closing_shift):
         try:
             closing_shift_doc = frappe.get_doc(closing_shift_data)
             log.info(f"[SHIFT_CLOSE_WORKFLOW] API_PROCESS - submit_closing_shift - Request: {request_id} - Document created: {closing_shift_doc.name}")
+
+            # Set shift_report field if not provided
+            if not closing_shift_doc.shift_report and closing_shift_doc.pos_opening_shift:
+                # Try to find existing shift report for this opening shift
+                shift_report = frappe.db.exists("POS Shift Report", {
+                    "pos_opening_shift": closing_shift_doc.pos_opening_shift
+                })
+
+                if shift_report:
+                    closing_shift_doc.shift_report = shift_report
+                    log.info(f"[SHIFT_CLOSE_WORKFLOW] API_PROCESS - submit_closing_shift - Request: {request_id} - Linked to existing shift report: {shift_report}")
+                else:
+                    # Try to create shift report automatically
+                    try:
+                        from posawesome.posawesome.doctype.pos_shift_report.pos_shift_report import create_shift_report_from_opening
+                        new_shift_report = create_shift_report_from_opening(closing_shift_doc.pos_opening_shift)
+
+                        if new_shift_report:
+                            closing_shift_doc.shift_report = new_shift_report.name
+                            log.info(f"[SHIFT_CLOSE_WORKFLOW] API_PROCESS - submit_closing_shift - Request: {request_id} - Created new shift report: {new_shift_report.name}")
+                        else:
+                            log.warning(f"[SHIFT_CLOSE_WORKFLOW] API_WARNING - submit_closing_shift - Request: {request_id} - Failed to create shift report for opening shift: {closing_shift_doc.pos_opening_shift}")
+                    except Exception as e:
+                        log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Error creating shift report: {str(e)}")
+
         except Exception as e:
             log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Failed to create document: {str(e)}")
             frappe.throw(_("Failed to create closing shift document: {0}").format(str(e)))
