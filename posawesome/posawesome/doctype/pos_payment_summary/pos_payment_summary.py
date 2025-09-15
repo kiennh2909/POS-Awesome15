@@ -707,6 +707,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import get_datetime, cstr, flt
+from frappe.migrate import migrate_app
 
 from posawesome.posawesome.utils.logging import get_logger
 
@@ -1265,6 +1266,80 @@ def get_payment_method_type(payment_method):
 	except Exception as e:
 		log.error(f"[PAYMENT_SUMMARY] Error getting type for '{payment_method}': {str(e)}")
 		return pick("Tiền mặt", "Cash", "Khác")
+
+
+def run_pos_payment_summary_migration():
+	"""
+	Migration script để cập nhật POS Payment Summary DocType.
+	Chạy trong bench console để áp dụng thay đổi autoname và unique constraint.
+	"""
+	print("🚀 POS PAYMENT SUMMARY MIGRATION SCRIPT")
+	print("=" * 50)
+
+	try:
+		# STEP 1: Check current state
+		print("📋 STEP 1: Checking current DocType state...")
+		meta = frappe.get_meta("POS Payment Summary")
+		print(f"   Current autoname: {meta.autoname}")
+
+		field = meta.get_field("shift_report_id")
+		if field:
+			unique = getattr(field, 'unique', False)
+			print(f"   shift_report_id unique: {unique}")
+
+		# STEP 2: Run migration
+		print("\n⚙️ STEP 2: Running migration for posawesome app...")
+		migrate_app("posawesome")
+		print("   ✅ Migration completed")
+
+		# STEP 3: Verify changes
+		print("\n✅ STEP 3: Verifying changes...")
+		meta_after = frappe.get_meta("POS Payment Summary")
+		print(f"   New autoname: {meta_after.autoname}")
+
+		field_after = meta_after.get_field("shift_report_id")
+		if field_after:
+			unique_after = getattr(field_after, 'unique', False)
+			print(f"   shift_report_id unique: {unique_after}")
+
+		# STEP 4: Test autoname
+		print("\n🧪 STEP 4: Testing autoname generation...")
+		test_doc = frappe.get_doc({
+			"doctype": "POS Payment Summary",
+			"shift_report_id": "MIGRATION-TEST-001",
+			"payment_method": "Tiền mặt - POS"
+		})
+
+		autoname_result = test_doc.get_autoname()
+		print(f"   Test autoname: {autoname_result}")
+
+		# STEP 5: Clear cache
+		print("\n🧹 STEP 5: Clearing cache...")
+		frappe.clear_cache()
+		print("   ✅ Cache cleared")
+
+		print("\n🎉 MIGRATION SUCCESSFUL!")
+		print("=" * 50)
+		print("📊 Summary:")
+		print(f"   • Autoname: {meta_after.autoname}")
+		print(f"   • Unique removed: {not unique_after if 'unique_after' in locals() else 'N/A'}")
+		print(f"   • Test autoname works: {autoname_result}")
+
+		return {
+			"success": True,
+			"autoname": meta_after.autoname,
+			"test_autoname": autoname_result
+		}
+
+	except Exception as e:
+		print(f"\n💥 MIGRATION FAILED: {str(e)}")
+		import traceback
+		traceback.print_exc()
+
+		return {
+			"success": False,
+			"error": str(e)
+		}
 
 
 @frappe.whitelist()
