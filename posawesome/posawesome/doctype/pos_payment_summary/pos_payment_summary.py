@@ -366,7 +366,7 @@ def get_payment_method_type(payment_method):
 		payment_method (str): Payment method name
 
 	Returns:
-		str: Payment method type from Mode of Payment doctype
+		str: Payment method type from Mode of Payment doctype, mapped to allowed values
 	"""
 	try:
 		# Query Mode of Payment doctype to get the type
@@ -380,14 +380,26 @@ def get_payment_method_type(payment_method):
 		)
 
 		if mode_of_payment and mode_of_payment[0].get("type"):
-			return mode_of_payment[0]["type"]
+			db_type = mode_of_payment[0]["type"]
+
+			# Map database values to allowed values
+			type_mapping = {
+				"Cash": "Cash",
+				"Bank": "Bank",  # Map Bank to Other
+				"General": "General",
+				"Mobile Payment": "Mobile Payment"
+			}
+
+			# Return mapped value or default to "Other"
+			mapped_type = type_mapping.get(db_type, "Cash")
+			return mapped_type
 		else:
 			log.warning(f"[PAYMENT_SUMMARY] Payment method '{payment_method}' not found in Mode of Payment or has no type")
-			return "Other"
+			return "Cash"
 
 	except Exception as e:
 		log.error(f"[PAYMENT_SUMMARY] Error getting payment method type for '{payment_method}': {str(e)}")
-		return "Other"
+		return "Cash"
 
 
 @frappe.whitelist()
