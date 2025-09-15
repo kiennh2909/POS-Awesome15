@@ -126,10 +126,20 @@ class POSClosingShift(Document):
                 "total_difference": sum(flt(p.difference or 0) for p in self.payment_reconciliation)
             })
 
+        except frappe.ValidationError as ve:
+            self.log_workflow_step("VALIDATE_ERROR", {
+                "error": str(ve),
+                "error_type": "ValidationError",
+                "docstatus": self.docstatus,
+                "verification_status": self.verification_status
+            }, "ERROR")
+            raise
         except Exception as e:
             self.log_workflow_step("VALIDATE_ERROR", {
                 "error": str(e),
-                "error_type": type(e).__name__
+                "error_type": type(e).__name__,
+                "docstatus": self.docstatus,
+                "verification_status": self.verification_status
             }, "ERROR")
 
             raise
@@ -240,8 +250,20 @@ class POSClosingShift(Document):
             self.log_workflow_step("ON_SUBMIT_START", {
                 "opening_shift": self.pos_opening_shift,
                 "company": self.company,
-                "verification_status": self.verification_status
+                "verification_status": self.verification_status,
+                "docstatus": self.docstatus,
+                "total_difference": sum(flt(p.difference or 0) for p in self.payment_reconciliation)
             })
+
+            # Validate verification status before submission
+            if self.verification_status not in ["Verified", "Confirmed"]:
+                total_difference = sum(flt(p.difference or 0) for p in self.payment_reconciliation)
+                self.log_workflow_step("ON_SUBMIT_VALIDATION_FAILED", {
+                    "verification_status": self.verification_status,
+                    "required_status": ["Verified", "Confirmed"],
+                    "total_difference": total_difference
+                }, "ERROR")
+                frappe.throw(_("Cannot submit closing shift with verification status '{0}'. Status must be 'Verified' or 'Confirmed'.").format(self.verification_status))
 
             # Update opening shift reference
             opening_update_start = time.time()
@@ -273,10 +295,23 @@ class POSClosingShift(Document):
 
             log.info(f"[SHIFT_CLOSE_WORKFLOW] COMPLETE - POS Closing Shift {self.name} submitted successfully by user {frappe.session.user}")
 
+        except frappe.ValidationError as ve:
+            self.log_workflow_step("ON_SUBMIT_ERROR", {
+                "error": str(ve),
+                "error_type": "ValidationError",
+                "verification_status": self.verification_status,
+                "docstatus": self.docstatus
+            }, "ERROR")
+
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] FAILED - POS Closing Shift {self.name} submission failed: {str(ve)}")
+            # Don't raise error here as it might prevent submission
+            # Just log the error for debugging
         except Exception as e:
             self.log_workflow_step("ON_SUBMIT_ERROR", {
                 "error": str(e),
-                "error_type": type(e).__name__
+                "error_type": type(e).__name__,
+                "verification_status": self.verification_status,
+                "docstatus": self.docstatus
             }, "ERROR")
 
             log.error(f"[SHIFT_CLOSE_WORKFLOW] FAILED - POS Closing Shift {self.name} submission failed: {str(e)}")
@@ -771,20 +806,24 @@ def submit_closing_shift(closing_shift):
         try:
             closing_shift_doc.save()
             log.info(f"[SHIFT_CLOSE_WORKFLOW] API_PROCESS - submit_closing_shift - Request: {request_id} - Document saved: {closing_shift_doc.name}")
-        except frappe.ValidationError:
-            log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Validation error during save")
+        except frappe.ValidationError as ve:
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Validation error during save: {str(ve)}")
+            # Log additional details for debugging
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Document data: pos_opening_shift={closing_shift_doc.pos_opening_shift}, user={closing_shift_doc.user}, company={closing_shift_doc.company}")
             # Re-raise validation errors as-is
             raise
         except Exception as e:
             log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Failed to save document: {str(e)}")
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Exception type: {type(e).__name__}")
             frappe.throw(_("Failed to save closing shift: {0}").format(str(e)))
 
         # Submit document
         try:
             closing_shift_doc.submit()
             log.info(f"[SHIFT_CLOSE_WORKFLOW] API_SUCCESS - submit_closing_shift - Request: {request_id} - Document submitted successfully: {closing_shift_doc.name}")
-        except frappe.ValidationError:
-            log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Validation error during submit")
+        except frappe.ValidationError as ve:
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Validation error during submit: {str(ve)}")
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Submit failed for doc: {closing_shift_doc.name}, verification_status: {closing_shift_doc.verification_status}")
             # Re-raise validation errors as-is
             raise
         except Exception as e:
@@ -797,6 +836,7 @@ def submit_closing_shift(closing_shift):
                 pass  # Ignore cleanup errors
 
             log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Failed to submit document: {str(e)}")
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Exception type: {type(e).__name__}")
             frappe.throw(_("Failed to submit closing shift: {0}").format(str(e)))
 
         return {
