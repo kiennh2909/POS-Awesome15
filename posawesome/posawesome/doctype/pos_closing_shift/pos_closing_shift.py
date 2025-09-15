@@ -834,9 +834,26 @@ def submit_closing_shift(closing_shift):
 
         opening_shift = frappe.get_doc("POS Opening Shift", opening_shift_name)
         if opening_shift.status != "Open":
-            log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - POS Opening Shift '{opening_shift_name}' is not open (current status: {opening_shift.status})")
-            frappe.throw(_("POS Opening Shift '{0}' is not open (current status: {1})").format(
-                opening_shift_name, opening_shift.status))
+            # Check if there's already a submitted closing shift for this opening shift
+            existing_closing = frappe.db.exists("POS Closing Shift", {
+                "pos_opening_shift": opening_shift_name,
+                "docstatus": 1  # Submitted
+            })
+
+            if existing_closing:
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] API_WARNING - submit_closing_shift - Request: {request_id} - Closing shift already exists for POS Opening Shift '{opening_shift_name}' (existing: {existing_closing})")
+                return {
+                    "success": False,
+                    "message": _("Closing shift already submitted for POS Opening Shift '{0}'").format(opening_shift_name),
+                    "data": {
+                        "existing_closing_shift": existing_closing
+                    },
+                    "request_id": request_id
+                }
+            else:
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - POS Opening Shift '{opening_shift_name}' is not open (current status: {opening_shift.status})")
+                frappe.throw(_("POS Opening Shift '{0}' is not open (current status: {1})").format(
+                    opening_shift_name, opening_shift.status))
 
         # Check if closing shift already exists
         existing_closing = frappe.db.exists("POS Closing Shift", {
@@ -845,8 +862,21 @@ def submit_closing_shift(closing_shift):
         })
 
         if existing_closing:
-            log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Closing shift already exists for POS Opening Shift '{opening_shift_name}'")
-            frappe.throw(_("Closing shift already exists for POS Opening Shift '{0}'").format(opening_shift_name))
+            # Check if it's already submitted
+            existing_docstatus = frappe.db.get_value("POS Closing Shift", existing_closing, "docstatus")
+            if existing_docstatus == 1:  # Already submitted
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] API_WARNING - submit_closing_shift - Request: {request_id} - Closing shift already submitted for POS Opening Shift '{opening_shift_name}' (existing: {existing_closing})")
+                return {
+                    "success": False,
+                    "message": _("Closing shift already submitted for POS Opening Shift '{0}'").format(opening_shift_name),
+                    "data": {
+                        "existing_closing_shift": existing_closing
+                    },
+                    "request_id": request_id
+                }
+            else:
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Closing shift already exists for POS Opening Shift '{opening_shift_name}' (status: {existing_docstatus})")
+                frappe.throw(_("Closing shift already exists for POS Opening Shift '{0}'").format(opening_shift_name))
 
         # Validate user permissions
         if not frappe.has_permission("POS Closing Shift", "create"):
@@ -934,7 +964,7 @@ def submit_closing_shift(closing_shift):
             "message": _("POS Closing Shift submitted successfully"),
             "data": {
                 "name": closing_shift_doc.name,
-                "status": closing_shift_doc.status
+                "docstatus": closing_shift_doc.docstatus
             },
             "request_id": request_id
         }
