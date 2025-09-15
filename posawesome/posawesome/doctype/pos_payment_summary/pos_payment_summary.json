@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_copy": 0,
- "autoname": "eval:doc.shift_report_id + '-' + frappe.utils.cstr(doc.payment_method).replace(' ', '_').replace('-', '_')",
+ "autoname": "eval: f'{doc.shift_report_id}-{doc.payment_method.replace(\" \", \"_\").replace(\"-\", \"_\")}'",
  "creation": "2025-09-14 17:35:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",

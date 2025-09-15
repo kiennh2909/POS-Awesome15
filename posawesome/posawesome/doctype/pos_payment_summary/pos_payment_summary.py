@@ -707,7 +707,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import get_datetime, cstr, flt
-from frappe.migrate import migrate_app
+from frappe.installer import migrate_app
 
 from posawesome.posawesome.utils.logging import get_logger
 
@@ -1030,7 +1030,7 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 			created = False
 			log.info(f"[PAYMENT_SUMMARY] ♻️ Updated '{method}' -> {doc.name}")
 		else:
-			# Create
+			# Create with autoname
 			doc = frappe.get_doc(
 				{
 					"doctype": "POS Payment Summary",
@@ -1053,6 +1053,11 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 					"notes": f"Auto-generated from shift report {shift_report.name}",
 				}
 			)
+
+			# Debug autoname
+			expected_name = f"{shift_report_id}-{method.replace(' ', '_').replace('-', '_')}"
+			log.info(f"[PAYMENT_SUMMARY] 📝 Creating '{method}' with expected name: {expected_name}")
+
 			doc.insert()
 			created = True
 			log.info(f"[PAYMENT_SUMMARY] ✅ Created '{method}' -> {doc.name}")
