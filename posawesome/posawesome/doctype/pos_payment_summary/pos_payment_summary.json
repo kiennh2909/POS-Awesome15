@@ -96,7 +96,7 @@
    "fieldname": "payment_method_type",
    "fieldtype": "Select",
    "label": "Payment Method Type",
-   "options": "Cash\nCard\nDigital\nOther",
+   "options": "Cash\nCard\nDigital\nOther\nBank\nGeneral\nMobile Payment",
    "reqd": 1
   },
   {

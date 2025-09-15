@@ -74,14 +74,14 @@ def create_payment_summaries_for_shift(shift_report_name):
 			if payments:
 				# Use primary payment method (first one)
 				invoice_payments[invoice.name] = {
-					"payment_method": payments[0].mode_of_payment or "Cash",
+					"payment_method": payments[0].mode_of_payment or "Tiền mặt - POS",
 					"amount": payments[0].amount or 0
 				}
 				payment_methods_found += 1
 			else:
 				# Fallback if no payments found
 				invoice_payments[invoice.name] = {
-					"payment_method": "Cash",
+					"payment_method": "Tiền mặt - POS",
 					"amount": invoice.grand_total or 0
 				}
 
@@ -96,9 +96,23 @@ def create_payment_summaries_for_shift(shift_report_name):
 		for method, data in payment_data.items():
 			log.info(f"[PAYMENT_SUMMARY] 📊 STEP 4: {method} - {data['transaction_count']} transactions, Amount: {data['transaction_amount']}")
 
-		# 4. Get opening and expected amounts
-		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 5: Parsing opening and expected amounts")
-		opening_amounts = _parse_json_safe(shift_report.opening_amounts, {})
+		# 4. Get opening and expected amounts from POS Opening Shift Detail
+		log.info(f"[PAYMENT_SUMMARY] 📋 STEP 5: Parsing opening and expected amounts from POS Opening Shift Detail")
+
+		# Get opening amounts from POS Opening Shift Detail (balance_details)
+		opening_amounts = {}
+		try:
+			opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
+			if hasattr(opening_shift, 'balance_details') and opening_shift.balance_details:
+				for detail in opening_shift.balance_details:
+					opening_amounts[detail.mode_of_payment] = detail.amount or 0
+				log.info(f"[PAYMENT_SUMMARY] ✅ STEP 5: Loaded {len(opening_amounts)} opening amounts from POS Opening Shift Detail")
+			else:
+				log.warning(f"[PAYMENT_SUMMARY] ⚠️ STEP 5: No balance_details found in POS Opening Shift")
+		except Exception as e:
+			log.error(f"[PAYMENT_SUMMARY] ❌ STEP 5: Error loading opening amounts from POS Opening Shift Detail: {str(e)}")
+
+		# Get expected closing amounts (fallback to shift report if available)
 		expected_closing = _parse_json_safe(shift_report.expected_closing_amounts, {})
 
 		log.info(f"[PAYMENT_SUMMARY] ✅ STEP 5: Opening amounts: {len(opening_amounts)} methods, Expected: {len(expected_closing)} methods")
@@ -168,7 +182,7 @@ def _calculate_payment_methods(invoices, invoice_payments):
 	for invoice in invoices:
 		# Get payment method from payments data
 		payment_info = invoice_payments.get(invoice.name, {})
-		method = payment_info.get("payment_method", "Cash")
+		method = payment_info.get("payment_method", "Tiền mặt - POS")
 		amount = invoice.grand_total or 0
 
 		if method not in payment_methods:
@@ -227,10 +241,13 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 		except Exception as e:
 			log.warning(f"[PAYMENT_SUMMARY] Could not get company/pos_profile from opening shift: {str(e)}")
 
-		# Check if exists
-		shift_report_id = f"{shift_report.shift_report_id}_{method}"
+		# Check if exists - Quan hệ 1-n: 1 shift_report_id có nhiều payment methods
+		# Sử dụng shift_report_id CHUNG cho tất cả payment methods của cùng shift
+		shift_report_id = shift_report.shift_report_id  # "SHIFT-POSA-OS-25-0000119"
+
 		existing = frappe.db.exists("POS Payment Summary", {
 			"shift_report_id": shift_report_id,
+			"payment_method": method,  # Unique constraint: shift_report_id + payment_method
 			"pos_shift_report": shift_report.name
 		})
 
@@ -272,22 +289,22 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 			log.info(f"[PAYMENT_SUMMARY] Updated: {method}")
 			created = False
 		else:
-			# Create new
+			# Create new - Quan hệ 1-n với shift_report_id chung
 			payment_summary = frappe.get_doc({
 				"doctype": "POS Payment Summary",
-				"shift_report_id": shift_report_id,
+				"shift_report_id": shift_report_id,  # "SHIFT-POSA-OS-25-0000119" (chung)
 				"pos_shift_report": shift_report.name,
 				"pos_opening_shift": shift_report.pos_opening_shift,
 				"posting_date": shift_report.opening_date,
 				"shift_start_time": shift_start_time,
 				"shift_end_time": shift_end_time,
-				"payment_method": method,
+				"payment_method": method,  # "Tiền mặt - POS", "Chuyển khoản ngân hàng - POS"
 				"payment_method_type": get_payment_method_type(method),
 				"currency": currency,
 				"transaction_count": data["transaction_count"],
 				"company": company,
 				"pos_profile": pos_profile,
-				"opening_amount": opening_amount,
+				"opening_amount": opening_amount,  # Từ POS Opening Shift Detail
 				"transaction_amount": transaction_amount,
 				"expected_closing_amount": expected_closing.get(method, 0),
 				"closing_amount": closing_amount,
@@ -385,12 +402,12 @@ def get_payment_method_type(payment_method):
 			# Map database values to allowed values
 			type_mapping = {
 				"Cash": "Cash",
-				"Bank": "Bank",  # Map Bank to Other
+				"Bank": "Bank",
 				"General": "General",
 				"Mobile Payment": "Mobile Payment"
 			}
 
-			# Return mapped value or default to "Other"
+			# Return mapped value or default to "Cash"
 			mapped_type = type_mapping.get(db_type, "Cash")
 			return mapped_type
 		else:
@@ -429,21 +446,27 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 		except Exception as e:
 			log.warning(f"[PAYMENT_SUMMARY] Could not get company/pos_profile from opening shift: {str(e)}")
 
-		# Get opening amounts to determine payment methods
+		# Get opening amounts from POS Opening Shift Detail (balance_details)
 		opening_amounts = {}
-		if shift_report.opening_amounts:
-			try:
-				opening_amounts = frappe.parse_json(shift_report.opening_amounts)
-			except:
-				log.warning(f"[PAYMENT_SUMMARY] Could not parse opening amounts for initialization")
+		try:
+			opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
+			if hasattr(opening_shift, 'balance_details') and opening_shift.balance_details:
+				for detail in opening_shift.balance_details:
+					opening_amounts[detail.mode_of_payment] = detail.amount or 0
+				log.info(f"[PAYMENT_SUMMARY] Loaded {len(opening_amounts)} opening amounts from POS Opening Shift Detail")
+			else:
+				log.warning(f"[PAYMENT_SUMMARY] No balance_details found in POS Opening Shift")
+		except Exception as e:
+			log.error(f"[PAYMENT_SUMMARY] Error loading opening amounts from POS Opening Shift Detail: {str(e)}")
 
 		# Create payment summary records for each payment method
 		created_count = 0
 		for method, opening_amount in opening_amounts.items():
 			try:
-				# Check if already exists
+				# Check if already exists - Quan hệ 1-n với shift_report_id chung
 				existing = frappe.db.exists("POS Payment Summary", {
-					"shift_report_id": f"{shift_report.shift_report_id}_{method}",
+					"shift_report_id": shift_report.shift_report_id,  # Sử dụng shift_report_id chung
+					"payment_method": method,  # Unique với payment_method
 					"pos_shift_report": shift_report.name
 				})
 
@@ -471,7 +494,7 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 
 					payment_summary = frappe.get_doc({
 						"doctype": "POS Payment Summary",
-						"shift_report_id": f"{shift_report.shift_report_id}_{method}",
+						"shift_report_id": shift_report.shift_report_id,  # Sử dụng shift_report_id chung
 						"pos_shift_report": shift_report.name,
 						"pos_opening_shift": shift_report.pos_opening_shift,
 						"posting_date": shift_report.opening_date,
