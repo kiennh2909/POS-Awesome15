@@ -47,7 +47,12 @@
 									<template v-slot:item.closing_amount="props">
 										<v-text-field
 											v-model="props.item.closing_amount"
-											:rules="[required, isNumber, max25chars]"
+											:rules="[
+												required,
+												isNumber,
+												max25chars,
+												(v) => notZeroIfExpected(v, props.item)
+											]"
 											:label="frappe._('Edit')"
 											single-line
 											counter
@@ -144,6 +149,12 @@ export default {
 		max25chars: (v) => v.length <= 20 || "Input too long!",
 		required: (v) => !!v || "This field is required",
 		isNumber: (v) => !isNaN(v) || "Must be a number",
+		notZeroIfExpected: (v, item) => {
+			if (item && item.expected_amount > 0) {
+				return parseFloat(v) > 0 || "Closing amount cannot be 0 when expected amount > 0";
+			}
+			return true;
+		},
 		pagination: {},
 	}),
 	watch: {},
@@ -159,8 +170,11 @@ export default {
 		initializeClosingAmounts() {
 			if (this.dialog_data.payment_reconciliation) {
 				this.dialog_data.payment_reconciliation.forEach(item => {
-					if (item.closing_amount === undefined || item.closing_amount === null || item.closing_amount === '') {
-						item.closing_amount = item.expected_amount || 0;
+					// Only set default if closing_amount is not set (undefined, null, empty string, or 0) and expected_amount > 0
+					const currentAmount = item.closing_amount;
+					if ((currentAmount === undefined || currentAmount === null || currentAmount === '' || currentAmount === 0) && item.expected_amount > 0) {
+						item.closing_amount = item.expected_amount;
+						console.log(`Set default closing_amount for ${item.mode_of_payment}: ${item.expected_amount}`);
 					}
 				});
 			}
