@@ -400,7 +400,7 @@ def get_invoice_statistics(opening_shift_id):
 
 		# Calculate average invoice value
 		if stats["total_invoices"] > 0:
-			stats["average_invoice_value"] = (stats["total_sales"] - stats["total_returns"]) / stats["total_invoices"]
+			stats["average_invoice_value"] = (stats["total_sales"] + stats["total_returns"]) / stats["total_invoices"]
 
 		return stats
 

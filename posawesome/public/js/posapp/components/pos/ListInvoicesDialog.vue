@@ -118,7 +118,7 @@
 						<v-card variant="outlined" class="pa-3">
 							<div class="text-caption text-medium-emphasis">{{ __("Net Amount") }}</div>
 							<div class="text-h6 font-weight-bold text-primary">
-								{{ formatCurrency((summary.total_sales || 0) - (summary.total_returns || 0)) }}
+								{{ formatCurrency((summary.total_sales || 0) + (summary.total_returns || 0)) }}
 							</div>
 						</v-card>
 					</v-col>
@@ -569,7 +569,7 @@ export default {
 					this.eventBus.emit("register_shift_report", {
 						shift_report_id: shiftReportData.shift_report_id,
 						total_invoices: shiftReportData.invoice_count || 0,
-						total_revenue: (shiftReportData.total_sales || 0) - (shiftReportData.total_returns || 0),
+						total_revenue: (shiftReportData.total_sales || 0) + (shiftReportData.total_returns || 0),
 						last_invoice: shiftReportData.invoices && shiftReportData.invoices.length > 0 ?
 							shiftReportData.invoices[shiftReportData.invoices.length - 1].invoice_no : ""
 					});
@@ -873,7 +873,7 @@ export default {
 					"Số tiền cuối ca": ""
 				}, {
 					"Loại": "Tóm tắt tổng hợp",
-					"Số hóa đơn": `Tổng thuần: ${this.formatCurrency((this.summary.total_sales || 0) - (this.summary.total_returns || 0))}`,
+					"Số hóa đơn": `Tổng thuần: ${this.formatCurrency((this.summary.total_sales || 0) + (this.summary.total_returns || 0))}`,
 					"Ngày": "",
 					"Giờ": "",
 					"Khách hàng": "",
@@ -1131,7 +1131,7 @@ export default {
 							</div>
 							<div class="card">
 								<div class="card-title">Tổng thuần</div>
-								<div class="card-value">${this.formatCurrency((this.summary.total_sales || 0) - (this.summary.total_returns || 0))}</div>
+								<div class="card-value">${this.formatCurrency((this.summary.total_sales || 0) + (this.summary.total_returns || 0))}</div>
 							</div>
 						</div>
 					</div>

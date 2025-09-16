@@ -602,7 +602,7 @@ def get_footer_status_data():
 			shift_report = frappe.get_doc("POS Shift Report", shift_data.shift_report)
 			result.update({
 				"total_invoices": shift_report.invoice_count or 0,
-				"total_revenue": (shift_report.total_sales or 0) - (shift_report.total_returns or 0),
+				"total_revenue": (shift_report.total_sales or 0) + (shift_report.total_returns or 0),
 				"today_sales": shift_report.total_sales or 0,  # Today's sales from shift report
 			})
 

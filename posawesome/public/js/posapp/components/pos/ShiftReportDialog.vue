@@ -250,6 +250,105 @@
 						readonly
 					></v-textarea>
 				</div>
+
+				<!-- Debug Panel (Hidden by default, enable with v-if="true") -->
+				<v-divider v-if="false"></v-divider>
+				<div class="pa-4" v-if="true">
+					<div class="d-flex align-center justify-space-between mb-3">
+						<h6 class="text-subtitle-1 text-warning">{{ __("Debug Panel") }}</h6>
+						<div class="d-flex gap-2">
+							<v-chip size="small" variant="outlined" color="info">
+								Session: {{ sessionId?.substring(0, 12) }}
+							</v-chip>
+							<v-chip size="small" variant="outlined" color="primary">
+								Logs: {{ paginationLogs.length }}
+							</v-chip>
+						</div>
+					</div>
+
+					<!-- Pagination State -->
+					<v-row dense class="mb-3">
+						<v-col cols="12" md="3">
+							<v-card variant="outlined" class="pa-2">
+								<div class="text-caption text-medium-emphasis">{{ __("Current Page") }}</div>
+								<div class="text-h6">{{ currentPage }}</div>
+							</v-card>
+						</v-col>
+						<v-col cols="12" md="3">
+							<v-card variant="outlined" class="pa-2">
+								<div class="text-caption text-medium-emphasis">{{ __("Items/Page") }}</div>
+								<div class="text-h6">{{ itemsPerPage }}</div>
+							</v-card>
+						</v-col>
+						<v-col cols="12" md="3">
+							<v-card variant="outlined" class="pa-2">
+								<div class="text-caption text-medium-emphasis">{{ __("Total Items") }}</div>
+								<div class="text-h6">{{ totalItems }}</div>
+							</v-card>
+						</v-col>
+						<v-col cols="12" md="3">
+							<v-card variant="outlined" class="pa-2">
+								<div class="text-caption text-medium-emphasis">{{ __("Total Pages") }}</div>
+								<div class="text-h6">{{ totalPages }}</div>
+							</v-card>
+						</v-col>
+					</v-row>
+
+					<!-- Recent Logs -->
+					<div class="mb-3">
+						<h6 class="text-subtitle-2 mb-2">{{ __("Recent Logs") }}</h6>
+						<v-card variant="outlined" class="pa-2" style="max-height: 200px; overflow-y: auto;">
+							<div
+								v-for="(log, index) in paginationLogs.slice(-10)"
+								:key="index"
+								class="text-caption mb-1"
+								:class="getLogColor(log.action)"
+							>
+								<strong>{{ log.action }}</strong>
+								<span class="text-medium-emphasis">
+									{{ new Date(log.timestamp).toLocaleTimeString() }}
+								</span>
+								<span v-if="log.requestId" class="text-info">
+									[{{ log.requestId?.substring(0, 8) }}]
+								</span>
+								<div class="text-caption text-medium-emphasis ml-2">
+									{{ JSON.stringify(log.data, null, 0) }}
+								</div>
+							</div>
+							<div v-if="paginationLogs.length === 0" class="text-caption text-medium-emphasis">
+								{{ __("No logs yet") }}
+							</div>
+						</v-card>
+					</div>
+
+					<!-- Debug Actions -->
+					<div class="d-flex gap-2">
+						<v-btn
+							size="small"
+							color="primary"
+							variant="outlined"
+							@click="testAPI"
+						>
+							{{ __("Test API") }}
+						</v-btn>
+						<v-btn
+							size="small"
+							color="success"
+							variant="outlined"
+							@click="exportTrackingLogs"
+						>
+							{{ __("Export Logs") }}
+						</v-btn>
+						<v-btn
+							size="small"
+							color="warning"
+							variant="outlined"
+							@click="clearTrackingLogs"
+						>
+							{{ __("Clear Logs") }}
+						</v-btn>
+					</div>
+				</div>
 			</v-card-text>
 
 			<v-divider></v-divider>
@@ -275,6 +374,24 @@
 					@click="testAPI"
 				>
 					{{ __("Test API") }}
+				</v-btn>
+				<v-btn
+					v-if="false"
+					color="warning"
+					variant="outlined"
+					prepend-icon="mdi-file-export"
+					@click="exportTrackingLogs"
+				>
+					{{ __("Export Logs") }}
+				</v-btn>
+				<v-btn
+					v-if="false"
+					color="error"
+					variant="outlined"
+					prepend-icon="mdi-delete"
+					@click="clearTrackingLogs"
+				>
+					{{ __("Clear Logs") }}
 				</v-btn>
 				<v-btn
 					v-if="canVerify"
@@ -328,6 +445,9 @@ export default {
 			totalItems: 0,
 			totalPages: 0,
 			itemsPerPageOptions: [5, 10, 15, 25],
+			// Tracking logs for debugging
+			paginationLogs: [],
+			sessionId: null,
 			invoiceHeaders: [
 				{ title: this.__("Invoice No"), key: "invoice_no", width: "120px" },
 				{ title: this.__("Date"), key: "invoice_date", width: "100px" },
@@ -336,6 +456,36 @@ export default {
 				{ title: this.__("Actions"), key: "actions", width: "80px", sortable: false }
 			]
 		};
+	},
+	created() {
+		// Initialize session for tracking
+		this.sessionId = this.generateSessionId();
+		this.addTrackingLog({
+			timestamp: new Date().toISOString(),
+			action: 'COMPONENT_CREATED',
+			sessionId: this.sessionId,
+			data: {
+				shiftReportId: this.shiftReportId,
+				userAgent: navigator.userAgent,
+				url: window.location.href
+			}
+		});
+	},
+	beforeDestroy() {
+		// Log component destruction
+		this.addTrackingLog({
+			timestamp: new Date().toISOString(),
+			action: 'COMPONENT_DESTROYED',
+			sessionId: this.sessionId,
+			data: {
+				totalLogs: this.paginationLogs.length,
+				finalState: {
+					currentPage: this.currentPage,
+					itemsPerPage: this.itemsPerPage,
+					totalItems: this.totalItems
+				}
+			}
+		});
 	},
 	computed: {
 		show: {
@@ -399,11 +549,35 @@ export default {
 		},
 
 		async loadRecentInvoices() {
+			const requestId = this.generateRequestId();
+			const startTime = performance.now();
+
+			this.addTrackingLog({
+				timestamp: new Date().toISOString(),
+				action: 'API_REQUEST_START',
+				sessionId: this.sessionId,
+				requestId,
+				data: {
+					shiftReportId: this.shiftReportId,
+					page: this.currentPage,
+					pageSize: this.itemsPerPage,
+					totalItems: this.totalItems,
+					totalPages: this.totalPages
+				}
+			});
+
 			this.loadingInvoices = true;
+
 			try {
-				console.log("🔄 Loading invoices for page:", this.currentPage, "page_size:", this.itemsPerPage);
+				console.log("🔄 [PAGINATION_TRACKING] Loading invoices:", {
+					requestId,
+					page: this.currentPage,
+					pageSize: this.itemsPerPage,
+					shiftReportId: this.shiftReportId
+				});
 
 				// Call real API to get paginated invoices
+				const apiStartTime = performance.now();
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.shifts.get_shift_report_invoices",
 					args: {
@@ -412,31 +586,125 @@ export default {
 						page_size: this.itemsPerPage
 					}
 				});
+				const apiEndTime = performance.now();
 
-				console.log("📡 API Response:", response);
+				this.addTrackingLog({
+					timestamp: new Date().toISOString(),
+					action: 'API_RESPONSE_RECEIVED',
+					sessionId: this.sessionId,
+					requestId,
+					data: {
+						responseTime: apiEndTime - apiStartTime,
+						hasMessage: !!response.message,
+						success: response.message?.success,
+						invoiceCount: response.message?.invoices?.length,
+						totalCount: response.message?.total_count
+					}
+				});
+
+				console.log("📡 [PAGINATION_TRACKING] API Response:", {
+					requestId,
+					responseTime: `${(apiEndTime - apiStartTime).toFixed(2)}ms`,
+					success: response.message?.success,
+					invoiceCount: response.message?.invoices?.length,
+					totalCount: response.message?.total_count
+				});
 
 				if (response.message && response.message.success) {
-					console.log("✅ API Success - Invoices:", response.message.invoices?.length, "Total:", response.message.total_count);
+					console.log("✅ [PAGINATION_TRACKING] API Success:", {
+						requestId,
+						invoices: response.message.invoices?.length,
+						total: response.message.total_count,
+						pages: response.message.total_pages
+					});
 
 					// Use Vue.set for reactive updates
 					this.$set(this, 'recentInvoices', response.message.invoices || []);
 					this.$set(this, 'totalItems', response.message.total_count || 0);
 					this.$set(this, 'totalPages', response.message.total_pages || 0);
 
+					this.addTrackingLog({
+						timestamp: new Date().toISOString(),
+						action: 'DATA_UPDATE_SUCCESS',
+						sessionId: this.sessionId,
+						requestId,
+						data: {
+							invoiceCount: response.message.invoices?.length,
+							totalItems: response.message.total_count,
+							totalPages: response.message.total_pages
+						}
+					});
+
 					// Force update to ensure UI re-renders
 					this.$nextTick(() => {
 						this.$forceUpdate();
+						const endTime = performance.now();
+						this.addTrackingLog({
+							timestamp: new Date().toISOString(),
+							action: 'UI_UPDATE_COMPLETE',
+							sessionId: this.sessionId,
+							requestId,
+							data: {
+								totalTime: endTime - startTime,
+								invoiceCount: this.recentInvoices.length
+							}
+						});
 					});
 				} else {
-					console.warn("❌ API call failed or returned error:", response.message);
+					console.warn("❌ [PAGINATION_TRACKING] API call failed:", {
+						requestId,
+						error: response.message
+					});
+
+					this.addTrackingLog({
+						timestamp: new Date().toISOString(),
+						action: 'API_ERROR',
+						sessionId: this.sessionId,
+						requestId,
+						data: {
+							error: response.message,
+							fallback: 'mock_data'
+						}
+					});
+
 					this.useMockData();
 				}
 			} catch (error) {
-				console.error("💥 Error loading recent invoices:", error);
+				const endTime = performance.now();
+				console.error("💥 [PAGINATION_TRACKING] Error loading invoices:", {
+					requestId,
+					error: error.message,
+					totalTime: endTime - startTime
+				});
+
+				this.addTrackingLog({
+					timestamp: new Date().toISOString(),
+					action: 'API_EXCEPTION',
+					sessionId: this.sessionId,
+					requestId,
+					data: {
+						error: error.message,
+						stack: error.stack,
+						totalTime: endTime - startTime,
+						fallback: 'mock_data'
+					}
+				});
+
 				this.showError("Failed to load invoices");
 				this.useMockData();
 			} finally {
 				this.loadingInvoices = false;
+				const endTime = performance.now();
+				this.addTrackingLog({
+					timestamp: new Date().toISOString(),
+					action: 'REQUEST_COMPLETE',
+					sessionId: this.sessionId,
+					requestId,
+					data: {
+						totalTime: endTime - startTime,
+						finalInvoiceCount: this.recentInvoices.length
+					}
+				});
 			}
 		},
 
@@ -497,6 +765,27 @@ export default {
 				"M-Pesa": "info"
 			};
 			return colors[method] || "grey";
+		},
+
+		getLogColor(action) {
+			const colors = {
+				'COMPONENT_CREATED': 'text-success',
+				'COMPONENT_DESTROYED': 'text-error',
+				'API_REQUEST_START': 'text-info',
+				'API_RESPONSE_RECEIVED': 'text-success',
+				'API_ERROR': 'text-error',
+				'API_EXCEPTION': 'text-error',
+				'DATA_UPDATE_SUCCESS': 'text-success',
+				'UI_UPDATE_COMPLETE': 'text-primary',
+				'PAGE_CHANGE': 'text-primary',
+				'PAGE_CHANGE_VALID': 'text-success',
+				'PAGE_CHANGE_INVALID': 'text-warning',
+				'ITEMS_PER_PAGE_CHANGE': 'text-primary',
+				'ITEMS_PER_PAGE_VALID': 'text-success',
+				'ITEMS_PER_PAGE_INVALID': 'text-warning',
+				'REQUEST_COMPLETE': 'text-info'
+			};
+			return colors[action] || 'text-medium-emphasis';
 		},
 
 		formatDate(date) {
@@ -586,27 +875,143 @@ export default {
 
 		// Handle page change in pagination
 		handlePageChange(newPage) {
-			console.log("📄 Page changed to:", newPage, "Current:", this.currentPage);
+			const timestamp = new Date().toISOString();
+			const logEntry = {
+				timestamp,
+				action: 'PAGE_CHANGE',
+				sessionId: this.sessionId,
+				data: {
+					requestedPage: newPage,
+					currentPage: this.currentPage,
+					totalPages: this.totalPages,
+					itemsPerPage: this.itemsPerPage
+				}
+			};
+
+			console.log("📄 [PAGINATION_TRACKING]", logEntry);
+			this.addTrackingLog(logEntry);
+
 			const pageNum = parseInt(newPage);
 			if (pageNum && pageNum !== this.currentPage && pageNum >= 1 && pageNum <= this.totalPages) {
 				this.currentPage = pageNum;
+				this.addTrackingLog({
+					timestamp: new Date().toISOString(),
+					action: 'PAGE_CHANGE_VALID',
+					sessionId: this.sessionId,
+					data: { newPage: pageNum }
+				});
 				this.loadRecentInvoices();
+			} else {
+				this.addTrackingLog({
+					timestamp: new Date().toISOString(),
+					action: 'PAGE_CHANGE_INVALID',
+					sessionId: this.sessionId,
+					data: { reason: 'Invalid page number or out of range' }
+				});
 			}
 		},
 
 		// Handle items per page change
 		handleItemsPerPageChange(newItemsPerPage) {
-			console.log("🔢 Items per page changed to:", newItemsPerPage, "Current:", this.itemsPerPage);
+			const timestamp = new Date().toISOString();
+			const logEntry = {
+				timestamp,
+				action: 'ITEMS_PER_PAGE_CHANGE',
+				sessionId: this.sessionId,
+				data: {
+					requestedSize: newItemsPerPage,
+					currentSize: this.itemsPerPage,
+					availableOptions: this.itemsPerPageOptions
+				}
+			};
+
+			console.log("🔢 [PAGINATION_TRACKING]", logEntry);
+			this.addTrackingLog(logEntry);
+
 			const sizeNum = parseInt(newItemsPerPage);
 			if (sizeNum && sizeNum !== this.itemsPerPage && this.itemsPerPageOptions.includes(sizeNum)) {
 				this.itemsPerPage = sizeNum;
 				this.currentPage = 1; // Reset to first page when changing items per page
+				this.addTrackingLog({
+					timestamp: new Date().toISOString(),
+					action: 'ITEMS_PER_PAGE_VALID',
+					sessionId: this.sessionId,
+					data: { newSize: sizeNum, resetPage: true }
+				});
 				this.loadRecentInvoices();
+			} else {
+				this.addTrackingLog({
+					timestamp: new Date().toISOString(),
+					action: 'ITEMS_PER_PAGE_INVALID',
+					sessionId: this.sessionId,
+					data: { reason: 'Invalid size or not in allowed options' }
+				});
 			}
+		},
+
+		// Tracking and logging utilities
+		addTrackingLog(logEntry) {
+			// Add to internal logs array
+			this.paginationLogs.push(logEntry);
+
+			// Keep only last 100 logs to prevent memory issues
+			if (this.paginationLogs.length > 100) {
+				this.paginationLogs = this.paginationLogs.slice(-100);
+			}
+
+			// Also log to browser console with structured format
+			console.log(`🔍 [${logEntry.action}]`, {
+				timestamp: logEntry.timestamp,
+				sessionId: logEntry.sessionId,
+				requestId: logEntry.requestId,
+				data: logEntry.data
+			});
+		},
+
+		generateRequestId() {
+			return `REQ_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+		},
+
+		generateSessionId() {
+			return `SESSION_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+		},
+
+		// Get tracking logs for debugging
+		getTrackingLogs() {
+			return this.paginationLogs;
+		},
+
+		// Clear tracking logs
+		clearTrackingLogs() {
+			this.paginationLogs = [];
+			console.log("🧹 Tracking logs cleared");
+		},
+
+		// Export tracking logs for analysis
+		exportTrackingLogs() {
+			const dataStr = JSON.stringify(this.paginationLogs, null, 2);
+			const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+
+			const exportFileDefaultName = `pagination_tracking_${this.sessionId}_${new Date().toISOString().split('T')[0]}.json`;
+
+			const linkElement = document.createElement('a');
+			linkElement.setAttribute('href', dataUri);
+			linkElement.setAttribute('download', exportFileDefaultName);
+			linkElement.click();
 		},
 
 		// Debug method to test API
 		async testAPI() {
+			const testRequestId = this.generateRequestId();
+
+			this.addTrackingLog({
+				timestamp: new Date().toISOString(),
+				action: 'API_TEST_START',
+				sessionId: this.sessionId,
+				requestId: testRequestId,
+				data: { endpoint: 'get_shift_report_invoices' }
+			});
+
 			try {
 				console.log("🧪 Testing API endpoint...");
 				const response = await frappe.call({
@@ -617,8 +1022,29 @@ export default {
 						page_size: 5
 					}
 				});
+
+				this.addTrackingLog({
+					timestamp: new Date().toISOString(),
+					action: 'API_TEST_SUCCESS',
+					sessionId: this.sessionId,
+					requestId: testRequestId,
+					data: {
+						success: response.message?.success,
+						invoiceCount: response.message?.invoices?.length,
+						totalCount: response.message?.total_count
+					}
+				});
+
 				console.log("🧪 API Test Result:", response);
 			} catch (error) {
+				this.addTrackingLog({
+					timestamp: new Date().toISOString(),
+					action: 'API_TEST_ERROR',
+					sessionId: this.sessionId,
+					requestId: testRequestId,
+					data: { error: error.message }
+				});
+
 				console.error("🧪 API Test Failed:", error);
 			}
 		}

@@ -75,7 +75,7 @@ def calculate_analytics_summary(shift_reports):
 		"total_shifts": total_shifts,
 		"total_sales": total_sales,
 		"total_returns": total_returns,
-		"net_sales": total_sales - total_returns,
+		"net_sales": total_sales + total_returns,
 		"total_opening_amount": total_opening,
 		"total_variance": total_difference,
 		"average_sales_per_shift": avg_sales_per_shift,
@@ -326,7 +326,7 @@ def get_shift_comparison_report(date_from, date_to, group_by="day"):
 
 		# Calculate net sales
 		for period in comparison.values():
-			period["net_sales"] = period["total_sales"] - period["total_returns"]
+			period["net_sales"] = period["total_sales"] + period["total_returns"]
 
 		# Convert to list and sort
 		result = list(comparison.values())

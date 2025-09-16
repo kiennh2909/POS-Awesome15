@@ -191,7 +191,7 @@ def test_vue_component_simulation():
             print("✅ Vue component would extract data successfully")
             print(f"   shift_report_id: {shiftReportData.get('shift_report_id')}")
             print(f"   total_invoices: {shiftReportData.get('invoice_count')}")
-            print(f"   total_revenue: {(shiftReportData.get('total_sales') or 0) - (shiftReportData.get('total_returns') or 0)}")
+            print(f"   total_revenue: {(shiftReportData.get('total_sales') or 0) + (shiftReportData.get('total_returns') or 0)}")
 
             # Simulate event emission
             last_invoice = ""
