@@ -17,6 +17,12 @@ export default {
 			const rate = flt(item.rate);
 			sum += qty * rate;
 		});
+
+		// FIX: For return invoices, ensure the total is negative
+		if (this.isReturnInvoice && sum > 0) {
+			sum = -Math.abs(sum);
+		}
+
 		return this.flt(sum, this.currency_precision);
 	},
 	// Calculate subtotal after discounts and delivery charges
@@ -37,6 +43,11 @@ export default {
 		// Add delivery charges
 		const delivery_charges = this.flt(this.delivery_charges_rate);
 		sum += delivery_charges;
+
+		// FIX: For return invoices, ensure the subtotal is negative
+		if (this.isReturnInvoice && sum > 0) {
+			sum = -Math.abs(sum);
+		}
 
 		return this.flt(sum, this.currency_precision);
 	},

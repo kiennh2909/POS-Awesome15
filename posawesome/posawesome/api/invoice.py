@@ -642,7 +642,7 @@ def update_shift_report_with_invoice(invoice_doc, action):
 				SELECT
 					COALESCE(SUM(CASE WHEN status = 'Paid' AND is_return = 0
 						THEN total_amount ELSE 0 END), 0) as total_sales,
-					COALESCE(SUM(CASE WHEN (status = 'Paid' AND is_return = 1) OR status = 'Cancelled'
+					COALESCE(SUM(CASE WHEN status = 'Return' AND is_return = 1
 						THEN total_amount ELSE 0 END), 0) as total_returns,
 					COUNT(*) as invoice_count
 				FROM `tabPOS Shift Report Invoice`

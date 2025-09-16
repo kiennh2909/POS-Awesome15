@@ -1289,11 +1289,18 @@ export default {
 				this.discount_amount = 0;
 				this.additional_discount_percentage = 0;
 			}
-			console.log("Invoice state after loading return:", {
-				invoiceType: this.invoiceType,
-				is_return: this.invoice_doc.is_return,
-				items: this.items.length,
-				customer: this.customer,
+
+			// FIX: Force update computed properties after setting return invoice state
+			this.$nextTick(() => {
+				this.$forceUpdate();
+				console.log("Invoice state after loading return:", {
+					invoiceType: this.invoiceType,
+					is_return: this.invoice_doc.is_return,
+					items: this.items.length,
+					customer: this.customer,
+					subtotal: this.subtotal,
+					isReturnInvoice: this.isReturnInvoice,
+				});
 			});
 		});
 		this.eventBus.on("set_new_line", (data) => {
