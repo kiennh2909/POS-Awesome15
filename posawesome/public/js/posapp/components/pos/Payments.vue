@@ -22,7 +22,7 @@
 							color="primary"
 							:label="frappe._('Paid Amount')"
 							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="dark-field sleek-field large-text"
 							hide-details
 							v-model="total_payments_display"
 							readonly
@@ -97,7 +97,7 @@
 								color="primary"
 								:label="frappe._(payment.mode_of_payment)"
 								:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-								class="dark-field sleek-field"
+								class="dark-field sleek-field large-text"
 								hide-details
 								:model-value="formatCurrency(payment.amount)"
 								@change="setFormatedCurrency(payment, 'amount', null, false, $event)"
@@ -117,7 +117,7 @@
 							></v-text-field>
 						</v-col>
 						<v-col cols="6" v-if="!is_mpesa_c2b_payment(payment)">
-							<v-btn block color="primary" theme="dark" @click="set_full_amount(payment.idx)">
+							<v-btn block color="primary" theme="dark" size="large" @click="set_full_amount(payment.idx)">
 								{{ payment.mode_of_payment }}
 							</v-btn>
 	
@@ -2977,6 +2977,11 @@ export default {
 
 .cards {
 	background-color: var(--surface-secondary) !important;
+}
+
+/* Large text for better visibility */
+.large-text {
+	font-size: 24px !important;
 }
 
 /* Dark mode styling for input fields */
