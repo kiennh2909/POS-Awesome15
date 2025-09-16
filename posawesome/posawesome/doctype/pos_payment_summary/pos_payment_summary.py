@@ -517,7 +517,7 @@ def validate_payment_summary_consistency(shift_report):
 							"pos_profile": pos_profile,
 							"opening_amount": opening_amt,
 							"transaction_amount": 0.0,
-							"closing_amount": opening_amt,
+							"closing_amount": 0.0,
 							"transaction_count": 0,
 							"notes": f"Auto-added to ensure consistency for shift {shift_report.name}",
 						}
@@ -783,7 +783,7 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 						"pos_profile": pos_profile,
 						"opening_amount": opening_amount,
 						"transaction_amount": 0.0,
-						"closing_amount": opening_amount,
+						"closing_amount": 0.0,
 						"transaction_count": 0,
 						"notes": f"Initialized for shift report {shift_report.name}",
 					}

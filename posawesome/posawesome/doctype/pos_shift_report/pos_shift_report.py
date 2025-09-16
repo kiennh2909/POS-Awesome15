@@ -104,15 +104,15 @@ class POSShiftReport(Document):
 			for invoice in self.invoices:
 				log.info(f"[SHIFT_REPORT_CALC] 📋 UPDATE_CALCULATED_FIELDS - Processing invoice: {invoice.invoice_no}, Status: {invoice.status}, Amount: {invoice.total_amount}, Is Return: {invoice.is_return}")
 
-				# total_sales: only count Paid invoices (successful sales)
+				# total_sales: only count Paid invoices that are not returns (successful sales)
 				if invoice.status == "Paid" and not invoice.is_return:
 					total_sales += invoice.total_amount or 0
 					log.info(f"[SHIFT_REPORT_CALC] 💰 UPDATE_CALCULATED_FIELDS - Added to total_sales: {invoice.total_amount} - Invoice: {invoice.invoice_no}")
 
-				# total_returns: only count Cancelled invoices (cancelled transactions)
-				if invoice.status == "Cancelled":
+				# total_returns: count both return invoices (is_return=1) and cancelled invoices
+				if invoice.status == "Cancelled" or invoice.is_return:
 					total_returns += invoice.total_amount or 0
-					log.info(f"[SHIFT_REPORT_CALC] 💸 UPDATE_CALCULATED_FIELDS - Added to total_returns: {invoice.total_amount} - Invoice: {invoice.invoice_no}")
+					log.info(f"[SHIFT_REPORT_CALC] 💸 UPDATE_CALCULATED_FIELDS - Added to total_returns: {invoice.total_amount} - Invoice: {invoice.invoice_no} (Status: {invoice.status}, Is Return: {invoice.is_return})")
 
 			self.total_sales = total_sales
 			self.total_returns = total_returns
