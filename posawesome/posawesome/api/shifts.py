@@ -369,66 +369,97 @@ def get_shift_report_invoices(shift_report_id, page=1, page_size=10):
 				"message": "Shift report not found"
 			}
 
-		# Calculate offset for pagination
-		page = int(page) if page else 1
-		page_size = int(page_size) if page_size else 10
+		# Validate and sanitize inputs with better error handling
+		try:
+			page = int(page) if page else 1
+			page_size = int(page_size) if page_size else 10
+
+			# Ensure valid ranges
+			if page < 1:
+				page = 1
+			if page_size < 1 or page_size > 100:  # Max 100 items per page
+				page_size = 10
+		except (ValueError, TypeError):
+			page = 1
+			page_size = 10
+
+		# Calculate pagination with validation
 		offset = (page - 1) * page_size
+		if offset < 0:
+			offset = 0
 
-		# Get total count
-		total_count = frappe.db.count("POS Shift Report Invoice", {
-			"parent": shift_report.name,
-			"parenttype": "POS Shift Report"
-		})
-
-		# Get paginated invoices
-		invoices = frappe.get_all(
-			"POS Shift Report Invoice",
-			filters={
+		# Get total count with error handling
+		try:
+			total_count = frappe.db.count("POS Shift Report Invoice", {
 				"parent": shift_report.name,
 				"parenttype": "POS Shift Report"
-			},
-			fields=[
-				"invoice_no",
-				"invoice_date",
-				"customer",
-				"total_amount",
-				"is_return",
-				"status"
-			],
-			order_by="invoice_date desc, creation desc",
-			limit=page_size,
-			limit_start=offset
-		)
+			})
+		except Exception as count_error:
+			frappe.log_error(f"Error counting invoices: {str(count_error)}", "Get Shift Report Invoices")
+			total_count = 0
 
-		# Format invoice data for frontend
+		# Calculate total pages safely
+		total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 1
+
+		# Adjust page if it exceeds total pages
+		if page > total_pages and total_pages > 0:
+			page = total_pages
+			offset = (page - 1) * page_size
+
+		# Get paginated invoices with error handling
+		try:
+			invoices = frappe.get_all(
+				"POS Shift Report Invoice",
+				filters={
+					"parent": shift_report.name,
+					"parenttype": "POS Shift Report"
+				},
+				fields=[
+					"invoice_no",
+					"invoice_date",
+					"customer",
+					"total_amount",
+					"is_return",
+					"status"
+				],
+				order_by="invoice_date desc, creation desc",
+				limit=page_size,
+				limit_start=offset
+			)
+		except Exception as query_error:
+			frappe.log_error(f"Error querying invoices: {str(query_error)}", "Get Shift Report Invoices")
+			invoices = []
+
+		# Format invoice data for frontend with safe handling
 		formatted_invoices = []
 		for invoice in invoices:
-			formatted_invoices.append({
-				"invoice_no": invoice.invoice_no,
-				"invoice_date": invoice.invoice_date.strftime("%Y-%m-%d") if invoice.invoice_date else "",
-				"customer": invoice.customer or "Walk-in Customer",
-				"total_amount": invoice.total_amount or 0,
-				"is_return": invoice.is_return or False,
-				"status": invoice.status or "Paid"
-			})
+			try:
+				formatted_invoices.append({
+					"invoice_no": invoice.invoice_no or "",
+					"invoice_date": invoice.invoice_date.strftime("%Y-%m-%d") if invoice.invoice_date else "",
+					"customer": invoice.customer or "Walk-in Customer",
+					"total_amount": float(invoice.total_amount or 0),
+					"is_return": bool(invoice.is_return or False),
+					"status": invoice.status or "Paid"
+				})
+			except Exception as format_error:
+				frappe.log_error(f"Error formatting invoice {invoice.invoice_no}: {str(format_error)}", "Get Shift Report Invoices")
+				continue
 
 		return {
 			"success": True,
 			"invoices": formatted_invoices,
 			"total_count": total_count,
+			"total_pages": total_pages,
 			"page": page,
 			"page_size": page_size,
-			"total_pages": (total_count + page_size - 1) // page_size  # Ceiling division
+			"has_next": page < total_pages,
+			"has_prev": page > 1
 		}
 
-	except frappe.DoesNotExistError:
-		return {
-			"success": False,
-			"message": "Shift report not found"
-		}
 	except Exception as e:
-		frappe.log_error(f"Error getting shift report invoices: {str(e)}", "Get Shift Report Invoices")
+		frappe.log_error(f"Unexpected error in get_shift_report_invoices: {str(e)}", "Get Shift Report Invoices")
 		return {
 			"success": False,
-			"message": f"Error retrieving invoices: {str(e)}"
+			"message": f"Unexpected error: {str(e)}"
 		}

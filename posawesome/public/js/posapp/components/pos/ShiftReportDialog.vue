@@ -172,6 +172,7 @@
 						@update:items-per-page="handleItemsPerPageChange"
 						hide-default-footer
 						class="elevation-0"
+						:key="`table-${currentPage}-${itemsPerPage}`"
 					>
 						<template #item.invoice_no="{ item }">
 							<v-chip
@@ -208,7 +209,7 @@
 										totalItems
 									]) }}
 								</div>
-								<div class="d-flex align-center">
+								<div class="d-flex align-center" v-if="totalPages > 1">
 									<v-select
 										v-model="itemsPerPage"
 										:items="itemsPerPageOptions"
@@ -224,8 +225,12 @@
 										:length="totalPages"
 										:total-visible="5"
 										size="small"
+										:input-value="currentPage"
 										@input="handlePageChange"
 									/>
+								</div>
+								<div v-else class="text-caption text-medium-emphasis">
+									{{ totalItems }} {{ totalItems === 1 ? __("invoice") : __("invoices") }}
 								</div>
 							</div>
 						</template>
@@ -412,9 +417,16 @@ export default {
 
 				if (response.message && response.message.success) {
 					console.log("✅ API Success - Invoices:", response.message.invoices?.length, "Total:", response.message.total_count);
-					this.recentInvoices = response.message.invoices || [];
-					this.totalItems = response.message.total_count || 0;
-					this.totalPages = response.message.total_pages || 0;
+
+					// Use Vue.set for reactive updates
+					this.$set(this, 'recentInvoices', response.message.invoices || []);
+					this.$set(this, 'totalItems', response.message.total_count || 0);
+					this.$set(this, 'totalPages', response.message.total_pages || 0);
+
+					// Force update to ensure UI re-renders
+					this.$nextTick(() => {
+						this.$forceUpdate();
+					});
 				} else {
 					console.warn("❌ API call failed or returned error:", response.message);
 					this.useMockData();
@@ -447,15 +459,21 @@ export default {
 				});
 			}
 
-			// Apply pagination to mock data
-			const startIndex = (this.currentPage - 1) * this.itemsPerPage;
-			const endIndex = startIndex + this.itemsPerPage;
+			// Apply pagination to mock data with proper validation
+			const startIndex = Math.max(0, (this.currentPage - 1) * this.itemsPerPage);
+			const endIndex = Math.min(startIndex + this.itemsPerPage, totalMockItems);
 
-			this.recentInvoices = mockInvoices.slice(startIndex, endIndex);
-			this.totalItems = totalMockItems;
-			this.totalPages = Math.ceil(totalMockItems / this.itemsPerPage);
+			// Use Vue.set for reactive updates
+			this.$set(this, 'recentInvoices', mockInvoices.slice(startIndex, endIndex));
+			this.$set(this, 'totalItems', totalMockItems);
+			this.$set(this, 'totalPages', Math.ceil(totalMockItems / this.itemsPerPage));
 
-			console.log(`📄 Mock pagination: Page ${this.currentPage}/${this.totalPages}, Items ${startIndex + 1}-${Math.min(endIndex, totalMockItems)} of ${totalMockItems}`);
+			console.log(`📄 Mock pagination: Page ${this.currentPage}/${this.totalPages}, Items ${startIndex + 1}-${endIndex} of ${totalMockItems}`);
+
+			// Force update to ensure UI re-renders
+			this.$nextTick(() => {
+				this.$forceUpdate();
+			});
 		},
 
 		getStatusColor(status) {
@@ -568,18 +586,20 @@ export default {
 
 		// Handle page change in pagination
 		handlePageChange(newPage) {
-			console.log("📄 Page changed to:", newPage);
-			if (newPage !== this.currentPage) {
-				this.currentPage = newPage;
+			console.log("📄 Page changed to:", newPage, "Current:", this.currentPage);
+			const pageNum = parseInt(newPage);
+			if (pageNum && pageNum !== this.currentPage && pageNum >= 1 && pageNum <= this.totalPages) {
+				this.currentPage = pageNum;
 				this.loadRecentInvoices();
 			}
 		},
 
 		// Handle items per page change
 		handleItemsPerPageChange(newItemsPerPage) {
-			console.log("🔢 Items per page changed to:", newItemsPerPage);
-			if (newItemsPerPage !== this.itemsPerPage) {
-				this.itemsPerPage = newItemsPerPage;
+			console.log("🔢 Items per page changed to:", newItemsPerPage, "Current:", this.itemsPerPage);
+			const sizeNum = parseInt(newItemsPerPage);
+			if (sizeNum && sizeNum !== this.itemsPerPage && this.itemsPerPageOptions.includes(sizeNum)) {
+				this.itemsPerPage = sizeNum;
 				this.currentPage = 1; // Reset to first page when changing items per page
 				this.loadRecentInvoices();
 			}
