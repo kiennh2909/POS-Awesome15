@@ -1333,11 +1333,13 @@ export default {
 			} else if (print) {
 			vm.load_print_page(invoice_to_print);
 			}
+			// ✅ CẬP NHẬT FOOTER STATUS BAR SAU KHI IN THÀNH CÔNG
+			vm.eventBus.emit("update_sales_data");
 		} catch (printError) {
 			console.error("Printing process failed after submission:", printError);
 			vm.eventBus.emit("show_message", {
-			title: __("Invoice submitted, but printing failed: ") + (printError?.message || printError),
-			color: "error",
+				title: __("Invoice submitted, but printing failed: ") + (printError?.message || printError),
+				color: "error",
 			});
 		}
 

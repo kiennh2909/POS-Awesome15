@@ -568,10 +568,13 @@ export default {
 				if (this.eventBus) {
 					this.eventBus.emit("register_shift_report", {
 						shift_report_id: shiftReportData.shift_report_id,
+						total_sales: shiftReportData.total_sales || 0,
+						total_returns: shiftReportData.total_returns || 0,
 						total_invoices: shiftReportData.invoice_count || 0,
 						total_revenue: (shiftReportData.total_sales || 0) + (shiftReportData.total_returns || 0),
 						last_invoice: shiftReportData.invoices && shiftReportData.invoices.length > 0 ?
-							shiftReportData.invoices[shiftReportData.invoices.length - 1].invoice_no : ""
+							shiftReportData.invoices[shiftReportData.invoices.length - 1].invoice_no : "",
+						invoices: shiftReportData.invoices || []
 					});
 				}
 
@@ -586,9 +589,12 @@ export default {
 			if (this.eventBus) {
 				this.eventBus.emit("register_shift_report", {
 					shift_report_id: this.shiftReportId,
+					total_sales: 0,
+					total_returns: 0,
 					total_invoices: 0,
 					total_revenue: 0,
-					last_invoice: ""
+					last_invoice: "",
+					invoices: []
 				});
 			}
 		}
