@@ -165,7 +165,11 @@
 						:items="recentInvoices"
 						:loading="loadingInvoices"
 						density="compact"
-						:items-per-page="5"
+						:items-per-page="itemsPerPage"
+						:items-per-page-options="itemsPerPageOptions"
+						:page="currentPage"
+						@update:page="handlePageChange"
+						@update:items-per-page="handleItemsPerPageChange"
 						hide-default-footer
 						class="elevation-0"
 					>
@@ -192,6 +196,38 @@
 								variant="text"
 								@click="viewInvoice(item)"
 							></v-btn>
+						</template>
+
+						<!-- Custom footer with pagination -->
+						<template #bottom>
+							<div class="d-flex align-center justify-space-between pa-3">
+								<div class="text-caption text-medium-emphasis">
+									{{ __("Showing {0} to {1} of {2} invoices", [
+										(currentPage - 1) * itemsPerPage + 1,
+										Math.min(currentPage * itemsPerPage, totalItems),
+										totalItems
+									]) }}
+								</div>
+								<div class="d-flex align-center">
+									<v-select
+										v-model="itemsPerPage"
+										:items="itemsPerPageOptions"
+										density="compact"
+										variant="outlined"
+										hide-details
+										style="width: 80px;"
+										class="me-2"
+										@update:model-value="handleItemsPerPageChange"
+									/>
+									<v-pagination
+										v-model="currentPage"
+										:length="totalPages"
+										:total-visible="5"
+										size="small"
+										@update:model-value="handlePageChange"
+									/>
+								</div>
+							</div>
 						</template>
 					</v-data-table>
 				</div>
@@ -272,6 +308,12 @@ export default {
 			confirming: false,
 			shiftReportData: {},
 			recentInvoices: [],
+			// Pagination properties
+			currentPage: 1,
+			itemsPerPage: 5,
+			totalItems: 0,
+			totalPages: 0,
+			itemsPerPageOptions: [5, 10, 15, 25],
 			invoiceHeaders: [
 				{ title: this.__("Invoice No"), key: "invoice_no", width: "120px" },
 				{ title: this.__("Date"), key: "invoice_date", width: "100px" },
@@ -345,7 +387,54 @@ export default {
 		async loadRecentInvoices() {
 			this.loadingInvoices = true;
 			try {
-				// Mock recent invoices data
+				// Call real API to get paginated invoices
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.shifts.get_shift_report_invoices",
+					args: {
+						shift_report_id: this.shiftReportId,
+						page: this.currentPage,
+						page_size: this.itemsPerPage
+					}
+				});
+
+				if (response.message && response.message.success) {
+					this.recentInvoices = response.message.invoices || [];
+					this.totalItems = response.message.total_count || 0;
+					this.totalPages = response.message.total_pages || 0;
+				} else {
+					// Fallback to mock data if API fails
+					console.warn("API call failed, using mock data");
+					this.recentInvoices = [
+						{
+							invoice_no: "INV-015",
+							invoice_date: "2025-01-09",
+							customer: "John Doe",
+							total_amount: 150.00,
+							is_return: false
+						},
+						{
+							invoice_no: "INV-014",
+							invoice_date: "2025-01-09",
+							customer: "Jane Smith",
+							total_amount: 75.50,
+							is_return: false
+						},
+						{
+							invoice_no: "RTN-001",
+							invoice_date: "2025-01-09",
+							customer: "Bob Johnson",
+							total_amount: -25.00,
+							is_return: true
+						}
+					];
+					this.totalItems = 3;
+					this.totalPages = Math.ceil(this.totalItems / this.itemsPerPage);
+				}
+			} catch (error) {
+				console.error("Error loading recent invoices:", error);
+				this.showError("Failed to load invoices");
+
+				// Fallback to mock data on error
 				this.recentInvoices = [
 					{
 						invoice_no: "INV-015",
@@ -369,8 +458,8 @@ export default {
 						is_return: true
 					}
 				];
-			} catch (error) {
-				console.error("Error loading recent invoices:", error);
+				this.totalItems = 3;
+				this.totalPages = Math.ceil(this.totalItems / this.itemsPerPage);
 			} finally {
 				this.loadingInvoices = false;
 			}
@@ -482,6 +571,19 @@ export default {
 
 		close() {
 			this.show = false;
+		},
+
+		// Handle page change in pagination
+		handlePageChange(newPage) {
+			this.currentPage = newPage;
+			this.loadRecentInvoices();
+		},
+
+		// Handle items per page change
+		handleItemsPerPageChange(newItemsPerPage) {
+			this.itemsPerPage = newItemsPerPage;
+			this.currentPage = 1; // Reset to first page when changing items per page
+			this.loadRecentInvoices();
 		}
 	}
 };

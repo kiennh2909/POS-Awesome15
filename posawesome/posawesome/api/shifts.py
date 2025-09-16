@@ -338,3 +338,97 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 			"status": "error",
 			"message": str(e)
 		}
+
+
+@frappe.whitelist()
+def get_shift_report_invoices(shift_report_id, page=1, page_size=10):
+	"""
+	Get paginated invoices for a shift report
+
+	Args:
+		shift_report_id (str): Shift report ID
+		page (int): Page number (1-based)
+		page_size (int): Number of items per page
+
+	Returns:
+		dict: Paginated invoice data
+	"""
+	try:
+		# Validate inputs
+		if not shift_report_id:
+			return {
+				"success": False,
+				"message": "Shift report ID is required"
+			}
+
+		# Get shift report document
+		shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
+		if not shift_report:
+			return {
+				"success": False,
+				"message": "Shift report not found"
+			}
+
+		# Calculate offset for pagination
+		page = int(page) if page else 1
+		page_size = int(page_size) if page_size else 10
+		offset = (page - 1) * page_size
+
+		# Get total count
+		total_count = frappe.db.count("POS Shift Report Invoice", {
+			"parent": shift_report.name,
+			"parenttype": "POS Shift Report"
+		})
+
+		# Get paginated invoices
+		invoices = frappe.get_all(
+			"POS Shift Report Invoice",
+			filters={
+				"parent": shift_report.name,
+				"parenttype": "POS Shift Report"
+			},
+			fields=[
+				"invoice_no",
+				"invoice_date",
+				"customer",
+				"total_amount",
+				"is_return",
+				"status"
+			],
+			order_by="invoice_date desc, creation desc",
+			limit=page_size,
+			limit_start=offset
+		)
+
+		# Format invoice data for frontend
+		formatted_invoices = []
+		for invoice in invoices:
+			formatted_invoices.append({
+				"invoice_no": invoice.invoice_no,
+				"invoice_date": invoice.invoice_date.strftime("%Y-%m-%d") if invoice.invoice_date else "",
+				"customer": invoice.customer or "Walk-in Customer",
+				"total_amount": invoice.total_amount or 0,
+				"is_return": invoice.is_return or False,
+				"status": invoice.status or "Paid"
+			})
+
+		return {
+			"success": True,
+			"invoices": formatted_invoices,
+			"total_count": total_count,
+			"page": page,
+			"page_size": page_size,
+			"total_pages": (total_count + page_size - 1) // page_size  # Ceiling division
+		}
+
+	except frappe.DoesNotExistError:
+		return {
+			"success": False,
+			"message": "Shift report not found"
+		}
+	except Exception as e:
+		frappe.log_error(f"Error getting shift report invoices: {str(e)}", "Get Shift Report Invoices")
+		return {
+			"success": False,
+			"message": f"Error retrieving invoices: {str(e)}"
+		}
