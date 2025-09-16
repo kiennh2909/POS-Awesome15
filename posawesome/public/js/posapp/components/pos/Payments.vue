@@ -117,24 +117,22 @@
 							></v-text-field>
 						</v-col>
 						<v-col cols="6" v-if="!is_mpesa_c2b_payment(payment)">
-							<!-- <v-btn block color="primary" theme="dark" @click="set_full_amount(payment.idx)">
-								{{ payment.mode_of_payment }}
-							</v-btn> -->
-							<v-btn block color="primary" theme="dark" @click="set_full_amount(payment.idx, $event)">
+							<v-btn block color="primary" theme="dark" @click="set_full_amount(payment.idx)">
 								{{ payment.mode_of_payment }}
 							</v-btn>
+	
 
 						</v-col>
 
 						<!-- M-Pesa Payment Button (if payment is M-Pesa) -->
-						<v-col cols="12" v-if="is_mpesa_c2b_payment(payment)" class="pl-3">
+						<!-- <v-col cols="12" v-if="is_mpesa_c2b_payment(payment)" class="pl-3">
 							<v-btn block color="success" theme="dark" @click="mpesa_c2b_dialog(payment)">
 								{{ __("Get Payments") }} {{ payment.mode_of_payment }}
 							</v-btn>
-						</v-col>
+						</v-col> -->
 
 						<!-- Request Payment for Phone Type -->
-						<v-col
+						<!-- <v-col
 							cols="3"
 							v-if="payment.type === 'Phone' && payment.amount > 0 && request_payment_field"
 							class="pl-1"
@@ -148,7 +146,7 @@
 							>
 								{{ __("Request") }}
 							</v-btn>
-						</v-col>
+						</v-col> -->
 					</v-row>
 				</div>
 
@@ -600,8 +598,8 @@
 
 				<v-divider></v-divider>
 
-				<!-- Sales Person Selection -->
-				<v-row class="pb-0 mb-2" align="start">
+				<!-- Sales Person Selection - ẩn tạm thời, có thể sử dụng sau -->
+				<v-row class="pb-0 mb-2" align="start" v-if="false">
 					<v-col cols="12">
 						<p v-if="sales_persons && sales_persons.length > 0" class="mt-1 mb-1 text-subtitle-2">
 							{{ sales_persons.length }} sales persons found
@@ -2065,180 +2063,182 @@ export default {
 		},
 		// Set full amount for a payment method when clicked
 
-		set_full_amount(idx, ev) {
-			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Set Full Amount Start
-			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SET_FULL_AMOUNT_START - Invoice: ${this.invoice_doc?.name}, Payment idx: ${idx}, User: ${frappe.session.user}`);
+		// set_full_amount(idx, ev) {
+		// 	// [SHIFT_CLOSE_WORKFLOW] Vue Component - Set Full Amount Start
+		// 	console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SET_FULL_AMOUNT_START - Invoice: ${this.invoice_doc?.name}, Payment idx: ${idx}, User: ${frappe.session.user}`);
 
-			console.log("🔄 [PAYMENT] set_full_amount called with idx:", idx);
-			console.log("📋 [PAYMENT] Event object:", ev);
-			console.log("📄 [PAYMENT] Current invoice_doc:", {
-				name: this.invoice_doc?.name,
-				is_return: this.invoice_doc?.is_return,
-				invoiceType: this.invoiceType,
-				rounded_total: this.invoice_doc?.rounded_total,
-				grand_total: this.invoice_doc?.grand_total,
-				currency: this.invoice_doc?.currency
-			});
+		// 	console.log("🔄 [PAYMENT] set_full_amount called with idx:", idx);
+		// 	console.log("📋 [PAYMENT] Event object:", ev);
+		// 	console.log("📄 [PAYMENT] Current invoice_doc:", {
+		// 		name: this.invoice_doc?.name,
+		// 		is_return: this.invoice_doc?.is_return,
+		// 		invoiceType: this.invoiceType,
+		// 		rounded_total: this.invoice_doc?.rounded_total,
+		// 		grand_total: this.invoice_doc?.grand_total,
+		// 		currency: this.invoice_doc?.currency
+		// 	});
 
+		// 	const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
+		// 	const totalAmount = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
+
+		// 	console.log("💰 [PAYMENT] Calculated values:", {
+		// 		isReturn,
+		// 		totalAmount,
+		// 		currency: this.invoice_doc?.currency
+		// 	});
+
+		// 	// Reset all payment amounts trước
+		// 	console.log("🔄 [PAYMENT] Resetting all payment amounts...");
+		// 	let resetCount = 0;
+		// 	this.invoice_doc.payments.forEach((payment, index) => {
+		// 		const oldAmount = payment.amount;
+		// 		const oldBaseAmount = payment.base_amount;
+
+		// 		console.log(`💸 [PAYMENT] Resetting payment ${index}:`, {
+		// 			idx: payment.idx,
+		// 			mode_of_payment: payment.mode_of_payment,
+		// 			old_amount: oldAmount,
+		// 			old_base_amount: oldBaseAmount,
+		// 			has_base_amount: payment.hasOwnProperty('base_amount')
+		// 		});
+
+		// 		// Ensure we're setting to exactly 0
+		// 		payment.amount = 0;
+		// 		if (payment.hasOwnProperty('base_amount')) {
+		// 			payment.base_amount = 0;
+		// 		}
+
+		// 		// Track changes
+		// 		if (oldAmount !== 0 || (oldBaseAmount !== undefined && oldBaseAmount !== 0)) {
+		// 			resetCount++;
+		// 		}
+		// 	});
+		// 	console.log(`✅ [PAYMENT] Reset ${resetCount} payments with non-zero amounts`);
+
+		// 	// Tìm payment theo idx (ổn định hơn text nút)
+		// 	console.log("🔍 [PAYMENT] Finding payment with idx:", idx);
+		// 	const clickedPayment = this.invoice_doc.payments.find((p) => p.idx === idx);
+
+		// 	if (clickedPayment) {
+		// 		console.log("✅ [PAYMENT] Found clicked payment:", {
+		// 			idx: clickedPayment.idx,
+		// 			mode_of_payment: clickedPayment.mode_of_payment,
+		// 			type: clickedPayment.type,
+		// 			default: clickedPayment.default
+		// 		});
+
+		// 		let amount = isReturn ? -Math.abs(totalAmount) : totalAmount;
+		// 		console.log("💵 [PAYMENT] Setting amount:", {
+		// 			original_total: totalAmount,
+		// 			isReturn,
+		// 			calculated_amount: amount,
+		// 			will_be_negative: isReturn
+		// 		});
+
+		// 		clickedPayment.amount = amount;
+		// 		if (clickedPayment.hasOwnProperty('base_amount')) {
+		// 			clickedPayment.base_amount = isReturn ? -Math.abs(amount) : amount;
+		// 			console.log("🔄 [PAYMENT] Set base_amount:", clickedPayment.base_amount);
+		// 		}
+
+		// 		console.log("✅ [PAYMENT] Final payment state:", {
+		// 			idx: clickedPayment.idx,
+		// 			mode_of_payment: clickedPayment.mode_of_payment,
+		// 			amount: clickedPayment.amount,
+		// 			base_amount: clickedPayment.base_amount
+		// 		});
+
+		// 		// Trigger reactive update
+		// 		this.$nextTick(() => {
+		// 			console.log("🔄 [PAYMENT] Triggering reactive update...");
+	
+		// 			// Force update computed properties
+		// 			this.$forceUpdate();
+	
+		// 			// Emit event để update totals
+		// 			this.eventBus.emit("payment_amount_changed");
+		// 			console.log("📢 [PAYMENT] Emitted payment_amount_changed event");
+	
+		// 			// Additional reactive triggers
+		// 			this.$emit('payment-updated', {
+		// 				payment_idx: idx,
+		// 				amount: clickedPayment.amount,
+		// 				mode_of_payment: clickedPayment.mode_of_payment
+		// 			});
+	
+		// 			console.log("📊 [PAYMENT] Current totals after update:", {
+		// 				total_payments: this.total_payments,
+		// 				diff_payment: this.diff_payment,
+		// 				credit_change: this.credit_change
+		// 			});
+		// 		});
+
+		// 	} else {
+		// 		console.error("❌ [PAYMENT] No payment found for idx:", idx);
+		// 		console.log("📋 [PAYMENT] Available payments:", this.invoice_doc.payments.map(p => ({
+		// 			idx: p.idx,
+		// 			mode_of_payment: p.mode_of_payment
+		// 		})));
+
+		// 		this.eventBus.emit("show_message", {
+		// 			title: __("Payment method not found"),
+		// 			color: "error"
+		// 		});
+		// 	}
+
+		// 	// Log final state of all payments
+		// 	console.log("📊 [PAYMENT] Final state of all payments:");
+		// 	this.invoice_doc.payments.forEach((payment, index) => {
+		// 		console.log(`   ${index}: ${payment.mode_of_payment} (idx: ${payment.idx}) = ${payment.amount}`);
+		// 	});
+
+		// 	// Force Vue update khi cần
+		// 	this.$forceUpdate();
+		// 	console.log("🔄 [PAYMENT] Forced Vue update completed");
+		// },
+
+
+		set_full_amount(idx) {
 			const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
-			const totalAmount = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
+			let totalAmount = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
 
-			console.log("💰 [PAYMENT] Calculated values:", {
-				isReturn,
-				totalAmount,
-				currency: this.invoice_doc?.currency
-			});
+			console.log("Setting full amount for payment method idx:", idx);
+			console.log("Current payments:", JSON.stringify(this.invoice_doc.payments));
 
-			// Reset all payment amounts trước
-			console.log("🔄 [PAYMENT] Resetting all payment amounts...");
-			let resetCount = 0;
-			this.invoice_doc.payments.forEach((payment, index) => {
-				const oldAmount = payment.amount;
-				const oldBaseAmount = payment.base_amount;
-
-				console.log(`💸 [PAYMENT] Resetting payment ${index}:`, {
-					idx: payment.idx,
-					mode_of_payment: payment.mode_of_payment,
-					old_amount: oldAmount,
-					old_base_amount: oldBaseAmount,
-					has_base_amount: payment.hasOwnProperty('base_amount')
-				});
-
-				// Ensure we're setting to exactly 0
+			// Reset all payment amounts first
+			this.invoice_doc.payments.forEach((payment) => {
 				payment.amount = 0;
-				if (payment.hasOwnProperty('base_amount')) {
+				if (payment.base_amount !== undefined) {
 					payment.base_amount = 0;
 				}
-
-				// Track changes
-				if (oldAmount !== 0 || (oldBaseAmount !== undefined && oldBaseAmount !== 0)) {
-					resetCount++;
-				}
 			});
-			console.log(`✅ [PAYMENT] Reset ${resetCount} payments with non-zero amounts`);
 
-			// Tìm payment theo idx (ổn định hơn text nút)
-			console.log("🔍 [PAYMENT] Finding payment with idx:", idx);
-			const clickedPayment = this.invoice_doc.payments.find((p) => p.idx === idx);
+			// Get the clicked payment method's name from the button text
+			const clickedButton = event?.target?.textContent?.trim();
+			console.log("Clicked button text:", clickedButton);
+
+			// Set amount only for clicked payment method
+			const clickedPayment = this.invoice_doc.payments.find(
+				(payment) => payment.mode_of_payment === clickedButton,
+			);
 
 			if (clickedPayment) {
-				console.log("✅ [PAYMENT] Found clicked payment:", {
-					idx: clickedPayment.idx,
-					mode_of_payment: clickedPayment.mode_of_payment,
-					type: clickedPayment.type,
-					default: clickedPayment.default
-				});
-
+				console.log("Found clicked payment:", clickedPayment.mode_of_payment);
 				let amount = isReturn ? -Math.abs(totalAmount) : totalAmount;
-				console.log("💵 [PAYMENT] Setting amount:", {
-					original_total: totalAmount,
-					isReturn,
-					calculated_amount: amount,
-					will_be_negative: isReturn
-				});
-
 				clickedPayment.amount = amount;
-				if (clickedPayment.hasOwnProperty('base_amount')) {
+				if (clickedPayment.base_amount !== undefined) {
 					clickedPayment.base_amount = isReturn ? -Math.abs(amount) : amount;
-					console.log("🔄 [PAYMENT] Set base_amount:", clickedPayment.base_amount);
 				}
-
-				console.log("✅ [PAYMENT] Final payment state:", {
-					idx: clickedPayment.idx,
-					mode_of_payment: clickedPayment.mode_of_payment,
-					amount: clickedPayment.amount,
-					base_amount: clickedPayment.base_amount
-				});
-
-				// Trigger reactive update
-				this.$nextTick(() => {
-					console.log("🔄 [PAYMENT] Triggering reactive update...");
-	
-					// Force update computed properties
-					this.$forceUpdate();
-	
-					// Emit event để update totals
-					this.eventBus.emit("payment_amount_changed");
-					console.log("📢 [PAYMENT] Emitted payment_amount_changed event");
-	
-					// Additional reactive triggers
-					this.$emit('payment-updated', {
-						payment_idx: idx,
-						amount: clickedPayment.amount,
-						mode_of_payment: clickedPayment.mode_of_payment
-					});
-	
-					console.log("📊 [PAYMENT] Current totals after update:", {
-						total_payments: this.total_payments,
-						diff_payment: this.diff_payment,
-						credit_change: this.credit_change
-					});
-				});
-
+				console.log("Set amount for payment:", clickedPayment.mode_of_payment, "amount:", amount);
 			} else {
-				console.error("❌ [PAYMENT] No payment found for idx:", idx);
-				console.log("📋 [PAYMENT] Available payments:", this.invoice_doc.payments.map(p => ({
-					idx: p.idx,
-					mode_of_payment: p.mode_of_payment
-				})));
-
-				this.eventBus.emit("show_message", {
-					title: __("Payment method not found"),
-					color: "error"
-				});
+				console.log("No payment found for button text:", clickedButton);
 			}
 
-			// Log final state of all payments
-			console.log("📊 [PAYMENT] Final state of all payments:");
-			this.invoice_doc.payments.forEach((payment, index) => {
-				console.log(`   ${index}: ${payment.mode_of_payment} (idx: ${payment.idx}) = ${payment.amount}`);
-			});
-
-			// Force Vue update khi cần
+			// Force Vue to update the view
 			this.$forceUpdate();
-			console.log("🔄 [PAYMENT] Forced Vue update completed");
 		},
 
 
-		// set_full_amount(idx) {
-		// 	const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
-		// 	let totalAmount = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
-
-		// 	console.log("Setting full amount for payment method idx:", idx);
-		// 	console.log("Current payments:", JSON.stringify(this.invoice_doc.payments));
-
-		// 	// Reset all payment amounts first
-		// 	this.invoice_doc.payments.forEach((payment) => {
-		// 		payment.amount = 0;
-		// 		if (payment.base_amount !== undefined) {
-		// 			payment.base_amount = 0;
-		// 		}
-		// 	});
-
-		// 	// Get the clicked payment method's name from the button text
-		// 	const clickedButton = event?.target?.textContent?.trim();
-		// 	console.log("Clicked button text:", clickedButton);
-
-		// 	// Set amount only for clicked payment method
-		// 	const clickedPayment = this.invoice_doc.payments.find(
-		// 		(payment) => payment.mode_of_payment === clickedButton,
-		// 	);
-
-		// 	if (clickedPayment) {
-		// 		console.log("Found clicked payment:", clickedPayment.mode_of_payment);
-		// 		let amount = isReturn ? -Math.abs(totalAmount) : totalAmount;
-		// 		clickedPayment.amount = amount;
-		// 		if (clickedPayment.base_amount !== undefined) {
-		// 			clickedPayment.base_amount = isReturn ? -Math.abs(amount) : amount;
-		// 		}
-		// 		console.log("Set amount for payment:", clickedPayment.mode_of_payment, "amount:", amount);
-		// 	} else {
-		// 		console.log("No payment found for button text:", clickedButton);
-		// 	}
-
-		// 	// Force Vue to update the view
-		// 	this.$forceUpdate();
-		// },
 		// Set remaining amount for a payment method when focused
 		set_rest_amount(idx) {
 			const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
