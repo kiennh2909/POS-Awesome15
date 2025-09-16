@@ -643,23 +643,21 @@ def submit_closing_shift(closing_shift):
         payment_reconciliation = closing_shift_data.get('payment_reconciliation', [])
         for idx, payment in enumerate(payment_reconciliation):
             closing_amount = payment.get('closing_amount')
-            opening_amount = payment.get('opening_amount', 0)
             expected_amount = payment.get('expected_amount', 0)
 
-            # Check if transactions occurred (expected_amount != opening_amount), then closing amount cannot be 0
-            if flt(expected_amount) != flt(opening_amount):
-                if flt(closing_amount) == 0:
-                    frappe.throw(_("Closing amount cannot be 0 when transactions occurred for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
+            # Simple logic: if expected_amount = 0, allow closing_amount = 0
+            # Otherwise, closing_amount must be > 0
+            if flt(expected_amount) == 0:
+                # Allow closing_amount = 0 when no expected transactions
+                pass
+            else:
+                # Require closing_amount > 0 when there are expected transactions
+                if closing_amount is None or closing_amount == '' or flt(closing_amount) <= 0:
+                    frappe.throw(_("Closing amount is required and must be greater than 0 for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
 
-            if closing_amount is None or closing_amount == '' or closing_amount == 0:
-                frappe.throw(_("Closing amount is required and must be greater than 0 for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
-
-            # Validate it's a number
+            # Validate it's a number and update the data
             try:
-                closing_amount = float(closing_amount)
-                if closing_amount <= 0:
-                    frappe.throw(_("Closing amount must be greater than 0 for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
-                # Update the data with validated value
+                closing_amount = float(closing_amount) if closing_amount not in [None, '', 0] else 0
                 payment['closing_amount'] = closing_amount
             except (ValueError, TypeError):
                 frappe.throw(_("Closing amount must be a valid number for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
