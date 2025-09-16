@@ -8,6 +8,8 @@ import frappe
 from frappe.utils import nowdate
 from frappe import _
 from .utilities import get_version
+from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import initialize_payment_summaries_for_shift
+from posawesome.posawesome.utils.logging import get_logger
 
 
 @frappe.whitelist()
@@ -137,9 +139,16 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 		dict: Thông tin Shift Report vừa tạo
 	"""
 	try:
+		# Get POS Profile for logging
+		opening_shift = frappe.get_doc("POS Opening Shift", opening_shift_name)
+		pos_profile = opening_shift.pos_profile or "POSProfile"
+
+		# Initialize logger with POS Profile name
+		log = get_logger(pos_profile)
+
 		# Debug logging
-		frappe.logger().info(f"Starting create_shift_report_automatically for {opening_shift_name}")
-		frappe.logger().info(f"Balance details: {balance_details}")
+		log.info(f"Starting create_shift_report_automatically for {opening_shift_name}")
+		log.info(f"Balance details: {balance_details}")
 
 		# Kiểm tra xem Shift Report đã tồn tại chưa
 		existing_report = frappe.db.exists("POS Shift Report",
@@ -149,7 +158,7 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 		if existing_report:
 			# Nếu đã tồn tại, trả về thông tin report hiện tại
 			report = frappe.get_doc("POS Shift Report", existing_report)
-			frappe.logger().info(f"Shift Report already exists: {existing_report}")
+			log.info(f"Shift Report already exists: {existing_report}")
 			return {
 				"name": report.name,
 				"shift_report_id": report.shift_report_id,
@@ -159,9 +168,9 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 		# Lấy thông tin từ opening shift
 		try:
 			opening_shift = frappe.get_doc("POS Opening Shift", opening_shift_name)
-			frappe.logger().info(f"Opening shift loaded: {opening_shift.name}")
+			log.info(f"Opening shift loaded: {opening_shift.name}")
 		except frappe.DoesNotExistError:
-			frappe.logger().error(f"POS Opening Shift not found: {opening_shift_name}")
+			log.error(f"POS Opening Shift not found: {opening_shift_name}")
 			return {
 				"status": "error",
 				"message": f"POS Opening Shift not found: {opening_shift_name}"
@@ -169,28 +178,28 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 
 		# Validate opening shift data
 		if not opening_shift.posting_date:
-			frappe.logger().error("Opening shift missing posting_date")
+			log.error("Opening shift missing posting_date")
 			return {
 				"status": "error",
 				"message": "Opening shift missing posting date"
 			}
 
 		if not opening_shift.user:
-			frappe.logger().error("Opening shift missing user")
+			log.error("Opening shift missing user")
 			return {
 				"status": "error",
 				"message": "Opening shift missing user"
 			}
 
 		if not opening_shift.pos_profile:
-			frappe.logger().error("Opening shift missing pos_profile")
+			log.error("Opening shift missing pos_profile")
 			return {
 				"status": "error",
 				"message": "Opening shift missing POS profile"
 			}
 
 		if not opening_shift.company:
-			frappe.logger().error("Opening shift missing company")
+			log.error("Opening shift missing company")
 			return {
 				"status": "error",
 				"message": "Opening shift missing company"
@@ -201,7 +210,7 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 		total_opening = 0
 
 		if not balance_details:
-			frappe.logger().error("No balance details provided")
+			log.error("No balance details provided")
 			return {
 				"status": "error",
 				"message": "No balance details provided"
@@ -209,7 +218,7 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 
 		for detail in balance_details:
 			if not isinstance(detail, dict):
-				frappe.logger().error(f"Invalid balance detail format: {detail}")
+				log.error(f"Invalid balance detail format: {detail}")
 				continue
 
 			mode_of_payment = detail.get("mode_of_payment")
@@ -217,28 +226,24 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 
 			# Validate required fields
 			if not mode_of_payment:
-				frappe.logger().error(f"Missing mode_of_payment in balance detail: {detail}")
+				log.error(f"Missing mode_of_payment in balance detail: {detail}")
 				continue
 
 			# Validate amount
 			try:
 				amount = float(amount) if amount else 0
 			except (ValueError, TypeError):
-				frappe.logger().error(f"Invalid amount for {mode_of_payment}: {detail.get('amount')}")
+				log.error(f"Invalid amount for {mode_of_payment}: {detail.get('amount')}")
 				continue
 
-			if amount > 0:
-				opening_amounts[mode_of_payment] = amount
-				total_opening += amount
+			# Add all amounts (including 0, negative, positive)
+			opening_amounts[mode_of_payment] = amount
+			total_opening += amount
 
-		if not opening_amounts:
-			frappe.logger().warning("No valid opening amounts found - all amounts are 0 or invalid")
-			# Allow creation with zero amounts - use default Cash: 0
-			opening_amounts = {"Cash": 0}
-			total_opening = 0
-			frappe.logger().info("Using default zero amounts for shift report creation")
+		# Log opening amounts summary
+		log.info(f"Processed {len(opening_amounts)} payment methods with total opening: {total_opening}")
 
-		frappe.logger().info(f"Opening amounts: {opening_amounts}, Total: {total_opening}")
+		log.info(f"Opening amounts: {opening_amounts}, Total: {total_opening}")
 
 		# Tạo Shift Report ID duy nhất
 		base_shift_report_id = f"SHIFT-{opening_shift_name}"
@@ -264,27 +269,27 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 			"verification_status": "Pending"
 		}
 
-		frappe.logger().info(f"Creating shift report with data: {shift_report_data}")
+		log.info(f"Creating shift report with data: {shift_report_data}")
 
 		try:
 			shift_report = frappe.get_doc(shift_report_data)
 			shift_report.insert(ignore_permissions=True)
 			frappe.db.commit()  # Ensure the document is committed
-			frappe.logger().info(f"Shift Report created successfully: {shift_report.name}")
+			log.info(f"Shift Report created successfully: {shift_report.name}")
 		except frappe.DuplicateEntryError as dup_error:
-			frappe.logger().error(f"Duplicate shift report ID: {str(dup_error)}")
+			log.error(f"Duplicate shift report ID: {str(dup_error)}")
 			return {
 				"status": "error",
 				"message": f"Shift report ID already exists: {shift_report_data['shift_report_id']}"
 			}
 		except frappe.ValidationError as val_error:
-			frappe.logger().error(f"Validation error creating shift report: {str(val_error)}")
+			log.error(f"Validation error creating shift report: {str(val_error)}")
 			return {
 				"status": "error",
 				"message": f"Validation error: {str(val_error)}"
 			}
 		except Exception as insert_error:
-			frappe.logger().error(f"Failed to insert shift report: {str(insert_error)}")
+			log.error(f"Failed to insert shift report: {str(insert_error)}")
 			return {
 				"status": "error",
 				"message": f"Failed to create shift report: {str(insert_error)}"
@@ -297,11 +302,25 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 				"shift_report_id": shift_report.shift_report_id
 			})
 			frappe.db.commit()
-			frappe.logger().info(f"Opening shift updated with shift report reference")
+			log.info(f"Opening shift updated with shift report reference")
 		except Exception as update_error:
-			frappe.logger().error(f"Failed to update opening shift: {str(update_error)}")
+			log.error(f"Failed to update opening shift: {str(update_error)}")
 			# Don't return error here as shift report was created successfully
 			# Just log the error
+
+		# Khởi tạo POS Payment Summary ngay sau khi tạo Shift Report
+		try:
+			log.info(f"Initializing POS Payment Summary for shift report: {shift_report.name}")
+			init_result = initialize_payment_summaries_for_shift(shift_report.name)
+
+			if init_result.get("success"):
+				log.info(f"✅ POS Payment Summary initialized successfully: {init_result.get('data', {}).get('initialized_count', 0)} records")
+			else:
+				log.warning(f"⚠️ Failed to initialize POS Payment Summary: {init_result.get('message')}")
+				# Don't fail the entire operation if payment summary initialization fails
+		except Exception as init_error:
+			log.error(f"❌ Error initializing POS Payment Summary: {str(init_error)}")
+			# Don't fail the entire operation if payment summary initialization fails
 
 		return {
 			"name": shift_report.name,
@@ -312,7 +331,7 @@ def create_shift_report_automatically(opening_shift_name, balance_details):
 		}
 
 	except Exception as e:
-		frappe.logger().error(f"Error creating shift report automatically: {str(e)}")
+		log.error(f"Error creating shift report automatically: {str(e)}")
 		frappe.log_error(f"Error creating shift report automatically: {str(e)}", "Create Shift Report Automatically")
 		# Return error dict thay vì throw để không làm gián đoạn việc tạo opening shift
 		return {
