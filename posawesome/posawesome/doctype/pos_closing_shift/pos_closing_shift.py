@@ -699,12 +699,28 @@ def submit_printed_invoices(pos_opening_shift):
             },
         )
 
+        submitted_count = 0
+        skipped_count = 0
+
         for invoice in invoices_list:
             try:
                 invoice_doc = frappe.get_doc("Sales Invoice", invoice.name)
-                invoice_doc.submit()
+
+                # Double-check docstatus before submitting to prevent "Status cannot be Paid" error
+                if invoice_doc.docstatus == 0:
+                    invoice_doc.submit()
+                    submitted_count += 1
+                    log.info(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_SUCCESS - Submitted invoice {invoice.name}")
+                else:
+                    skipped_count += 1
+                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_SKIP - Invoice {invoice.name} already submitted (docstatus: {invoice_doc.docstatus}, status: {invoice_doc.status})")
+
             except Exception as e:
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_ERROR - Failed to submit invoice {invoice.name}: {str(e)}")
                 continue
 
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_COMPLETE - Submitted: {submitted_count}, Skipped: {skipped_count}")
+
     except Exception as e:
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_FAILED - Error submitting printed invoices for shift {pos_opening_shift}: {str(e)}")
         frappe.log_error(f"Error submitting printed invoices for shift {pos_opening_shift}: {str(e)}")
