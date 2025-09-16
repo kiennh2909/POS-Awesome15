@@ -331,6 +331,12 @@ class POSClosingShift(Document):
                 "new_status": self.verification_status
             })
 
+            # Update POS Shift Report with closing data
+            self.update_pos_shift_report_on_close()
+
+            # Update POS Payment Summary with closing amounts
+            self.update_pos_payment_summary_on_close()
+
             # Final success log
             self.log_workflow_step("ON_SUBMIT_SUCCESS", {
                 "final_status": self.verification_status
@@ -479,6 +485,128 @@ class POSClosingShift(Document):
 
             for invoice in data:
                 frappe.delete_doc("Sales Invoice", invoice.name, force=1)
+
+    def update_pos_shift_report_on_close(self):
+        """Update POS Shift Report with closing data when closing shift is submitted"""
+        try:
+            if not self.shift_report:
+                self.log_workflow_step("UPDATE_SHIFT_REPORT_SKIP", {
+                    "reason": "No shift report linked"
+                }, "WARNING")
+                return
+
+            # Get shift report
+            shift_report = frappe.get_doc("POS Shift Report", self.shift_report)
+
+            # Update closing data
+            shift_report.closing_date = self.period_end_date
+            shift_report.closed_by = self.user
+            shift_report.status = "Closed"
+
+            # Calculate actual closing amounts from payment reconciliation
+            actual_closing_amounts = {}
+            total_actual_closing = 0
+
+            for payment in self.payment_reconciliation:
+                mode = payment.mode_of_payment
+                closing_amount = flt(payment.closing_amount or 0)
+                actual_closing_amounts[mode] = closing_amount
+                total_actual_closing += closing_amount
+
+            shift_report.actual_closing_amounts = frappe.as_json(actual_closing_amounts)
+            shift_report.total_actual_closing = total_actual_closing
+
+            # Calculate difference
+            expected_total = flt(shift_report.total_expected_closing or 0)
+            shift_report.difference = total_actual_closing - expected_total
+
+            # Save shift report
+            shift_report.save(ignore_permissions=True)
+
+            self.log_workflow_step("UPDATE_SHIFT_REPORT_SUCCESS", {
+                "shift_report": self.shift_report,
+                "actual_closing_amounts": actual_closing_amounts,
+                "total_actual_closing": total_actual_closing,
+                "difference": shift_report.difference
+            })
+
+        except Exception as e:
+            self.log_workflow_step("UPDATE_SHIFT_REPORT_ERROR", {
+                "shift_report": self.shift_report,
+                "error": str(e)
+            }, "ERROR")
+            # Don't raise error to prevent closing shift submission failure
+
+    def update_pos_payment_summary_on_close(self):
+        """Update POS Payment Summary records with closing amounts when closing shift is submitted"""
+        try:
+            if not self.shift_report:
+                self.log_workflow_step("UPDATE_PAYMENT_SUMMARY_SKIP", {
+                    "reason": "No shift report linked"
+                }, "WARNING")
+                return
+
+            # Get shift report for shift_report_id
+            shift_report = frappe.get_doc("POS Shift Report", self.shift_report)
+            shift_report_id = shift_report.shift_report_id
+
+            # Update shift_end_time in shift report first
+            shift_report.shift_end_time = self.period_end_date
+            shift_report.save(ignore_permissions=True)
+
+            # Get all POS Payment Summary records for this shift
+            payment_summaries = frappe.get_all("POS Payment Summary",
+                filters={
+                    "shift_report_id": shift_report_id,
+                    "pos_shift_report": self.shift_report
+                },
+                fields=["name", "payment_method"]
+            )
+
+            updated_count = 0
+            for summary in payment_summaries:
+                try:
+                    # Get the document
+                    summary_doc = frappe.get_doc("POS Payment Summary", summary.name)
+
+                    # Find corresponding payment reconciliation data
+                    reconciliation_data = None
+                    for payment in self.payment_reconciliation:
+                        if payment.mode_of_payment == summary_doc.payment_method:
+                            reconciliation_data = payment
+                            break
+
+                    if reconciliation_data:
+                        # Update closing data
+                        summary_doc.closing_amount = flt(reconciliation_data.closing_amount or 0)
+                        summary_doc.expected_closing_amount = flt(reconciliation_data.expected_amount or 0)
+                        summary_doc.difference = summary_doc.closing_amount - summary_doc.expected_closing_amount
+                        summary_doc.shift_end_time = self.period_end_date
+
+                        # Save
+                        summary_doc.save(ignore_permissions=True)
+                        updated_count += 1
+
+                except Exception as e:
+                    self.log_workflow_step("UPDATE_PAYMENT_SUMMARY_ITEM_ERROR", {
+                        "payment_summary": summary.name,
+                        "payment_method": summary.payment_method,
+                        "error": str(e)
+                    }, "ERROR")
+                    continue
+
+            self.log_workflow_step("UPDATE_PAYMENT_SUMMARY_SUCCESS", {
+                "shift_report": self.shift_report,
+                "updated_count": updated_count,
+                "total_summaries": len(payment_summaries)
+            })
+
+        except Exception as e:
+            self.log_workflow_step("UPDATE_PAYMENT_SUMMARY_ERROR", {
+                "shift_report": self.shift_report,
+                "error": str(e)
+            }, "ERROR")
+            # Don't raise error to prevent closing shift submission failure
 
     @frappe.whitelist()
     def get_payment_reconciliation_details(self):

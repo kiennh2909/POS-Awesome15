@@ -338,6 +338,9 @@ export default {
 							color: "success",
 						});
 
+						// Emit success event for UI refresh and cache clearing
+						this.eventBus.emit("shift_closed_success");
+
 						// Reload opening entry after a short delay
 						setTimeout(() => {
 							this.check_opening_entry();

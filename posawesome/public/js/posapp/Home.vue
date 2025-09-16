@@ -438,6 +438,11 @@ export default {
 				this.eventBus.on("pending_invoices_changed", (count) => {
 					this.pendingInvoices = count;
 				});
+
+				// Handle shift close success - refresh UI and clear cache
+				this.eventBus.on("shift_closed_success", () => {
+					this.handleShiftCloseSuccess();
+				});
 			}
 
 			// Enhanced server connection status listeners
@@ -624,6 +629,66 @@ export default {
 
 		handleUpdateAfterDelete() {
 			// Handle update after delete
+		},
+
+		async handleShiftCloseSuccess() {
+			console.log("Shift closed successfully - refreshing UI and clearing cache");
+
+			// Show success message
+			this.eventBus.emit("show_message", {
+				title: __("Shift closed successfully. Refreshing application..."),
+				color: "success",
+			});
+
+			// Clear local cache and storage
+			try {
+				// Clear IndexedDB cache
+				if (window.indexedDB) {
+					const dbs = await window.indexedDB.databases();
+					for (const db of dbs) {
+						if (db.name && db.name.includes('posawesome')) {
+							window.indexedDB.deleteDatabase(db.name);
+						}
+					}
+				}
+
+				// Clear localStorage items related to POS
+				const keysToRemove = [];
+				for (let i = 0; i < localStorage.length; i++) {
+					const key = localStorage.key(i);
+					if (key && (key.startsWith('posa_') || key.includes('posawesome'))) {
+						keysToRemove.push(key);
+					}
+				}
+				keysToRemove.forEach(key => localStorage.removeItem(key));
+
+				// Clear sessionStorage
+				sessionStorage.clear();
+
+				console.log("Cache cleared successfully");
+			} catch (error) {
+				console.warn("Error clearing cache:", error);
+			}
+
+			// Refresh POS profile and data
+			this.posProfile = {};
+			this.pendingInvoices = 0;
+			this.lastInvoiceId = "";
+			this.syncTotals = { pending: 0, synced: 0, drafted: 0 };
+
+			// Re-initialize data
+			await this.initializeData();
+
+			// Force reload of current page/component
+			this.$forceUpdate();
+
+			// Show completion message
+			setTimeout(() => {
+				this.eventBus.emit("show_message", {
+					title: __("Application refreshed. Ready for new shift."),
+					color: "info",
+				});
+			}, 1000);
 		},
 
 		remove_frappe_nav() {
