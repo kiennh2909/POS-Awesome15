@@ -889,6 +889,27 @@ def submit_closing_shift(closing_shift):
 
         log.info(f"[SHIFT_CLOSE_WORKFLOW] API_PROCESS - submit_closing_shift - Request: {request_id} - All validations passed, creating document")
 
+        # Validate payment reconciliation data
+        payment_reconciliation = closing_shift_data.get('payment_reconciliation', [])
+        for idx, payment in enumerate(payment_reconciliation):
+            closing_amount = payment.get('closing_amount')
+            if closing_amount is None or closing_amount == '' or closing_amount == 0:
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Missing or zero closing amount for payment method '{payment.get('mode_of_payment', 'Unknown')}' at index {idx}")
+                frappe.throw(_("Closing amount is required and must be greater than 0 for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
+
+            # Validate it's a number
+            try:
+                closing_amount = float(closing_amount)
+                if closing_amount <= 0:
+                    frappe.throw(_("Closing amount must be greater than 0 for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
+                # Update the data with validated value
+                payment['closing_amount'] = closing_amount
+            except (ValueError, TypeError):
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] API_ERROR - submit_closing_shift - Request: {request_id} - Invalid closing amount '{closing_amount}' for payment method '{payment.get('mode_of_payment', 'Unknown')}'")
+                frappe.throw(_("Closing amount must be a valid number for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] API_PROCESS - submit_closing_shift - Request: {request_id} - Payment reconciliation validated for {len(payment_reconciliation)} methods")
+
         # Create closing shift document
         try:
             closing_shift_doc = frappe.get_doc(closing_shift_data)

@@ -30,6 +30,9 @@
 									<p class="text-body-2 text-grey">
 										{{ __("Verify closing amounts for each payment method") }}
 									</p>
+									<v-alert v-if="allFieldsEmpty" type="warning" class="mt-3">
+										{{ __("Please enter closing amounts for all payment methods") }}
+									</v-alert>
 								</div>
 
 								<v-data-table
@@ -44,7 +47,7 @@
 									<template v-slot:item.closing_amount="props">
 										<v-text-field
 											v-model="props.item.closing_amount"
-											:rules="[max25chars]"
+											:rules="[required, isNumber, max25chars]"
 											:label="frappe._('Edit')"
 											single-line
 											counter
@@ -138,7 +141,9 @@ export default {
 				sortable: true,
 			},
 		],
-		max25chars: (v) => v.length <= 20 || "Input too long!", // TODO : should validate as number
+		max25chars: (v) => v.length <= 20 || "Input too long!",
+		required: (v) => !!v || "This field is required",
+		isNumber: (v) => !isNaN(v) || "Must be a number",
 		pagination: {},
 	}),
 	watch: {},
@@ -151,11 +156,25 @@ export default {
 			this.eventBus.emit("submit_closing_pos", this.dialog_data);
 			this.closingDialog = false;
 		},
+		initializeClosingAmounts() {
+			if (this.dialog_data.payment_reconciliation) {
+				this.dialog_data.payment_reconciliation.forEach(item => {
+					if (item.closing_amount === undefined || item.closing_amount === null || item.closing_amount === '') {
+						item.closing_amount = item.expected_amount || 0;
+					}
+				});
+			}
+		},
 	},
 
 	computed: {
 		isDarkTheme() {
 			return this.$theme.current === "dark";
+		},
+		allFieldsEmpty() {
+			return this.dialog_data.payment_reconciliation?.every(item =>
+				!item.closing_amount || item.closing_amount === ''
+			) || false;
 		},
 	},
 
@@ -163,6 +182,7 @@ export default {
 		this.eventBus.on("open_ClosingDialog", (data) => {
 			this.closingDialog = true;
 			this.dialog_data = data;
+			this.initializeClosingAmounts();
 		});
 		this.eventBus.on("register_pos_profile", (data) => {
 			this.pos_profile = data.pos_profile;
