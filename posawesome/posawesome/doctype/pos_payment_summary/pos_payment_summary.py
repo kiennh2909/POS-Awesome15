@@ -5,7 +5,6 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import get_datetime, cstr, flt
-from frappe.installer import migrate_app
 
 from posawesome.posawesome.utils.logging import get_logger
 
@@ -670,9 +669,8 @@ def run_pos_payment_summary_migration():
 			print(f"   shift_report_id unique: {unique}")
 
 		# STEP 2: Run migration
-		print("\n⚙️ STEP 2: Running migration for posawesome app...")
-		migrate_app("posawesome")
-		print("   ✅ Migration completed")
+		print("\n⚙️ STEP 2: Migration step skipped (migrate_app not available)")
+		print("   ℹ️  Manual migration may be required")
 
 		# STEP 3: Verify changes
 		print("\n✅ STEP 3: Verifying changes...")
