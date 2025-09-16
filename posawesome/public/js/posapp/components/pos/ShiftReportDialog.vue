@@ -217,14 +217,14 @@
 										hide-details
 										style="width: 80px;"
 										class="me-2"
-										@update:model-value="handleItemsPerPageChange"
+										@change="handleItemsPerPageChange"
 									/>
 									<v-pagination
 										v-model="currentPage"
 										:length="totalPages"
 										:total-visible="5"
 										size="small"
-										@update:model-value="handlePageChange"
+										@input="handlePageChange"
 									/>
 								</div>
 							</div>
@@ -261,6 +261,15 @@
 					@click="printReport"
 				>
 					{{ __("Print Report") }}
+				</v-btn>
+				<v-btn
+					v-if="false"
+					color="info"
+					variant="outlined"
+					prepend-icon="mdi-bug"
+					@click="testAPI"
+				>
+					{{ __("Test API") }}
 				</v-btn>
 				<v-btn
 					v-if="canVerify"
@@ -387,6 +396,8 @@ export default {
 		async loadRecentInvoices() {
 			this.loadingInvoices = true;
 			try {
+				console.log("🔄 Loading invoices for page:", this.currentPage, "page_size:", this.itemsPerPage);
+
 				// Call real API to get paginated invoices
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.shifts.get_shift_report_invoices",
@@ -397,72 +408,54 @@ export default {
 					}
 				});
 
+				console.log("📡 API Response:", response);
+
 				if (response.message && response.message.success) {
+					console.log("✅ API Success - Invoices:", response.message.invoices?.length, "Total:", response.message.total_count);
 					this.recentInvoices = response.message.invoices || [];
 					this.totalItems = response.message.total_count || 0;
 					this.totalPages = response.message.total_pages || 0;
 				} else {
-					// Fallback to mock data if API fails
-					console.warn("API call failed, using mock data");
-					this.recentInvoices = [
-						{
-							invoice_no: "INV-015",
-							invoice_date: "2025-01-09",
-							customer: "John Doe",
-							total_amount: 150.00,
-							is_return: false
-						},
-						{
-							invoice_no: "INV-014",
-							invoice_date: "2025-01-09",
-							customer: "Jane Smith",
-							total_amount: 75.50,
-							is_return: false
-						},
-						{
-							invoice_no: "RTN-001",
-							invoice_date: "2025-01-09",
-							customer: "Bob Johnson",
-							total_amount: -25.00,
-							is_return: true
-						}
-					];
-					this.totalItems = 3;
-					this.totalPages = Math.ceil(this.totalItems / this.itemsPerPage);
+					console.warn("❌ API call failed or returned error:", response.message);
+					this.useMockData();
 				}
 			} catch (error) {
-				console.error("Error loading recent invoices:", error);
+				console.error("💥 Error loading recent invoices:", error);
 				this.showError("Failed to load invoices");
-
-				// Fallback to mock data on error
-				this.recentInvoices = [
-					{
-						invoice_no: "INV-015",
-						invoice_date: "2025-01-09",
-						customer: "John Doe",
-						total_amount: 150.00,
-						is_return: false
-					},
-					{
-						invoice_no: "INV-014",
-						invoice_date: "2025-01-09",
-						customer: "Jane Smith",
-						total_amount: 75.50,
-						is_return: false
-					},
-					{
-						invoice_no: "RTN-001",
-						invoice_date: "2025-01-09",
-						customer: "Bob Johnson",
-						total_amount: -25.00,
-						is_return: true
-					}
-				];
-				this.totalItems = 3;
-				this.totalPages = Math.ceil(this.totalItems / this.itemsPerPage);
+				this.useMockData();
 			} finally {
 				this.loadingInvoices = false;
 			}
+		},
+
+		// Generate mock data for testing pagination
+		useMockData() {
+			console.log("🎭 Using mock data for pagination testing");
+
+			// Generate more mock data to test pagination
+			const mockInvoices = [];
+			const totalMockItems = 47; // Enough for multiple pages
+
+			for (let i = 1; i <= totalMockItems; i++) {
+				const isReturn = Math.random() < 0.2; // 20% return invoices
+				mockInvoices.push({
+					invoice_no: isReturn ? `RTN-${String(i).padStart(3, '0')}` : `INV-${String(i).padStart(3, '0')}`,
+					invoice_date: "2025-01-09",
+					customer: `Customer ${i}`,
+					total_amount: isReturn ? -(Math.random() * 200 + 10) : (Math.random() * 300 + 20),
+					is_return: isReturn
+				});
+			}
+
+			// Apply pagination to mock data
+			const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+			const endIndex = startIndex + this.itemsPerPage;
+
+			this.recentInvoices = mockInvoices.slice(startIndex, endIndex);
+			this.totalItems = totalMockItems;
+			this.totalPages = Math.ceil(totalMockItems / this.itemsPerPage);
+
+			console.log(`📄 Mock pagination: Page ${this.currentPage}/${this.totalPages}, Items ${startIndex + 1}-${Math.min(endIndex, totalMockItems)} of ${totalMockItems}`);
 		},
 
 		getStatusColor(status) {
@@ -575,15 +568,39 @@ export default {
 
 		// Handle page change in pagination
 		handlePageChange(newPage) {
-			this.currentPage = newPage;
-			this.loadRecentInvoices();
+			console.log("📄 Page changed to:", newPage);
+			if (newPage !== this.currentPage) {
+				this.currentPage = newPage;
+				this.loadRecentInvoices();
+			}
 		},
 
 		// Handle items per page change
 		handleItemsPerPageChange(newItemsPerPage) {
-			this.itemsPerPage = newItemsPerPage;
-			this.currentPage = 1; // Reset to first page when changing items per page
-			this.loadRecentInvoices();
+			console.log("🔢 Items per page changed to:", newItemsPerPage);
+			if (newItemsPerPage !== this.itemsPerPage) {
+				this.itemsPerPage = newItemsPerPage;
+				this.currentPage = 1; // Reset to first page when changing items per page
+				this.loadRecentInvoices();
+			}
+		},
+
+		// Debug method to test API
+		async testAPI() {
+			try {
+				console.log("🧪 Testing API endpoint...");
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.shifts.get_shift_report_invoices",
+					args: {
+						shift_report_id: "SHIFT-001",
+						page: 1,
+						page_size: 5
+					}
+				});
+				console.log("🧪 API Test Result:", response);
+			} catch (error) {
+				console.error("🧪 API Test Failed:", error);
+			}
 		}
 	}
 };
