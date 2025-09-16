@@ -646,10 +646,10 @@ def submit_closing_shift(closing_shift):
             opening_amount = payment.get('opening_amount', 0)
             expected_amount = payment.get('expected_amount', 0)
 
-            # Check if opening amount = 0 and no transactions occurred, then closing amount cannot be 0
-            if flt(opening_amount) == 0 and flt(expected_amount) == flt(opening_amount):
-                if closing_amount is None or closing_amount == '' or flt(closing_amount) == 0:
-                    frappe.throw(_("Closing amount cannot be 0 when opening amount is 0 and no transactions occurred for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
+            # Check if transactions occurred (expected_amount != opening_amount), then closing amount cannot be 0
+            if flt(expected_amount) != flt(opening_amount):
+                if flt(closing_amount) == 0:
+                    frappe.throw(_("Closing amount cannot be 0 when transactions occurred for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
 
             if closing_amount is None or closing_amount == '' or closing_amount == 0:
                 frappe.throw(_("Closing amount is required and must be greater than 0 for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
