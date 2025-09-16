@@ -42,6 +42,12 @@
 				<v-icon size="16" color="white">mdi-chart-line</v-icon>
 				<span class="status-text">Today: {{ formatCurrency(todaySales || 0) }}</span>
 			</div>
+
+			<!-- Net Amount -->
+			<div class="status-item">
+				<v-icon size="16" color="white">mdi-calculator</v-icon>
+				<span class="status-text">Net: {{ formatCurrency(netAmount || 0) }}</span>
+			</div>
 		</div>
 	</div>
 </template>
@@ -58,6 +64,7 @@ export default {
 			cashBalance: 0,
 			lastInvoice: "",
 			todaySales: 0,
+			netAmount: 0,
 			currency: "VND",  // Add currency property
 			timeInterval: null,
 			shiftReportData: null
@@ -163,6 +170,7 @@ export default {
 				this.cashBalance = data.cash_balance || 0;
 				this.lastInvoice = data.last_invoice || "";
 				this.todaySales = data.today_sales || 0;
+				this.netAmount = data.total_revenue || 0;  // Net Amount from API
 				this.currency = data.currency || "VND";  // Add currency from API
 			}
 		},
@@ -170,6 +178,7 @@ export default {
 		updateShiftReportData(data) {
 			this.shiftReportData = data;
 			this.todaySales = data.total_sales || 0;
+			this.netAmount = (data.total_sales || 0) + (data.total_returns || 0);  // Calculate Net Amount
 
 			// Update last invoice from shift report data
 			if (data.invoices && data.invoices.length > 0) {

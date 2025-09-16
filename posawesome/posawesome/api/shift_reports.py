@@ -581,7 +581,7 @@ def get_footer_status_data():
 			"currency": currency,  # Add currency to result
 			"shift_report_id": "",
 			"total_invoices": 0,
-			"total_revenue": 0,
+			"total_revenue": 0,  # Net Amount (Total Sales + Total Returns)
 			"cash_balance": 0,
 			"today_sales": 0,
 			"last_invoice": ""

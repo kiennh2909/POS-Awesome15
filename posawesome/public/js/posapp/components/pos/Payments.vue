@@ -1322,6 +1322,7 @@ export default {
 		});
 		frappe.utils.play_sound("submit");
 		vm.eventBus.emit("set_last_invoice", invoice_to_print.name);
+		vm.eventBus.emit("update_sales_data");  // Trigger footer refresh
 		updateLocalStock(invoice_to_print.items || []);
 
 		// === BƯỚC 4: IN (NẾU CẦN) ===
