@@ -151,7 +151,7 @@ class TestPOSShiftReportIntegration(unittest.TestCase):
         invoice_meta = frappe.get_meta("POS Shift Report Invoice")
         invoice_fields = [
             "invoice_no", "invoice_date", "invoice_time", "customer",
-            "total_amount", "paid_amount", "status"
+            "total_amount", "paid_amount", "status", "invoice_status"
         ]
 
         for field in invoice_fields:

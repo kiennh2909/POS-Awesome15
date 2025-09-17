@@ -569,9 +569,10 @@ def update_shift_report_with_invoice(invoice_doc, action):
 				# FIX: Normalize boolean to tinyint (0/1)
 				is_return_value = 1 if (invoice_doc.is_return or False) else 0
 
-				# FIX: Use actual invoice status instead of hardcoded "Paid"
-				status_value = invoice_doc.status or "Paid"
-				log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Using invoice status: {status_value}")
+				# FIX: Separate workflow status and invoice status
+				workflow_status = "Submitted" if action == "submit" else "Cancelled"
+				invoice_status_value = invoice_doc.status or "Paid"
+				log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Using workflow status: {workflow_status}, invoice status: {invoice_status_value}")
 
 				# FIX: Handle race condition with INSERT ... ON DUPLICATE KEY UPDATE
 				try:
@@ -579,10 +580,11 @@ def update_shift_report_with_invoice(invoice_doc, action):
 						INSERT INTO `tabPOS Shift Report Invoice`
 						(name, parent, parenttype, parentfield, invoice_no, invoice_date, invoice_time,
 						 customer, total_amount, paid_amount, tax_amount, payment_method,
-						 is_return, status, creation, modified, modified_by, owner)
-						VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s, %s)
+						 is_return, status, invoice_status, creation, modified, modified_by, owner)
+						VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s, %s)
 						ON DUPLICATE KEY UPDATE
 							status = VALUES(status),
+							invoice_status = VALUES(invoice_status),
 							modified = NOW(),
 							modified_by = VALUES(modified_by)
 					""", (
@@ -590,7 +592,7 @@ def update_shift_report_with_invoice(invoice_doc, action):
 						invoice_doc.name, invoice_doc.posting_date, invoice_doc.posting_time,
 						invoice_doc.customer, invoice_amount, invoice_doc.paid_amount or 0,
 						invoice_doc.total_taxes_and_charges or 0, payment_method_json,  # Store JSON
-						is_return_value, status_value,  # Use actual status
+						is_return_value, workflow_status, invoice_status_value,  # Separate statuses
 						frappe.session.user, frappe.session.user
 					))
 
@@ -616,9 +618,9 @@ def update_shift_report_with_invoice(invoice_doc, action):
 			# OPTIMIZED: Direct update without select
 			frappe.db.sql("""
 				UPDATE `tabPOS Shift Report Invoice`
-				SET status = 'Cancelled', modified = NOW(), modified_by = %s
+				SET status = 'Cancelled', invoice_status = %s, modified = NOW(), modified_by = %s
 				WHERE parent = %s AND invoice_no = %s AND status != 'Cancelled'
-			""", (frappe.session.user, shift_report_name, invoice_doc.name))
+			""", (invoice_doc.status or "Cancelled", frappe.session.user, shift_report_name, invoice_doc.name))
 
 			after_count = frappe.db.count("POS Shift Report Invoice", {
 				"parent": shift_report_name,
@@ -640,9 +642,9 @@ def update_shift_report_with_invoice(invoice_doc, action):
 
 			totals_result = frappe.db.sql("""
 				SELECT
-					COALESCE(SUM(CASE WHEN status = 'Paid' AND is_return = 0
+					COALESCE(SUM(CASE WHEN invoice_status = 'Paid' AND is_return = 0
 						THEN total_amount ELSE 0 END), 0) as total_sales,
-					COALESCE(SUM(CASE WHEN status = 'Return' AND is_return = 1
+					COALESCE(SUM(CASE WHEN invoice_status = 'Return' AND is_return = 1
 						THEN total_amount ELSE 0 END), 0) as total_returns,
 					COUNT(*) as invoice_count
 				FROM `tabPOS Shift Report Invoice`

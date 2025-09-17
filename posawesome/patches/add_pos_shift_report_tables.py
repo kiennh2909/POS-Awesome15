@@ -28,100 +28,107 @@ def execute():
         raise
 
 def create_pos_shift_report_doctypes():
-	"""Create POS Shift Report and related DocTypes"""
+    """Create POS Shift Report and related DocTypes"""
 
-	# IMPORTANT: Create CHILD TABLE first, then PARENT TABLE
-	# This prevents WrongOptionsDoctypeLinkError
+    # IMPORTANT: Create CHILD TABLE first, then PARENT TABLE
+    # This prevents WrongOptionsDoctypeLinkError
 
-	# 1. POS Shift Report Invoice Child Table (Create FIRST)
-	if not frappe.db.exists("DocType", "POS Shift Report Invoice"):
-		pos_shift_report_invoice = {
-			"doctype": "DocType",
-			"name": "POS Shift Report Invoice",
-			"module": "POSAwesome",
-			"custom": 0,
-			"is_submittable": 0,
-			"istable": 1,
-			"fields": [
-				{
-					"fieldname": "invoice_no",
-					"fieldtype": "Link",
-					"label": "Invoice No",
-					"options": "Sales Invoice",
-					"reqd": 1,
-					"in_list_view": 1
-				},
-				{
-					"fieldname": "invoice_date",
-					"fieldtype": "Date",
-					"label": "Invoice Date",
-					"reqd": 1,
-					"read_only": 1
-				},
-				{
-					"fieldname": "invoice_time",
-					"fieldtype": "Time",
-					"label": "Invoice Time",
-					"reqd": 1,
-					"read_only": 1
-				},
-				{
-					"fieldname": "customer",
-					"fieldtype": "Link",
-					"label": "Customer",
-					"options": "Customer",
-					"read_only": 1
-				},
-				{
-					"fieldname": "total_amount",
-					"fieldtype": "Currency",
-					"label": "Total Amount",
-					"reqd": 1,
-					"read_only": 1
-				},
-				{
-					"fieldname": "paid_amount",
-					"fieldtype": "Currency",
-					"label": "Paid Amount",
-					"reqd": 1,
-					"read_only": 1
-				},
-				{
-					"fieldname": "tax_amount",
-					"fieldtype": "Currency",
-					"label": "Tax Amount",
-					"read_only": 1
-				},
-				{
-					"fieldname": "payment_method",
-					"fieldtype": "JSON",
-					"label": "Payment Method Breakdown",
-					"read_only": 1
-				},
-				{
-					"fieldname": "is_return",
-					"fieldtype": "Check",
-					"label": "Is Return",
-					"read_only": 1
-				},
-				{
-					"fieldname": "status",
-					"fieldtype": "Select",
-					"label": "Status",
-					"options": "Submitted\nCancelled",
-					"default": "Submitted",
-					"read_only": 1
-				}
-			],
-			"sort_field": "invoice_date",
-			"sort_order": "ASC"
-		}
+    # 1. POS Shift Report Invoice Child Table (Create FIRST)
+    if not frappe.db.exists("DocType", "POS Shift Report Invoice"):
+        pos_shift_report_invoice = {
+            "doctype": "DocType",
+            "name": "POS Shift Report Invoice",
+            "module": "POSAwesome",
+            "custom": 0,
+            "is_submittable": 0,
+            "istable": 1,
+            "fields": [
+                {
+                    "fieldname": "invoice_no",
+                    "fieldtype": "Link",
+                    "label": "Invoice No",
+                    "options": "Sales Invoice",
+                    "reqd": 1,
+                    "in_list_view": 1
+                },
+                {
+                    "fieldname": "invoice_date",
+                    "fieldtype": "Date",
+                    "label": "Invoice Date",
+                    "reqd": 1,
+                    "read_only": 1
+                },
+                {
+                    "fieldname": "invoice_time",
+                    "fieldtype": "Time",
+                    "label": "Invoice Time",
+                    "reqd": 1,
+                    "read_only": 1
+                },
+                {
+                    "fieldname": "customer",
+                    "fieldtype": "Link",
+                    "label": "Customer",
+                    "options": "Customer",
+                    "read_only": 1
+                },
+                {
+                    "fieldname": "total_amount",
+                    "fieldtype": "Currency",
+                    "label": "Total Amount",
+                    "reqd": 1,
+                    "read_only": 1
+                },
+                {
+                    "fieldname": "paid_amount",
+                    "fieldtype": "Currency",
+                    "label": "Paid Amount",
+                    "reqd": 1,
+                    "read_only": 1
+                },
+                {
+                    "fieldname": "tax_amount",
+                    "fieldtype": "Currency",
+                    "label": "Tax Amount",
+                    "read_only": 1
+                },
+                {
+                    "fieldname": "payment_method",
+                    "fieldtype": "JSON",
+                    "label": "Payment Method Breakdown",
+                    "read_only": 1
+                },
+                {
+                    "fieldname": "is_return",
+                    "fieldtype": "Check",
+                    "label": "Is Return",
+                    "read_only": 1
+                },
+                {
+                    "fieldname": "status",
+                    "fieldtype": "Select",
+                    "label": "Status",
+                    "options": "Submitted\nCancelled",
+                    "default": "Submitted",
+                    "read_only": 1
+                },
+                {
+                    "fieldname": "invoice_status",
+                    "fieldtype": "Select",
+                    "label": "Invoice Status",
+                    "options": "Paid\nUnpaid\nPartly Paid\nReturn\nCancelled",
+                    "read_only": 1
+                }
+            ],
+            "sort_field": "invoice_date",
+            "sort_order": "ASC"
+        }
 
-		frappe.get_doc(pos_shift_report_invoice).insert()
+        frappe.get_doc(pos_shift_report_invoice).insert()
 
-	# 2. POS Shift Report DocType (Create AFTER child table)
-	if not frappe.db.exists("DocType", "POS Shift Report"):
-		pos_shift_report = {
+    # 2. POS Shift Report DocType (Create AFTER child table)
+    if not frappe.db.exists("DocType", "POS Shift Report"):
+        pos_shift_report = {
             "doctype": "DocType",
             "name": "POS Shift Report",
             "module": "POSAwesome",
@@ -337,7 +344,7 @@ def create_pos_shift_report_doctypes():
             "sort_order": "DESC"
         }
 
-  frappe.get_doc(pos_shift_report).insert()
+    frappe.get_doc(pos_shift_report).insert()
 
 def create_shift_report_custom_fields():
     """Add custom fields to existing DocTypes"""

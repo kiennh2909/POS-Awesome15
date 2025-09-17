@@ -6,19 +6,20 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "invoice_no",
-  "invoice_date",
-  "invoice_time",
-  "customer",
-  "column_break_5",
-  "total_amount",
-  "paid_amount",
-  "tax_amount",
-  "payment_method",
-  "column_break_10",
-  "is_return",
-  "status"
- ],
+ "invoice_no",
+ "invoice_date",
+ "invoice_time",
+ "customer",
+ "column_break_5",
+ "total_amount",
+ "paid_amount",
+ "tax_amount",
+ "payment_method",
+ "column_break_10",
+ "is_return",
+ "status",
+ "invoice_status"
+],
  "fields": [
   {
    "fieldname": "invoice_no",
@@ -96,13 +97,20 @@
    "options": "Submitted\nCancelled",
    "default": "Submitted",
    "read_only": 1
+  },
+  {
+   "fieldname": "invoice_status",
+   "fieldtype": "Select",
+   "label": "Invoice Status",
+   "options": "Paid\nUnpaid\nPartly Paid\nReturn\nCancelled",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 0,
  "istable": 1,
  "links": [],
- "modified": "2025-01-09 23:13:01.483000",
+ "modified": "2025-09-17 11:54:50.000000",
  "modified_by": "Administrator",
  "module": "POS Awesome",
  "name": "POS Shift Report Invoice",

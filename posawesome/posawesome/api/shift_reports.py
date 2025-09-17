@@ -448,7 +448,8 @@ def get_shift_report(shift_report_id):
 					"tax_amount": invoice.tax_amount,
 					"payment_method": invoice.payment_method,
 					"is_return": invoice.is_return,
-					"status": invoice.status
+					"status": invoice.status,  # Workflow status: "Submitted" or "Cancelled"
+					"invoice_status": getattr(invoice, 'invoice_status', invoice.status)  # Invoice actual status: "Paid", "Unpaid", etc.
 				} for invoice in shift_report.invoices
 			] if shift_report.invoices else []
 		}
@@ -621,7 +622,9 @@ def get_footer_status_data():
 			# Get all paid invoices from shift report
 			if shift_report.invoices:
 				for invoice_entry in shift_report.invoices:
-					if invoice_entry.status == "Paid":
+					# Use invoice_status to check if invoice is actually paid
+					invoice_status = getattr(invoice_entry, 'invoice_status', invoice_entry.status)
+					if invoice_status == "Paid":
 						# Get the actual Sales Invoice document
 						try:
 							invoice_doc = frappe.get_doc("Sales Invoice", invoice_entry.invoice_no)
