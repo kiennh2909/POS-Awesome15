@@ -252,9 +252,9 @@ class POSClosingShift(Document):
             # Debug: Check for any records with "Paid" status before saving
             log.debug(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_POS_SHIFT_REPORT_DEBUG - Checking for Paid status records before save")
 
-            # Check Sales Invoices linked to this shift report (these have status field)
+            # Check Sales Invoices linked to this opening shift (use posa_pos_opening_shift field)
             sales_invoices = frappe.get_all("Sales Invoice",
-                filters={"posa_pos_shift_report": shift_report.name},
+                filters={"posa_pos_opening_shift": self.pos_opening_shift},
                 fields=["name", "status", "docstatus"]
             )
 
@@ -278,8 +278,9 @@ class POSClosingShift(Document):
                 log.error(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_POS_SHIFT_REPORT_VALIDATION_ERROR - Validation error details: {str(ve)}")
                 if "Status cannot be" in str(ve) and "Paid" in str(ve):
                     log.warning(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_POS_SHIFT_REPORT_PAID_ERROR - Status validation error detected")
-                    # Try to save with ignore_validate=True to bypass status validation
-                    shift_report.save(ignore_permissions=True, ignore_validate=True)
+                    # Try to save with validation bypass by setting flags
+                    shift_report.flags.ignore_validate = True
+                    shift_report.save(ignore_permissions=True)
                     log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_POS_SHIFT_REPORT_SUCCESS_BYPASS - Shift report {shift_report.name} saved with validation bypass")
                 else:
                     log.error(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_POS_SHIFT_REPORT_UNEXPECTED_ERROR - Unexpected validation error: {str(ve)}")
@@ -318,7 +319,8 @@ class POSClosingShift(Document):
             except frappe.ValidationError as ve:
                 if "Status cannot be" in str(ve) and "Paid" in str(ve):
                     log.warning(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_POS_PAYMENT_SUMMARY_SHIFT_TIME_VALIDATION_ERROR - {str(ve)}")
-                    shift_report.save(ignore_permissions=True, ignore_validate=True)
+                    shift_report.flags.ignore_validate = True
+                    shift_report.save(ignore_permissions=True)
                     log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_POS_PAYMENT_SUMMARY_SHIFT_TIME_BYPASS - Updated shift_end_time with validation bypass")
                 else:
                     raise
