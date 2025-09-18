@@ -152,26 +152,43 @@ def create_pos_shift_report_doctypes():
 
         meta = frappe.get_meta("POS Shift Report Invoice")
         invoice_status_field = meta.get_field("invoice_status")
-        print(f"   invoice_status field exists: {invoice_status_field is not None}")
+        print(f"   invoice_status field: {invoice_status_field}")
+        print(f"   invoice_status field type: {type(invoice_status_field)}")
+        print(f"   invoice_status field is None: {invoice_status_field is None}")
+        print(f"   invoice_status field bool: {bool(invoice_status_field)}")
 
         if not invoice_status_field:
             # Add missing invoice_status field
-            frappe.logger().info("⚠️ invoice_status field missing, adding it...")
+            print("⚠️ invoice_status field missing, adding it...")
 
-            field_doc = frappe.get_doc({
-                "doctype": "DocField",
-                "parent": "POS Shift Report Invoice",
-                "parenttype": "DocType",
-                "parentfield": "fields",
-                "fieldname": "invoice_status",
-                "fieldtype": "Select",
-                "label": "Invoice Status",
-                "options": "Paid\nUnpaid\nPartly Paid\nReturn\nCancelled",
-                "read_only": 1,
-                "insert_after": "status"
-            })
-            field_doc.insert()
-            frappe.logger().info("✅ Added invoice_status field to existing DocType")
+            try:
+                field_doc = frappe.get_doc({
+                    "doctype": "DocField",
+                    "parent": "POS Shift Report Invoice",
+                    "parenttype": "DocType",
+                    "parentfield": "fields",
+                    "fieldname": "invoice_status",
+                    "fieldtype": "Select",
+                    "label": "Invoice Status",
+                    "options": "Paid\nUnpaid\nPartly Paid\nReturn\nCancelled",
+                    "read_only": 1,
+                    "insert_after": "status"
+                })
+
+                print("📝 Creating field document...")
+                field_doc.insert()
+                print("✅ Added invoice_status field to existing DocType")
+
+                # Clear cache to ensure field is recognized
+                frappe.clear_cache()
+                print("🧹 Cache cleared")
+
+            except Exception as field_error:
+                print(f"❌ Failed to add invoice_status field: {str(field_error)}")
+                import traceback
+                print("Field creation traceback:")
+                traceback.print_exc()
+
         else:
             print("✅ invoice_status field already exists")
 
