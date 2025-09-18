@@ -8,6 +8,8 @@ from frappe.utils import get_datetime, cstr, flt
 
 from posawesome.posawesome.utils.logging import get_logger
 
+# Initialize logger
+log = get_logger("payment_summary")
 # --------------------------------------------------------------------
 # Logger (will be initialized per POS Profile)
 # --------------------------------------------------------------------
@@ -46,7 +48,7 @@ class POSPaymentSummary(Document):
 		if abs(flt(self.closing_amount, 2) - expected_closing) > 0.01:
 			# Get POS Profile for logging
 			pos_profile = getattr(self, "pos_profile", None)
-			log = get_logger(pos_profile or "POSProfile")
+			
 
 			log.warning(
 				f"[PAYMENT_SUMMARY] Closing mismatch for {self.payment_method} in shift {self.shift_report_id}: "
@@ -62,8 +64,7 @@ class POSPaymentSummary(Document):
 			self.difference = 0.0
 
 		# Get POS Profile for logging
-		pos_profile = getattr(self, "pos_profile", None)
-		log = get_logger(pos_profile or "POSProfile")
+		pos_profile = getattr(self, "pos_profile", None)		
 
 		log.info(f"[PAYMENT_SUMMARY] Calculated difference for {self.payment_method}: {self.difference}")
 
@@ -89,10 +90,6 @@ def create_payment_summaries_for_shift(shift_report_name):
         log.info(f"[PAYMENT_SUMMARY] 🚀 START create summaries: {shift_report_name}")
         shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
         company, pos_profile, currency = _get_company_profile_currency(shift_report)
-
-        # Initialize logger with POS Profile name
-        log = get_logger(pos_profile or "POSProfile")
-
         log.info(f"[PAYMENT_SUMMARY] ✅ STEP 1: Shift report: {shift_report.name} (ID: {shift_report.shift_report_id})")
 
         # STEP 2. Invoices (đã Submit) - Enhanced logging
@@ -476,8 +473,7 @@ def get_payment_summaries_for_shift(shift_report_name):
 	try:
 		# Get POS Profile from shift report for logging
 		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
-		company, pos_profile, currency = _get_company_profile_currency(shift_report)
-		log = get_logger(pos_profile or "POSProfile")
+		company, pos_profile, currency = _get_company_profile_currency(shift_report)	
 
 		log.info(f"[PAYMENT_SUMMARY] Fetch summaries for: {shift_report_name}")
 		rows = frappe.get_all(
@@ -514,8 +510,7 @@ def get_valid_payment_methods_for_shift(shift_report):
 		methods = [d.mode_of_payment for d in (opening_shift.balance_details or [])]
 
 		# Get POS Profile for logging
-		pos_profile = getattr(opening_shift, "pos_profile", None)
-		log = get_logger(pos_profile or "POSProfile")
+		pos_profile = getattr(opening_shift, "pos_profile", None)		
 
 		log.info(f"[PAYMENT_SUMMARY] Valid MOP (Opening Shift): {methods}")
 		return methods
@@ -537,10 +532,6 @@ def validate_payment_summary_consistency(shift_report):
 		opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
 		pos_profile = getattr(opening_shift, "pos_profile", None) or getattr(shift_report, "pos_profile", None)
 		company = getattr(opening_shift, "company", None)
-
-		# Initialize logger with POS Profile name
-		log = get_logger(pos_profile or "POSProfile")
-
 		# currency ưu tiên POS Profile -> Company -> USD
 		currency = None
 		if pos_profile:
@@ -814,7 +805,7 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 		company, pos_profile, currency = _get_company_profile_currency(shift_report)
 
 		# Initialize logger with POS Profile name
-		log = get_logger(pos_profile or "POSProfile")
+		
 
 		log.info(f"[PAYMENT_SUMMARY] Init summaries for: {shift_report_name}")
 
