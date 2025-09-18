@@ -649,13 +649,21 @@ def submit_closing_shift(closing_shift):
     try:
         # Validate input
         if not closing_shift or not isinstance(closing_shift, str):
-            frappe.throw(_("Invalid closing shift data provided"))
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT - Invalid closing shift data provided")
+            return {
+                "success": False,
+                "message": _("Invalid closing shift data provided")
+            }
 
         # Parse JSON safely
         try:
             closing_shift_data = json.loads(closing_shift)
         except json.JSONDecodeError as e:
-            frappe.throw(_("Invalid JSON format in closing shift data: {0}").format(str(e)))
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT - Invalid JSON format: {str(e)}")
+            return {
+                "success": False,
+                "message": _("Invalid JSON format in closing shift data: {0}").format(str(e))
+            }
 
         # Validate required fields
         required_fields = ['doctype', 'pos_opening_shift', 'user', 'company']
@@ -665,12 +673,20 @@ def submit_closing_shift(closing_shift):
                 missing_fields.append(field)
 
         if missing_fields:
-            frappe.throw(_("Missing required fields: {0}").format(", ".join(missing_fields)))
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT - Missing required fields: {', '.join(missing_fields)}")
+            return {
+                "success": False,
+                "message": _("Missing required fields: {0}").format(", ".join(missing_fields))
+            }
 
         # Validate opening shift exists and is open
         opening_shift_name = closing_shift_data.get('pos_opening_shift')
         if not frappe.db.exists("POS Opening Shift", opening_shift_name):
-            frappe.throw(_("POS Opening Shift '{0}' does not exist").format(opening_shift_name))
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT - POS Opening Shift '{opening_shift_name}' does not exist")
+            return {
+                "success": False,
+                "message": _("POS Opening Shift '{0}' does not exist").format(opening_shift_name)
+            }
 
         opening_shift = frappe.get_doc("POS Opening Shift", opening_shift_name)
         if opening_shift.status != "Open":
@@ -681,6 +697,7 @@ def submit_closing_shift(closing_shift):
             })
 
             if existing_closing:
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ SUBMIT_CLOSING_SHIFT - Closing shift already submitted for POS Opening Shift '{opening_shift_name}'")
                 return {
                     "success": False,
                     "message": _("Closing shift already submitted for POS Opening Shift '{0}'").format(opening_shift_name),
@@ -689,8 +706,12 @@ def submit_closing_shift(closing_shift):
                     }
                 }
             else:
-                frappe.throw(_("POS Opening Shift '{0}' is not open (current status: {1})").format(
-                    opening_shift_name, opening_shift.status))
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT - POS Opening Shift '{opening_shift_name}' is not open (current status: {opening_shift.status})")
+                return {
+                    "success": False,
+                    "message": _("POS Opening Shift '{0}' is not open (current status: {1})").format(
+                        opening_shift_name, opening_shift.status)
+                }
 
         # Check if closing shift already exists
         existing_closing = frappe.db.exists("POS Closing Shift", {
@@ -702,6 +723,7 @@ def submit_closing_shift(closing_shift):
             # Check if it's already submitted
             existing_docstatus = frappe.db.get_value("POS Closing Shift", existing_closing, "docstatus")
             if existing_docstatus == 1:  # Already submitted
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ SUBMIT_CLOSING_SHIFT - Closing shift already submitted for POS Opening Shift '{opening_shift_name}'")
                 return {
                     "success": False,
                     "message": _("Closing shift already submitted for POS Opening Shift '{0}'").format(opening_shift_name),
@@ -710,14 +732,26 @@ def submit_closing_shift(closing_shift):
                     }
                 }
             else:
-                frappe.throw(_("Closing shift already exists for POS Opening Shift '{0}'").format(opening_shift_name))
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT - Closing shift already exists for POS Opening Shift '{opening_shift_name}'")
+                return {
+                    "success": False,
+                    "message": _("Closing shift already exists for POS Opening Shift '{0}'").format(opening_shift_name)
+                }
 
         # Validate user permissions
         if not frappe.has_permission("POS Closing Shift", "create"):
-            frappe.throw(_("Not permitted to create POS Closing Shift"))
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT - User does not have permission to create POS Closing Shift")
+            return {
+                "success": False,
+                "message": _("Not permitted to create POS Closing Shift")
+            }
 
         if not frappe.has_permission("POS Closing Shift", "submit"):
-            frappe.throw(_("Not permitted to submit POS Closing Shift"))
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT - User does not have permission to submit POS Closing Shift")
+            return {
+                "success": False,
+                "message": _("Not permitted to submit POS Closing Shift")
+            }
 
         # Validate payment reconciliation data
         payment_reconciliation = closing_shift_data.get('payment_reconciliation', [])
@@ -733,14 +767,22 @@ def submit_closing_shift(closing_shift):
             else:
                 # Require closing_amount > 0 when there are expected transactions
                 if closing_amount is None or closing_amount == '' or flt(closing_amount) <= 0:
-                    frappe.throw(_("Closing amount is required and must be greater than 0 for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
+                    log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT - Closing amount is required and must be greater than 0 for payment method '{payment.get('mode_of_payment', 'Unknown')}'")
+                    return {
+                        "success": False,
+                        "message": _("Closing amount is required and must be greater than 0 for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown'))
+                    }
 
             # Validate it's a number and update the data
             try:
                 closing_amount = float(closing_amount) if closing_amount not in [None, '', 0] else 0
                 payment['closing_amount'] = closing_amount
             except (ValueError, TypeError):
-                frappe.throw(_("Closing amount must be a valid number for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown')))
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT - Closing amount must be a valid number for payment method '{payment.get('mode_of_payment', 'Unknown')}'")
+                return {
+                    "success": False,
+                    "message": _("Closing amount must be a valid number for payment method '{0}'").format(payment.get('mode_of_payment', 'Unknown'))
+                }
 
         # Create and submit closing shift document
         closing_shift_doc = frappe.get_doc(closing_shift_data)
