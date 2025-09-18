@@ -151,6 +151,10 @@ class POSClosingShift(Document):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] CALL_UPDATE_SHIFT_REPORT_AND_SUMMARIES - POS Closing Shift {self.name}")
         self.update_shift_report_and_payment_summaries_on_close()
 
+        # POST-SUBMIT CLEANUP: Clear cache, logout, and refresh UI
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] POST_SUBMIT_CLEANUP_START - POS Closing Shift {self.name}")
+        self.perform_post_submit_cleanup()
+
     def update_verification_status(self):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_VERIFICATION_STATUS - POS Closing Shift {self.name}")
         # Check if all payment reconciliations are balanced
@@ -357,6 +361,30 @@ class POSClosingShift(Document):
             end_time = time.time()
             duration = end_time - start_time
             log.error(f"[SHIFT_CLOSE_WORKFLOW] 💥 UPDATE_SHIFT_REPORT_AND_SUMMARIES_FAILED - Duration: {duration:.2f}s, Error: {str(e)}")
+            # Don't raise error to prevent closing shift submission failure
+            pass
+
+    def perform_post_submit_cleanup(self):
+        """Perform post-submit cleanup: Clear cache, logout, and refresh UI"""
+        try:
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] POST_SUBMIT_CLEANUP_START - Clearing cache for user: {self.user}")
+
+            # STEP 1: Clear Cache
+            frappe.clear_cache()
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] POST_SUBMIT_CLEANUP_CACHE_CLEARED - Cache cleared successfully")
+
+            # STEP 2: Logout user (invalidate session)
+            if hasattr(frappe, 'local') and hasattr(frappe.local, 'session'):
+                # Clear session data
+                frappe.local.session = None
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] POST_SUBMIT_CLEANUP_SESSION_CLEARED - User session cleared")
+
+            # STEP 3: Prepare UI refresh instructions
+            # This will be handled by the frontend after receiving success response
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] POST_SUBMIT_CLEANUP_COMPLETED - Post-submit cleanup completed successfully")
+
+        except Exception as e:
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] POST_SUBMIT_CLEANUP_ERROR - Error during post-submit cleanup: {str(e)}")
             # Don't raise error to prevent closing shift submission failure
             pass
 
@@ -730,12 +758,29 @@ def submit_closing_shift(closing_shift):
         closing_shift_doc = frappe.get_doc(closing_shift_data)
         closing_shift_doc.submit()
 
+        # POST-SUBMIT CLEANUP: Clear cache, logout, and prepare UI refresh
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_CLOSING_SHIFT_CLEANUP_START - Performing post-submit cleanup")
+        try:
+            # Clear cache
+            frappe.clear_cache()
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_CLOSING_SHIFT_CACHE_CLEARED - Cache cleared successfully")
+
+            # Clear session (logout)
+            if hasattr(frappe, 'local') and hasattr(frappe.local, 'session'):
+                frappe.local.session = None
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_CLOSING_SHIFT_SESSION_CLEARED - User session cleared")
+
+        except Exception as cleanup_error:
+            log.warning(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_CLOSING_SHIFT_CLEANUP_WARNING - Cleanup error (non-critical): {str(cleanup_error)}")
+
         return {
             "success": True,
             "message": _("POS Closing Shift submitted successfully"),
             "data": {
                 "name": closing_shift_doc.name,
-                "docstatus": closing_shift_doc.docstatus
+                "docstatus": closing_shift_doc.docstatus,
+                "requires_logout": True,  # Signal to frontend to logout and refresh
+                "requires_ui_refresh": True  # Signal to frontend to refresh UI
             }
         }
 
