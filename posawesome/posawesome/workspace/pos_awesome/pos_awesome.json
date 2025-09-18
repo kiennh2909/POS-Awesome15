@@ -10,12 +10,12 @@
  "icon": "retail",
  "idx": 0,
  "is_hidden": 0,
- "label": "POS Awesome",
+ "label": "POS NVL",
  "links": [
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "POS Awesome",
+   "label": "POS NVL",
    "link_count": 0,
    "link_to": "posapp",
    "link_type": "Page",
@@ -158,7 +158,7 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "POS Awesome App",
+   "label": "POS NVL App",
    "link_to": "posapp",
    "type": "Page"
   }

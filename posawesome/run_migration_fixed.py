@@ -23,32 +23,32 @@ frappe.connect()
 
 def create_module_if_not_exists():
     """Create POS Awesome module if it doesn't exist"""
-    print("🔍 Checking for POS Awesome module...")
+    print("🔍 Checking for POSAwesome module...")
 
     if frappe.db.exists("Module Def", "POS Awesome"):
-        print("✅ Module POS Awesome already exists")
+        print("✅ Module POSAwesome already exists")
         return True
 
-    print("❌ Module POS Awesome not found, creating...")
+    # print("❌ Module POSAwesome not found, creating...")
 
-    try:
-        from frappe import get_doc
+    # try:
+    #     from frappe import get_doc
 
-        module = get_doc({
-            "doctype": "Module Def",
-            "module_name": "POS Awesome",
-            "app_name": "posawesome"
-        })
+    #     module = get_doc({
+    #         "doctype": "Module Def",
+    #         "module_name": "POS Awesome",
+    #         "app_name": "posawesome"
+    #     })
 
-        module.insert()
-        frappe.db.commit()
+    #     module.insert()
+    #     frappe.db.commit()
 
-        print("✅ Module POS Awesome created successfully!")
-        return True
+    #     print("✅ Module POS Awesome created successfully!")
+    #     return True
 
-    except Exception as e:
-        print(f"❌ Error creating module: {e}")
-        return False
+    # except Exception as e:
+    #     print(f"❌ Error creating module: {e}")
+    #     return False
 
 def create_child_table():
     """Create POS Shift Report Invoice child table first"""

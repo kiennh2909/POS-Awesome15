@@ -11,7 +11,7 @@ import logging
 
 def get_logger(name):
     """
-    Get a standardized logger for POS Awesome modules.
+    Get a standardized logger for POS  modules.
 
     Args:
         name (str): Logger name (will be used as log file name)

@@ -3,12 +3,12 @@ from __future__ import unicode_literals
 from . import __version__ as app_version
 
 app_name = "posawesome"
-app_title = "POS Awesome"
+app_title = "POS NVL"
 app_publisher = "Youssef Restom"
-app_description = "POS Awesome"
+app_description = "POS NVL"
 app_icon = "octicon octicon-file-directory"
 app_color = "grey"
-app_email = "youssef@totrox.com"
+app_email = "admin@vtmart.com"
 app_license = "GPLv3"
 
 # Includes in <head>

@@ -1182,7 +1182,7 @@ export default {
 		</div>
 
 		<div class="print-info">
-			<p>Báo cáo được tạo tự động bởi hệ thống POS Awesome</p>
+			<p>Báo cáo được tạo tự động bởi hệ thống POS</p>
 			<p>Chỉ in trang đầu tiên chứa thông tin tổng hợp</p>
 		</div>
 	</body>

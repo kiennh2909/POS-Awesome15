@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Demo: Cách sử dụng POS Awesome Logging Helper
+Demo: Cách sử dụng POS NVL Logging Helper
 
 File này minh họa cách sử dụng helper get_logger để chuẩn hóa logging trong ứng dụng.
 """
@@ -57,7 +57,7 @@ def demo_error_handling():
         invoice_log.error(f"[ERROR_HANDLING] 📍 Chi tiết lỗi: {frappe.get_traceback()}")
 
 if __name__ == "__main__":
-    print("🚀 POS Awesome Logging Demo")
+    print("🚀 POS Logging Demo")
     print("=" * 50)
 
     demo_basic_usage()
