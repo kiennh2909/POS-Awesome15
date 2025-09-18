@@ -499,9 +499,6 @@ def make_closing_shift_from_opening(opening_shift):
         else:
             opening_shift_data = opening_shift
 
-        # Submit printed invoices
-        submit_printed_invoices(opening_shift_data.get("name"))
-
         # Create closing shift document
         closing_shift = frappe.new_doc("POS Closing Shift")
         closing_shift.pos_opening_shift = opening_shift_data.get("name")
