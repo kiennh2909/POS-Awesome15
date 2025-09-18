@@ -63,16 +63,45 @@ class POSClosingShift(Document):
 
             if shift_report:
                 self.shift_report = shift_report
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE - Found existing shift report: {shift_report}")
             else:
                 # Try to create shift report automatically
                 try:
-                    from posawesome.posawesome.doctype.pos_shift_report.pos_shift_report import create_shift_report_from_opening
-                    new_shift_report = create_shift_report_from_opening(self.pos_opening_shift)
+                    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 VALIDATE - No shift report found, attempting auto-creation for opening shift: {self.pos_opening_shift}")
 
-                    if new_shift_report:
-                        self.shift_report = new_shift_report.name
+                    # Check if opening shift exists and is valid
+                    if not frappe.db.exists("POS Opening Shift", self.pos_opening_shift):
+                        frappe.throw(_("POS Opening Shift '{0}' does not exist").format(self.pos_opening_shift))
+
+                    opening_shift_doc = frappe.get_doc("POS Opening Shift", self.pos_opening_shift)
+
+                    # Use API to create shift report (more reliable)
+                    from posawesome.posawesome.api.shift_reports import create_shift_report
+
+                    create_result = create_shift_report({
+                        "pos_opening_shift": self.pos_opening_shift,
+                        "opening_amounts": "{}"  # Default empty amounts
+                    })
+
+                    if create_result.get("success"):
+                        new_shift_report_name = create_result["data"]["name"]
+                        self.shift_report = new_shift_report_name
+                        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE - Auto-created shift report: {new_shift_report_name}")
+
+                        # Update opening shift with shift report references
+                        frappe.db.set_value("POS Opening Shift", self.pos_opening_shift, {
+                            "shift_report": new_shift_report_name,
+                            "shift_report_id": create_result["data"]["shift_report_id"]
+                        })
+                        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE - Updated opening shift with shift report references")
+                    else:
+                        error_msg = create_result.get("message", "Unknown error")
+                        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ VALIDATE - Failed to auto-create shift report: {error_msg}")
+                        frappe.throw(_("Failed to create shift report automatically: {0}").format(error_msg))
+
                 except Exception as e:
-                    pass
+                    log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ VALIDATE - Error auto-creating shift report: {str(e)}")
+                    frappe.throw(_("Error creating shift report automatically. Please contact administrator."))
 
         # Enhanced calculations with logging
         self.update_payment_reconciliation()

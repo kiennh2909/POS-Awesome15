@@ -843,51 +843,73 @@ def get_shift_report_with_payment_summary(shift_report_id):
 	Returns:
 		dict: Shift report data with payment summary
 	"""
-	log.info(f"[SHIFT_REPORT_API] Tinh toan Summary Shift Report ID: {shift_report_id}")
+	log.info(f"[SHIFT_REPORT_API] 🎯 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Start - Shift Report ID: {shift_report_id}")
 
 	try:
 		# 1. Get basic shift report data
+		log.info(f"[SHIFT_REPORT_API] 📋 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Getting basic shift report data")
 		shift_report_data = get_shift_report(shift_report_id)
+		log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Got shift report: {shift_report_data.get('name', 'Unknown')}")
 
 		# 2. Try to create/update payment summaries
 		try:
 			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import create_payment_summaries_for_shift
-			log.info(f"[SHIFT_REPORT_API] Creating payment summaries for: {shift_report_data['name']}")
+			log.info(f"[SHIFT_REPORT_API] 💰 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Creating payment summaries for: {shift_report_data['name']}")
 			payment_result = create_payment_summaries_for_shift(shift_report_data["name"])
+			log.info(f"[SHIFT_REPORT_API] 📊 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Payment summary creation result: {payment_result}")
 		except ImportError as ie:
-			log.error(f"[SHIFT_REPORT_API] Cannot import create_payment_summaries_for_shift: {str(ie)}")
+			log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Cannot import create_payment_summaries_for_shift: {str(ie)}")
+			shift_report_data["payment_summaries"] = []
+			return shift_report_data
+		except Exception as create_error:
+			log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Error creating payment summaries: {str(create_error)}")
 			shift_report_data["payment_summaries"] = []
 			return shift_report_data
 
 		# 3. Check if payment summary creation was successful
 		if not payment_result.get("success"):
-			log.error(f"[SHIFT_REPORT_API] Payment summary creation failed: {payment_result.get('message')}")
+			log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Payment summary creation failed: {payment_result.get('message')}")
 			shift_report_data["payment_summaries"] = []
 			return shift_report_data
 
 		# 4. Get the created payment summaries
 		try:
 			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import get_payment_summaries_for_shift
+			log.info(f"[SHIFT_REPORT_API] 📋 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Getting payment summaries")
 			payment_summaries_result = get_payment_summaries_for_shift(shift_report_data["name"])
+			log.info(f"[SHIFT_REPORT_API] 📊 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Payment summaries result: {payment_summaries_result}")
 
 			if payment_summaries_result.get("success"):
 				shift_report_data["payment_summaries"] = payment_summaries_result["data"]
-				log.info(f"[SHIFT_REPORT_API] Added {len(payment_summaries_result['data'])} payment summaries")
+				log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Added {len(payment_summaries_result['data'])} payment summaries")
 			else:
-				log.warning(f"[SHIFT_REPORT_API] Could not get payment summaries: {payment_summaries_result.get('message')}")
+				log.warning(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Could not get payment summaries: {payment_summaries_result.get('message')}")
 				shift_report_data["payment_summaries"] = []
 		except ImportError as ie:
-			log.error(f"[SHIFT_REPORT_API] Cannot import get_payment_summaries_for_shift: {str(ie)}")
+			log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Cannot import get_payment_summaries_for_shift: {str(ie)}")
+			shift_report_data["payment_summaries"] = []
+		except Exception as get_error:
+			log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Error getting payment summaries: {str(get_error)}")
 			shift_report_data["payment_summaries"] = []
 
 		# 5. Return complete data
-		log.info(f"[SHIFT_REPORT_API] Completed for shift report: {shift_report_data['name']}")
+		log.info(f"[SHIFT_REPORT_API] 🎉 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - COMPLETED - Shift Report: {shift_report_data['name']}, Payment Summaries: {len(shift_report_data.get('payment_summaries', []))}")
 		return shift_report_data
 
+	except frappe.ValidationError:
+		# Re-raise validation errors as-is
+		log.error(f"[SHIFT_REPORT_API] 💥 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - VALIDATION ERROR - Shift Report ID: {shift_report_id}")
+		raise
 	except Exception as e:
-		log.error(f"[SHIFT_REPORT_API] FAILED - Shift Report ID: {shift_report_id}, Error: {str(e)}")
+		log.error(f"[SHIFT_REPORT_API] 💥 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - FAILED - Shift Report ID: {shift_report_id}, Error: {str(e)}")
 		frappe.log_error(str(e), "Get Shift Report With Payment Summary Error")
-		frappe.throw(_("Error getting shift report with payment summary: {0}").format(str(e)))
+
+		# Return error response instead of throwing to avoid JSON parsing issues
+		return {
+			"success": False,
+			"message": _("Error getting shift report with payment summary: {0}").format(str(e)),
+			"error": str(e)
+		}
 
 
 @frappe.whitelist()
