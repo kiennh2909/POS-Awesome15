@@ -35,6 +35,7 @@ def create_pos_shift_report_doctypes():
 
     # 1. POS Shift Report Invoice Child Table (Create FIRST)
     if not frappe.db.exists("DocType", "POS Shift Report Invoice"):
+        # Create new DocType
         pos_shift_report_invoice = {
             "doctype": "DocType",
             "name": "POS Shift Report Invoice",
@@ -125,9 +126,37 @@ def create_pos_shift_report_doctypes():
         }
 
         frappe.get_doc(pos_shift_report_invoice).insert()
+        frappe.logger().info("✅ Created POS Shift Report Invoice DocType")
+
+    else:
+        # DocType exists, check if invoice_status field exists
+        frappe.logger().info("ℹ️ POS Shift Report Invoice DocType already exists, checking fields...")
+
+        meta = frappe.get_meta("POS Shift Report Invoice")
+        if not meta.get_field("invoice_status"):
+            # Add missing invoice_status field
+            frappe.logger().info("⚠️ invoice_status field missing, adding it...")
+
+            field_doc = frappe.get_doc({
+                "doctype": "DocField",
+                "parent": "POS Shift Report Invoice",
+                "parenttype": "DocType",
+                "parentfield": "fields",
+                "fieldname": "invoice_status",
+                "fieldtype": "Select",
+                "label": "Invoice Status",
+                "options": "Paid\nUnpaid\nPartly Paid\nReturn\nCancelled",
+                "read_only": 1,
+                "insert_after": "status"
+            })
+            field_doc.insert()
+            frappe.logger().info("✅ Added invoice_status field to existing DocType")
+        else:
+            frappe.logger().info("✅ invoice_status field already exists")
 
     # 2. POS Shift Report DocType (Create AFTER child table)
     if not frappe.db.exists("DocType", "POS Shift Report"):
+        # Create new DocType
         pos_shift_report = {
             "doctype": "DocType",
             "name": "POS Shift Report",
@@ -345,6 +374,12 @@ def create_pos_shift_report_doctypes():
         }
 
         frappe.get_doc(pos_shift_report).insert()
+        frappe.logger().info("✅ Created POS Shift Report DocType")
+
+    else:
+        # DocType exists, check for any missing critical fields
+        frappe.logger().info("ℹ️ POS Shift Report DocType already exists")
+        # Could add field validation here if needed
 
 def create_shift_report_custom_fields():
     """Add custom fields to existing DocTypes"""
