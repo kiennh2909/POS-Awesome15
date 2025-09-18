@@ -714,6 +714,8 @@ def submit_closing_shift(closing_shift):
                 }
 
         # Check if closing shift already exists
+        log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ SUBMIT_CLOSING_SHIFT - Checking for existing closing shift for POS Opening Shift '{opening_shift_name}'")
+
         existing_closing = frappe.db.exists("POS Closing Shift", {
             "pos_opening_shift": opening_shift_name,
             "docstatus": ["!=", 2]  # Not cancelled
@@ -724,18 +726,41 @@ def submit_closing_shift(closing_shift):
             existing_docstatus = frappe.db.get_value("POS Closing Shift", existing_closing, "docstatus")
             if existing_docstatus == 1:  # Already submitted
                 log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ SUBMIT_CLOSING_SHIFT - Closing shift already submitted for POS Opening Shift '{opening_shift_name}'")
+
+                # Validate totals calculation for existing closing shift
+                validation_result = validate_existing_closing_shift_totals(existing_closing, opening_shift_name)
+                if not validation_result.get("valid"):
+                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ SUBMIT_CLOSING_SHIFT - Totals validation failed: {validation_result.get('message')}")
+                    # Continue with error response but include validation info
+
                 return {
                     "success": False,
                     "message": _("Closing shift already submitted for POS Opening Shift '{0}'").format(opening_shift_name),
                     "data": {
-                        "existing_closing_shift": existing_closing
+                        "existing_closing_shift": existing_closing,
+                        "validation_result": validation_result
                     }
                 }
             else:
                 log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT - Closing shift already exists for POS Opening Shift '{opening_shift_name}'")
+
+                # Validate and potentially recalculate totals for draft closing shift
+                validation_result = validate_existing_closing_shift_totals(existing_closing, opening_shift_name)
+                if not validation_result.get("valid"):
+                    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 SUBMIT_CLOSING_SHIFT - Attempting to recalculate totals for draft closing shift")
+                    recalc_result = recalculate_closing_shift_totals(existing_closing, opening_shift_name)
+                    if recalc_result.get("success"):
+                        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT - Successfully recalculated totals for draft closing shift")
+                        validation_result = validate_existing_closing_shift_totals(existing_closing, opening_shift_name)
+
                 return {
                     "success": False,
-                    "message": _("Closing shift already exists for POS Opening Shift '{0}'").format(opening_shift_name)
+                    "message": _("Closing shift already exists for POS Opening Shift '{0}'").format(opening_shift_name),
+                    "data": {
+                        "existing_closing_shift": existing_closing,
+                        "validation_result": validation_result,
+                        "recalculation_attempted": True
+                    }
                 }
 
         # Validate user permissions
@@ -823,6 +848,173 @@ def submit_closing_shift(closing_shift):
         return {
             "success": False,
             "message": _("An unexpected error occurred while submitting closing shift: {0}").format(str(e))
+        }
+
+
+def validate_existing_closing_shift_totals(closing_shift_name, opening_shift_name):
+    """
+    Validate totals calculation for existing closing shift
+    Returns dict with validation result
+    """
+    try:
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 VALIDATE_CLOSING_SHIFT_TOTALS - Validating totals for closing shift: {closing_shift_name}")
+
+        # Get closing shift document
+        closing_shift = frappe.get_doc("POS Closing Shift", closing_shift_name)
+
+        # Get actual invoice data for comparison
+        actual_invoices = get_pos_invoices(opening_shift_name)
+        actual_total = sum(flt(inv.get("grand_total", 0)) for inv in actual_invoices)
+
+        # Get calculated totals from closing shift
+        calculated_total = flt(closing_shift.grand_total or 0)
+
+        # Compare totals
+        difference = abs(actual_total - calculated_total)
+        tolerance = 0.01  # Allow small rounding differences
+
+        if difference > tolerance:
+            log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ VALIDATE_CLOSING_SHIFT_TOTALS - Totals mismatch for {closing_shift_name}: Actual={actual_total}, Calculated={calculated_total}, Difference={difference}")
+            return {
+                "valid": False,
+                "message": f"Totals mismatch: Expected {actual_total}, Got {calculated_total}",
+                "actual_total": actual_total,
+                "calculated_total": calculated_total,
+                "difference": difference
+            }
+
+        # Validate payment reconciliation totals
+        payment_total = sum(flt(p.expected_amount or 0) for p in closing_shift.payment_reconciliation)
+        if abs(payment_total - calculated_total) > tolerance:
+            log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ VALIDATE_CLOSING_SHIFT_TOTALS - Payment reconciliation mismatch: Invoice total={calculated_total}, Payment total={payment_total}")
+            return {
+                "valid": False,
+                "message": f"Payment reconciliation mismatch: Invoice total {calculated_total}, Payment total {payment_total}",
+                "invoice_total": calculated_total,
+                "payment_total": payment_total
+            }
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE_CLOSING_SHIFT_TOTALS - Totals validation passed for {closing_shift_name}")
+        return {
+            "valid": True,
+            "message": "Totals validation passed",
+            "actual_total": actual_total,
+            "calculated_total": calculated_total
+        }
+
+    except Exception as e:
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ VALIDATE_CLOSING_SHIFT_TOTALS - Error validating totals for {closing_shift_name}: {str(e)}")
+        return {
+            "valid": False,
+            "message": f"Error during validation: {str(e)}",
+            "error": str(e)
+        }
+
+
+def recalculate_closing_shift_totals(closing_shift_name, opening_shift_name):
+    """
+    Recalculate totals for existing draft closing shift
+    Returns dict with recalculation result
+    """
+    try:
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 RECALCULATE_CLOSING_SHIFT_TOTALS - Recalculating totals for closing shift: {closing_shift_name}")
+
+        # Get closing shift document
+        closing_shift = frappe.get_doc("POS Closing Shift", closing_shift_name)
+
+        # Only recalculate if it's a draft (not submitted)
+        if closing_shift.docstatus != 0:
+            log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ RECALCULATE_CLOSING_SHIFT_TOTALS - Cannot recalculate submitted closing shift: {closing_shift_name}")
+            return {
+                "success": False,
+                "message": "Cannot recalculate submitted closing shift"
+            }
+
+        # Get fresh invoice data
+        invoices = get_pos_invoices(opening_shift_name)
+
+        # Recalculate totals
+        new_grand_total = 0
+        new_net_total = 0
+        new_total_quantity = 0
+
+        pos_transactions = []
+        taxes = []
+        payments = []
+
+        # Process invoices for totals
+        for inv in invoices:
+            pos_transactions.append(
+                frappe._dict({
+                    "sales_invoice": inv.get("name"),
+                    "posting_date": inv.get("posting_date"),
+                    "grand_total": inv.get("grand_total"),
+                    "customer": inv.get("customer"),
+                })
+            )
+            new_grand_total += flt(inv.get("grand_total"))
+            new_net_total += flt(inv.get("net_total") or 0)
+            new_total_quantity += flt(inv.get("total_qty") or 0)
+
+            # Process taxes
+            for t in inv.get("taxes", []):
+                existing_tax = [tx for tx in taxes if tx.account_head == t.get("account_head") and tx.rate == t.get("rate")]
+                if existing_tax:
+                    existing_tax[0].amount += flt(t.get("tax_amount"))
+                else:
+                    taxes.append(
+                        frappe._dict({
+                            "account_head": t.get("account_head"),
+                            "rate": t.get("rate"),
+                            "amount": t.get("tax_amount"),
+                        })
+                    )
+
+            # Process payments
+            for p in inv.get("payments", []):
+                existing_pay = [pay for pay in payments if pay.mode_of_payment == p.get("mode_of_payment")]
+                if existing_pay:
+                    existing_pay[0].expected_amount += flt(p.get("amount", 0))
+                else:
+                    payments.append(
+                        frappe._dict({
+                            "mode_of_payment": p.get("mode_of_payment"),
+                            "opening_amount": 0,
+                            "expected_amount": p.get("amount", 0),
+                        })
+                    )
+
+        # Update closing shift with recalculated values
+        closing_shift.grand_total = new_grand_total
+        closing_shift.net_total = new_net_total
+        closing_shift.total_quantity = new_total_quantity
+
+        # Update child tables
+        closing_shift.set("pos_transactions", pos_transactions)
+        closing_shift.set("taxes", taxes)
+
+        # Update payment reconciliation if payments changed
+        if payments:
+            closing_shift.set("payment_reconciliation", payments)
+
+        # Save the recalculated values
+        closing_shift.save(ignore_permissions=True)
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ RECALCULATE_CLOSING_SHIFT_TOTALS - Successfully recalculated totals for {closing_shift_name}: Grand Total={new_grand_total}")
+        return {
+            "success": True,
+            "message": f"Successfully recalculated totals: Grand Total = {new_grand_total}",
+            "new_grand_total": new_grand_total,
+            "new_net_total": new_net_total,
+            "new_total_quantity": new_total_quantity
+        }
+
+    except Exception as e:
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ RECALCULATE_CLOSING_SHIFT_TOTALS - Error recalculating totals for {closing_shift_name}: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Error during recalculation: {str(e)}",
+            "error": str(e)
         }
 
 
