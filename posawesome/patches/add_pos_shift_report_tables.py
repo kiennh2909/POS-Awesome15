@@ -10,31 +10,49 @@ def execute():
     3. Custom fields for existing tables
     4. Migration of existing data
     """
+    print("🚀 STARTING POS Shift Report Migration...")
+
     try:
+        print("📋 Step 1: Creating POS Shift Report DocTypes...")
         # Create new DocTypes
         create_pos_shift_report_doctypes()
 
+        print("📋 Step 2: Adding custom fields...")
         # Add custom fields to existing tables
         create_shift_report_custom_fields()
 
+        print("📋 Step 3: Migrating existing data...")
         # Migrate existing data if any
         migrate_existing_shift_data()
 
+        print("💾 Committing changes...")
         frappe.db.commit()
+
+        print("🎉 POS Shift Report migration completed successfully!")
         frappe.logger().info("POS Shift Report migration completed successfully")
 
     except Exception as e:
+        print(f"❌ ERROR: {str(e)}")
+        import traceback
+        print("Full traceback:")
+        traceback.print_exc()
+
         frappe.log_error(str(e), "POS Shift Report Migration Error")
         raise
 
 def create_pos_shift_report_doctypes():
     """Create POS Shift Report and related DocTypes"""
+    print("🔧 Creating POS Shift Report DocTypes...")
 
     # IMPORTANT: Create CHILD TABLE first, then PARENT TABLE
     # This prevents WrongOptionsDoctypeLinkError
 
     # 1. POS Shift Report Invoice Child Table (Create FIRST)
-    if not frappe.db.exists("DocType", "POS Shift Report Invoice"):
+    print("📋 Checking POS Shift Report Invoice DocType...")
+    exists = frappe.db.exists("DocType", "POS Shift Report Invoice")
+    print(f"   POS Shift Report Invoice exists: {exists}")
+
+    if not exists:
         # Create new DocType
         pos_shift_report_invoice = {
             "doctype": "DocType",
@@ -130,10 +148,13 @@ def create_pos_shift_report_doctypes():
 
     else:
         # DocType exists, check if invoice_status field exists
-        frappe.logger().info("ℹ️ POS Shift Report Invoice DocType already exists, checking fields...")
+        print("ℹ️ POS Shift Report Invoice DocType already exists, checking fields...")
 
         meta = frappe.get_meta("POS Shift Report Invoice")
-        if not meta.get_field("invoice_status"):
+        invoice_status_field = meta.get_field("invoice_status")
+        print(f"   invoice_status field exists: {invoice_status_field is not None}")
+
+        if not invoice_status_field:
             # Add missing invoice_status field
             frappe.logger().info("⚠️ invoice_status field missing, adding it...")
 
@@ -152,10 +173,14 @@ def create_pos_shift_report_doctypes():
             field_doc.insert()
             frappe.logger().info("✅ Added invoice_status field to existing DocType")
         else:
-            frappe.logger().info("✅ invoice_status field already exists")
+            print("✅ invoice_status field already exists")
 
     # 2. POS Shift Report DocType (Create AFTER child table)
-    if not frappe.db.exists("DocType", "POS Shift Report"):
+    print("📋 Checking POS Shift Report DocType...")
+    exists = frappe.db.exists("DocType", "POS Shift Report")
+    print(f"   POS Shift Report exists: {exists}")
+
+    if not exists:
         # Create new DocType
         pos_shift_report = {
             "doctype": "DocType",
@@ -378,11 +403,14 @@ def create_pos_shift_report_doctypes():
 
     else:
         # DocType exists, check for any missing critical fields
-        frappe.logger().info("ℹ️ POS Shift Report DocType already exists")
+        print("ℹ️ POS Shift Report DocType already exists")
         # Could add field validation here if needed
+
+    print("✅ POS Shift Report DocTypes creation completed")
 
 def create_shift_report_custom_fields():
     """Add custom fields to existing DocTypes"""
+    print("🔧 Adding custom fields to existing DocTypes...")
 
     custom_fields = {
         "POS Opening Shift": [
@@ -463,9 +491,11 @@ def create_shift_report_custom_fields():
     }
 
     create_custom_fields(custom_fields)
+    print("✅ Custom fields creation completed")
 
 def migrate_existing_shift_data():
     """Migrate existing opening/closing shifts to shift reports"""
+    print("🔄 Migrating existing shift data...")
 
     try:
         # Get all submitted opening shifts without shift reports
@@ -517,8 +547,9 @@ def migrate_existing_shift_data():
                 frappe.logger().error(f"Failed to migrate opening shift {opening_shift.name}: {str(e)}")
                 continue
 
-        frappe.logger().info("Migration of existing shift data completed")
+        print("✅ Migration of existing shift data completed")
 
     except Exception as e:
+        print(f"❌ Migration failed: {str(e)}")
         frappe.logger().error(f"Migration failed: {str(e)}")
         # Don't raise error to prevent migration failure
