@@ -56,7 +56,7 @@ class POSClosingShift(Document):
 
         # Set shift_report field if not provided
         if not self.shift_report and self.pos_opening_shift:
-            # Try to find existing shift report for this opening shift
+            # Find existing shift report for this opening shift
             shift_report = frappe.db.exists("POS Shift Report", {
                 "pos_opening_shift": self.pos_opening_shift
             })
@@ -65,43 +65,9 @@ class POSClosingShift(Document):
                 self.shift_report = shift_report
                 log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE - Found existing shift report: {shift_report}")
             else:
-                # Try to create shift report automatically
-                try:
-                    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 VALIDATE - No shift report found, attempting auto-creation for opening shift: {self.pos_opening_shift}")
-
-                    # Check if opening shift exists and is valid
-                    if not frappe.db.exists("POS Opening Shift", self.pos_opening_shift):
-                        frappe.throw(_("POS Opening Shift '{0}' does not exist").format(self.pos_opening_shift))
-
-                    opening_shift_doc = frappe.get_doc("POS Opening Shift", self.pos_opening_shift)
-
-                    # Use API to create shift report (more reliable)
-                    from posawesome.posawesome.api.shift_reports import create_shift_report
-
-                    create_result = create_shift_report({
-                        "pos_opening_shift": self.pos_opening_shift,
-                        "opening_amounts": "{}"  # Default empty amounts
-                    })
-
-                    if create_result.get("success"):
-                        new_shift_report_name = create_result["data"]["name"]
-                        self.shift_report = new_shift_report_name
-                        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE - Auto-created shift report: {new_shift_report_name}")
-
-                        # Update opening shift with shift report references
-                        frappe.db.set_value("POS Opening Shift", self.pos_opening_shift, {
-                            "shift_report": new_shift_report_name,
-                            "shift_report_id": create_result["data"]["shift_report_id"]
-                        })
-                        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE - Updated opening shift with shift report references")
-                    else:
-                        error_msg = create_result.get("message", "Unknown error")
-                        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ VALIDATE - Failed to auto-create shift report: {error_msg}")
-                        frappe.throw(_("Failed to create shift report automatically: {0}").format(error_msg))
-
-                except Exception as e:
-                    log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ VALIDATE - Error auto-creating shift report: {str(e)}")
-                    frappe.throw(_("Error creating shift report automatically. Please contact administrator."))
+                # Shift report should exist - throw clear error if not found
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ VALIDATE - No shift report found for opening shift: {self.pos_opening_shift}")
+                frappe.throw(_("No shift report found for this opening shift. Please ensure shift report is created before closing shift."))
 
         # Enhanced calculations with logging
         self.update_payment_reconciliation()
@@ -160,6 +126,11 @@ class POSClosingShift(Document):
 
             # Allow submission with warning if shift_report exists but verification is pending
             if self.shift_report and self.verification_status == "Pending":
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ ON_SUBMIT - Allowing submission with pending verification due to existing shift report")
+                pass
+            elif not self.shift_report:
+                # Allow submission without shift report but log warning
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ ON_SUBMIT - Allowing submission without shift report - limited functionality")
                 pass
             else:
                 frappe.throw(_("Cannot submit closing shift with verification status '{0}'. Status must be 'Verified' or 'Confirmed'.").format(self.verification_status))
@@ -242,8 +213,9 @@ class POSClosingShift(Document):
         try:
             # VALIDATION: Check prerequisites
             if not self.shift_report:
-                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_SKIP - No shift_report linked to closing shift {self.name}")
-                return
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_SKIP - No shift_report linked to closing shift {self.name} - Skipping shift report updates")
+                # Don't return here - we can still update opening shift status
+                # Just skip the shift report specific operations
 
             if not self.pos_opening_shift:
                 log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_SKIP - No opening shift linked to closing shift {self.name}")
@@ -255,45 +227,20 @@ class POSClosingShift(Document):
             shift_report = frappe.get_doc("POS Shift Report", self.shift_report)
             log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FOUND - Shift report {shift_report.name} found (status: {shift_report.status})")
 
-            # STEP 2: Update POS Payment Summaries with enhanced error handling (tham khảo get_shift_report_with_payment_summary)
+            # STEP 2: Update POS Payment Summaries with enhanced error handling
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 💰 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP1 - Updating POS Payment Summaries")
             payment_summary_result = create_payment_summaries_for_shift(shift_report.name)
 
+            # STEP 3: Get payment summaries (always try to get them regardless of create result)
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP2 - Getting payment summaries")
+            updated_summaries = self._get_payment_summaries_safe(shift_report.name, payment_summary_result)
+
             if not payment_summary_result.get("success"):
-                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_PAYMENT_SUMMARY_FAILED - Failed to update payment summaries: {payment_summary_result.get('message')}")
-                # Try to get existing summaries as fallback (tham khảo logic từ get_shift_report_with_payment_summary)
-                try:
-                    from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import get_payment_summaries_for_shift
-                    payment_summaries_result = get_payment_summaries_for_shift(shift_report.name)
-
-                    if payment_summaries_result.get("success"):
-                        updated_summaries = payment_summaries_result["data"]
-                        log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FALLBACK - Using {len(updated_summaries)} existing payment summaries as fallback")
-                    else:
-                        log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FALLBACK_FAILED - Could not get payment summaries: {payment_summaries_result.get('message')}")
-                        updated_summaries = []
-                except Exception as fallback_error:
-                    log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FALLBACK_FAILED - Fallback failed: {str(fallback_error)}")
-                    updated_summaries = []
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_CREATE_FAILED - Payment summary creation failed: {payment_summary_result.get('message')}, but got {len(updated_summaries)} existing summaries")
             else:
-                # Get the created payment summaries using the same method as get_shift_report_with_payment_summary
-                try:
-                    from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import get_payment_summaries_for_shift
-                    payment_summaries_result = get_payment_summaries_for_shift(shift_report.name)
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_AND_SUMMARIES_SUCCESS - Got {len(updated_summaries)} payment summaries")
 
-                    if payment_summaries_result.get("success"):
-                        updated_summaries = payment_summaries_result["data"]
-                        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_AND_SUMMARIES_GOT_SUMMARIES - Got {len(updated_summaries)} payment summaries")
-                    else:
-                        log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_GET_FAILED - Could not get payment summaries: {payment_summaries_result.get('message')}")
-                        updated_summaries = payment_summary_result.get("data", {}).get("payment_summaries", [])
-                except Exception as get_error:
-                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_GET_ERROR - Error getting payment summaries: {str(get_error)}")
-                    updated_summaries = payment_summary_result.get("data", {}).get("payment_summaries", [])
-
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP2 - Got {len(updated_summaries)} payment summaries")
-
-            # STEP 3: Calculate totals with improved logic
+            # STEP 4: Calculate totals with improved logic
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 🧮 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP3 - Calculating totals")
 
             # Calculate total actual closing from summaries
@@ -307,7 +254,7 @@ class POSClosingShift(Document):
 
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 💵 UPDATE_SHIFT_REPORT_AND_SUMMARIES_TOTALS_CALCULATED - Actual: {total_actual_closing}, Expected: {total_expected_closing}, Difference: {difference}")
 
-            # STEP 4: Update POS Shift Report
+            # STEP 5: Update POS Shift Report
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP4 - Updating shift report")
 
             shift_report.closing_date = self.period_end_date
@@ -326,7 +273,7 @@ class POSClosingShift(Document):
 
             shift_report.actual_closing_amounts = frappe.as_json(actual_closing_amounts)
 
-            # STEP 5: Validate invoice statuses (improved validation)
+            # STEP 6: Validate invoice statuses (improved validation)
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP5 - Validating invoice statuses")
 
             sales_invoices = frappe.get_all("Sales Invoice",
@@ -349,7 +296,7 @@ class POSClosingShift(Document):
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 📈 UPDATE_SHIFT_REPORT_AND_SUMMARIES_INVOICE_STATS - Total invoices: {len(sales_invoices)}, Total amount: {total_invoice_amount}, Returns: {return_invoice_count}")
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STATUS_BREAKDOWN - {status_counts}")
 
-            # STEP 6: Save with enhanced error handling
+            # STEP 7: Save with enhanced error handling
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 💾 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP6 - Saving shift report")
 
             try:
@@ -381,7 +328,7 @@ class POSClosingShift(Document):
                     log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_SAVE_ERROR - Save failed: {error_msg}")
                     raise
 
-            # STEP 7: Performance logging
+            # STEP 8: Performance logging
             end_time = time.time()
             duration = end_time - start_time
             log.info(f"[SHIFT_CLOSE_WORKFLOW] ⏱️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_COMPLETED - Duration: {duration:.2f}s, Invoices: {len(sales_invoices)}, Summaries: {len(updated_summaries)}")
@@ -392,6 +339,27 @@ class POSClosingShift(Document):
             log.error(f"[SHIFT_CLOSE_WORKFLOW] 💥 UPDATE_SHIFT_REPORT_AND_SUMMARIES_FAILED - Duration: {duration:.2f}s, Error: {str(e)}")
             # Don't raise error to prevent closing shift submission failure
             pass
+
+    def _get_payment_summaries_safe(self, shift_report_name, payment_summary_result):
+        """Safely get payment summaries with fallback logic"""
+        try:
+            from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import get_payment_summaries_for_shift
+
+            payment_summaries_result = get_payment_summaries_for_shift(shift_report_name)
+
+            if payment_summaries_result.get("success"):
+                summaries = payment_summaries_result["data"]
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ _GET_PAYMENT_SUMMARIES_SAFE - Retrieved {len(summaries)} payment summaries")
+                return summaries
+            else:
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ _GET_PAYMENT_SUMMARIES_SAFE - Failed to get payment summaries: {payment_summaries_result.get('message')}")
+                # Fallback to data from create result if available
+                return payment_summary_result.get("data", {}).get("payment_summaries", [])
+
+        except Exception as e:
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ _GET_PAYMENT_SUMMARIES_SAFE - Error getting payment summaries: {str(e)}")
+            # Final fallback: return data from create result or empty list
+            return payment_summary_result.get("data", {}).get("payment_summaries", [])
 
     def perform_post_submit_cleanup(self):
         """Perform post-submit cleanup: Clear cache, logout, and refresh UI"""
@@ -661,16 +629,10 @@ def make_closing_shift_from_opening(opening_shift):
 
         if shift_report:
             closing_shift.shift_report = shift_report
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_FROM_OPENING - Found existing shift report: {shift_report}")
         else:
-            # Try to create shift report automatically
-            try:
-                from posawesome.posawesome.doctype.pos_shift_report.pos_shift_report import create_shift_report_from_opening
-                new_shift_report = create_shift_report_from_opening(opening_shift_data.get("name"))
-
-                if new_shift_report:
-                    closing_shift.shift_report = new_shift_report.name
-            except Exception as e:
-                pass
+            log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ MAKE_CLOSING_SHIFT_FROM_OPENING - No shift report found for opening shift: {opening_shift_data.get('name')}")
+            # Continue without shift report - closing shift can still function
 
         # Set child tables
         closing_shift.set("pos_transactions", pos_transactions)
