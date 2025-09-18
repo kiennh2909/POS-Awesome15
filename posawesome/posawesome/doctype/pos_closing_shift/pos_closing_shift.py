@@ -222,25 +222,41 @@ class POSClosingShift(Document):
             shift_report = frappe.get_doc("POS Shift Report", self.shift_report)
             log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FOUND - Shift report {shift_report.name} found (status: {shift_report.status})")
 
-            # STEP 2: Update POS Payment Summaries with enhanced error handling
+            # STEP 2: Update POS Payment Summaries with enhanced error handling (tham khảo get_shift_report_with_payment_summary)
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 💰 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP1 - Updating POS Payment Summaries")
             payment_summary_result = create_payment_summaries_for_shift(shift_report.name)
 
             if not payment_summary_result.get("success"):
                 log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_PAYMENT_SUMMARY_FAILED - Failed to update payment summaries: {payment_summary_result.get('message')}")
-                # Try to get existing summaries as fallback
+                # Try to get existing summaries as fallback (tham khảo logic từ get_shift_report_with_payment_summary)
                 try:
-                    existing_summaries = frappe.get_all("POS Payment Summary",
-                        filters={"pos_shift_report": shift_report.name},
-                        fields=["payment_method", "opening_amount", "transaction_amount", "closing_amount", "transaction_count", "sales_amount", "returns_amount"]
-                    )
-                    updated_summaries = existing_summaries
-                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FALLBACK - Using {len(updated_summaries)} existing payment summaries as fallback")
+                    from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import get_payment_summaries_for_shift
+                    payment_summaries_result = get_payment_summaries_for_shift(shift_report.name)
+
+                    if payment_summaries_result.get("success"):
+                        updated_summaries = payment_summaries_result["data"]
+                        log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FALLBACK - Using {len(updated_summaries)} existing payment summaries as fallback")
+                    else:
+                        log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FALLBACK_FAILED - Could not get payment summaries: {payment_summaries_result.get('message')}")
+                        updated_summaries = []
                 except Exception as fallback_error:
                     log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FALLBACK_FAILED - Fallback failed: {str(fallback_error)}")
                     updated_summaries = []
             else:
-                updated_summaries = payment_summary_result.get("data", {}).get("payment_summaries", [])
+                # Get the created payment summaries using the same method as get_shift_report_with_payment_summary
+                try:
+                    from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import get_payment_summaries_for_shift
+                    payment_summaries_result = get_payment_summaries_for_shift(shift_report.name)
+
+                    if payment_summaries_result.get("success"):
+                        updated_summaries = payment_summaries_result["data"]
+                        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_AND_SUMMARIES_GOT_SUMMARIES - Got {len(updated_summaries)} payment summaries")
+                    else:
+                        log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_GET_FAILED - Could not get payment summaries: {payment_summaries_result.get('message')}")
+                        updated_summaries = payment_summary_result.get("data", {}).get("payment_summaries", [])
+                except Exception as get_error:
+                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_GET_ERROR - Error getting payment summaries: {str(get_error)}")
+                    updated_summaries = payment_summary_result.get("data", {}).get("payment_summaries", [])
 
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP2 - Got {len(updated_summaries)} payment summaries")
 
