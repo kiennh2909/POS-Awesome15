@@ -344,7 +344,7 @@ def create_pos_shift_report_doctypes():
             "sort_order": "DESC"
         }
 
-    frappe.get_doc(pos_shift_report).insert()
+        frappe.get_doc(pos_shift_report).insert()
 
 def create_shift_report_custom_fields():
     """Add custom fields to existing DocTypes"""
