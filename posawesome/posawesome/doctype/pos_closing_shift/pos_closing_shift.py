@@ -10,7 +10,7 @@ from frappe.model.document import Document
 from frappe.utils import flt, now, get_datetime
 import time
 from posawesome.posawesome.utils.logging import get_logger
-from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import create_payment_summaries_for_shift
+from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import create_payment_summaries_for_shift, _parse_json_safe
 
 # Initialize logger với tên "shift_close"
 log = get_logger("shift_close")
@@ -203,36 +203,64 @@ class POSClosingShift(Document):
 
     def update_shift_report_and_payment_summaries_on_close(self):
         """Update POS Shift Report and Payment Summaries with closing data when closing shift is submitted"""
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_ON_CLOSE - POS Closing Shift {self.name}")
+        start_time = time.time()
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎯 UPDATE_SHIFT_REPORT_AND_SUMMARIES_START - POS Closing Shift {self.name}")
+
         try:
+            # VALIDATION: Check prerequisites
             if not self.shift_report:
-                log.warning(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_SKIP - No shift_report linked to closing shift {self.name}")
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_SKIP - No shift_report linked to closing shift {self.name}")
                 return
 
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_PROCESSING - Getting shift report {self.shift_report}")
+            if not self.pos_opening_shift:
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_SKIP - No opening shift linked to closing shift {self.name}")
+                return
 
-            # Get shift report
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 UPDATE_SHIFT_REPORT_AND_SUMMARIES_PROCESSING - Getting shift report {self.shift_report}")
+
+            # STEP 1: Get and validate shift report
             shift_report = frappe.get_doc("POS Shift Report", self.shift_report)
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_FOUND - Shift report {shift_report.name} found (status: {shift_report.status})")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FOUND - Shift report {shift_report.name} found (status: {shift_report.status})")
 
-            # STEP 1: Update POS Payment Summaries using create_payment_summaries_for_shift
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP1 - Updating POS Payment Summaries")
+            # STEP 2: Update POS Payment Summaries with enhanced error handling
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 💰 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP1 - Updating POS Payment Summaries")
             payment_summary_result = create_payment_summaries_for_shift(shift_report.name)
 
             if not payment_summary_result.get("success"):
-                log.error(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_PAYMENT_SUMMARY_FAILED - Failed to update payment summaries: {payment_summary_result.get('message')}")
-                # Continue anyway to update shift report
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_PAYMENT_SUMMARY_FAILED - Failed to update payment summaries: {payment_summary_result.get('message')}")
+                # Try to get existing summaries as fallback
+                try:
+                    existing_summaries = frappe.get_all("POS Payment Summary",
+                        filters={"pos_shift_report": shift_report.name},
+                        fields=["payment_method", "opening_amount", "transaction_amount", "closing_amount", "transaction_count", "sales_amount", "returns_amount"]
+                    )
+                    updated_summaries = existing_summaries
+                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FALLBACK - Using {len(updated_summaries)} existing payment summaries as fallback")
+                except Exception as fallback_error:
+                    log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_FALLBACK_FAILED - Fallback failed: {str(fallback_error)}")
+                    updated_summaries = []
+            else:
+                updated_summaries = payment_summary_result.get("data", {}).get("payment_summaries", [])
 
-            # STEP 2: Get updated POS Payment Summary data for aggregation
-            updated_summaries = payment_summary_result.get("data", {}).get("payment_summaries", [])
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP2 - Got {len(updated_summaries)} updated payment summaries")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP2 - Got {len(updated_summaries)} payment summaries")
 
-            # STEP 3: Aggregate and calculate totals for POS Shift Report
+            # STEP 3: Calculate totals with improved logic
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 🧮 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP3 - Calculating totals")
+
+            # Calculate total actual closing from summaries
             total_actual_closing = sum(flt(s.get("closing_amount", 0)) for s in updated_summaries)
-            total_expected_closing = flt(shift_report.total_expected_closing or 0)
+
+            # Calculate total expected closing from expected_closing_amounts JSON
+            expected_closing = _parse_json_safe(getattr(shift_report, "expected_closing_amounts", None), {})
+            total_expected_closing = sum(flt(amount, 2) for amount in expected_closing.values())
+
             difference = total_actual_closing - total_expected_closing
 
-            # Update POS Shift Report
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 💵 UPDATE_SHIFT_REPORT_AND_SUMMARIES_TOTALS_CALCULATED - Actual: {total_actual_closing}, Expected: {total_expected_closing}, Difference: {difference}")
+
+            # STEP 4: Update POS Shift Report
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP4 - Updating shift report")
+
             shift_report.closing_date = self.period_end_date
             shift_report.closed_by = self.user
             shift_report.status = "Closed"
@@ -240,7 +268,7 @@ class POSClosingShift(Document):
             shift_report.total_actual_closing = total_actual_closing
             shift_report.difference = difference
 
-            # Create actual closing amounts from updated summaries
+            # Create actual closing amounts JSON from summaries
             actual_closing_amounts = {}
             for summary in updated_summaries:
                 method = summary.get("payment_method")
@@ -249,48 +277,70 @@ class POSClosingShift(Document):
 
             shift_report.actual_closing_amounts = frappe.as_json(actual_closing_amounts)
 
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_TOTALS - Total actual: {total_actual_closing}, Expected: {total_expected_closing}, Difference: {difference}")
+            # STEP 5: Validate invoice statuses (improved validation)
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP5 - Validating invoice statuses")
 
-            # Debug: Check for any records with "Paid" status before saving
             sales_invoices = frappe.get_all("Sales Invoice",
-                filters={"posa_pos_opening_shift": self.pos_opening_shift},
-                fields=["name", "status", "docstatus"]
+                filters={"posa_pos_opening_shift": self.pos_opening_shift, "docstatus": 1},
+                fields=["name", "status", "docstatus", "is_return", "grand_total"]
             )
 
-            paid_invoices = [si for si in sales_invoices if si.get("status") == "Paid"]
-            if paid_invoices:
-                log.warning(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_PAID_INVOICES - Found {len(paid_invoices)} Sales Invoices with Paid status")
+            # Count by status for reporting
+            status_counts = {}
+            total_invoice_amount = 0
+            return_invoice_count = 0
 
-            # Save shift report with error handling
+            for si in sales_invoices:
+                status = si.get("status", "Unknown")
+                status_counts[status] = status_counts.get(status, 0) + 1
+                total_invoice_amount += flt(si.get("grand_total", 0))
+                if si.get("is_return"):
+                    return_invoice_count += 1
+
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📈 UPDATE_SHIFT_REPORT_AND_SUMMARIES_INVOICE_STATS - Total invoices: {len(sales_invoices)}, Total amount: {total_invoice_amount}, Returns: {return_invoice_count}")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STATUS_BREAKDOWN - {status_counts}")
+
+            # STEP 6: Save with enhanced error handling
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 💾 UPDATE_SHIFT_REPORT_AND_SUMMARIES_STEP6 - Saving shift report")
+
             try:
                 shift_report.save(ignore_permissions=True)
-                log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_SUCCESS - Shift report {shift_report.name} and {len(updated_summaries)} payment summaries updated successfully")
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_AND_SUMMARIES_SUCCESS - Shift report {shift_report.name} updated successfully with {len(updated_summaries)} payment summaries")
+
             except frappe.ValidationError as ve:
-                log.error(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_VALIDATION_ERROR - Validation error: {str(ve)}")
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_VALIDATION_ERROR - Validation error: {str(ve)}")
                 if "Status cannot be" in str(ve) and "Paid" in str(ve):
-                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_PAID_ERROR - Status validation error detected")
+                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_PAID_ERROR - Status validation error detected, attempting bypass")
                     shift_report.flags.ignore_validate = True
                     shift_report.save(ignore_permissions=True)
-                    log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_SUCCESS_BYPASS - Shift report saved with validation bypass")
+                    log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_AND_SUMMARIES_SUCCESS_BYPASS - Shift report saved with validation bypass")
                 else:
                     raise
-            except Exception as e:
-                error_msg = str(e)
+
+            except Exception as save_error:
+                error_msg = str(save_error)
                 if "Document has been modified after you have opened it" in error_msg:
-                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_CONCURRENT_MODIFICATION - Document modified by another process, attempting to refresh and retry")
+                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_CONCURRENT_MODIFICATION - Document modified by another process, attempting to refresh and retry")
                     try:
                         shift_report.reload()
                         shift_report.save(ignore_permissions=True)
-                        log.info(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_SUCCESS_AFTER_REFRESH - Shift report saved successfully after refresh")
+                        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_AND_SUMMARIES_SUCCESS_AFTER_REFRESH - Shift report saved successfully after refresh")
                     except Exception as retry_error:
-                        log.error(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_RETRY_FAILED - Retry failed: {str(retry_error)}")
+                        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_RETRY_FAILED - Retry failed: {str(retry_error)}")
                         raise retry_error
                 else:
-                    log.error(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_SAVE_ERROR - Save failed: {error_msg}")
+                    log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_AND_SUMMARIES_SAVE_ERROR - Save failed: {error_msg}")
                     raise
 
+            # STEP 7: Performance logging
+            end_time = time.time()
+            duration = end_time - start_time
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ⏱️ UPDATE_SHIFT_REPORT_AND_SUMMARIES_COMPLETED - Duration: {duration:.2f}s, Invoices: {len(sales_invoices)}, Summaries: {len(updated_summaries)}")
+
         except Exception as e:
-            log.error(f"[SHIFT_CLOSE_WORKFLOW] UPDATE_SHIFT_REPORT_AND_SUMMARIES_ERROR - Failed to update shift report and payment summaries for closing shift {self.name}: {str(e)}")
+            end_time = time.time()
+            duration = end_time - start_time
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] 💥 UPDATE_SHIFT_REPORT_AND_SUMMARIES_FAILED - Duration: {duration:.2f}s, Error: {str(e)}")
             # Don't raise error to prevent closing shift submission failure
             pass
 
