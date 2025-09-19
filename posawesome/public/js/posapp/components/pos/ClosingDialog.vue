@@ -13,6 +13,17 @@
 							<p class="header-subtitle">
 								{{ __("Reconcile payment methods and close shift") }}
 							</p>
+							<!-- Shift Information -->
+							<div class="shift-info" v-if="dialog_data.pos_opening_shift">
+								<div class="shift-info-item">
+									<span class="shift-info-label">{{ __("Shift ID:") }}</span>
+									<span class="shift-info-value">{{ dialog_data.pos_opening_shift }}</span>
+								</div>
+								<div class="shift-info-item" v-if="dialog_data.period_start_date">
+									<span class="shift-info-label">{{ __("Started:") }}</span>
+									<span class="shift-info-value">{{ formatDateTime(dialog_data.period_start_date, dialog_data.period_start_time) }}</span>
+								</div>
+							</div>
 						</div>
 						<!-- Verification Status Display -->
 						<div class="verification-status-wrapper" v-if="dialog_data.verification_status">
@@ -257,12 +268,43 @@ export default {
 
 			this.verifying = true;
 			try {
-				console.log("Verifying shift report:", this.dialog_data.shift_report_id);
+				// Try multiple ways to get shift report ID
+				let shiftReportId = this.dialog_data.shift_report || this.dialog_data.shift_report_id;
+
+				// If not found in dialog_data, try to get from opening shift
+				if (!shiftReportId && this.dialog_data.pos_opening_shift) {
+					console.log("Shift report ID not found in dialog_data, trying to get from opening shift:", this.dialog_data.pos_opening_shift);
+
+					try {
+						const openingShiftResponse = await frappe.call({
+							method: "frappe.client.get",
+							args: {
+								doctype: "POS Opening Shift",
+								name: this.dialog_data.pos_opening_shift
+							}
+						});
+
+						if (openingShiftResponse.message && openingShiftResponse.message.shift_report) {
+							shiftReportId = openingShiftResponse.message.shift_report;
+							console.log("Found shift report ID from opening shift:", shiftReportId);
+						}
+					} catch (openingShiftError) {
+						console.warn("Could not get shift report from opening shift:", openingShiftError);
+					}
+				}
+
+				console.log("Final shift report ID:", shiftReportId);
+				console.log("Dialog data:", this.dialog_data);
+
+				if (!shiftReportId) {
+					this.showError(__("Shift report not found. Please ensure shift report is created before verifying."));
+					return;
+				}
 
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.shift_verification.verify_shift_report",
 					args: {
-						shift_report_id: this.dialog_data.shift_report_id
+						shift_report_id: shiftReportId
 					}
 				});
 
@@ -278,7 +320,7 @@ export default {
 					// Emit event to notify other components
 					if (this.eventBus) {
 						this.eventBus.emit("shift_report_verified", {
-							shift_report_id: this.dialog_data.shift_report_id,
+							shift_report_id: shiftReportId,
 							verification_status: "Verified",
 							disable_transaction_buttons: true
 						});
@@ -327,6 +369,30 @@ export default {
 					message: message,
 					indicator: 'green'
 				});
+			}
+		},
+
+		formatDateTime(date, time) {
+			if (!date) return '';
+
+			try {
+				let dateTimeStr = date;
+				if (time) {
+					dateTimeStr += ' ' + time;
+				}
+
+				// Use frappe's datetime formatting if available
+				if (window.frappe && frappe.datetime) {
+					const dateObj = frappe.datetime.str_to_obj(dateTimeStr);
+					return frappe.datetime.prettyDate(dateObj) + ' ' + frappe.datetime.get_time(dateObj);
+				}
+
+				// Fallback to basic formatting
+				const dateObj = new Date(dateTimeStr);
+				return dateObj.toLocaleString();
+			} catch (e) {
+				console.warn('Error formatting datetime:', e);
+				return date + (time ? ' ' + time : '');
 			}
 		},
 	},
@@ -584,6 +650,40 @@ export default {
 	gap: 20px;
 	width: 100%;
 	justify-content: space-between;
+}
+
+/* Shift Information Styles */
+.shift-info {
+	margin-top: 8px;
+	padding: 8px 12px;
+	background: rgba(255, 255, 255, 0.1);
+	border-radius: 6px;
+	border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.shift-info-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 2px;
+}
+
+.shift-info-item:last-child {
+	margin-bottom: 0;
+}
+
+.shift-info-label {
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: #666;
+	min-width: 60px;
+}
+
+.shift-info-value {
+	font-size: 0.85rem;
+	font-weight: 500;
+	color: #333;
+	font-family: 'Courier New', monospace;
 }
 
 /* And the responsive section: */

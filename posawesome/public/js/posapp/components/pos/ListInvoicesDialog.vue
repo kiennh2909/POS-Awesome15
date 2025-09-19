@@ -3,7 +3,22 @@
 		<v-card>
 			<v-card-title class="d-flex align-center">
 				<v-icon class="me-2">mdi-receipt-text-multiple</v-icon>
-				{{ __("Shift Report Invoices") }}
+				<div class="header-content">
+					<div class="header-main">
+						<h3 class="header-title">{{ __("Shift Report Invoices") }}</h3>
+						<!-- Shift Information -->
+						<div class="shift-info" v-if="shiftReportData">
+							<div class="shift-info-item">
+								<span class="shift-info-label">{{ __("Shift ID:") }}</span>
+								<span class="shift-info-value">{{ shiftReportData.shift_report_id || 'N/A' }}</span>
+							</div>
+							<div class="shift-info-item" v-if="shiftReportData.created">
+								<span class="shift-info-label">{{ __("Started:") }}</span>
+								<span class="shift-info-value">{{ formatDateTime(shiftReportData.created) }}</span>
+							</div>
+						</div>
+					</div>
+				</div>
 				<v-spacer></v-spacer>
 				<v-btn icon variant="text" @click="close">
 					<v-icon>mdi-close</v-icon>
@@ -1282,6 +1297,25 @@ export default {
 			}
 		},
 
+		formatDateTime(dateTimeStr) {
+			if (!dateTimeStr) return '';
+
+			try {
+				// Use frappe's datetime formatting if available
+				if (window.frappe && frappe.datetime) {
+					const dateObj = frappe.datetime.str_to_obj(dateTimeStr);
+					return frappe.datetime.prettyDate(dateObj) + ' ' + frappe.datetime.get_time(dateObj);
+				}
+
+				// Fallback to basic formatting
+				const dateObj = new Date(dateTimeStr);
+				return dateObj.toLocaleString();
+			} catch (e) {
+				console.warn('Error formatting datetime:', e);
+				return dateTimeStr;
+			}
+		},
+
 		// ✅ VERIFICATION METHODS
 		getVerificationColor(status) {
 			const colors = {
@@ -1563,5 +1597,74 @@ export default {
 :deep(.v-theme--dark) .v-data-table :deep(.v-data-table__th) {
 	background-color: rgb(var(--v-theme-surface-variant));
 	color: rgb(var(--v-theme-on-surface-variant));
+}
+
+/* Header Content Layout */
+.header-content {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.header-main {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.header-title {
+	margin: 0;
+	font-size: 1.25rem;
+	font-weight: 600;
+	color: rgb(var(--v-theme-on-surface));
+}
+
+/* Shift Information Styles */
+.shift-info {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	margin-top: 4px;
+}
+
+.shift-info-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.shift-info-label {
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: rgb(var(--v-theme-on-surface-variant));
+	min-width: 55px;
+}
+
+.shift-info-value {
+	font-size: 0.8rem;
+	font-weight: 500;
+	color: rgb(var(--v-theme-on-surface));
+	font-family: 'Courier New', monospace;
+	background: rgba(var(--v-theme-primary), 0.1);
+	padding: 2px 6px;
+	border-radius: 4px;
+	border: 1px solid rgba(var(--v-theme-primary), 0.2);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+	.shift-info {
+		flex-direction: column;
+		gap: 8px;
+		align-items: flex-start;
+	}
+
+	.shift-info-item {
+		width: 100%;
+	}
+
+	.shift-info-label {
+		min-width: auto;
+	}
 }
 </style>
