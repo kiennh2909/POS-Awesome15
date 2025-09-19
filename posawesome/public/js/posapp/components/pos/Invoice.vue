@@ -222,6 +222,7 @@
 			:currencySymbol="currencySymbol"
 			:discount_percentage_offer_name="discount_percentage_offer_name"
 			:isNumber="isNumber"
+			:shiftVerificationStatus="shiftVerificationStatus"
 			@update:additional_discount="(val) => (additional_discount = val)"
 			@update:additional_discount_percentage="(val) => (additional_discount_percentage = val)"
 			@update_discount_umount="update_discount_umount"
@@ -338,6 +339,7 @@ export default {
 			show_column_selector: false, // Column selector dialog visibility
 			invoiceHeight: null,
 			tax_print_loading: false, // Loading state for tax print button
+			shiftVerificationStatus: null, // Verification status of current shift report
 		};
 	},
 
@@ -1125,6 +1127,43 @@ export default {
 			// Emit event to open list invoices dialog
 			this.eventBus.emit("open_list_invoices");
 		},
+
+		// Update shift verification status
+		updateShiftVerificationStatus() {
+			if (this.pos_shift_report) {
+				// Get verification status from shift report data
+				if (this.shift_report_data && this.shift_report_data.verification_status) {
+					this.shiftVerificationStatus = this.shift_report_data.verification_status;
+				} else {
+					// Fallback: try to get from server
+					this.fetchShiftVerificationStatus();
+				}
+			} else {
+				this.shiftVerificationStatus = null;
+			}
+		},
+
+		// Fetch verification status from server
+		async fetchShiftVerificationStatus() {
+			if (!this.pos_shift_report) return;
+
+			try {
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.shift_reports.get_shift_report",
+					args: {
+						shift_report_id: this.pos_shift_report
+					}
+				});
+
+				if (response.message && response.message.success) {
+					const shiftData = response.message.data;
+					this.shiftVerificationStatus = shiftData.verification_status || null;
+				}
+			} catch (error) {
+				console.error("Failed to fetch shift verification status:", error);
+				this.shiftVerificationStatus = null;
+			}
+		},
 	},
 
 	mounted() {
@@ -1314,12 +1353,17 @@ export default {
 			this.posting_date = frappe.datetime.nowdate();
 		});
         this.eventBus.on("calc_uom", this.calc_uom);
-		this.eventBus.on("item-drag-start", (item) => {
-			this.showDropFeedback(true);
-		});
-		this.eventBus.on("item-drag-end", () => {
-			this.showDropFeedback(false);
-		});
+        this.eventBus.on("item-drag-start", (item) => {
+        	this.showDropFeedback(true);
+        });
+        this.eventBus.on("item-drag-end", () => {
+        	this.showDropFeedback(false);
+        });
+      
+        // Listen for shift verification status changes
+        this.eventBus.on("shift_verification_changed", (status) => {
+        	this.shiftVerificationStatus = status;
+        });
 	},
 	// Cleanup event listeners before component is destroyed
 	beforeUnmount() {
@@ -1335,6 +1379,8 @@ export default {
 		this.eventBus.off("highlight_scanned_item");
 		// Cleanup remove item event listener
 		this.eventBus.off("remove_item_by_code");
+		// Cleanup shift verification event listener
+		this.eventBus.off("shift_verification_changed");
 	},
 	// Register global keyboard shortcuts when component is created
 	created() {

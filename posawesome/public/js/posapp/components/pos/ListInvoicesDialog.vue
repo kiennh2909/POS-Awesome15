@@ -16,8 +16,56 @@
 				<!-- Action Buttons Section (MOVED TO TOP) -->
 				<div class="pa-4 action-buttons-section">
 					<div class="d-flex justify-space-between align-center">
-						<h6 class="text-subtitle-1 mb-0">{{ __("Shift Report Actions") }}</h6>
+						<div class="d-flex align-center gap-4">
+							<h6 class="text-subtitle-1 mb-0">{{ __("Shift Report Actions") }}</h6>
+
+							<!-- Verification Status Display -->
+							<v-chip
+								v-if="shiftReportData"
+								:color="getVerificationColor(shiftReportData.verification_status)"
+								variant="outlined"
+								size="small"
+								class="verification-status-chip"
+							>
+								<v-icon size="16" class="me-1">
+									{{ getVerificationIcon(shiftReportData.verification_status) }}
+								</v-icon>
+								{{ shiftReportData.verification_status || 'Pending' }}
+							</v-chip>
+						</div>
+
 						<div class="d-flex gap-2">
+							<!-- Verify Button -->
+							<v-tooltip
+								v-if="isVerifiedOrConfirmed"
+								text="Shift report has already been verified"
+							>
+								<template v-slot:activator="{ props }">
+									<v-btn
+										v-bind="props"
+										color="success"
+										variant="outlined"
+										prepend-icon="mdi-check-circle-outline"
+										:disabled="isVerifiedOrConfirmed"
+										@click="verifyShiftReport"
+										size="small"
+									>
+										{{ __("Verify") }}
+									</v-btn>
+								</template>
+							</v-tooltip>
+							<v-btn
+								v-else
+								color="success"
+								variant="outlined"
+								prepend-icon="mdi-check-circle-outline"
+								:loading="verifying"
+								@click="verifyShiftReport"
+								size="small"
+							>
+								{{ __("Verify") }}
+							</v-btn>
+
 							<v-btn
 								color="info"
 								variant="outlined"
@@ -266,6 +314,9 @@ export default {
 			loadingSummary: false,
 			paymentSummaryData: [],
 			openingAmounts: {},
+			// Verification Data
+			verifying: false,
+			shiftReportData: null,
 			headers: [
 				{ title: this.__("Invoice No"), key: "invoice_no", width: "120px" },
 				{ title: this.__("Date"), key: "invoice_date", width: "100px" },
@@ -294,49 +345,54 @@ export default {
 		};
 	},
 	computed: {
-	show: {
-		get() {
-			return this.modelValue;
+		show: {
+			get() {
+				return this.modelValue;
+			},
+			set(value) {
+				this.$emit("update:modelValue", value);
+			}
 		},
-		set(value) {
-			this.$emit("update:modelValue", value);
+		filteredInvoices() {
+			let filtered = [...this.invoices];
+
+			// Search filter
+			if (this.searchQuery) {
+				const query = this.searchQuery.toLowerCase();
+				filtered = filtered.filter(item =>
+					item.invoice_no?.toLowerCase().includes(query) ||
+					item.customer?.toLowerCase().includes(query)
+				);
+			}
+
+			// Status filter
+			if (this.statusFilter) {
+				filtered = filtered.filter(item => item.status === this.statusFilter);
+			}
+
+			// Payment filter
+			if (this.paymentFilter) {
+				filtered = filtered.filter(item => item.payment_method === this.paymentFilter);
+			}
+
+			return filtered;
+		},
+		// Payment Summary Totals
+		totalOpeningAmount() {
+			return this.paymentSummaryData.reduce((sum, item) => sum + (item.opening_amount || 0), 0);
+		},
+		totalTransactionAmount() {
+			return this.paymentSummaryData.reduce((sum, item) => sum + (item.transaction_amount || 0), 0);
+		},
+		totalClosingAmount() {
+			return this.paymentSummaryData.reduce((sum, item) => sum + (item.closing_amount || 0), 0);
+		},
+		// Verification Computed Properties
+		isVerifiedOrConfirmed() {
+			return this.shiftReportData?.verification_status === 'Verified' ||
+				   this.shiftReportData?.verification_status === 'Confirmed';
 		}
 	},
-	filteredInvoices() {
-		let filtered = [...this.invoices];
-
-		// Search filter
-		if (this.searchQuery) {
-			const query = this.searchQuery.toLowerCase();
-			filtered = filtered.filter(item =>
-				item.invoice_no?.toLowerCase().includes(query) ||
-				item.customer?.toLowerCase().includes(query)
-			);
-		}
-
-		// Status filter
-		if (this.statusFilter) {
-			filtered = filtered.filter(item => item.status === this.statusFilter);
-		}
-
-		// Payment filter
-		if (this.paymentFilter) {
-			filtered = filtered.filter(item => item.payment_method === this.paymentFilter);
-		}
-
-		return filtered;
-	},
-	// Payment Summary Totals
-	totalOpeningAmount() {
-		return this.paymentSummaryData.reduce((sum, item) => sum + (item.opening_amount || 0), 0);
-	},
-	totalTransactionAmount() {
-		return this.paymentSummaryData.reduce((sum, item) => sum + (item.transaction_amount || 0), 0);
-	},
-	totalClosingAmount() {
-		return this.paymentSummaryData.reduce((sum, item) => sum + (item.closing_amount || 0), 0);
-	}
-},
 	watch: {
 		modelValue(newVal) {
 			if (newVal && this.shiftReportId) {
@@ -422,6 +478,9 @@ export default {
 					// Fallback to old method if payment_summaries not available
 					this.loadPaymentSummaryFromShiftReport(shiftReportData);
 				}
+
+				// Store shift report data for verification status
+				this.shiftReportData = shiftReportData;
 
 				// Load shift report data for footer status bar
 				await this.loadShiftReportData();
@@ -1223,6 +1282,75 @@ export default {
 			}
 		},
 
+		// ✅ VERIFICATION METHODS
+		getVerificationColor(status) {
+			const colors = {
+				'Pending': 'warning',
+				'Verified': 'success',
+				'Confirmed': 'info'
+			};
+			return colors[status] || 'grey';
+		},
+
+		getVerificationIcon(status) {
+			const icons = {
+				'Pending': 'mdi-clock-outline',
+				'Verified': 'mdi-check-circle',
+				'Confirmed': 'mdi-check-circle-outline'
+			};
+			return icons[status] || 'mdi-help-circle';
+		},
+
+		async verifyShiftReport() {
+			if (this.isVerifiedOrConfirmed) {
+				return; // Already verified
+			}
+
+			this.verifying = true;
+			try {
+				console.log("Verifying shift report:", this.shiftReportId);
+
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.shift_verification.verify_shift_report",
+					args: {
+						shift_report_id: this.shiftReportId
+					}
+				});
+
+				console.log("Verify response:", response);
+
+				if (response.message && response.message.success) {
+					// Success feedback
+					this.showSuccess(__("Shift report verified successfully"));
+
+					// Refresh data to get updated verification status
+					await this.loadInvoices();
+
+					// Emit event to disable Pay/Return buttons on main interface
+					if (this.eventBus) {
+						this.eventBus.emit("shift_report_verified", {
+							shift_report_id: this.shiftReportId,
+							verification_status: "Verified",
+							disable_transaction_buttons: true
+						});
+
+						// Emit event to update UI components
+						this.eventBus.emit("shift_verification_changed", "Verified");
+					}
+
+				} else {
+					// Error handling
+					const errorMessage = response.message?.message || __("Failed to verify shift report");
+					this.showError(errorMessage);
+				}
+			} catch (error) {
+				console.error("Verify error:", error);
+				this.showError(__("Error verifying shift report"));
+			} finally {
+				this.verifying = false;
+			}
+		},
+
 		close() {
 			console.log("Closing ListInvoicesDialog");
 			this.resetData();
@@ -1408,6 +1536,21 @@ export default {
 /* Gap utilities */
 .gap-8 {
 	gap: 8px;
+}
+
+/* Verification Status Chip */
+.verification-status-chip {
+	font-weight: 600;
+	font-size: 0.8rem;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+	transition: all 0.3s ease;
+}
+
+.verification-status-chip:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
 /* Dark theme adjustments */

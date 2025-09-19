@@ -1,365 +1,325 @@
+# -*- coding: utf-8 -*-
+# Copyright (c) 2021, Youssef Restom and contributors
+# For license information, please see license.txt
+
+from __future__ import unicode_literals
 import frappe
 from frappe import _
-from frappe.utils import nowdate, nowtime
+from posawesome.posawesome.utils.logging import get_logger
+
+# Initialize logger
+log = get_logger("shift_verification")
+
 
 @frappe.whitelist()
-def verify_shift_report(shift_report_id, notes=None):
+def verify_shift_report(shift_report_id):
 	"""
-	Verify POS Shift Report
+	Verify a shift report with permission checks and validation
 
 	Args:
-		shift_report_id (str): Shift report ID or name
-		notes (str): Optional verification notes
+		shift_report_id: The ID of the shift report to verify
 
 	Returns:
-		dict: Verification result
+		dict: Success/error response
 	"""
 	try:
-		if not frappe.db.exists("POS Shift Report", shift_report_id):
-			frappe.throw(_("Shift report not found"))
+		log.info(f"[SHIFT_VERIFICATION] 🎯 START - Shift Report ID: {shift_report_id}")
 
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
-
-		# Check permissions
+		# ✅ PERMISSION CHECKS
 		if not frappe.has_permission("POS Shift Report", "write"):
-			frappe.throw(_("Not permitted to verify shift reports"))
+			log.error(f"[SHIFT_VERIFICATION] ❌ PERMISSION DENIED - User: {frappe.session.user}")
+			return {
+				"success": False,
+				"message": _("Not permitted to verify shift reports")
+			}
 
-		# Validate current status
-		if shift_report.verification_status != "Pending":
-			frappe.throw(_("Shift report is already {0}").format(shift_report.verification_status))
+		# ✅ VALIDATE INPUT
+		if not shift_report_id:
+			log.error("[SHIFT_VERIFICATION] ❌ INVALID INPUT - No shift_report_id provided")
+			return {
+				"success": False,
+				"message": _("Shift report ID is required")
+			}
 
-		# Update verification details
-		shift_report.verification_status = "Verified"
-		shift_report.verification_date = nowdate()
-		shift_report.verified_by = frappe.session.user
+		# ✅ FIND SHIFT REPORT
+		shift_report = None
+		try:
+			# Try to find by name first
+			if frappe.db.exists("POS Shift Report", shift_report_id):
+				shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
+			else:
+				# Try to find by shift_report_id field
+				shift_reports = frappe.get_all("POS Shift Report",
+					filters={"shift_report_id": shift_report_id},
+					limit=1
+				)
+				if shift_reports:
+					shift_report = frappe.get_doc("POS Shift Report", shift_reports[0].name)
+		except Exception as e:
+			log.error(f"[SHIFT_VERIFICATION] ❌ DATABASE ERROR - Could not find shift report: {str(e)}")
+			return {
+				"success": False,
+				"message": _("Shift report not found")
+			}
 
-		if notes:
-			current_notes = shift_report.notes or ""
-			shift_report.notes = f"{current_notes}\n\n[VERIFIED {nowdate()} by {frappe.session.user}]\n{notes}".strip()
+		if not shift_report:
+			log.error(f"[SHIFT_VERIFICATION] ❌ NOT FOUND - Shift report {shift_report_id} not found")
+			return {
+				"success": False,
+				"message": _("Shift report not found")
+			}
 
-		shift_report.save()
+		# ✅ CHECK CURRENT VERIFICATION STATUS
+		current_status = getattr(shift_report, 'verification_status', 'Pending')
+		log.info(f"[SHIFT_VERIFICATION] 📊 CURRENT STATUS - {current_status}")
 
-		# Log activity
-		frappe.logger().info(f"Shift report {shift_report_id} verified by {frappe.session.user}")
+		if current_status in ['Verified', 'Confirmed']:
+			log.warning(f"[SHIFT_VERIFICATION] ⚠️ ALREADY VERIFIED - Status: {current_status}")
+			return {
+				"success": False,
+				"message": _("Shift report is already verified")
+			}
+
+		# ✅ VALIDATE SHIFT REPORT DATA
+		validation_result = _validate_shift_report_data(shift_report)
+		if not validation_result["valid"]:
+			log.error(f"[SHIFT_VERIFICATION] ❌ VALIDATION FAILED - {validation_result['message']}")
+			return {
+				"success": False,
+				"message": validation_result["message"]
+			}
+
+		# ✅ UPDATE VERIFICATION STATUS
+		try:
+			shift_report.verification_status = "Verified"
+			shift_report.verified_by = frappe.session.user
+			shift_report.verified_at = frappe.utils.now()
+			shift_report.save(ignore_permissions=True)
+
+			log.info(f"[SHIFT_VERIFICATION] ✅ STATUS UPDATED - Verified by {frappe.session.user}")
+
+		except Exception as e:
+			log.error(f"[SHIFT_VERIFICATION] ❌ SAVE ERROR - Could not update verification status: {str(e)}")
+			return {
+				"success": False,
+				"message": _("Failed to update verification status")
+			}
+
+		# ✅ LOG VERIFICATION ACTIVITY
+		try:
+			_log_verification_activity(shift_report)
+		except Exception as e:
+			log.warning(f"[SHIFT_VERIFICATION] ⚠️ LOG ERROR - Could not log activity: {str(e)}")
+			# Don't fail the verification if logging fails
+
+		log.info(f"[SHIFT_VERIFICATION] 🎉 COMPLETED - Shift Report {shift_report_id} verified successfully")
 
 		return {
 			"success": True,
 			"message": _("Shift report verified successfully"),
 			"data": {
-				"verification_status": shift_report.verification_status,
-				"verification_date": shift_report.verification_date,
-				"verified_by": shift_report.verified_by
+				"shift_report_id": shift_report_id,
+				"verification_status": "Verified",
+				"verified_by": frappe.session.user,
+				"verified_at": frappe.utils.now()
 			}
 		}
 
 	except Exception as e:
-		frappe.log_error(str(e), "Verify Shift Report Error")
+		log.error(f"[SHIFT_VERIFICATION] 💥 UNEXPECTED ERROR - {str(e)}")
+		frappe.log_error(f"Unexpected error in verify_shift_report: {str(e)}",
+						"Shift Verification Error")
+
 		return {
 			"success": False,
-			"message": str(e)
+			"message": _("An unexpected error occurred while verifying the shift report")
 		}
 
-@frappe.whitelist()
-def confirm_shift_report(shift_report_id, notes=None):
+
+def _validate_shift_report_data(shift_report):
 	"""
-	Confirm POS Shift Report (Final approval)
+	Validate shift report data before verification
 
 	Args:
-		shift_report_id (str): Shift report ID or name
-		notes (str): Optional confirmation notes
+		shift_report: POS Shift Report document
 
 	Returns:
-		dict: Confirmation result
+		dict: Validation result
 	"""
 	try:
-		if not frappe.db.exists("POS Shift Report", shift_report_id):
-			frappe.throw(_("Shift report not found"))
+		log.info("[SHIFT_VERIFICATION] 🔍 VALIDATING SHIFT REPORT DATA")
 
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
+		# ✅ CHECK IF SHIFT HAS INVOICES
+		invoice_count = getattr(shift_report, 'invoice_count', 0)
+		if invoice_count == 0:
+			return {
+				"valid": False,
+				"message": _("Cannot verify shift report with no invoices")
+			}
 
-		# Check permissions
-		if not frappe.has_permission("POS Shift Report", "submit"):
-			frappe.throw(_("Not permitted to confirm shift reports"))
+		# ✅ CHECK IF SHIFT IS CLOSED
+		if getattr(shift_report, 'status', '') == 'Closed':
+			return {
+				"valid": False,
+				"message": _("Cannot verify a closed shift report")
+			}
 
-		# Validate current status
-		if shift_report.verification_status != "Verified":
-			frappe.throw(_("Shift report must be verified before confirmation"))
+		# ✅ CHECK PAYMENT SUMMARY CONSISTENCY
+		if hasattr(shift_report, 'payment_summaries'):
+			total_calculated = 0
+			for summary in shift_report.payment_summaries:
+				total_calculated += getattr(summary, 'closing_amount', 0)
 
-		# Update confirmation details
-		shift_report.verification_status = "Confirmed"
-		shift_report.confirmation_date = nowdate()
-		shift_report.confirmed_by = frappe.session.user
+			total_expected = getattr(shift_report, 'total_expected_closing', 0)
+			difference = abs(total_calculated - total_expected)
 
-		if notes:
-			current_notes = shift_report.notes or ""
-			shift_report.notes = f"{current_notes}\n\n[CONFIRMED {nowdate()} by {frappe.session.user}]\n{notes}".strip()
+			# Allow small rounding differences (0.01)
+			if difference > 0.01:
+				log.warning(f"[SHIFT_VERIFICATION] ⚠️ PAYMENT MISMATCH - Calculated: {total_calculated}, Expected: {total_expected}, Difference: {difference}")
+				# Don't fail validation for payment mismatches, just log warning
 
-		shift_report.save()
+		log.info("[SHIFT_VERIFICATION] ✅ VALIDATION PASSED")
+		return {"valid": True}
 
-		# Log activity
-		frappe.logger().info(f"Shift report {shift_report_id} confirmed by {frappe.session.user}")
+	except Exception as e:
+		log.error(f"[SHIFT_VERIFICATION] ❌ VALIDATION ERROR - {str(e)}")
+		return {
+			"valid": False,
+			"message": _("Error validating shift report data")
+		}
 
+
+def _log_verification_activity(shift_report):
+	"""
+	Log verification activity for audit trail
+
+	Args:
+		shift_report: POS Shift Report document
+	"""
+	try:
+		# Create activity log entry
+		activity_doc = frappe.get_doc({
+			"doctype": "Activity Log",
+			"user": frappe.session.user,
+			"reference_doctype": "POS Shift Report",
+			"reference_name": shift_report.name,
+			"action": "Verify",
+			"subject": f"Shift Report {shift_report.shift_report_id} verified",
+			"content": f"Verified by {frappe.session.user} at {frappe.utils.now()}"
+		})
+		activity_doc.insert(ignore_permissions=True)
+
+		log.info(f"[SHIFT_VERIFICATION] 📝 ACTIVITY LOGGED - {activity_doc.name}")
+
+	except Exception as e:
+		log.warning(f"[SHIFT_VERIFICATION] ⚠️ ACTIVITY LOG ERROR - {str(e)}")
+		# Don't raise error if activity logging fails
+
+
+@frappe.whitelist()
+def get_shift_report_verification_status(shift_report_id):
+	"""
+	Get verification status of a shift report
+
+	Args:
+		shift_report_id: The ID of the shift report
+
+	Returns:
+		dict: Verification status information
+	"""
+	try:
+		log.info(f"[SHIFT_VERIFICATION] 📊 GET STATUS - Shift Report ID: {shift_report_id}")
+
+		# ✅ PERMISSION CHECK
+		if not frappe.has_permission("POS Shift Report", "read"):
+			return {
+				"success": False,
+				"message": _("Not permitted to view shift report verification status")
+			}
+
+		# ✅ FIND SHIFT REPORT
+		shift_report = None
+		try:
+			if frappe.db.exists("POS Shift Report", shift_report_id):
+				shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
+			else:
+				shift_reports = frappe.get_all("POS Shift Report",
+					filters={"shift_report_id": shift_report_id},
+					limit=1
+				)
+				if shift_reports:
+					shift_report = frappe.get_doc("POS Shift Report", shift_reports[0].name)
+		except Exception as e:
+			log.error(f"[SHIFT_VERIFICATION] ❌ DATABASE ERROR - {str(e)}")
+			return {
+				"success": False,
+				"message": _("Error retrieving shift report")
+			}
+
+		if not shift_report:
+			return {
+				"success": False,
+				"message": _("Shift report not found")
+			}
+
+		# ✅ RETURN VERIFICATION STATUS
 		return {
 			"success": True,
-			"message": _("Shift report confirmed successfully"),
 			"data": {
-				"verification_status": shift_report.verification_status,
-				"confirmation_date": shift_report.confirmation_date,
-				"confirmed_by": shift_report.confirmed_by
+				"shift_report_id": shift_report_id,
+				"verification_status": getattr(shift_report, 'verification_status', 'Pending'),
+				"verified_by": getattr(shift_report, 'verified_by', None),
+				"verified_at": getattr(shift_report, 'verified_at', None),
+				"can_verify": _can_user_verify_shift_report(shift_report)
 			}
 		}
 
 	except Exception as e:
-		frappe.log_error(str(e), "Confirm Shift Report Error")
+		log.error(f"[SHIFT_VERIFICATION] 💥 UNEXPECTED ERROR - {str(e)}")
 		return {
 			"success": False,
-			"message": str(e)
+			"message": _("An unexpected error occurred")
 		}
 
-@frappe.whitelist()
-def reject_shift_report(shift_report_id, reason):
+
+def _can_user_verify_shift_report(shift_report):
 	"""
-	Reject POS Shift Report
+	Check if current user can verify the shift report
 
 	Args:
-		shift_report_id (str): Shift report ID or name
-		reason (str): Reason for rejection
+		shift_report: POS Shift Report document
 
 	Returns:
-		dict: Rejection result
+		bool: True if user can verify
 	"""
 	try:
-		if not frappe.db.exists("POS Shift Report", shift_report_id):
-			frappe.throw(_("Shift report not found"))
-
-		if not reason or not reason.strip():
-			frappe.throw(_("Rejection reason is required"))
-
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
-
-		# Check permissions
+		# ✅ CHECK PERMISSIONS
 		if not frappe.has_permission("POS Shift Report", "write"):
-			frappe.throw(_("Not permitted to reject shift reports"))
+			return False
 
-		# Reset verification status
-		shift_report.verification_status = "Pending"
-		shift_report.verification_date = None
-		shift_report.verified_by = None
-		shift_report.confirmation_date = None
-		shift_report.confirmed_by = None
+		# ✅ CHECK IF ALREADY VERIFIED
+		current_status = getattr(shift_report, 'verification_status', 'Pending')
+		if current_status in ['Verified', 'Confirmed']:
+			return False
 
-		# Add rejection notes
-		current_notes = shift_report.notes or ""
-		shift_report.notes = f"{current_notes}\n\n[REJECTED {nowdate()} by {frappe.session.user}]\nReason: {reason}".strip()
+		# ✅ CHECK IF USER IS SHIFT OWNER OR HAS ADMIN ROLE
+		shift_user = getattr(shift_report, 'user', None)
+		current_user = frappe.session.user
 
-		shift_report.save()
+		# Allow verification if user is the shift owner or has admin role
+		if shift_user == current_user:
+			return True
 
-		# Log activity
-		frappe.logger().info(f"Shift report {shift_report_id} rejected by {frappe.session.user}: {reason}")
+		# Check for admin roles
+		user_roles = frappe.get_roles(current_user)
+		admin_roles = ['System Manager', 'Administrator', 'POS Admin']
 
-		return {
-			"success": True,
-			"message": _("Shift report rejected successfully")
-		}
+		for role in admin_roles:
+			if role in user_roles:
+				return True
 
-	except Exception as e:
-		frappe.log_error(str(e), "Reject Shift Report Error")
-		return {
-			"success": False,
-			"message": str(e)
-		}
-
-@frappe.whitelist()
-def get_shift_report_verification_history(shift_report_id):
-	"""
-	Get verification history for shift report
-
-	Args:
-		shift_report_id (str): Shift report ID or name
-
-	Returns:
-		dict: Verification history
-	"""
-	try:
-		if not frappe.db.exists("POS Shift Report", shift_report_id):
-			frappe.throw(_("Shift report not found"))
-
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
-
-		history = []
-
-		if shift_report.verification_date:
-			history.append({
-				"action": "Verified",
-				"date": shift_report.verification_date,
-				"user": shift_report.verified_by,
-				"status": "Verified"
-			})
-
-		if shift_report.confirmation_date:
-			history.append({
-				"action": "Confirmed",
-				"date": shift_report.confirmation_date,
-				"user": shift_report.confirmed_by,
-				"status": "Confirmed"
-			})
-
-		return {
-			"success": True,
-			"data": {
-				"current_status": shift_report.verification_status,
-				"history": history
-			}
-		}
+		return False
 
 	except Exception as e:
-		frappe.log_error(str(e), "Get Verification History Error")
-		return {
-			"success": False,
-			"message": str(e)
-		}
-
-@frappe.whitelist()
-def bulk_verify_shift_reports(shift_report_ids, notes=None):
-	"""
-	Bulk verify multiple shift reports
-
-	Args:
-		shift_report_ids (list): List of shift report IDs
-		notes (str): Optional verification notes
-
-	Returns:
-		dict: Bulk verification result
-	"""
-	try:
-		if not shift_report_ids or not isinstance(shift_report_ids, list):
-			frappe.throw(_("Shift report IDs list is required"))
-
-		results = []
-		success_count = 0
-		error_count = 0
-
-		for shift_report_id in shift_report_ids:
-			try:
-				result = verify_shift_report(shift_report_id, notes)
-				if result["success"]:
-					success_count += 1
-				else:
-					error_count += 1
-				results.append({
-					"shift_report_id": shift_report_id,
-					"success": result["success"],
-					"message": result["message"]
-				})
-			except Exception as e:
-				error_count += 1
-				results.append({
-					"shift_report_id": shift_report_id,
-					"success": False,
-					"message": str(e)
-				})
-
-		return {
-			"success": True,
-			"message": _("Bulk verification completed: {0} success, {1} errors").format(success_count, error_count),
-			"data": {
-				"total_processed": len(shift_report_ids),
-				"success_count": success_count,
-				"error_count": error_count,
-				"results": results
-			}
-		}
-
-	except Exception as e:
-		frappe.log_error(str(e), "Bulk Verify Shift Reports Error")
-		return {
-			"success": False,
-			"message": str(e)
-		}
-
-@frappe.whitelist()
-def get_pending_verifications():
-	"""
-	Get shift reports pending verification
-
-	Returns:
-		dict: List of pending shift reports
-	"""
-	try:
-		# Get shift reports that need verification
-		pending_reports = frappe.get_all(
-			"POS Shift Report",
-			filters={
-				"verification_status": "Pending",
-				"status": "Open",
-				"docstatus": 0
-			},
-			fields=[
-				"name", "shift_report_id", "pos_opening_shift",
-				"opening_date", "opened_by", "total_sales",
-				"creation", "modified"
-			],
-			order_by="creation desc"
-		)
-
-		return {
-			"success": True,
-			"data": pending_reports,
-			"count": len(pending_reports)
-		}
-
-	except Exception as e:
-		frappe.log_error(str(e), "Get Pending Verifications Error")
-		return {
-			"success": False,
-			"message": str(e)
-		}
-
-@frappe.whitelist()
-def get_verification_summary():
-	"""
-	Get verification status summary
-
-	Returns:
-		dict: Verification summary statistics
-	"""
-	try:
-		# Count by verification status
-		status_counts = frappe.db.sql("""
-			SELECT verification_status, COUNT(*) as count
-			FROM `tabPOS Shift Report`
-			WHERE docstatus = 0
-			GROUP BY verification_status
-		""", as_dict=True)
-
-		# Count by status
-		report_status_counts = frappe.db.sql("""
-			SELECT status, COUNT(*) as count
-			FROM `tabPOS Shift Report`
-			WHERE docstatus = 0
-			GROUP BY status
-		""", as_dict=True)
-
-		# Recent verifications (last 7 days)
-		recent_verifications = frappe.db.sql("""
-			SELECT COUNT(*) as count
-			FROM `tabPOS Shift Report`
-			WHERE verification_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-			AND verification_status IN ('Verified', 'Confirmed')
-		""", as_dict=True)
-
-		return {
-			"success": True,
-			"data": {
-				"verification_status": {item["verification_status"]: item["count"] for item in status_counts},
-				"report_status": {item["status"]: item["count"] for item in report_status_counts},
-				"recent_verifications": recent_verifications[0]["count"] if recent_verifications else 0
-			}
-		}
-
-	except Exception as e:
-		frappe.log_error(str(e), "Get Verification Summary Error")
-		return {
-			"success": False,
-			"message": str(e)
-		}
+		log.error(f"[SHIFT_VERIFICATION] ❌ PERMISSION CHECK ERROR - {str(e)}")
+		return False

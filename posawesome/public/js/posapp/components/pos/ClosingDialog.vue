@@ -14,6 +14,20 @@
 								{{ __("Reconcile payment methods and close shift") }}
 							</p>
 						</div>
+						<!-- Verification Status Display -->
+						<div class="verification-status-wrapper" v-if="dialog_data.verification_status">
+							<v-chip
+								:color="getVerificationColor(dialog_data.verification_status)"
+								variant="outlined"
+								size="small"
+								class="verification-status-chip"
+							>
+								<v-icon size="16" class="me-1">
+									{{ getVerificationIcon(dialog_data.verification_status) }}
+								</v-icon>
+								{{ dialog_data.verification_status }}
+							</v-chip>
+						</div>
 					</div>
 				</v-card-title>
 
@@ -101,7 +115,43 @@
 					<span>{{ __("Close") }}</span>
 				</v-btn>
 				<v-spacer></v-spacer>
+
+				<!-- Verify Button (Always visible, ReadOnly when verified) -->
 				<v-btn
+					theme="dark"
+					@click="verifyShiftReport"
+					class="pos-action-btn verify-action-btn"
+					size="large"
+					elevation="2"
+					:disabled="isVerifiedOrConfirmed"
+					:loading="verifying"
+				>
+					<v-icon start>mdi-check-circle-outline</v-icon>
+					<span>{{ __("Verify") }}</span>
+				</v-btn>
+
+				<v-tooltip
+					v-if="!isVerified"
+					text="Shift report must be verified before closing shift"
+					location="top"
+				>
+					<template v-slot:activator="{ props }">
+						<v-btn
+							v-bind="props"
+							theme="dark"
+							@click="submit_dialog"
+							class="pos-action-btn submit-action-btn"
+							size="large"
+							elevation="2"
+							:disabled="!isVerified"
+						>
+							<v-icon start>mdi-check-circle-outline</v-icon>
+							<span>{{ __("Submit") }}</span>
+						</v-btn>
+					</template>
+				</v-tooltip>
+				<v-btn
+					v-else
 					theme="dark"
 					@click="submit_dialog"
 					class="pos-action-btn submit-action-btn"
@@ -126,6 +176,7 @@ export default {
 		itemsPerPage: 20,
 		dialog_data: {},
 		pos_profile: "",
+		verifying: false,
 		headers: [
 			{
 				title: __("Mode of Payment"),
@@ -179,6 +230,105 @@ export default {
 				});
 			}
 		},
+
+		// Verification Methods
+		getVerificationColor(status) {
+			const colors = {
+				'Pending': 'warning',
+				'Verified': 'success',
+				'Confirmed': 'info'
+			};
+			return colors[status] || 'grey';
+		},
+
+		getVerificationIcon(status) {
+			const icons = {
+				'Pending': 'mdi-clock-outline',
+				'Verified': 'mdi-check-circle',
+				'Confirmed': 'mdi-check-circle-outline'
+			};
+			return icons[status] || 'mdi-help-circle';
+		},
+
+		async verifyShiftReport() {
+			if (this.isVerifiedOrConfirmed) {
+				return; // Already verified
+			}
+
+			this.verifying = true;
+			try {
+				console.log("Verifying shift report:", this.dialog_data.shift_report_id);
+
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.shift_verification.verify_shift_report",
+					args: {
+						shift_report_id: this.dialog_data.shift_report_id
+					}
+				});
+
+				console.log("Verify response:", response);
+
+				if (response.message && response.message.success) {
+					// Success feedback
+					this.showSuccess(__("Shift report verified successfully"));
+
+					// Update local verification status
+					this.dialog_data.verification_status = "Verified";
+
+					// Emit event to notify other components
+					if (this.eventBus) {
+						this.eventBus.emit("shift_report_verified", {
+							shift_report_id: this.dialog_data.shift_report_id,
+							verification_status: "Verified",
+							disable_transaction_buttons: true
+						});
+
+						// Emit event to update UI components
+						this.eventBus.emit("shift_verification_changed", "Verified");
+					}
+
+				} else {
+					// Error handling
+					const errorMessage = response.message?.message || __("Failed to verify shift report");
+					this.showError(errorMessage);
+				}
+			} catch (error) {
+				console.error("Verify error:", error);
+				this.showError(__("Error verifying shift report"));
+			} finally {
+				this.verifying = false;
+			}
+		},
+
+		showError(message) {
+			console.error("ClosingDialog Error:", message);
+
+			if (window.frappe && frappe.show_alert) {
+				frappe.show_alert({
+					message: message,
+					indicator: 'red'
+				});
+			} else if (window.frappe && frappe.msgprint) {
+				frappe.msgprint({
+					title: __('Error'),
+					message: message,
+					indicator: 'red'
+				});
+			} else {
+				alert(`Error: ${message}`);
+			}
+		},
+
+		showSuccess(message) {
+			console.log("ClosingDialog Success:", message);
+
+			if (window.frappe && frappe.show_alert) {
+				frappe.show_alert({
+					message: message,
+					indicator: 'green'
+				});
+			}
+		},
 	},
 
 	computed: {
@@ -189,6 +339,13 @@ export default {
 			return this.dialog_data.payment_reconciliation?.every(item =>
 				!item.closing_amount || item.closing_amount === ''
 			) || false;
+		},
+		isVerified() {
+			return this.dialog_data.verification_status === 'Verified';
+		},
+		isVerifiedOrConfirmed() {
+			return this.dialog_data.verification_status === 'Verified' ||
+				   this.dialog_data.verification_status === 'Confirmed';
 		},
 	},
 
@@ -330,6 +487,21 @@ export default {
 	background: linear-gradient(135deg, #388e3c 0%, #2e7d32 100%) !important;
 }
 
+.verify-action-btn {
+	background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%) !important;
+}
+
+.verify-action-btn:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 6px 20px rgba(25, 118, 210, 0.4);
+}
+
+.verify-action-btn:disabled {
+	opacity: 0.6;
+	transform: none;
+	background: linear-gradient(135deg, #9e9e9e 0%, #757575 100%) !important;
+}
+
 .submit-action-btn:hover {
 	transform: translateY(-2px);
 	box-shadow: 0 6px 20px rgba(46, 125, 50, 0.4);
@@ -384,6 +556,36 @@ export default {
 	border-top: 1px solid #373737;
 }
 
+/* Verification Status Styles */
+.verification-status-wrapper {
+	display: flex;
+	align-items: center;
+	margin-left: auto;
+}
+
+.verification-status-chip {
+	font-weight: 600;
+	font-size: 0.8rem;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+	transition: all 0.3s ease;
+}
+
+.verification-status-chip:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Header Content Layout */
+.header-content {
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	width: 100%;
+	justify-content: space-between;
+}
+
 /* And the responsive section: */
 @media (max-width: 768px) {
 	.dialog-actions-container {
@@ -393,6 +595,18 @@ export default {
 
 	.pos-action-btn {
 		width: 100%;
+	}
+
+	.verification-status-wrapper {
+		margin-left: 0;
+		margin-top: 12px;
+		justify-content: center;
+	}
+
+	.header-content {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 12px;
 	}
 }
 </style>

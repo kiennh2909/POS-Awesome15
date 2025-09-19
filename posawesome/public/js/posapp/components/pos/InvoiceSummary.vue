@@ -186,7 +186,30 @@
 						</v-btn>
 					</v-col>
 					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? 3 : 4" v-if="pos_profile.posa_allow_return == 1" class="button-col pa-1">
+						<v-tooltip
+							v-if="isShiftVerified"
+							text="Cannot process returns - Shift report has been verified"
+							location="top"
+						>
+							<template v-slot:activator="{ props }">
+								<v-btn
+									v-bind="props"
+									block
+									color="teal"
+									theme="dark"
+									size="small"
+									prepend-icon="mdi-backup-restore"
+									@click="$emit('open-returns')"
+									class="summary-btn"
+									title="Ctrl+<u>R</u> - Return"
+									:disabled="isShiftVerified"
+								>
+									{{ __("RETURN") }}
+								</v-btn>
+							</template>
+						</v-tooltip>
 						<v-btn
+							v-else
 							block
 							color="teal"
 							theme="dark"
@@ -234,6 +257,10 @@ export default {
 		currencySymbol: Function,
 		discount_percentage_offer_name: [String, Number],
 		isNumber: Function,
+		shiftVerificationStatus: {
+			type: String,
+			default: null
+		},
 	},
 	emits: [
 		"update:additional_discount",
@@ -264,6 +291,9 @@ export default {
 				console.error("Failed to load item selector settings:", e);
 			}
 			return false;
+		},
+		isShiftVerified() {
+			return this.shiftVerificationStatus === 'Verified';
 		},
 	},
 
