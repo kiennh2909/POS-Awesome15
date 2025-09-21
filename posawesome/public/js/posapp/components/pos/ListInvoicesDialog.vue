@@ -117,48 +117,49 @@
 					<h6 class="text-subtitle-1 mb-3">{{ __("Payment Summary") }}</h6>
 					<v-data-table
 						:headers="paymentSummaryHeaders"
-						:items="paymentSummaryData"
+						:items="paymentSummaryDataWithTotal"
 						:loading="loadingSummary"
 						density="compact"
 						:items-per-page="-1"
 						hide-default-footer
 						class="elevation-0 payment-summary-table"
 					>
+						<template #item.payment_method="{ item }">
+							<span :class="item.isTotalRow ? 'font-weight-bold text-primary' : ''">{{ item.payment_method }}</span>
+						</template>
+
 						<template #item.opening_amount="{ item }">
-							<span class="font-weight-bold currency-amount">{{ formatCurrency(item.opening_amount || 0) }}</span>
+							<span :class="item.isTotalRow ? 'font-weight-bold currency-amount' : 'font-weight-bold currency-amount'">
+								{{ formatCurrency(item.opening_amount || 0) }}
+							</span>
 						</template>
 
 						<template #item.sales_amount="{ item }">
-							<span class="currency-amount text-success">{{ formatCurrency(item.sales_amount || 0) }}</span>
+							<span :class="item.isTotalRow ? 'font-weight-bold currency-amount text-success' : 'currency-amount text-success'">
+								{{ formatCurrency(item.sales_amount || 0) }}
+							</span>
 						</template>
 
 						<template #item.returns_amount="{ item }">
-							<span class="currency-amount text-error">{{ formatCurrency(item.returns_amount || 0) }}</span>
+							<span :class="item.isTotalRow ? 'font-weight-bold currency-amount text-error' : 'currency-amount text-error'">
+								{{ formatCurrency(item.returns_amount || 0) }}
+							</span>
 						</template>
 
 						<template #item.transaction_amount="{ item }">
-							<span class="currency-amount" :class="item.transaction_amount >= 0 ? 'text-success' : 'text-error'">
+							<span :class="[
+								'currency-amount',
+								item.isTotalRow ? 'font-weight-bold' : '',
+								item.transaction_amount >= 0 ? 'text-success' : 'text-error'
+							]">
 								{{ formatCurrency(item.transaction_amount || 0) }}
 							</span>
 						</template>
 
 						<template #item.expected_closing_amount="{ item }">
-							<span class="currency-amount">{{ formatCurrency(item.expected_closing_amount || 0) }}</span>
-						</template>
-
-						<!-- Total Row at the bottom of the table -->
-						<template #bottom>
-							<v-divider></v-divider>
-							<tr class="table-total-row">
-								<td class="font-weight-bold text-primary">{{ __("TOTAL") }}</td>
-								<td class="font-weight-bold currency-amount text-center">{{ formatCurrency(totalOpeningAmount) }}</td>
-								<td class="font-weight-bold currency-amount text-success text-center">{{ formatCurrency(totalSalesAmount) }}</td>
-								<td class="font-weight-bold currency-amount text-error text-center">{{ formatCurrency(totalReturnsAmount) }}</td>
-								<td class="font-weight-bold currency-amount text-center" :class="totalTransactionAmount >= 0 ? 'text-success' : 'text-error'">
-									{{ formatCurrency(totalTransactionAmount) }}
-								</td>
-								<td class="font-weight-bold currency-amount text-center">{{ formatCurrency(totalExpectedClosingAmount) }}</td>
-							</tr>
+							<span :class="item.isTotalRow ? 'font-weight-bold currency-amount' : 'currency-amount'">
+								{{ formatCurrency(item.expected_closing_amount || 0) }}
+							</span>
 						</template>
 					</v-data-table>
 				</div>
@@ -408,6 +409,24 @@ export default {
 			}
 
 			return filtered;
+		},
+		paymentSummaryDataWithTotal() {
+			// Add total row to the end of payment summary data
+			const dataWithTotal = [...this.paymentSummaryData];
+
+			// Add total row
+			dataWithTotal.push({
+				payment_method: 'TOTAL',
+				opening_amount: this.totalOpeningAmount,
+				sales_amount: this.totalSalesAmount,
+				returns_amount: this.totalReturnsAmount,
+				transaction_amount: this.totalTransactionAmount,
+				expected_closing_amount: this.totalExpectedClosingAmount,
+				transaction_count: null, // Not applicable for total
+				isTotalRow: true // Flag to identify total row
+			});
+
+			return dataWithTotal;
 		},
 		// Payment Summary Totals
 		totalOpeningAmount() {
@@ -998,123 +1017,104 @@ export default {
 
 				// ✅ ENHANCED EXPORT: Include invoices and payment summary
 				const invoiceData = this.invoices.map(item => ({
-					"Loại": "Hóa đơn",
-					"Số hóa đơn": item.invoice_no,
-					"Ngày": item.invoice_date,
-					"Giờ": item.invoice_time,
-					"Khách hàng": item.customer || "N/A",
-					"Tổng tiền": item.total_amount || 0,
-					"Thuế": item.tax_amount || 0,
-					"Phương thức thanh toán": item.payment_method || "Tiền mặt",
-					"Trạng thái": item.status || "Không xác định",
-					"Trả hàng": item.is_return ? "Có" : "Không"
+					"Type": "Invoice",
+					"Invoice No": item.invoice_no,
+					"Date": item.invoice_date,
+					"Time": item.invoice_time,
+					"Customer": item.customer || "N/A",
+					"Total Amount": item.total_amount || 0,
+					"Tax": item.tax_amount || 0,
+					"Payment Method": item.payment_method || "Cash",
+					"Status": item.status || "Unknown",
+					"Return": item.is_return ? "Yes" : "No"
 				}));
 
 				// Add payment summary data (direct from POS Payment Summary table)
-				const paymentSummaryData = this.paymentSummaryData.map(item => ({
-					"Loại": "Tóm tắt thanh toán",
-					"Số hóa đơn": item.payment_method,
-					"Ngày": "",
-					"Giờ": "",
-					"Khách hàng": "",
-					"Tổng tiền": "",
-					"Thuế": "",
-					"Phương thức thanh toán": item.payment_method,
-					"Trạng thái": "",
-					"Trả hàng": "",
-					"Số tiền đầu ca": item.opening_amount || 0,
-					"Số tiền bán hàng": item.sales_amount || 0,
-					"Số tiền trả hàng": item.returns_amount || 0,
-					"Phát sinh trong ca": item.transaction_amount || 0,
-					"Số tiền dự kiến cuối ca": item.expected_closing_amount || 0 // From database
+				const paymentSummaryData = this.paymentSummaryDataWithTotal.map(item => ({
+					"Type": "Payment Summary",
+					"Invoice No": item.payment_method,
+					"Date": "",
+					"Time": "",
+					"Customer": "",
+					"Total Amount": "",
+					"Tax": "",
+					"Payment Method": item.payment_method,
+					"Status": "",
+					"Return": "",
+					"Opening Amount": item.opening_amount || 0,
+					"Sales Amount": item.sales_amount || 0,
+					"Returns Amount": item.returns_amount || 0,
+					"Transaction Amount": item.transaction_amount || 0,
+					"Expected Closing Amount": item.expected_closing_amount || 0
 				}));
 
 				// Add summary cards data
 				const summaryData = [{
-					"Loại": "Tóm tắt tổng hợp",
-					"Số hóa đơn": `Tổng số hóa đơn: ${this.summary.total_invoices || 0}`,
-					"Ngày": "",
-					"Giờ": "",
-					"Khách hàng": "",
-					"Tổng tiền": "",
-					"Thuế": "",
-					"Phương thức thanh toán": "",
-					"Trạng thái": "",
-					"Trả hàng": "",
-					"Số tiền đầu ca": "",
-					"Phát sinh trong ca": "",
-					"Số tiền cuối ca": ""
+					"Type": "Summary",
+					"Invoice No": `Total Invoices: ${this.summary.total_invoices || 0}`,
+					"Date": "",
+					"Time": "",
+					"Customer": "",
+					"Total Amount": "",
+					"Tax": "",
+					"Payment Method": "",
+					"Status": "",
+					"Return": "",
+					"Opening Amount": "",
+					"Transaction Amount": "",
+					"Closing Amount": ""
 				}, {
-					"Loại": "Tóm tắt tổng hợp",
-					"Số hóa đơn": `Tổng bán: ${this.formatCurrency(this.summary.total_sales || 0)}`,
-					"Ngày": "",
-					"Giờ": "",
-					"Khách hàng": "",
-					"Tổng tiền": "",
-					"Thuế": "",
-					"Phương thức thanh toán": "",
-					"Trạng thái": "",
-					"Trả hàng": "",
-					"Số tiền đầu ca": "",
-					"Phát sinh trong ca": "",
-					"Số tiền cuối ca": ""
+					"Type": "Summary",
+					"Invoice No": `Total Sales: ${this.formatCurrency(this.summary.total_sales || 0)}`,
+					"Date": "",
+					"Time": "",
+					"Customer": "",
+					"Total Amount": "",
+					"Tax": "",
+					"Payment Method": "",
+					"Status": "",
+					"Return": "",
+					"Opening Amount": "",
+					"Transaction Amount": "",
+					"Closing Amount": ""
 				}, {
-					"Loại": "Tóm tắt tổng hợp",
-					"Số hóa đơn": `Tổng trả: ${this.formatCurrency(this.summary.total_returns || 0)}`,
-					"Ngày": "",
-					"Giờ": "",
-					"Khách hàng": "",
-					"Tổng tiền": "",
-					"Thuế": "",
-					"Phương thức thanh toán": "",
-					"Trạng thái": "",
-					"Trả hàng": "",
-					"Số tiền đầu ca": "",
-					"Phát sinh trong ca": "",
-					"Số tiền cuối ca": ""
+					"Type": "Summary",
+					"Invoice No": `Total Returns: ${this.formatCurrency(this.summary.total_returns || 0)}`,
+					"Date": "",
+					"Time": "",
+					"Customer": "",
+					"Total Amount": "",
+					"Tax": "",
+					"Payment Method": "",
+					"Status": "",
+					"Return": "",
+					"Opening Amount": "",
+					"Transaction Amount": "",
+					"Closing Amount": ""
 				}, {
-					"Loại": "Tóm tắt tổng hợp",
-					"Số hóa đơn": `Tổng thuần: ${this.formatCurrency((this.summary.total_sales || 0) + (this.summary.total_returns || 0))}`,
-					"Ngày": "",
-					"Giờ": "",
-					"Khách hàng": "",
-					"Tổng tiền": "",
-					"Thuế": "",
-					"Phương thức thanh toán": "",
-					"Trạng thái": "",
-					"Trả hàng": "",
-					"Số tiền đầu ca": "",
-					"Phát sinh trong ca": "",
-					"Số tiền cuối ca": ""
+					"Type": "Summary",
+					"Invoice No": `Net Amount: ${this.formatCurrency((this.summary.total_sales || 0) + (this.summary.total_returns || 0))}`,
+					"Date": "",
+					"Time": "",
+					"Customer": "",
+					"Total Amount": "",
+					"Tax": "",
+					"Payment Method": "",
+					"Status": "",
+					"Return": "",
+					"Opening Amount": "",
+					"Transaction Amount": "",
+					"Closing Amount": ""
 				}];
 
-				// Add totals row
-				const totalsData = [{
-					"Loại": "TỔNG CỘNG",
-					"Số hóa đơn": "",
-					"Ngày": "",
-					"Giờ": "",
-					"Khách hàng": "",
-					"Tổng tiền": "",
-					"Thuế": "",
-					"Phương thức thanh toán": "",
-					"Trạng thái": "",
-					"Trả hàng": "",
-					"Số tiền đầu ca": this.totalOpeningAmount,
-					"Số tiền bán hàng": this.totalSalesAmount,
-					"Số tiền trả hàng": this.totalReturnsAmount,
-					"Phát sinh trong ca": this.totalTransactionAmount,
-					"Số tiền dự kiến cuối ca": this.totalExpectedClosingAmount // From database
-				}];
-
-				const data = [...invoiceData, {}, ...summaryData, {}, ...paymentSummaryData, {}, ...totalsData];
+				const data = [...invoiceData, {}, ...summaryData, {}, ...paymentSummaryData];
 
 				if (data.length === 0) {
 					this.showError("No data to export");
 					return;
 				}
 
-				// ✅ GENERATE FILE NAME: Thời gian + ngày_tháng_năm_POS Profile name_CashierName
+				// ✅ GENERATE FILE NAME: Time + date_POS Profile name_CashierName
 				const now = new Date();
 				const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, ''); // HHMMSS
 				const dateStr = now.toISOString().split('T')[0].replace(/-/g, '_'); // YYYY_MM_DD
@@ -1152,7 +1152,7 @@ export default {
 				a.click();
 				window.URL.revokeObjectURL(url);
 
-				this.showSuccess(`Exported ${data.length} invoices successfully`);
+				this.showSuccess(`Successfully exported ${data.length} records`);
 
 			} catch (error) {
 				console.error("Error exporting data:", error);
@@ -1206,7 +1206,7 @@ export default {
 				<!DOCTYPE html>
 				<html>
 				<head>
-					<title>Báo cáo ca làm việc</title>
+					<title>Shift Report</title>
 					<meta charset="UTF-8">
 					<style>
 						@page {
@@ -1311,82 +1311,78 @@ export default {
 				</head>
 				<body>
 					<div class="header">
-						<h1>BÁO CÁO CA LÀM VIỆC</h1>
+						<h1>SHIFT REPORT</h1>
 						<p>POS Profile: ${this.posProfile?.name || 'N/A'}</p>
-						<p>Nhân viên: ${frappe.session?.user_fullname || frappe.session?.user || 'N/A'}</p>
-						<p>Ngày in: ${printDate} ${printTime}</p>
+						<p>Cashier: ${frappe.session?.user_fullname || frappe.session?.user || 'N/A'}</p>
+						<p>Print Date: ${printDate} ${printTime}</p>
 					</div>
 
 					<div class="section">
-						<h2>TÓM TẮT TỔNG QUAN</h2>
+						<h2>OVERALL SUMMARY</h2>
 						<div class="summary-cards">
 							<div class="card">
-								<div class="card-title">Tổng số hóa đơn</div>
+								<div class="card-title">Total Invoices</div>
 								<div class="card-value">${this.summary.total_invoices || 0}</div>
 							</div>
 							<div class="card">
-								<div class="card-title">Tổng bán</div>
+								<div class="card-title">Total Sales</div>
 								<div class="card-value positive">${this.formatCurrency(this.summary.total_sales || 0)}</div>
 							</div>
 							<div class="card">
-								<div class="card-title">Tổng trả</div>
+								<div class="card-title">Total Returns</div>
 								<div class="card-value negative">${this.formatCurrency(this.summary.total_returns || 0)}</div>
 							</div>
 							<div class="card">
-								<div class="card-title">Tổng thuần</div>
+								<div class="card-title">Net Amount</div>
 								<div class="card-value">${this.formatCurrency((this.summary.total_sales || 0) + (this.summary.total_returns || 0))}</div>
 							</div>
 						</div>
 					</div>
 
 					<div class="section">
-						<h2>TÓM TẮT THANH TOÁN THEO PHƯƠNG THỨC</h2>
+						<h2>PAYMENT SUMMARY BY METHOD</h2>
 						<table>
 							<thead>
 								<tr>
-									<th>Phương thức thanh toán</th>
-									<th class="amount">Số tiền đầu ca</th>
-									<th class="amount">Số tiền bán hàng</th>
-									<th class="amount">Số tiền trả hàng</th>
-									<th class="amount">Phát sinh trong ca</th>
-									<th class="amount">Dự kiến cuối ca</th>
+									<th>Payment Method</th>
+									<th class="amount">Opening Amount</th>
+									<th class="amount">Sales Amount</th>
+									<th class="amount">Returns Amount</th>
+									<th class="amount">Transaction Amount</th>
+									<th class="amount">Expected Closing</th>
 								</tr>
 							</thead>
 							<tbody>
 			`;
 
 			// Add payment summary rows (direct from POS Payment Summary table)
-			this.paymentSummaryData.forEach(item => {
+			this.paymentSummaryDataWithTotal.forEach(item => {
 				const transactionClass = item.transaction_amount >= 0 ? 'positive' : 'negative';
+				const isTotalRow = item.isTotalRow;
+				const rowClass = isTotalRow ? 'total-row' : '';
+				const totalPrefix = isTotalRow ? '<strong>' : '';
+				const totalSuffix = isTotalRow ? '</strong>' : '';
+
 				content += `
-					<tr>
-						<td>${item.payment_method}</td>
-						<td class="amount">${this.formatCurrency(item.opening_amount || 0)}</td>
-						<td class="amount positive">${this.formatCurrency(item.sales_amount || 0)}</td>
-						<td class="amount negative">${this.formatCurrency(item.returns_amount || 0)}</td>
-						<td class="amount ${transactionClass}">${this.formatCurrency(item.transaction_amount || 0)}</td>
-						<td class="amount">${this.formatCurrency(item.expected_closing_amount || 0)}</td>
+					<tr class="${rowClass}">
+						<td>${totalPrefix}${item.payment_method}${totalSuffix}</td>
+						<td class="amount">${totalPrefix}${this.formatCurrency(item.opening_amount || 0)}${totalSuffix}</td>
+						<td class="amount positive">${totalPrefix}${this.formatCurrency(item.sales_amount || 0)}${totalSuffix}</td>
+						<td class="amount negative">${totalPrefix}${this.formatCurrency(item.returns_amount || 0)}${totalSuffix}</td>
+						<td class="amount ${transactionClass}">${totalPrefix}${this.formatCurrency(item.transaction_amount || 0)}${totalSuffix}</td>
+						<td class="amount">${totalPrefix}${this.formatCurrency(item.expected_closing_amount || 0)}${totalSuffix}</td>
 					</tr>
 				`;
 			});
 
-			// Add total row (direct from POS Payment Summary table)
 			content += `
-					<tr class="total-row">
-						<td><strong>TỔNG CỘNG</strong></td>
-						<td class="amount"><strong>${this.formatCurrency(this.totalOpeningAmount)}</strong></td>
-						<td class="amount"><strong class="positive">${this.formatCurrency(this.totalSalesAmount)}</strong></td>
-						<td class="amount"><strong class="negative">${this.formatCurrency(this.totalReturnsAmount)}</strong></td>
-						<td class="amount"><strong class="positive">${this.formatCurrency(this.totalTransactionAmount)}</strong></td>
-						<td class="amount"><strong>${this.formatCurrency(this.totalExpectedClosingAmount)}</strong></td>
-					</tr>
 				</tbody>
 			</table>
 		</div>
 
 		<div class="print-info">
-			<p>Báo cáo được tạo tự động bởi hệ thống POS</p>
-			<p>Chỉ in trang đầu tiên chứa thông tin tổng hợp</p>
+			<p>Report generated automatically by POS system</p>
+			<p>Only first page with summary information is printed</p>
 		</div>
 	</body>
 </html>`;
@@ -1675,13 +1671,13 @@ export default {
 }
 
 /* Table Total Row Styling */
-.table-total-row {
+:deep(.payment-summary-table .v-data-table__tbody tr:last-child) {
 	background: linear-gradient(135deg, rgb(var(--v-theme-primary)) 0%, rgb(var(--v-theme-primary-variant)) 100%);
 	color: rgb(var(--v-theme-on-primary));
 	border-top: 2px solid rgb(var(--v-theme-primary-variant));
 }
 
-.table-total-row td {
+:deep(.payment-summary-table .v-data-table__tbody tr:last-child td) {
 	padding: 12px 16px !important;
 	border-bottom: none !important;
 	font-size: 0.9rem !important;
@@ -1689,7 +1685,7 @@ export default {
 	text-align: center;
 }
 
-.table-total-row td:first-child {
+:deep(.payment-summary-table .v-data-table__tbody tr:last-child td:first-child) {
 	text-align: left;
 	font-size: 0.95rem !important;
 }
@@ -1730,8 +1726,8 @@ export default {
 
 /* Dark theme adjustments */
 
-:deep(.dark-theme) .table-total-row,
-:deep(.v-theme--dark) .table-total-row {
+:deep(.dark-theme) .payment-summary-table .v-data-table__tbody tr:last-child,
+:deep(.v-theme--dark) .payment-summary-table .v-data-table__tbody tr:last-child {
 	background: linear-gradient(135deg, rgb(var(--v-theme-primary)) 0%, rgb(var(--v-theme-primary-variant)) 100%);
 }
 
