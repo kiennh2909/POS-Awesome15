@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import frappe
+import json
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
@@ -9,6 +10,26 @@ from posawesome.posawesome.utils.logging import get_logger
 
 # Initialize logger
 log = get_logger("invoice")
+
+
+def _parse_json_safe(json_str, default=None):
+    """
+    Safely parse JSON string with fallback to default value
+
+    Args:
+        json_str (str): JSON string to parse
+        default: Default value to return if parsing fails
+
+    Returns:
+        Parsed JSON object or default value
+    """
+    try:
+        if json_str and isinstance(json_str, str):
+            return json.loads(json_str)
+        return default or {}
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
+        log.warning(f"[PAYMENT_SUMMARY] Failed to parse JSON: {str(e)}, returning default")
+        return default or {}
 
 
 # --------------------------------------------------------------------
