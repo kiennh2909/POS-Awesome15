@@ -19,29 +19,19 @@
 									<span class="shift-info-label">{{ __("Shift ID:") }}</span>
 									<span class="shift-info-value">{{ dialog_data.pos_opening_shift }}</span>
 								</div>
-								<div class="shift-info-item" v-if="dialog_data.shift_report_id">
+								<div class="shift-info-item" v-if="getShiftReportId">
 									<span class="shift-info-label">{{ __("Report ID:") }}</span>
-									<span class="shift-info-value shift-report-id" :class="getShiftReportStatusClass">{{ dialog_data.shift_report_id }}</span>
+									<span class="shift-info-value shift-report-id" :class="getShiftReportStatusClass">{{ getShiftReportId }}</span>
+								</div>
+								<div class="shift-info-item" v-if="dialog_data.verification_status">
+									<span class="shift-info-label">{{ __("Status:") }}</span>
+									<span class="shift-info-value verification-status-text" :class="getVerificationStatusClass">{{ getVerificationStatusText(dialog_data.verification_status) }}</span>
 								</div>
 								<div class="shift-info-item" v-if="dialog_data.period_start_date">
-									<span class="shift-info-label">{{ __("Started:") }}</span>
+									<span class="shift-info-label">{{ __("Open Time:") }}</span>
 									<span class="shift-info-value">{{ formatDateTime(dialog_data.period_start_date, dialog_data.period_start_time) }}</span>
 								</div>
 							</div>
-						</div>
-						<!-- Verification Status Display -->
-						<div class="verification-status-wrapper" v-if="dialog_data.verification_status">
-							<v-chip
-								:color="getVerificationColor(dialog_data.verification_status)"
-								variant="outlined"
-								size="small"
-								class="verification-status-chip"
-							>
-								<v-icon size="16" class="me-1">
-									{{ getVerificationIcon(dialog_data.verification_status) }}
-								</v-icon>
-								{{ dialog_data.verification_status }}
-							</v-chip>
 						</div>
 					</div>
 				</v-card-title>
@@ -268,6 +258,29 @@ export default {
 				return 'unverified';
 			}
 		},
+		getShiftReportId() {
+			return this.dialog_data.shift_report || this.dialog_data.shift_report_id;
+		},
+
+		getVerificationStatusText(status) {
+			const statusTexts = {
+				'Pending': __('Pending'),
+				'Verified': __('Verified'),
+				'Confirmed': __('Confirmed')
+			};
+			return statusTexts[status] || __('Unknown');
+		},
+
+		getVerificationStatusClass() {
+			const status = this.dialog_data.verification_status;
+			if (status === 'Verified' || status === 'Confirmed') {
+				return 'status-verified';
+			} else if (status === 'Pending') {
+				return 'status-pending';
+			} else {
+				return 'status-unknown';
+			}
+		},
 	},
 
 	created: function () {
@@ -463,26 +476,6 @@ export default {
 	border-top: 1px solid #373737;
 }
 
-/* Verification Status Styles */
-.verification-status-wrapper {
-	display: flex;
-	align-items: center;
-	margin-left: auto;
-}
-
-.verification-status-chip {
-	font-weight: 600;
-	font-size: 0.8rem;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-	transition: all 0.3s ease;
-}
-
-.verification-status-chip:hover {
-	transform: translateY(-1px);
-	box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
 
 /* Header Content Layout */
 .header-content {
@@ -537,6 +530,25 @@ export default {
 	font-weight: 600;
 }
 
+.verification-status-text {
+	font-weight: 600;
+	font-size: 0.85rem;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.verification-status-text.status-verified {
+	color: #2e7d32 !important;
+}
+
+.verification-status-text.status-pending {
+	color: #f57c00 !important;
+}
+
+.verification-status-text.status-unknown {
+	color: #666 !important;
+}
+
 /* And the responsive section: */
 @media (max-width: 768px) {
 	.dialog-actions-container {
@@ -548,11 +560,6 @@ export default {
 		width: 100%;
 	}
 
-	.verification-status-wrapper {
-		margin-left: 0;
-		margin-top: 12px;
-		justify-content: center;
-	}
 
 	.header-content {
 		flex-direction: column;
