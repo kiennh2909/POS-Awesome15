@@ -502,14 +502,41 @@ def validate_shift(doc):
 			log.error(f"[INVOICE_TRACKING] ❌ VALIDATE_SHIFT - Company mismatch - Invoice: {doc.name}, Invoice Company: {doc.company}, Shift Company: {shift.company}")
 			frappe.throw(_("POS Opening Shift {0} is not for the same company").format(shift.name))
 
-		# Set shift report reference if available
+		# Set shift report reference - Try multiple approaches
+		shift_report_found = False
+
+		# Approach 1: Check if POS Opening Shift has shift_report field
 		if hasattr(shift, 'shift_report') and shift.shift_report:
 			doc.pos_shift_report = shift.shift_report
 			doc.shift_report_id = shift.shift_report_id
-			log.info(f"[INVOICE_TRACKING] ✅ VALIDATE_SHIFT - Set shift report reference - Invoice: {doc.name}, Shift Report: {shift.shift_report}, Shift Report ID: {shift.shift_report_id}")
-		else:
-			log.warning(f"[INVOICE_TRACKING] ⚠️ VALIDATE_SHIFT - No shift report found - Invoice: {doc.name}, Opening Shift: {doc.posa_pos_opening_shift}")
-			log.info(f"[INVOICE_TRACKING] ℹ️ VALIDATE_SHIFT - Shift details - Name: {shift.name}, Status: {shift.status}, Has shift_report attr: {hasattr(shift, 'shift_report')}")
+			log.info(f"[INVOICE_TRACKING] ✅ VALIDATE_SHIFT - Set shift report from opening shift - Invoice: {doc.name}, Shift Report: {shift.shift_report}")
+			shift_report_found = True
+
+		# Approach 2: If not found, query shift report directly by pos_opening_shift
+		if not shift_report_found:
+			try:
+				shift_reports = frappe.get_all("POS Shift Report",
+					filters={
+						"pos_opening_shift": doc.posa_pos_opening_shift,
+						"status": ["in", ["Open", "In Progress"]]
+					},
+					fields=["name", "shift_report_id"],
+					limit=1
+				)
+
+				if shift_reports:
+					doc.pos_shift_report = shift_reports[0].name
+					doc.shift_report_id = shift_reports[0].shift_report_id
+					log.info(f"[INVOICE_TRACKING] ✅ VALIDATE_SHIFT - Set shift report from query - Invoice: {doc.name}, Shift Report: {shift_reports[0].name}")
+					shift_report_found = True
+				else:
+					log.warning(f"[INVOICE_TRACKING] ⚠️ VALIDATE_SHIFT - No active shift report found for opening shift: {doc.posa_pos_opening_shift}")
+			except Exception as query_error:
+				log.error(f"[INVOICE_TRACKING] ❌ VALIDATE_SHIFT - Error querying shift report: {str(query_error)}")
+
+		if not shift_report_found:
+			log.warning(f"[INVOICE_TRACKING] ⚠️ VALIDATE_SHIFT - No shift report reference set - Invoice: {doc.name}")
+			log.info(f"[INVOICE_TRACKING] ℹ️ VALIDATE_SHIFT - Opening shift details - Name: {shift.name}, Status: {shift.status}")
 
 
 def update_shift_report_with_invoice(invoice_doc, action):

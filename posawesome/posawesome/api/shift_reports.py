@@ -283,6 +283,196 @@ def get_shift_reports(filters=None, limit_page_length=20, limit_start=0):
 		}
 
 @frappe.whitelist()
+def populate_shift_report_invoices(shift_report_name):
+	"""
+	Populate invoices for a shift report by querying all invoices
+	created during the shift period with matching POS profile and user
+
+	Args:
+		shift_report_name (str): Name of the shift report
+
+	Returns:
+		dict: Result of population
+	"""
+	try:
+		log.info(f"[POPULATE_INVOICES] 🎯 START - Shift Report: {shift_report_name}")
+
+		# Get shift report details
+		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
+		log.info(f"[POPULATE_INVOICES] 📋 Shift Report details - ID: {shift_report.shift_report_id}, Opening Shift: {shift_report.pos_opening_shift}")
+
+		# Get opening shift details for time range and POS profile
+		opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
+		pos_profile = opening_shift.pos_profile
+		user = opening_shift.user
+		shift_start = opening_shift.period_start_date
+
+		log.info(f"[POPULATE_INVOICES] 🔍 Query parameters - POS Profile: {pos_profile}, User: {user}, Start: {shift_start}")
+
+		# Find all invoices created after shift start with matching POS profile and user
+		invoices = frappe.get_all("Sales Invoice",
+			filters={
+				"pos_profile": pos_profile,
+				"owner": user,
+				"posting_date": [">=", opening_shift.posting_date],
+				"docstatus": 1,  # Only submitted invoices
+				"is_pos": 1
+			},
+			fields=["name", "posting_date", "posting_time", "customer", "grand_total", "paid_amount", "total_taxes_and_charges", "is_return", "status"],
+			order_by="creation asc"
+		)
+
+		log.info(f"[POPULATE_INVOICES] 📊 Found {len(invoices)} invoices to populate")
+
+		populated_count = 0
+		for invoice in invoices:
+			try:
+				# Check if invoice already exists in shift report
+				existing = frappe.db.exists("POS Shift Report Invoice", {
+					"parent": shift_report_name,
+					"invoice_no": invoice.name
+				})
+
+				if existing:
+					log.debug(f"[POPULATE_INVOICES] ⏭️ Invoice {invoice.name} already exists, skipping")
+					continue
+
+				# Get payment method for invoice
+				from posawesome.posawesome.api.invoice import get_invoice_payment_method
+				invoice_doc = frappe.get_doc("Sales Invoice", invoice.name)
+				payment_breakdown = get_invoice_payment_method(invoice_doc)
+				payment_method_json = frappe.as_json(payment_breakdown)
+
+				# Create child record
+				child_name = frappe.generate_hash(length=10)
+				is_return_value = 1 if (invoice.is_return or False) else 0
+
+				frappe.db.sql("""
+					INSERT INTO `tabPOS Shift Report Invoice`
+					(name, parent, parenttype, parentfield, invoice_no, invoice_date, invoice_time,
+					 customer, total_amount, paid_amount, tax_amount, payment_method,
+					 is_return, status, invoice_status, creation, modified, modified_by, owner)
+					VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s, %s)
+				""", (
+					child_name, shift_report_name, "POS Shift Report", "invoices",
+					invoice.name, invoice.posting_date, invoice.posting_time,
+					invoice.customer, invoice.grand_total, invoice.paid_amount or 0,
+					invoice.total_taxes_and_charges or 0, payment_method_json,
+					is_return_value, "Submitted", invoice.status or "Paid",
+					frappe.session.user, frappe.session.user
+				))
+
+				populated_count += 1
+				log.debug(f"[POPULATE_INVOICES] ✅ Added invoice {invoice.name} to shift report")
+
+			except Exception as invoice_error:
+				log.error(f"[POPULATE_INVOICES] ❌ Failed to add invoice {invoice.name}: {str(invoice_error)}")
+				continue
+
+		# Update shift report totals
+		if populated_count > 0:
+			log.info(f"[POPULATE_INVOICES] 🔢 Updating shift report totals after adding {populated_count} invoices")
+
+			totals_result = frappe.db.sql("""
+				SELECT
+					COALESCE(SUM(CASE WHEN invoice_status = 'Paid' AND is_return = 0
+						THEN total_amount ELSE 0 END), 0) as total_sales,
+					COALESCE(SUM(CASE WHEN invoice_status = 'Return' AND is_return = 1
+						THEN total_amount ELSE 0 END), 0) as total_returns,
+					COUNT(*) as invoice_count
+				FROM `tabPOS Shift Report Invoice`
+				WHERE parent = %s AND parenttype = 'POS Shift Report'
+			""", (shift_report_name,), as_dict=True)
+
+			if totals_result and len(totals_result) > 0:
+				new_sales = float(totals_result[0].total_sales or 0)
+				new_returns = float(totals_result[0].total_returns or 0)
+				new_count = int(totals_result[0].invoice_count or 0)
+
+				frappe.db.set_value("POS Shift Report", shift_report_name, {
+					"invoice_count": new_count,
+					"total_sales": new_sales,
+					"total_returns": new_returns
+				})
+
+				log.info(f"[POPULATE_INVOICES] ✅ Updated totals - Sales: {new_sales}, Returns: {new_returns}, Count: {new_count}")
+
+		log.info(f"[POPULATE_INVOICES] 🎉 COMPLETED - Populated {populated_count} invoices for shift report {shift_report_name}")
+		return {
+			"success": True,
+			"message": f"Successfully populated {populated_count} invoices",
+			"data": {
+				"populated_count": populated_count
+			}
+		}
+
+	except Exception as e:
+		log.error(f"[POPULATE_INVOICES] 💥 FAILED - Shift Report: {shift_report_name}, Error: {str(e)}")
+		return {
+			"success": False,
+			"message": str(e)
+		}
+
+@frappe.whitelist()
+def migrate_pos_opening_shift_references():
+	"""
+	Migrate existing POS Opening Shift records to include shift_report references
+	"""
+	try:
+		log.info("[MIGRATE] 🎯 START - Migrating POS Opening Shift references")
+
+		# Find all POS Opening Shifts that don't have shift_report set
+		opening_shifts = frappe.get_all("POS Opening Shift",
+			filters={
+				"shift_report": ["in", ["", None]],
+				"docstatus": 1
+			},
+			fields=["name", "pos_profile", "user"]
+		)
+
+		log.info(f"[MIGRATE] 📊 Found {len(opening_shifts)} POS Opening Shifts to migrate")
+
+		migrated_count = 0
+		for shift in opening_shifts:
+			try:
+				# Find corresponding shift report
+				shift_reports = frappe.get_all("POS Shift Report",
+					filters={"pos_opening_shift": shift.name},
+					fields=["name", "shift_report_id"],
+					limit=1
+				)
+
+				if shift_reports:
+					shift_report = shift_reports[0]
+					# Update POS Opening Shift
+					frappe.db.set_value("POS Opening Shift", shift.name, {
+						"shift_report": shift_report.name,
+						"shift_report_id": shift_report.shift_report_id
+					})
+					migrated_count += 1
+					log.debug(f"[MIGRATE] ✅ Migrated {shift.name} -> {shift_report.name}")
+				else:
+					log.debug(f"[MIGRATE] ⚠️ No shift report found for {shift.name}")
+
+			except Exception as shift_error:
+				log.error(f"[MIGRATE] ❌ Failed to migrate {shift.name}: {str(shift_error)}")
+				continue
+
+		log.info(f"[MIGRATE] 🎉 COMPLETED - Migrated {migrated_count} POS Opening Shifts")
+		return {
+			"success": True,
+			"message": f"Successfully migrated {migrated_count} POS Opening Shifts",
+			"data": {"migrated_count": migrated_count}
+		}
+
+	except Exception as e:
+		log.error(f"[MIGRATE] 💥 FAILED - {str(e)}")
+		return {
+			"success": False,
+			"message": str(e)
+		}
+
+@frappe.whitelist()
 def get_shift_report_with_payment_summary(shift_report_id):
 	"""
 	Get POS Shift Report with Payment Summary data
@@ -301,6 +491,17 @@ def get_shift_report_with_payment_summary(shift_report_id):
 		shift_report_doc = frappe.get_doc("POS Shift Report", shift_report_data["name"])
 		if getattr(shift_report_doc, 'verification_status', 'Pending') in ['Pending', None, '']:
 			_recalculate_shift_totals(shift_report_doc, shift_report_data)
+
+		# Auto-populate invoices if shift report has no invoices
+		if not shift_report_doc.invoices or len(shift_report_doc.invoices) == 0:
+			log.info(f"[SHIFT_REPORT_PAYMENT_SUMMARY] 📝 Auto-populating invoices for shift report {shift_report_data['name']}")
+			populate_result = populate_shift_report_invoices(shift_report_data["name"])
+			if populate_result.get("success"):
+				log.info(f"[SHIFT_REPORT_PAYMENT_SUMMARY] ✅ Auto-populated {populate_result['data']['populated_count']} invoices")
+				# Reload shift report data after population
+				shift_report_data = get_shift_report(shift_report_id)
+			else:
+				log.warning(f"[SHIFT_REPORT_PAYMENT_SUMMARY] ⚠️ Failed to auto-populate invoices: {populate_result.get('message')}")
 
 		# Create/update payment summaries
 		try:

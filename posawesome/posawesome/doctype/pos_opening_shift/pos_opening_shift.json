@@ -16,13 +16,15 @@
   "company",
   "pos_profile",
   "pos_closing_shift",
+  "shift_report",
+  "shift_report_id",
   "column_break_7",
   "user",
   "opening_balance_details_section",
   "balance_details",
   "section_break_9",
   "amended_from"
- ],
+],
  "fields": [
   {
    "fieldname": "period_start_date",
@@ -127,6 +129,19 @@
   "label": "POS Closing Shift",
   "read_only": 0,
   "read_only_depends_on": "eval:doc.docstatus==1"
+ },
+ {
+  "fieldname": "shift_report",
+  "fieldtype": "Link",
+  "label": "Shift Report",
+  "options": "POS Shift Report",
+  "read_only": 1
+ },
+ {
+  "fieldname": "shift_report_id",
+  "fieldtype": "Data",
+  "label": "Shift Report ID",
+  "read_only": 1
  }
 ],
  "is_submittable": 1,

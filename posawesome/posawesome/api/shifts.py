@@ -115,6 +115,18 @@ def create_opening_voucher(pos_profile, company, balance_details):
 		data["shift_report"] = shift_report_data.get("data", {})
 		log.info(f"[SHIFTS] ✅ STEP 3: Successfully created Shift Report: {shift_report_data.get('data', {}).get('shift_report_id')}")
 
+		# STEP 4: Update POS Opening Shift with shift report reference
+		log.info(f"[SHIFTS] 🔗 STEP 4: Updating POS Opening Shift {new_pos_opening.name} with shift report reference")
+		try:
+			frappe.db.set_value("POS Opening Shift", new_pos_opening.name, {
+				"shift_report": shift_report_data.get("data", {}).get("name"),
+				"shift_report_id": shift_report_data.get("data", {}).get("shift_report_id")
+			})
+			log.info(f"[SHIFTS] ✅ STEP 4: Successfully updated POS Opening Shift with shift report reference")
+		except Exception as update_error:
+			log.error(f"[SHIFTS] ❌ STEP 4: Failed to update POS Opening Shift with shift report reference: {str(update_error)}")
+			# Don't fail the entire operation if this update fails
+
 	except Exception as shift_error:
 		log.error(f"[SHIFTS] 💥 STEP 3: Exception creating shift report: {str(shift_error)}")
 		frappe.log_error(f"Error creating shift report: {str(shift_error)}", "Create Opening Voucher")
