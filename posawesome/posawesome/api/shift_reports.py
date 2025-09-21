@@ -5,7 +5,7 @@ import json
 from posawesome.posawesome.utils.logging import get_logger
 
 # Initialize logger
-log = get_logger("shift_reports")
+log = get_logger("shift_report")
 
 @frappe.whitelist()
 def create_shift_report(data):
