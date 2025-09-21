@@ -97,9 +97,13 @@ def create_opening_voucher(pos_profile, company, balance_details):
 	try:
 		from posawesome.posawesome.api.shift_reports import create_shift_report
 
+		# Convert balance_details list to dict for opening_amounts
+		opening_amounts_dict = {item["mode_of_payment"]: item["amount"] for item in balance_details}
+		log.info(f"[SHIFTS] 📊 Converted balance_details to dict: {opening_amounts_dict}")
+
 		shift_report_data = create_shift_report({
 			"pos_opening_shift": new_pos_opening.name,
-			"opening_amounts": json.dumps(balance_details)
+			"opening_amounts": json.dumps(opening_amounts_dict)
 		})
 
 		if not shift_report_data.get("success"):
