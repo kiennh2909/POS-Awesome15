@@ -19,6 +19,10 @@
 									<span class="shift-info-label">{{ __("Shift ID:") }}</span>
 									<span class="shift-info-value">{{ dialog_data.pos_opening_shift }}</span>
 								</div>
+								<div class="shift-info-item" v-if="dialog_data.shift_report_id">
+									<span class="shift-info-label">{{ __("Report ID:") }}</span>
+									<span class="shift-info-value shift-report-id" :class="getShiftReportStatusClass">{{ dialog_data.shift_report_id }}</span>
+								</div>
 								<div class="shift-info-item" v-if="dialog_data.period_start_date">
 									<span class="shift-info-label">{{ __("Started:") }}</span>
 									<span class="shift-info-value">{{ formatDateTime(dialog_data.period_start_date, dialog_data.period_start_time) }}</span>
@@ -53,8 +57,11 @@
 										{{ __("Payment Reconciliation") }}
 									</h4>
 									<p class="text-body-2 text-grey">
-										{{ __("Verify closing amounts for each payment method") }}
+										{{ __("Enter closing amounts for each payment method") }}
 									</p>
+									<v-alert v-if="!isVerifiedOrConfirmed" type="error" class="mt-3">
+										{{ __("Shift Report must be verified before closing shift") }}
+									</v-alert>
 									<v-alert v-if="allFieldsEmpty" type="warning" class="mt-3">
 										{{ __("Please enter closing amounts for all payment methods") }}
 									</v-alert>
@@ -73,10 +80,8 @@
 										<v-text-field
 											v-model="props.item.closing_amount"
 											:rules="[
-												required,
 												isNumber,
-												max25chars,
-												(v) => notZeroIfExpected(v, props.item)
+												max25chars
 											]"
 											:label="frappe._('Edit')"
 											single-line
@@ -127,22 +132,8 @@
 				</v-btn>
 				<v-spacer></v-spacer>
 
-				<!-- Verify Button (Always visible, ReadOnly when verified) -->
-				<v-btn
-					theme="dark"
-					@click="verifyShiftReport"
-					class="pos-action-btn verify-action-btn"
-					size="large"
-					elevation="2"
-					:disabled="isVerifiedOrConfirmed"
-					:loading="verifying"
-				>
-					<v-icon start>mdi-check-circle-outline</v-icon>
-					<span>{{ __("Verify") }}</span>
-				</v-btn>
-
 				<v-tooltip
-					v-if="!isVerified"
+					v-if="!isVerifiedOrConfirmed"
 					text="Shift report must be verified before closing shift"
 					location="top"
 				>
@@ -154,7 +145,7 @@
 							class="pos-action-btn submit-action-btn"
 							size="large"
 							elevation="2"
-							:disabled="!isVerified"
+							:disabled="!isVerifiedOrConfirmed"
 						>
 							<v-icon start>mdi-check-circle-outline</v-icon>
 							<span>{{ __("Submit") }}</span>
@@ -187,7 +178,6 @@ export default {
 		itemsPerPage: 20,
 		dialog_data: {},
 		pos_profile: "",
-		verifying: false,
 		headers: [
 			{
 				title: __("Mode of Payment"),
@@ -211,12 +201,6 @@ export default {
 		max25chars: (v) => v.length <= 20 || "Input too long!",
 		required: (v) => !!v || "This field is required",
 		isNumber: (v) => !isNaN(v) || "Must be a number",
-		notZeroIfExpected: (v, item) => {
-			if (item && item.expected_amount > 0) {
-				return parseFloat(v) > 0 || "Closing amount cannot be 0 when expected amount > 0";
-			}
-			return true;
-		},
 		pagination: {},
 	}),
 	watch: {},
@@ -230,147 +214,10 @@ export default {
 			this.closingDialog = false;
 		},
 		initializeClosingAmounts() {
-			if (this.dialog_data.payment_reconciliation) {
-				this.dialog_data.payment_reconciliation.forEach(item => {
-					// Only set default if closing_amount is not set (undefined, null, empty string, or 0) and expected_amount > 0
-					const currentAmount = item.closing_amount;
-					if ((currentAmount === undefined || currentAmount === null || currentAmount === '' || currentAmount === 0) && item.expected_amount > 0) {
-						item.closing_amount = item.expected_amount;
-						console.log(`Set default closing_amount for ${item.mode_of_payment}: ${item.expected_amount}`);
-					}
-				});
-			}
+			// Allow users to enter any closing amount including 0 or negative values
+			// No default initialization needed
 		},
 
-		// Verification Methods
-		getVerificationColor(status) {
-			const colors = {
-				'Pending': 'warning',
-				'Verified': 'success',
-				'Confirmed': 'info'
-			};
-			return colors[status] || 'grey';
-		},
-
-		getVerificationIcon(status) {
-			const icons = {
-				'Pending': 'mdi-clock-outline',
-				'Verified': 'mdi-check-circle',
-				'Confirmed': 'mdi-check-circle-outline'
-			};
-			return icons[status] || 'mdi-help-circle';
-		},
-
-		async verifyShiftReport() {
-			if (this.isVerifiedOrConfirmed) {
-				return; // Already verified
-			}
-
-			this.verifying = true;
-			try {
-				// Try multiple ways to get shift report ID
-				let shiftReportId = this.dialog_data.shift_report || this.dialog_data.shift_report_id;
-
-				// If not found in dialog_data, try to get from opening shift
-				if (!shiftReportId && this.dialog_data.pos_opening_shift) {
-					console.log("Shift report ID not found in dialog_data, trying to get from opening shift:", this.dialog_data.pos_opening_shift);
-
-					try {
-						const openingShiftResponse = await frappe.call({
-							method: "frappe.client.get",
-							args: {
-								doctype: "POS Opening Shift",
-								name: this.dialog_data.pos_opening_shift
-							}
-						});
-
-						if (openingShiftResponse.message && openingShiftResponse.message.shift_report) {
-							shiftReportId = openingShiftResponse.message.shift_report;
-							console.log("Found shift report ID from opening shift:", shiftReportId);
-						}
-					} catch (openingShiftError) {
-						console.warn("Could not get shift report from opening shift:", openingShiftError);
-					}
-				}
-
-				console.log("Final shift report ID:", shiftReportId);
-				console.log("Dialog data:", this.dialog_data);
-
-				if (!shiftReportId) {
-					this.showError(__("Shift report not found. Please ensure shift report is created before verifying."));
-					return;
-				}
-
-				const response = await frappe.call({
-					method: "posawesome.posawesome.api.shift_reports.verify_shift_report",
-					args: {
-						shift_report_id: shiftReportId
-					}
-				});
-
-				console.log("Verify response:", response);
-
-				if (response.message && response.message.success) {
-					// Success feedback
-					this.showSuccess(__("Shift report verified successfully"));
-
-					// Update local verification status
-					this.dialog_data.verification_status = "Verified";
-
-					// Emit event to notify other components
-					if (this.eventBus) {
-						this.eventBus.emit("shift_report_verified", {
-							shift_report_id: shiftReportId,
-							verification_status: "Verified",
-							disable_transaction_buttons: true
-						});
-
-						// Emit event to update UI components
-						this.eventBus.emit("shift_verification_changed", "Verified");
-					}
-
-				} else {
-					// Error handling
-					const errorMessage = response.message?.message || __("Failed to verify shift report");
-					this.showError(errorMessage);
-				}
-			} catch (error) {
-				console.error("Verify error:", error);
-				this.showError(__("Error verifying shift report"));
-			} finally {
-				this.verifying = false;
-			}
-		},
-
-		showError(message) {
-			console.error("ClosingDialog Error:", message);
-
-			if (window.frappe && frappe.show_alert) {
-				frappe.show_alert({
-					message: message,
-					indicator: 'red'
-				});
-			} else if (window.frappe && frappe.msgprint) {
-				frappe.msgprint({
-					title: __('Error'),
-					message: message,
-					indicator: 'red'
-				});
-			} else {
-				alert(`Error: ${message}`);
-			}
-		},
-
-		showSuccess(message) {
-			console.log("ClosingDialog Success:", message);
-
-			if (window.frappe && frappe.show_alert) {
-				frappe.show_alert({
-					message: message,
-					indicator: 'green'
-				});
-			}
-		},
 
 		formatDateTime(date, time) {
 			if (!date) return '';
@@ -412,6 +259,14 @@ export default {
 		isVerifiedOrConfirmed() {
 			return this.dialog_data.verification_status === 'Verified' ||
 				   this.dialog_data.verification_status === 'Confirmed';
+		},
+		getShiftReportStatusClass() {
+			const status = this.dialog_data.verification_status;
+			if (status === 'Verified' || status === 'Confirmed') {
+				return 'verified';
+			} else {
+				return 'unverified';
+			}
 		},
 	},
 
@@ -553,20 +408,6 @@ export default {
 	background: linear-gradient(135deg, #388e3c 0%, #2e7d32 100%) !important;
 }
 
-.verify-action-btn {
-	background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%) !important;
-}
-
-.verify-action-btn:hover {
-	transform: translateY(-2px);
-	box-shadow: 0 6px 20px rgba(25, 118, 210, 0.4);
-}
-
-.verify-action-btn:disabled {
-	opacity: 0.6;
-	transform: none;
-	background: linear-gradient(135deg, #9e9e9e 0%, #757575 100%) !important;
-}
 
 .submit-action-btn:hover {
 	transform: translateY(-2px);
@@ -684,6 +525,16 @@ export default {
 	font-weight: 500;
 	color: #333;
 	font-family: 'Courier New', monospace;
+}
+
+.shift-report-id.unverified {
+	color: #d32f2f !important;
+	font-weight: 600;
+}
+
+.shift-report-id.verified {
+	color: #2e7d32 !important;
+	font-weight: 600;
 }
 
 /* And the responsive section: */
