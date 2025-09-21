@@ -737,23 +737,11 @@ export default {
 
 			console.log("[SHIFT_REPORT] ✅ Final shiftReportId to use:", actualShiftReportId);
 
-			console.log("[SHIFT_REPORT] Using custom API with ID:", actualShiftReportId);
-			const shiftReportResponse = await frappe.call({
-				method: "posawesome.posawesome.api.shift_reports.get_shift_report_with_payment_summary",
-				args: {
-					shift_report_id: actualShiftReportId
-				}
-			});
+			console.log("[SHIFT_REPORT] Using existing shift report data from loadInvoices() for footer");
 
-			console.log("[SHIFT_REPORT] Generic API Response:", shiftReportResponse);
-
-			console.log("[SHIFT_REPORT] API Response:", shiftReportResponse);
-			console.log("[SHIFT_REPORT] Response type:", typeof shiftReportResponse);
-			console.log("[SHIFT_REPORT] Has message:", shiftReportResponse && 'message' in shiftReportResponse);
-
-			if (shiftReportResponse && shiftReportResponse.message) {
-				// ✅ HANDLE UPDATED API RESPONSE FORMAT (direct data)
-				const shiftReportData = shiftReportResponse.message;
+			// ✅ USE DATA ALREADY LOADED IN loadInvoices() INSTEAD OF CALLING DELETED API
+			if (this.shiftReportData) {
+				const shiftReportData = this.shiftReportData;
 
 				// Emit event to update footer status bar
 				if (this.eventBus) {
@@ -769,9 +757,9 @@ export default {
 					});
 				}
 
-				console.log("[SHIFT_REPORT] Shift report data loaded for footer:", shiftReportData.shift_report_id);
+				console.log("[SHIFT_REPORT] Shift report data used for footer:", shiftReportData.shift_report_id);
 			} else {
-				console.error("[SHIFT_REPORT] API call failed - no data returned");
+				console.error("[SHIFT_REPORT] No shift report data available for footer");
 			}
 		} catch (error) {
 			console.error("[SHIFT_REPORT] Error loading shift report data for footer:", error);
