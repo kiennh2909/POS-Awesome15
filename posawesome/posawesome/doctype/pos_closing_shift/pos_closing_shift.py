@@ -5,6 +5,7 @@
 from __future__ import unicode_literals
 import frappe
 import json
+import time
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
@@ -615,11 +616,11 @@ def make_closing_shift_from_opening(opening_shift):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 MAKE_CLOSING_SHIFT_CREATE_DOC - Creating POS Closing Shift document")
         closing_shift = frappe.new_doc("POS Closing Shift")
         closing_shift.pos_opening_shift = opening_shift_name
-        closing_shift.period_start_date = opening_shift.get("period_start_date")
+        closing_shift.period_start_date = opening_shift_data.get("period_start_date")
         closing_shift.period_end_date = frappe.utils.get_datetime()
-        closing_shift.pos_profile = opening_shift.get("pos_profile")
-        closing_shift.user = opening_shift.get("user")
-        closing_shift.company = opening_shift.get("company")
+        closing_shift.pos_profile = opening_shift_data.get("pos_profile")
+        closing_shift.user = opening_shift_data.get("user")
+        closing_shift.company = opening_shift_data.get("company")
         closing_shift.grand_total = 0
         closing_shift.net_total = 0
         closing_shift.total_quantity = 0
@@ -636,7 +637,7 @@ def make_closing_shift_from_opening(opening_shift):
 
         # Process balance details from opening shift
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 💰 MAKE_CLOSING_SHIFT_PROCESS_BALANCE - Processing balance details")
-        balance_details = opening_shift.get("balance_details", [])
+        balance_details = opening_shift_data.get("balance_details", [])
         for detail in balance_details:
             payments.append(
                 frappe._dict(
@@ -690,7 +691,7 @@ def make_closing_shift_from_opening(opening_shift):
                 if existing_pay:
                     cash_mode_of_payment = frappe.get_value(
                         "POS Profile",
-                        opening_shift.get("pos_profile"),
+                        opening_shift_data.get("pos_profile"),
                         "posa_cash_mode_of_payment",
                     )
                     if not cash_mode_of_payment:
