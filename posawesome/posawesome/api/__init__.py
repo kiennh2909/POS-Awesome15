@@ -45,7 +45,7 @@ from .shifts import (
 	create_opening_voucher,
 	get_opening_dialog_data,
 )
-from .shift_verification import (
+from .shift_reports import (
 	verify_shift_report,
 	get_shift_report_verification_status,
 )

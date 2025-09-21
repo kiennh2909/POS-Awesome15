@@ -302,7 +302,7 @@ export default {
 				}
 
 				const response = await frappe.call({
-					method: "posawesome.posawesome.api.shift_verification.verify_shift_report",
+					method: "posawesome.posawesome.api.shift_reports.verify_shift_report",
 					args: {
 						shift_report_id: shiftReportId
 					}
