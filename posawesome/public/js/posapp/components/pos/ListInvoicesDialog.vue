@@ -128,6 +128,14 @@
 							<span class="font-weight-bold currency-amount">{{ formatCurrency(item.opening_amount || 0) }}</span>
 						</template>
 
+						<template #item.sales_amount="{ item }">
+							<span class="currency-amount text-success">{{ formatCurrency(item.sales_amount || 0) }}</span>
+						</template>
+
+						<template #item.returns_amount="{ item }">
+							<span class="currency-amount text-error">{{ formatCurrency(item.returns_amount || 0) }}</span>
+						</template>
+
 						<template #item.transaction_amount="{ item }">
 							<span class="currency-amount" :class="item.transaction_amount >= 0 ? 'text-success' : 'text-error'">
 								{{ formatCurrency(item.transaction_amount || 0) }}
@@ -155,6 +163,8 @@
 						<span class="font-weight-bold">{{ __("TOTAL") }}</span>
 						<div class="d-flex gap-6 align-center">
 							<span class="font-weight-bold currency-amount">{{ formatCurrency(totalOpeningAmount) }}</span>
+							<span class="font-weight-bold text-success currency-amount">{{ formatCurrency(totalSalesAmount) }}</span>
+							<span class="font-weight-bold text-error currency-amount">{{ formatCurrency(totalReturnsAmount) }}</span>
 							<span class="font-weight-bold text-success currency-amount">{{ formatCurrency(totalTransactionAmount) }}</span>
 							<span class="font-weight-bold currency-amount">{{ formatCurrency(totalExpectedClosingAmount) }}</span>
 							<span class="font-weight-bold text-primary currency-amount">{{ formatCurrency(totalClosingAmount) }}</span>
@@ -367,10 +377,12 @@ export default {
 			],
 			paymentSummaryHeaders: [
 				{ title: this.__("Payment Method"), key: "payment_method", width: "140px" },
-				{ title: this.__("Opening Amount"), key: "opening_amount", width: "120px", align: "end" },
-				{ title: this.__("Transactions"), key: "transaction_amount", width: "120px", align: "end" },
-				{ title: this.__("Expected Closing"), key: "expected_closing_amount", width: "120px", align: "end" },
-				{ title: this.__("Actual Closing"), key: "closing_amount", width: "120px", align: "end" },
+				{ title: this.__("Opening Amount"), key: "opening_amount", width: "100px", align: "end" },
+				{ title: this.__("Sales Amount"), key: "sales_amount", width: "100px", align: "end" },
+				{ title: this.__("Returns Amount"), key: "returns_amount", width: "100px", align: "end" },
+				{ title: this.__("Transactions"), key: "transaction_amount", width: "100px", align: "end" },
+				{ title: this.__("Expected Closing"), key: "expected_closing_amount", width: "100px", align: "end" },
+				{ title: this.__("Actual Closing"), key: "closing_amount", width: "100px", align: "end" },
 				{ title: this.__("Difference"), key: "difference", width: "100px", align: "end" }
 			]
 		};
@@ -426,6 +438,12 @@ export default {
 		},
 		totalDifference() {
 			return this.paymentSummaryData.reduce((sum, item) => sum + (item.difference || 0), 0);
+		},
+		totalSalesAmount() {
+			return this.paymentSummaryData.reduce((sum, item) => sum + (item.sales_amount || 0), 0);
+		},
+		totalReturnsAmount() {
+			return this.paymentSummaryData.reduce((sum, item) => sum + (item.returns_amount || 0), 0);
 		},
 		// Verification Computed Properties
 		isVerifiedOrConfirmed() {
@@ -1013,6 +1031,8 @@ export default {
 					"Trạng thái": "",
 					"Trả hàng": "",
 					"Số tiền đầu ca": item.opening_amount || 0,
+					"Số tiền bán hàng": item.sales_amount || 0,
+					"Số tiền trả hàng": item.returns_amount || 0,
 					"Phát sinh trong ca": item.transaction_amount || 0,
 					"Số tiền dự kiến cuối ca": item.expected_closing_amount || 0, // From database
 					"Số tiền thực tế cuối ca": item.closing_amount || 0,         // From database
@@ -1091,6 +1111,8 @@ export default {
 					"Trạng thái": "",
 					"Trả hàng": "",
 					"Số tiền đầu ca": this.totalOpeningAmount,
+					"Số tiền bán hàng": this.totalSalesAmount,
+					"Số tiền trả hàng": this.totalReturnsAmount,
 					"Phát sinh trong ca": this.totalTransactionAmount,
 					"Số tiền dự kiến cuối ca": this.totalExpectedClosingAmount, // From database
 					"Số tiền thực tế cuối ca": this.totalClosingAmount,         // From database
@@ -1336,6 +1358,8 @@ export default {
 								<tr>
 									<th>Phương thức thanh toán</th>
 									<th class="amount">Số tiền đầu ca</th>
+									<th class="amount">Số tiền bán hàng</th>
+									<th class="amount">Số tiền trả hàng</th>
 									<th class="amount">Phát sinh trong ca</th>
 									<th class="amount">Dự kiến cuối ca</th>
 									<th class="amount">Thực tế cuối ca</th>
@@ -1353,6 +1377,8 @@ export default {
 					<tr>
 						<td>${item.payment_method}</td>
 						<td class="amount">${this.formatCurrency(item.opening_amount || 0)}</td>
+						<td class="amount positive">${this.formatCurrency(item.sales_amount || 0)}</td>
+						<td class="amount negative">${this.formatCurrency(item.returns_amount || 0)}</td>
 						<td class="amount ${transactionClass}">${this.formatCurrency(item.transaction_amount || 0)}</td>
 						<td class="amount">${this.formatCurrency(item.expected_closing_amount || 0)}</td>
 						<td class="amount">${this.formatCurrency(item.closing_amount || 0)}</td>
@@ -1367,6 +1393,8 @@ export default {
 					<tr class="total-row">
 						<td><strong>TỔNG CỘNG</strong></td>
 						<td class="amount"><strong>${this.formatCurrency(this.totalOpeningAmount)}</strong></td>
+						<td class="amount"><strong class="positive">${this.formatCurrency(this.totalSalesAmount)}</strong></td>
+						<td class="amount"><strong class="negative">${this.formatCurrency(this.totalReturnsAmount)}</strong></td>
 						<td class="amount"><strong class="positive">${this.formatCurrency(this.totalTransactionAmount)}</strong></td>
 						<td class="amount"><strong>${this.formatCurrency(this.totalExpectedClosingAmount)}</strong></td>
 						<td class="amount"><strong>${this.formatCurrency(this.totalClosingAmount)}</strong></td>

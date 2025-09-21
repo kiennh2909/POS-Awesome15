@@ -490,7 +490,7 @@ def get_shift_report_with_payment_summary(shift_report_id):
 		# Recalculate totals if not verified
 		shift_report_doc = frappe.get_doc("POS Shift Report", shift_report_data["name"])
 		if getattr(shift_report_doc, 'verification_status', 'Pending') in ['Pending', None, '']:
-			_recalculate_shift_totals(shift_report_doc, shift_report_data)
+			_recalculate_shift_totals_from_payment_summary(shift_report_doc, shift_report_data)
 
 		# Auto-populate invoices if shift report has no invoices
 		if not shift_report_doc.invoices or len(shift_report_doc.invoices) == 0:
@@ -529,6 +529,53 @@ def get_shift_report_with_payment_summary(shift_report_id):
 			"success": False,
 			"message": _("Error getting shift report: {0}").format(str(e))
 		}
+
+def _recalculate_shift_totals_from_payment_summary(shift_report_doc, shift_report_data):
+	"""
+	Recalculate shift totals from POS Payment Summary table instead of POS Shift Report Invoice.
+	This provides better performance and centralized data management.
+	"""
+	try:
+		log.info(f"[RECALC_TOTALS] 🎯 START recalculating totals for shift: {shift_report_doc.name}")
+
+		# Get totals from POS Payment Summary table
+		totals_result = frappe.db.sql("""
+			SELECT
+				COALESCE(SUM(sales_amount), 0) as total_sales,
+				COALESCE(SUM(returns_amount), 0) as total_returns,
+				COALESCE(SUM(transaction_count), 0) as total_transactions,
+				COUNT(*) as payment_methods_count
+			FROM `tabPOS Payment Summary`
+			WHERE pos_shift_report = %s
+		""", (shift_report_doc.name,), as_dict=True)
+
+		if totals_result and len(totals_result) > 0:
+			new_sales = float(totals_result[0].total_sales or 0)
+			new_returns = float(totals_result[0].total_returns or 0)
+			new_transactions = int(totals_result[0].total_transactions or 0)
+			payment_methods_count = int(totals_result[0].payment_methods_count or 0)
+
+			# Update shift report with new totals
+			shift_report_doc.total_sales = new_sales
+			shift_report_doc.total_returns = new_returns
+			shift_report_doc.invoice_count = new_transactions  # Use transaction count as invoice count
+
+			# Save the document
+			shift_report_doc.save(ignore_permissions=True)
+
+			# Update the data dict for response
+			shift_report_data["total_sales"] = new_sales
+			shift_report_data["total_returns"] = new_returns
+			shift_report_data["invoice_count"] = new_transactions
+
+			log.info(f"[RECALC_TOTALS] ✅ Updated totals - Sales: {new_sales}, Returns: {new_returns}, Transactions: {new_transactions}, Payment Methods: {payment_methods_count}")
+
+		else:
+			log.warning(f"[RECALC_TOTALS] ⚠️ No payment summary data found for shift: {shift_report_doc.name}")
+
+	except Exception as e:
+		log.error(f"[RECALC_TOTALS] 💥 FAILED to recalculate totals for shift {shift_report_doc.name}: {str(e)}")
+		# Don't raise error to prevent API failure
 
 def _recalculate_shift_totals(shift_report_doc, shift_report_data):
 	"""Recalculate invoice totals for unverified shifts"""

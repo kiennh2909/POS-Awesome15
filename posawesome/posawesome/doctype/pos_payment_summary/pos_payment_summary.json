@@ -24,6 +24,8 @@
   "pos_profile",
   "section_break_17",
   "opening_amount",
+  "sales_amount",
+  "returns_amount",
   "transaction_amount",
   "expected_closing_amount",
   "column_break_21",
@@ -31,7 +33,7 @@
   "difference",
   "section_break_25",
   "notes"
- ],
+],
  "fields": [
   {
    "fieldname": "section_break_1",
@@ -140,6 +142,20 @@
    "label": "Opening Amount",
    "reqd": 1,
    "default": "0"
+  },
+  {
+   "fieldname": "sales_amount",
+   "fieldtype": "Currency",
+   "label": "Sales Amount",
+   "default": "0",
+   "description": "Total sales amount for this payment method"
+  },
+  {
+   "fieldname": "returns_amount",
+   "fieldtype": "Currency",
+   "label": "Returns Amount",
+   "default": "0",
+   "description": "Total returns amount for this payment method"
   },
   {
    "fieldname": "transaction_amount",

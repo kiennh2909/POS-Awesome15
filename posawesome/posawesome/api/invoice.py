@@ -677,40 +677,10 @@ def update_shift_report_with_invoice(invoice_doc, action):
             else:
                 log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice not found or already cancelled")
 
-        # FIX: Always recalculate totals if needed
-        if needs_totals_update:
-            log.info(f"[INVOICE_TRACKING] 🔢 UPDATE_SHIFT_REPORT - STARTING TOTALS RECALCULATION")
-
-            totals_result = frappe.db.sql("""
-                SELECT
-                    COALESCE(SUM(CASE WHEN invoice_status = 'Paid' AND is_return = 0
-                        THEN total_amount ELSE 0 END), 0) as total_sales,
-                    COALESCE(SUM(CASE WHEN invoice_status = 'Return' AND is_return = 1
-                        THEN total_amount ELSE 0 END), 0) as total_returns,
-                    COUNT(*) as invoice_count
-                FROM `tabPOS Shift Report Invoice`
-                WHERE parent = %s AND parenttype = 'POS Shift Report'
-            """, (shift_report_name,), as_dict=True)
-
-            if totals_result and len(totals_result) > 0:
-                new_sales = float(totals_result[0].total_sales or 0)
-                new_returns = float(totals_result[0].total_returns or 0)
-                new_count = int(totals_result[0].invoice_count or 0)
-
-                log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Recalculated totals: Sales={new_sales}, Returns={new_returns}, Count={new_count}")
-
-                # OPTIMIZED: Single update for all fields
-                frappe.db.set_value("POS Shift Report", shift_report_name, {
-                    "invoice_count": new_count,
-                    "total_sales": new_sales,
-                    "total_returns": new_returns
-                })
-
-                log.info(f"[INVOICE_TRACKING] 💾 UPDATE_SHIFT_REPORT - Successfully updated shift report totals")
-            else:
-                log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - No data found for recalculation")
-        else:
-            log.info(f"[INVOICE_TRACKING] ℹ️ UPDATE_SHIFT_REPORT - No totals update needed")
+        # NOTE: Totals are now calculated from POS Payment Summary table, not POS Shift Report Invoice
+        # The recalculation is handled by get_shift_report_with_payment_summary API
+        # when the shift report is loaded, ensuring centralized and efficient calculation.
+        log.info(f"[INVOICE_TRACKING] ℹ️ UPDATE_SHIFT_REPORT - Totals calculation moved to POS Payment Summary table")
 
         end_time = time.time()
         duration = end_time - start_time
