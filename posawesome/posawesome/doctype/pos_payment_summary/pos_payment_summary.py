@@ -43,18 +43,17 @@ class POSPaymentSummary(Document):
 		self.calculate_difference()
 
 	def validate_amounts(self):
-		"""Đảm bảo closing_amount = opening_amount + transaction_amount (chấp nhận lệch 0.01)."""
+		"""Đảm bảo expected_closing_amount = opening_amount + transaction_amount."""
 		expected_closing = flt(self.opening_amount, 2) + flt(self.transaction_amount, 2)
-		if abs(flt(self.closing_amount, 2) - expected_closing) > 0.01:
-			# Get POS Profile for logging
+		if abs(flt(self.expected_closing_amount, 2) - expected_closing) > 0.01:
+			# Update expected_closing_amount if it doesn't match calculation
 			pos_profile = getattr(self, "pos_profile", None)
-			
 
 			log.warning(
-				f"[PAYMENT_SUMMARY] Closing mismatch for {self.payment_method} in shift {self.shift_report_id}: "
-				f"{self.closing_amount} -> {expected_closing}"
+				f"[PAYMENT_SUMMARY] Expected closing mismatch for {self.payment_method} in shift {self.shift_report_id}: "
+				f"{self.expected_closing_amount} -> {expected_closing}"
 			)
-			self.closing_amount = expected_closing
+			self.expected_closing_amount = expected_closing
 
 	def calculate_difference(self):
 		"""difference = closing_amount - expected_closing_amount."""
@@ -64,9 +63,9 @@ class POSPaymentSummary(Document):
 			self.difference = 0.0
 
 		# Get POS Profile for logging
-		pos_profile = getattr(self, "pos_profile", None)		
+		pos_profile = getattr(self, "pos_profile", None)
 
-		log.info(f"[PAYMENT_SUMMARY] Calculated difference for {self.payment_method}: {self.difference}")
+		log.info(f"[PAYMENT_SUMMARY] Calculated difference for {self.payment_method}: {self.difference} = {self.closing_amount} - {self.expected_closing_amount}")
 
 
 # --------------------------------------------------------------------
@@ -396,7 +395,9 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 
 		opening_amount = flt(opening_amounts.get(method, 0), 2)
 		transaction_amount = flt(data["transaction_amount"], 2)
-		closing_amount = flt(opening_amount + transaction_amount, 2)
+		expected_closing_amount = flt(opening_amount + transaction_amount, 2)
+		# closing_amount will be entered by user (Actual Closing)
+		closing_amount = expected_closing.get(method, 0)  # Get from database if exists
 
 		shift_start_time = _compose_datetime(
 			getattr(shift_report, "opening_date", None),
@@ -412,9 +413,9 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 			doc = frappe.get_doc("POS Payment Summary", existing)
 			doc.transaction_count = data["transaction_count"]
 			doc.transaction_amount = transaction_amount
-			doc.closing_amount = closing_amount
-			doc.expected_closing_amount = expected_closing.get(method, 0)
-			doc.difference = flt(closing_amount - doc.expected_closing_amount, 2)
+			doc.expected_closing_amount = expected_closing_amount  # Calculated: Opening + Transaction
+			# closing_amount remains as user input (don't overwrite)
+			doc.difference = flt(doc.closing_amount - expected_closing_amount, 2)
 			doc.save()
 			created = False
 			log.info(f"[PAYMENT_SUMMARY] ♻️ Updated '{method}' -> {doc.name}")
@@ -437,8 +438,8 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 					"pos_profile": pos_profile,
 					"opening_amount": opening_amount,
 					"transaction_amount": transaction_amount,
-					"expected_closing_amount": expected_closing.get(method, 0),
-					"closing_amount": closing_amount,
+					"expected_closing_amount": expected_closing_amount,  # Calculated: Opening + Transaction
+					"closing_amount": closing_amount,  # Actual: From database or user input
 					"notes": f"Auto-generated from shift report {shift_report.name}",
 				}
 			)
@@ -455,7 +456,9 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 			"payment_method": method,
 			"opening_amount": opening_amount,
 			"transaction_amount": transaction_amount,
-			"closing_amount": closing_amount,
+			"expected_closing_amount": expected_closing_amount,  # Calculated
+			"closing_amount": closing_amount,  # Actual (user input)
+			"difference": flt(closing_amount - expected_closing_amount, 2),
 			"transaction_count": data["transaction_count"],
 			"sales_amount": data["sales_amount"],
 			"returns_amount": data["returns_amount"],
@@ -588,7 +591,8 @@ def validate_payment_summary_consistency(shift_report):
 							"pos_profile": pos_profile,
 							"opening_amount": opening_amt,
 							"transaction_amount": 0.0,
-							"closing_amount": 0.0,
+							"expected_closing_amount": opening_amt,  # Initially = opening_amount
+							"closing_amount": 0.0,  # Will be entered by user
 							"transaction_count": 0,
 							"notes": f"Auto-added to ensure consistency for shift {shift_report.name}",
 						}
@@ -854,7 +858,8 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 						"pos_profile": pos_profile,
 						"opening_amount": opening_amount,
 						"transaction_amount": 0.0,
-						"closing_amount": 0.0,
+						"expected_closing_amount": opening_amount,  # Initially = opening_amount (no transactions)
+						"closing_amount": 0.0,  # Will be entered by user
 						"transaction_count": 0,
 						"notes": f"Initialized for shift report {shift_report.name}",
 					}

@@ -742,7 +742,7 @@ export default {
 					opening_amount: openingAmount,
 					transaction_amount: transactionAmount,
 					expected_closing_amount: expectedAmount, // Calculated: Opening + Transaction
-					closing_amount: actualClosingAmount,     // Actual: Entered by cashier
+					closing_amount: actualClosingAmount,     // Actual: Entered by cashier (from expected_closing_amounts)
 					difference: actualClosingAmount - expectedAmount
 				});
 			});
