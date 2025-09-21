@@ -134,8 +134,18 @@
 							</span>
 						</template>
 
+						<template #item.expected_closing_amount="{ item }">
+							<span class="currency-amount">{{ formatCurrency(item.expected_closing_amount || 0) }}</span>
+						</template>
+
 						<template #item.closing_amount="{ item }">
 							<span class="font-weight-bold text-primary currency-amount">{{ formatCurrency(item.closing_amount || 0) }}</span>
+						</template>
+
+						<template #item.difference="{ item }">
+							<span :class="item.difference >= 0 ? 'text-success' : 'text-error'">
+								{{ formatCurrency(item.difference || 0) }}
+							</span>
 						</template>
 					</v-data-table>
 
@@ -143,10 +153,14 @@
 					<v-divider class="my-3"></v-divider>
 					<div class="total-row d-flex justify-space-between align-center">
 						<span class="font-weight-bold">{{ __("TOTAL") }}</span>
-						<div class="d-flex gap-8 align-center">
+						<div class="d-flex gap-6 align-center">
 							<span class="font-weight-bold currency-amount">{{ formatCurrency(totalOpeningAmount) }}</span>
 							<span class="font-weight-bold text-success currency-amount">{{ formatCurrency(totalTransactionAmount) }}</span>
+							<span class="font-weight-bold currency-amount">{{ formatCurrency(totalExpectedClosingAmount) }}</span>
 							<span class="font-weight-bold text-primary currency-amount">{{ formatCurrency(totalClosingAmount) }}</span>
+							<span class="font-weight-bold" :class="totalDifference >= 0 ? 'text-success' : 'text-error'">
+								{{ formatCurrency(totalDifference) }}
+							</span>
 						</div>
 					</div>
 				</div>
@@ -352,10 +366,12 @@ export default {
 				{ title: this.__("M-Pesa"), value: "M-Pesa" }
 			],
 			paymentSummaryHeaders: [
-				{ title: this.__("Payment Method"), key: "payment_method", width: "150px" },
-				{ title: this.__("Opening Amount"), key: "opening_amount", width: "150px", align: "end" },
-				{ title: this.__("Transactions"), key: "transaction_amount", width: "150px", align: "end" },
-				{ title: this.__("Closing Amount"), key: "closing_amount", width: "150px", align: "end" }
+				{ title: this.__("Payment Method"), key: "payment_method", width: "140px" },
+				{ title: this.__("Opening Amount"), key: "opening_amount", width: "120px", align: "end" },
+				{ title: this.__("Transactions"), key: "transaction_amount", width: "120px", align: "end" },
+				{ title: this.__("Expected Closing"), key: "expected_closing_amount", width: "120px", align: "end" },
+				{ title: this.__("Actual Closing"), key: "closing_amount", width: "120px", align: "end" },
+				{ title: this.__("Difference"), key: "difference", width: "100px", align: "end" }
 			]
 		};
 	},
@@ -396,11 +412,17 @@ export default {
 		totalOpeningAmount() {
 			return this.paymentSummaryData.reduce((sum, item) => sum + (item.opening_amount || 0), 0);
 		},
+		totalExpectedClosingAmount() {
+			return this.paymentSummaryData.reduce((sum, item) => sum + (item.expected_closing_amount || 0), 0);
+		},
 		totalTransactionAmount() {
 			return this.paymentSummaryData.reduce((sum, item) => sum + (item.transaction_amount || 0), 0);
 		},
 		totalClosingAmount() {
 			return this.paymentSummaryData.reduce((sum, item) => sum + (item.closing_amount || 0), 0);
+		},
+		totalDifference() {
+			return this.paymentSummaryData.reduce((sum, item) => sum + (item.difference || 0), 0);
 		},
 		// Verification Computed Properties
 		isVerifiedOrConfirmed() {
@@ -486,11 +508,20 @@ export default {
 				console.log("Summary:", this.summary);
 
 				// ✅ LOAD PAYMENT SUMMARY FROM NEW API RESPONSE
-				if (shiftReportData.payment_summaries) {
-					this.paymentSummaryData = shiftReportData.payment_summaries;
-					console.log("Payment summary loaded from API:", this.paymentSummaryData);
+				if (shiftReportData.payment_summaries && shiftReportData.payment_summaries.length > 0) {
+					// Use data directly from POS Payment Summary table
+					this.paymentSummaryData = shiftReportData.payment_summaries.map(item => ({
+						payment_method: item.payment_method,
+						opening_amount: item.opening_amount || 0,
+						transaction_amount: item.transaction_amount || 0,
+						expected_closing_amount: item.expected_closing_amount || 0,
+						closing_amount: item.closing_amount || 0,
+						difference: item.difference || 0,
+						transaction_count: item.transaction_count || 0
+					}));
+					console.log("Payment summary loaded directly from POS Payment Summary table:", this.paymentSummaryData);
 				} else {
-					// Fallback to old method if payment_summaries not available
+					// Fallback to calculation method if payment_summaries not available
 					this.loadPaymentSummaryFromShiftReport(shiftReportData);
 				}
 
@@ -674,10 +705,10 @@ export default {
 		}
 	},
 
-	// ✅ LOAD PAYMENT SUMMARY FROM SHIFT REPORT DATA
+	// ✅ LOAD PAYMENT SUMMARY FROM SHIFT REPORT DATA (FALLBACK METHOD)
 	loadPaymentSummaryFromShiftReport(shiftReportData) {
 		try {
-			console.log("Loading payment summary from shift report data");
+			console.log("Loading payment summary from shift report data (fallback method)");
 
 			if (!shiftReportData || !shiftReportData.payment_breakdown) {
 				console.warn("No payment breakdown data in shift report");
@@ -696,13 +727,23 @@ export default {
 			Object.keys(breakdown).forEach(method => {
 				const transactionAmount = breakdown[method] || 0;
 				const openingAmount = openingAmounts[method] || 0;
-				const expectedAmount = expectedClosing[method] || openingAmount;
+
+				// Expected Closing = Opening Amount + Transaction Amount (calculated)
+				const expectedAmount = openingAmount + transactionAmount;
+
+				// Actual Closing = from database (expected_closing_amounts field) - this is what cashier entered
+				let actualClosingAmount = expectedClosing[method];
+				if (actualClosingAmount === undefined || actualClosingAmount === null) {
+					actualClosingAmount = 0; // Not yet entered by cashier
+				}
 
 				paymentMethods.push({
 					payment_method: method,
 					opening_amount: openingAmount,
 					transaction_amount: transactionAmount,
-					closing_amount: openingAmount + transactionAmount
+					expected_closing_amount: expectedAmount, // Calculated: Opening + Transaction
+					closing_amount: actualClosingAmount,     // Actual: Entered by cashier
+					difference: actualClosingAmount - expectedAmount
 				});
 			});
 
@@ -711,7 +752,7 @@ export default {
 				a.payment_method.localeCompare(b.payment_method)
 			);
 
-			console.log("Payment summary loaded from shift report:", this.paymentSummaryData);
+			console.log("Payment summary loaded from shift report (fallback):", this.paymentSummaryData);
 
 		} catch (error) {
 			console.error("Error loading payment summary from shift report:", error);
@@ -891,7 +932,7 @@ export default {
 					"Trả hàng": item.is_return ? "Có" : "Không"
 				}));
 
-				// Add payment summary data
+				// Add payment summary data (direct from POS Payment Summary table)
 				const paymentSummaryData = this.paymentSummaryData.map(item => ({
 					"Loại": "Tóm tắt thanh toán",
 					"Số hóa đơn": item.payment_method,
@@ -905,7 +946,9 @@ export default {
 					"Trả hàng": "",
 					"Số tiền đầu ca": item.opening_amount || 0,
 					"Phát sinh trong ca": item.transaction_amount || 0,
-					"Số tiền cuối ca": item.closing_amount || 0
+					"Số tiền dự kiến cuối ca": item.expected_closing_amount || 0, // From database
+					"Số tiền thực tế cuối ca": item.closing_amount || 0,         // From database
+					"Chênh lệch": item.difference || 0                         // From database
 				}));
 
 				// Add summary cards data
@@ -981,7 +1024,9 @@ export default {
 					"Trả hàng": "",
 					"Số tiền đầu ca": this.totalOpeningAmount,
 					"Phát sinh trong ca": this.totalTransactionAmount,
-					"Số tiền cuối ca": this.totalClosingAmount
+					"Số tiền dự kiến cuối ca": this.totalExpectedClosingAmount, // From database
+					"Số tiền thực tế cuối ca": this.totalClosingAmount,         // From database
+					"Chênh lệch": this.totalDifference                         // From database
 				}];
 
 				const data = [...invoiceData, {}, ...summaryData, {}, ...paymentSummaryData, {}, ...totalsData];
@@ -1224,32 +1269,40 @@ export default {
 									<th>Phương thức thanh toán</th>
 									<th class="amount">Số tiền đầu ca</th>
 									<th class="amount">Phát sinh trong ca</th>
-									<th class="amount">Số tiền cuối ca</th>
+									<th class="amount">Dự kiến cuối ca</th>
+									<th class="amount">Thực tế cuối ca</th>
+									<th class="amount">Chênh lệch</th>
 								</tr>
 							</thead>
 							<tbody>
 			`;
 
-			// Add payment summary rows
+			// Add payment summary rows (direct from POS Payment Summary table)
 			this.paymentSummaryData.forEach(item => {
 				const transactionClass = item.transaction_amount >= 0 ? 'positive' : 'negative';
+				const differenceClass = (item.difference || 0) >= 0 ? 'positive' : 'negative';
 				content += `
 					<tr>
 						<td>${item.payment_method}</td>
 						<td class="amount">${this.formatCurrency(item.opening_amount || 0)}</td>
 						<td class="amount ${transactionClass}">${this.formatCurrency(item.transaction_amount || 0)}</td>
+						<td class="amount">${this.formatCurrency(item.expected_closing_amount || 0)}</td>
 						<td class="amount">${this.formatCurrency(item.closing_amount || 0)}</td>
+						<td class="amount ${differenceClass}">${this.formatCurrency(item.difference || 0)}</td>
 					</tr>
 				`;
 			});
 
-			// Add total row
+			// Add total row (direct from POS Payment Summary table)
+			const totalDifferenceClass = this.totalDifference >= 0 ? 'positive' : 'negative';
 			content += `
 					<tr class="total-row">
 						<td><strong>TỔNG CỘNG</strong></td>
 						<td class="amount"><strong>${this.formatCurrency(this.totalOpeningAmount)}</strong></td>
 						<td class="amount"><strong class="positive">${this.formatCurrency(this.totalTransactionAmount)}</strong></td>
+						<td class="amount"><strong>${this.formatCurrency(this.totalExpectedClosingAmount)}</strong></td>
 						<td class="amount"><strong>${this.formatCurrency(this.totalClosingAmount)}</strong></td>
+						<td class="amount"><strong class="${totalDifferenceClass}">${this.formatCurrency(this.totalDifference)}</strong></td>
 					</tr>
 				</tbody>
 			</table>
@@ -1553,6 +1606,14 @@ export default {
 	}
 
 	/* Hide some columns on mobile */
+	.v-data-table :deep(.v-data-table__th:nth-child(6)),
+	.v-data-table :deep(.v-data-table__td:nth-child(6)) {
+		display: none;
+	}
+
+	/* Hide expected closing and difference columns on mobile */
+	.v-data-table :deep(.v-data-table__th:nth-child(3)),
+	.v-data-table :deep(.v-data-table__td:nth-child(3)),
 	.v-data-table :deep(.v-data-table__th:nth-child(6)),
 	.v-data-table :deep(.v-data-table__td:nth-child(6)) {
 		display: none;
