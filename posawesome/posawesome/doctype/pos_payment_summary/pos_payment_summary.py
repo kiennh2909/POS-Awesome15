@@ -232,7 +232,7 @@ def _calculate_payment_methods(invoices, valid_payment_methods=None):
 			data["transaction_count"] += 1
 
 			if inv.is_return:
-				data["returns_amount"] += abs(amt)
+				data["returns_amount"] -= abs(amt)
 				data["transaction_amount"] -= abs(amt)
 				log.debug(f"[PAYMENT_CALC] Return: {method} -{abs(amt)} for invoice {inv.name}")
 			else:
@@ -259,6 +259,14 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 		opening_amount = flt(opening_amounts.get(method, 0), 2)
 		transaction_amount = flt(data["transaction_amount"], 2)
 		expected_closing_amount = flt(opening_amount + transaction_amount, 2)
+
+		# Lấy thông tin company và pos_profile từ POS Opening Shift
+		opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
+		company = opening_shift.company
+		pos_profile = opening_shift.pos_profile
+
+		# Xác định payment_method_type dựa trên payment method
+		payment_method_type = _get_payment_method_type(method)
 
 		existing = frappe.db.exists(
 			"POS Payment Summary",
@@ -287,9 +295,10 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 					"pos_opening_shift": shift_report.pos_opening_shift,
 					"posting_date": getattr(shift_report, "opening_date", None),
 					"payment_method": method,
+					"payment_method_type": payment_method_type,
 					"currency": getattr(shift_report, "currency", "USD"),
-					"company": getattr(shift_report, "company", ""),
-					"pos_profile": getattr(shift_report, "pos_profile", ""),
+					"company": company,
+					"pos_profile": pos_profile,
 					"opening_amount": opening_amount,
 					"transaction_amount": transaction_amount,
 					"expected_closing_amount": expected_closing_amount,
@@ -382,3 +391,143 @@ def get_valid_payment_methods_for_shift(shift_report):
 	except Exception as e:
 		log.error(f"[PAYMENT_SUMMARY] Error reading valid MOPs: {str(e)}")
 		return []
+
+
+def _get_payment_method_type(payment_method):
+	"""Xác định loại phương thức thanh toán dựa trên tên."""
+	try:
+		# Chuyển về uppercase để so sánh
+		method = payment_method.upper()
+
+		# Mapping các loại payment method
+		if method in ["CASH", "TIỀN MẶT"]:
+			return "Cash"
+		elif method in ["CARD", "CREDIT CARD", "DEBIT CARD", "THẺ TÍN DỤNG", "THẺ GHI NỢ"]:
+			return "Card"
+		elif "M-PESA" in method or "MPESA" in method or "MOBILE" in method or "DI ĐỘNG" in method:
+			return "Mobile Payment"
+		elif "BANK" in method or "NGÂN HÀNG" in method:
+			return "Bank"
+		else:
+			return "Other"
+	except Exception as e:
+		log.error(f"[PAYMENT_SUMMARY] Error determining payment method type for '{payment_method}': {str(e)}")
+		return "Other"
+
+
+@frappe.whitelist()
+def initialize_payment_summaries_for_shift(shift_report_name):
+	"""
+	Khởi tạo POS Payment Summary records cho một shift report mới.
+	Được gọi tự động khi tạo Shift Report.
+
+	Args:
+		shift_report_name (str): Tên của POS Shift Report
+
+	Returns:
+		dict: Kết quả khởi tạo
+	"""
+	try:
+		log.info(f"[INIT_PAYMENT_SUMMARIES] 🚀 START - Shift Report: {shift_report_name}")
+
+		# Kiểm tra shift report tồn tại
+		if not frappe.db.exists("POS Shift Report", shift_report_name):
+			log.error(f"[INIT_PAYMENT_SUMMARIES] ❌ Shift report not found: {shift_report_name}")
+			return {
+				"success": False,
+				"message": "Shift report not found"
+			}
+
+		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
+		log.info(f"[INIT_PAYMENT_SUMMARIES] 📋 Shift Report details - ID: {shift_report.shift_report_id}, Opening Shift: {shift_report.pos_opening_shift}")
+
+		# Lấy danh sách payment methods từ POS Opening Shift
+		valid_methods = get_valid_payment_methods_for_shift(shift_report)
+		if not valid_methods:
+			log.warning(f"[INIT_PAYMENT_SUMMARIES] ⚠️ No valid payment methods found for shift report: {shift_report_name}")
+			return {
+				"success": True,
+				"message": "No payment methods to initialize",
+				"data": {"initialized_count": 0}
+			}
+
+		log.info(f"[INIT_PAYMENT_SUMMARIES] 💳 Found {len(valid_methods)} payment methods: {valid_methods}")
+
+		# Lấy opening amounts từ POS Opening Shift
+		opening_amounts = {}
+		try:
+			opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
+			for detail in opening_shift.balance_details or []:
+				opening_amounts[detail.mode_of_payment] = flt(detail.amount or 0, 2)
+		except Exception as e:
+			log.warning(f"[INIT_PAYMENT_SUMMARIES] ⚠️ Could not load opening amounts: {str(e)}")
+
+		# Khởi tạo payment summaries với opening amounts
+		initialized_count = 0
+		for method in valid_methods:
+			try:
+				opening_amount = flt(opening_amounts.get(method, 0), 2)
+				expected_closing_amount = opening_amount  # Ban đầu chỉ có opening amount
+
+				# Lấy thông tin company và pos_profile từ POS Opening Shift
+				company = opening_shift.company
+				pos_profile = opening_shift.pos_profile
+				payment_method_type = _get_payment_method_type(method)
+
+				# Kiểm tra xem đã tồn tại chưa
+				existing = frappe.db.exists(
+					"POS Payment Summary",
+					{
+						"shift_report_id": shift_report.shift_report_id,
+						"payment_method": method,
+						"pos_shift_report": shift_report.name,
+					},
+				)
+
+				if existing:
+					log.debug(f"[INIT_PAYMENT_SUMMARIES] ⏭️ Payment summary already exists for {method}, skipping")
+					continue
+
+				# Tạo POS Payment Summary record
+				doc = frappe.get_doc({
+					"doctype": "POS Payment Summary",
+					"shift_report_id": shift_report.shift_report_id,
+					"pos_shift_report": shift_report.name,
+					"pos_opening_shift": shift_report.pos_opening_shift,
+					"posting_date": getattr(shift_report, "opening_date", None),
+					"payment_method": method,
+					"payment_method_type": payment_method_type,
+					"currency": getattr(shift_report, "currency", "USD"),
+					"company": company,
+					"pos_profile": pos_profile,
+					"opening_amount": opening_amount,
+					"transaction_amount": 0.0,  # Sẽ được cập nhật khi có giao dịch
+					"expected_closing_amount": expected_closing_amount,
+					"closing_amount": 0.0,  # Sẽ được cập nhật khi đóng ca
+					"transaction_count": 0,
+					"sales_amount": 0.0,
+					"returns_amount": 0.0,
+					"notes": f"Auto-initialized for shift report {shift_report.name}",
+				})
+
+				doc.insert(ignore_permissions=True)
+				initialized_count += 1
+				log.debug(f"[INIT_PAYMENT_SUMMARIES] ✅ Created payment summary for {method}: opening={opening_amount}")
+
+			except Exception as method_error:
+				log.error(f"[INIT_PAYMENT_SUMMARIES] ❌ Failed to create payment summary for {method}: {str(method_error)}")
+				continue
+
+		log.info(f"[INIT_PAYMENT_SUMMARIES] 🎉 COMPLETED - Initialized {initialized_count} payment summaries for shift report {shift_report_name}")
+		return {
+			"success": True,
+			"message": f"Successfully initialized {initialized_count} payment summaries",
+			"data": {"initialized_count": initialized_count}
+		}
+
+	except Exception as e:
+		log.error(f"[INIT_PAYMENT_SUMMARIES] 💥 FAILED - Shift Report: {shift_report_name}, Error: {str(e)}")
+		return {
+			"success": False,
+			"message": str(e)
+		}
