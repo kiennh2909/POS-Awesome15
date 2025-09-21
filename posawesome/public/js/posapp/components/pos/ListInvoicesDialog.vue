@@ -1390,79 +1390,38 @@ export default {
 
 		async verifyShiftReport() {
 			if (this.isVerifiedOrConfirmed) {
-				return; // Already verified
+				return;
 			}
 
 			this.verifying = true;
 			try {
-				let shiftReportId = null;
+				// Use shift_report_id from loaded data (always available when UI shows it)
+				const shiftReportId = this.shiftReportData?.shift_report_id;
 
-				// Priority: use from loaded shiftReportData first
-				if (this.shiftReportData && this.shiftReportData.shift_report_id) {
-					shiftReportId = this.shiftReportData.shift_report_id;
-					console.log("[VERIFY] ✅ Using shift_report_id from loaded data:", shiftReportId);
-				}
-				// Fallback: extract from original prop if needed
-				else if (this.shiftReportId) {
-					if (typeof this.shiftReportId === 'string') {
-						shiftReportId = this.shiftReportId;
-						console.log("[VERIFY] ✅ Using string shiftReportId:", shiftReportId);
-					} else if (typeof this.shiftReportId === 'object' && this.shiftReportId !== null) {
-						// Extract from object as fallback
-						if (this.shiftReportId.doctype === "POS Opening Shift" && this.shiftReportId.shift_report) {
-							shiftReportId = this.shiftReportId.shift_report;
-							console.log("[VERIFY] ✅ Extracted from POS Opening Shift:", shiftReportId);
-						} else if (this.shiftReportId.doctype === "POS Shift Report" && this.shiftReportId.name) {
-							shiftReportId = this.shiftReportId.name;
-							console.log("[VERIFY] ✅ Extracted from POS Shift Report:", shiftReportId);
-						} else if (this.shiftReportId.shift_report_id) {
-							shiftReportId = this.shiftReportId.shift_report_id;
-							console.log("[VERIFY] ✅ Using shift_report_id field:", shiftReportId);
-						}
-					}
-				}
-
-				// ✅ VALIDATE SHIFT REPORT ID
-				if (!shiftReportId || shiftReportId.trim() === '') {
-					console.error("[VERIFY] ❌ No valid shift report ID found");
+				if (!shiftReportId) {
 					this.showError("No shift report ID available for verification");
 					return;
 				}
 
-				console.log("[VERIFY] 📋 Verifying shift report:", shiftReportId);
-
 				const response = await frappe.call({
-					method: "posawesome.posawesome.api.shift_verification.verify_shift_report",
-					args: {
-						shift_report_id: shiftReportId
-					}
+					method: "posawesome.posawesome.api.shift_reports.verify_shift_report",
+					args: { shift_report_id: shiftReportId }
 				});
 
-				console.log("Verify response:", response);
-
-				if (response.message && response.message.success) {
-					// Success feedback
+				if (response.message?.success) {
 					this.showSuccess(__("Shift report verified successfully"));
-
-					// Refresh data to get updated verification status
 					await this.loadInvoices();
 
-					// Emit event to disable Pay/Return buttons on main interface
 					if (this.eventBus) {
 						this.eventBus.emit("shift_report_verified", {
 							shift_report_id: shiftReportId,
 							verification_status: "Verified",
 							disable_transaction_buttons: true
 						});
-
-						// Emit event to update UI components
 						this.eventBus.emit("shift_verification_changed", "Verified");
 					}
-
 				} else {
-					// Error handling
-					const errorMessage = response.message?.message || __("Failed to verify shift report");
-					this.showError(errorMessage);
+					this.showError(response.message?.message || __("Failed to verify shift report"));
 				}
 			} catch (error) {
 				console.error("Verify error:", error);

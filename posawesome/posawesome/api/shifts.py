@@ -5,11 +5,7 @@
 from __future__ import unicode_literals
 import json
 import frappe
-from frappe.utils import nowdate
 from frappe import _
-from .utilities import get_version
-from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import initialize_payment_summaries_for_shift
-from posawesome.posawesome.utils.logging import get_logger
 
 
 @frappe.whitelist()
@@ -42,9 +38,9 @@ def get_opening_dialog_data():
 	for i in data["pos_profiles_data"]:
 		pos_profiles_list.append(i.name)
 
-	payment_method_table = "POS Payment Method" if get_version() == 13 else "Sales Invoice Payment"
+	# Use POS Payment Method table (default for current version)
 	data["payments_method"] = frappe.get_list(
-		payment_method_table,
+		"POS Payment Method",
 		filters={"parent": ["in", pos_profiles_list]},
 		fields=["*"],
 		limit_page_length=0,
@@ -81,17 +77,24 @@ def create_opening_voucher(pos_profile, company, balance_details):
 	update_opening_shift_data(data, new_pos_opening.pos_profile)
 
 	# Tự động tạo Shift Report ngay sau khi tạo Opening Shift thành công
-	shift_report_data = create_shift_report_automatically(
-		new_pos_opening.name, balance_details
-	)
+	try:
+		from posawesome.posawesome.api.shift_reports import create_shift_report
 
-	# Kiểm tra nếu tạo shift report thất bại
-	if shift_report_data.get("status") == "error":
-		frappe.log_error(f"Failed to create shift report: {shift_report_data.get('message')}", "Create Opening Voucher")
-		# Throw error để frontend hiển thị cảnh báo nghiêm trọng
-		frappe.throw(_("Critical Error: Failed to create Shift Report. Please contact administrator. Error: {0}").format(shift_report_data.get('message')))
+		shift_report_data = create_shift_report({
+			"pos_opening_shift": new_pos_opening.name,
+			"opening_amounts": json.dumps(balance_details)
+		})
 
-	data["shift_report"] = shift_report_data
+		if not shift_report_data.get("success"):
+			frappe.log_error(f"Failed to create shift report: {shift_report_data.get('message')}", "Create Opening Voucher")
+			# Throw error để frontend hiển thị cảnh báo nghiêm trọng
+			frappe.throw(_("Critical Error: Failed to create Shift Report. Please contact administrator. Error: {0}").format(shift_report_data.get('message')))
+
+		data["shift_report"] = shift_report_data.get("data", {})
+
+	except Exception as shift_error:
+		frappe.log_error(f"Error creating shift report: {str(shift_error)}", "Create Opening Voucher")
+		frappe.throw(_("Critical Error: Failed to create Shift Report. Please contact administrator. Error: {0}").format(str(shift_error)))
 
 	return data
 
@@ -127,339 +130,5 @@ def update_opening_shift_data(data, pos_profile):
 	data["stock_settings"].update({"allow_negative_stock": allow_negative_stock})
 
 
-def create_shift_report_automatically(opening_shift_name, balance_details):
-	"""
-	Tự động tạo Shift Report ngay sau khi tạo Opening Shift thành công
-
-	Args:
-		opening_shift_name (str): Tên của POS Opening Shift vừa tạo
-		balance_details (list): Danh sách balance details từ opening shift
-
-	Returns:
-		dict: Thông tin Shift Report vừa tạo
-	"""
-	try:
-		# Get POS Profile for logging
-		opening_shift = frappe.get_doc("POS Opening Shift", opening_shift_name)
-		pos_profile = opening_shift.pos_profile or "POSProfile"
-
-		# Initialize logger with POS Profile name
-		log = get_logger(pos_profile)
-
-		# Debug logging
-		log.info(f"Starting create_shift_report_automatically for {opening_shift_name}")
-		log.info(f"Balance details: {balance_details}")
-
-		# Kiểm tra xem Shift Report đã tồn tại chưa
-		existing_report = frappe.db.exists("POS Shift Report",
-			{"pos_opening_shift": opening_shift_name}
-		)
-
-		if existing_report:
-			# Nếu đã tồn tại, trả về thông tin report hiện tại
-			report = frappe.get_doc("POS Shift Report", existing_report)
-			log.info(f"Shift Report already exists: {existing_report}")
-			return {
-				"name": report.name,
-				"shift_report_id": report.shift_report_id,
-				"status": "existing"
-			}
-
-		# Lấy thông tin từ opening shift
-		try:
-			opening_shift = frappe.get_doc("POS Opening Shift", opening_shift_name)
-			log.info(f"Opening shift loaded: {opening_shift.name}")
-		except frappe.DoesNotExistError:
-			log.error(f"POS Opening Shift not found: {opening_shift_name}")
-			return {
-				"status": "error",
-				"message": f"POS Opening Shift not found: {opening_shift_name}"
-			}
-
-		# Validate opening shift data
-		if not opening_shift.posting_date:
-			log.error("Opening shift missing posting_date")
-			return {
-				"status": "error",
-				"message": "Opening shift missing posting date"
-			}
-
-		if not opening_shift.user:
-			log.error("Opening shift missing user")
-			return {
-				"status": "error",
-				"message": "Opening shift missing user"
-			}
-
-		if not opening_shift.pos_profile:
-			log.error("Opening shift missing pos_profile")
-			return {
-				"status": "error",
-				"message": "Opening shift missing POS profile"
-			}
-
-		if not opening_shift.company:
-			log.error("Opening shift missing company")
-			return {
-				"status": "error",
-				"message": "Opening shift missing company"
-			}
-
-		# Tạo opening amounts dictionary từ balance_details
-		opening_amounts = {}
-		total_opening = 0
-
-		if not balance_details:
-			log.error("No balance details provided")
-			return {
-				"status": "error",
-				"message": "No balance details provided"
-			}
-
-		for detail in balance_details:
-			if not isinstance(detail, dict):
-				log.error(f"Invalid balance detail format: {detail}")
-				continue
-
-			mode_of_payment = detail.get("mode_of_payment")
-			amount = detail.get("amount", 0)
-
-			# Validate required fields
-			if not mode_of_payment:
-				log.error(f"Missing mode_of_payment in balance detail: {detail}")
-				continue
-
-			# Validate amount
-			try:
-				amount = float(amount) if amount else 0
-			except (ValueError, TypeError):
-				log.error(f"Invalid amount for {mode_of_payment}: {detail.get('amount')}")
-				continue
-
-			# Add all amounts (including 0, negative, positive)
-			opening_amounts[mode_of_payment] = amount
-			total_opening += amount
-
-		# Log opening amounts summary
-		log.info(f"Processed {len(opening_amounts)} payment methods with total opening: {total_opening}")
-
-		log.info(f"Opening amounts: {opening_amounts}, Total: {total_opening}")
-
-		# Tạo Shift Report ID duy nhất
-		base_shift_report_id = f"SHIFT-{opening_shift_name}"
-		shift_report_id = base_shift_report_id
-		counter = 1
-
-		# Kiểm tra và tạo ID duy nhất nếu cần
-		while frappe.db.exists("POS Shift Report", {"shift_report_id": shift_report_id}):
-			shift_report_id = f"{base_shift_report_id}-{counter}"
-			counter += 1
-
-		# Tạo Shift Report
-		shift_report_data = {
-			"doctype": "POS Shift Report",
-			"shift_report_id": shift_report_id,
-			"pos_opening_shift": opening_shift_name,
-			"opening_date": opening_shift.posting_date,
-			"opening_time": opening_shift.period_start_date.time() if opening_shift.period_start_date else frappe.utils.nowtime(),
-			"opened_by": opening_shift.user,
-			"opening_amounts": json.dumps(opening_amounts),
-			"total_opening_amount": total_opening,
-			"status": "Open",
-			"verification_status": "Pending"
-		}
-
-		log.info(f"Creating shift report with data: {shift_report_data}")
-
-		try:
-			shift_report = frappe.get_doc(shift_report_data)
-			shift_report.insert(ignore_permissions=True)
-			frappe.db.commit()  # Ensure the document is committed
-			log.info(f"Shift Report created successfully: {shift_report.name}")
-		except frappe.DuplicateEntryError as dup_error:
-			log.error(f"Duplicate shift report ID: {str(dup_error)}")
-			return {
-				"status": "error",
-				"message": f"Shift report ID already exists: {shift_report_data['shift_report_id']}"
-			}
-		except frappe.ValidationError as val_error:
-			log.error(f"Validation error creating shift report: {str(val_error)}")
-			return {
-				"status": "error",
-				"message": f"Validation error: {str(val_error)}"
-			}
-		except Exception as insert_error:
-			log.error(f"Failed to insert shift report: {str(insert_error)}")
-			return {
-				"status": "error",
-				"message": f"Failed to create shift report: {str(insert_error)}"
-			}
-
-		# Cập nhật opening shift với shift report reference
-		try:
-			frappe.db.set_value("POS Opening Shift", opening_shift_name, {
-				"shift_report": shift_report.name,
-				"shift_report_id": shift_report.shift_report_id
-			})
-			frappe.db.commit()
-			log.info(f"Opening shift updated with shift report reference")
-		except Exception as update_error:
-			log.error(f"Failed to update opening shift: {str(update_error)}")
-			# Don't return error here as shift report was created successfully
-			# Just log the error
-
-		# Khởi tạo POS Payment Summary ngay sau khi tạo Shift Report
-		try:
-			log.info(f"Initializing POS Payment Summary for shift report: {shift_report.name}")
-			init_result = initialize_payment_summaries_for_shift(shift_report.name)
-
-			if init_result.get("success"):
-				log.info(f"✅ POS Payment Summary initialized successfully: {init_result.get('data', {}).get('initialized_count', 0)} records")
-			else:
-				log.warning(f"⚠️ Failed to initialize POS Payment Summary: {init_result.get('message')}")
-				# Don't fail the entire operation if payment summary initialization fails
-		except Exception as init_error:
-			log.error(f"❌ Error initializing POS Payment Summary: {str(init_error)}")
-			# Don't fail the entire operation if payment summary initialization fails
-
-		return {
-			"name": shift_report.name,
-			"shift_report_id": shift_report.shift_report_id,
-			"status": "created",
-			"opening_amounts": opening_amounts,
-			"total_opening_amount": total_opening
-		}
-
-	except Exception as e:
-		log.error(f"Error creating shift report automatically: {str(e)}")
-		frappe.log_error(f"Error creating shift report automatically: {str(e)}", "Create Shift Report Automatically")
-		# Return error dict thay vì throw để không làm gián đoạn việc tạo opening shift
-		return {
-			"status": "error",
-			"message": str(e)
-		}
 
 
-@frappe.whitelist()
-def get_shift_report_invoices(shift_report_id, page=1, page_size=10):
-	"""
-	Get paginated invoices for a shift report
-
-	Args:
-		shift_report_id (str): Shift report ID
-		page (int): Page number (1-based)
-		page_size (int): Number of items per page
-
-	Returns:
-		dict: Paginated invoice data
-	"""
-	try:
-		# Validate inputs
-		if not shift_report_id:
-			return {
-				"success": False,
-				"message": "Shift report ID is required"
-			}
-
-		# Get shift report document
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
-		if not shift_report:
-			return {
-				"success": False,
-				"message": "Shift report not found"
-			}
-
-		# Validate and sanitize inputs with better error handling
-		try:
-			page = int(page) if page else 1
-			page_size = int(page_size) if page_size else 10
-
-			# Ensure valid ranges
-			if page < 1:
-				page = 1
-			if page_size < 1 or page_size > 100:  # Max 100 items per page
-				page_size = 10
-		except (ValueError, TypeError):
-			page = 1
-			page_size = 10
-
-		# Calculate pagination with validation
-		offset = (page - 1) * page_size
-		if offset < 0:
-			offset = 0
-
-		# Get total count with error handling
-		try:
-			total_count = frappe.db.count("POS Shift Report Invoice", {
-				"parent": shift_report.name,
-				"parenttype": "POS Shift Report"
-			})
-		except Exception as count_error:
-			frappe.log_error(f"Error counting invoices: {str(count_error)}", "Get Shift Report Invoices")
-			total_count = 0
-
-		# Calculate total pages safely
-		total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 1
-
-		# Adjust page if it exceeds total pages
-		if page > total_pages and total_pages > 0:
-			page = total_pages
-			offset = (page - 1) * page_size
-
-		# Get paginated invoices with error handling
-		try:
-			invoices = frappe.get_all(
-				"POS Shift Report Invoice",
-				filters={
-					"parent": shift_report.name,
-					"parenttype": "POS Shift Report"
-				},
-				fields=[
-					"invoice_no",
-					"invoice_date",
-					"customer",
-					"total_amount",
-					"is_return",
-					"status"
-				],
-				order_by="invoice_date desc, creation desc",
-				limit=page_size,
-				limit_start=offset
-			)
-		except Exception as query_error:
-			frappe.log_error(f"Error querying invoices: {str(query_error)}", "Get Shift Report Invoices")
-			invoices = []
-
-		# Format invoice data for frontend with safe handling
-		formatted_invoices = []
-		for invoice in invoices:
-			try:
-				formatted_invoices.append({
-					"invoice_no": invoice.invoice_no or "",
-					"invoice_date": invoice.invoice_date.strftime("%Y-%m-%d") if invoice.invoice_date else "",
-					"customer": invoice.customer or "Walk-in Customer",
-					"total_amount": float(invoice.total_amount or 0),
-					"is_return": bool(invoice.is_return or False),
-					"status": invoice.status or "Paid"
-				})
-			except Exception as format_error:
-				frappe.log_error(f"Error formatting invoice {invoice.invoice_no}: {str(format_error)}", "Get Shift Report Invoices")
-				continue
-
-		return {
-			"success": True,
-			"invoices": formatted_invoices,
-			"total_count": total_count,
-			"total_pages": total_pages,
-			"page": page,
-			"page_size": page_size,
-			"has_next": page < total_pages,
-			"has_prev": page > 1
-		}
-
-	except Exception as e:
-		frappe.log_error(f"Unexpected error in get_shift_report_invoices: {str(e)}", "Get Shift Report Invoices")
-		return {
-			"success": False,
-			"message": f"Unexpected error: {str(e)}"
-		}

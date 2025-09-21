@@ -151,6 +151,34 @@ class POSClosingShift(Document):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] CALL_UPDATE_SHIFT_REPORT_AND_SUMMARIES - POS Closing Shift {self.name}")
         self.update_shift_report_and_payment_summaries_on_close()
 
+        # Link invoices with this closing shift so ERPNext can block edits
+        self._set_closing_entry_invoices()
+
+        # Consolidate POS invoices if configured
+        if frappe.db.get_value(
+            "POS Profile",
+            self.pos_profile,
+            "create_pos_invoice_instead_of_sales_invoice",
+        ):
+            pos_invoices = [
+                frappe._dict(
+                    frappe.db.get_value(
+                        "POS Invoice",
+                        d.pos_invoice,
+                        [
+                            "name as pos_invoice",
+                            "customer",
+                            "is_return",
+                            "return_against",
+                        ],
+                        as_dict=True,
+                    )
+                )
+                for d in self.pos_transactions
+            ]
+            if pos_invoices:
+                consolidate_pos_invoices(pos_invoices=pos_invoices)
+
         # POST-SUBMIT CLEANUP: Clear cache, logout, and refresh UI
         log.info(f"[SHIFT_CLOSE_WORKFLOW] POST_SUBMIT_CLEANUP_START - POS Closing Shift {self.name}")
         self.perform_post_submit_cleanup()
@@ -185,6 +213,73 @@ class POSClosingShift(Document):
                 opening_entry.pos_closing_shift = ""
                 opening_entry.set_status()
                 opening_entry.save()
+
+        # Clear closing entry links from invoices so they can be edited again
+        self._clear_closing_entry_invoices()
+
+    def _clear_closing_entry_invoices(self):
+        """Clear closing shift links, cancel merge logs and cancel consolidated sales invoices."""
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] CLEAR_CLOSING_ENTRY_INVOICES_START - POS Closing Shift {self.name}")
+
+        sales_invoices = set()
+        for d in self.pos_transactions:
+            pos_invoice = d.get("pos_invoice")
+            sales_invoice = d.get("sales_invoice")
+            if pos_invoice:
+                if frappe.db.has_column("POS Invoice", "pos_closing_entry"):
+                    frappe.db.set_value("POS Invoice", pos_invoice, "pos_closing_entry", None)
+
+                merge_logs = frappe.get_all(
+                    "POS Invoice Merge Log",
+                    filters={"pos_invoice": pos_invoice},
+                    pluck="name",
+                )
+                for log_name in merge_logs:
+                    log_doc = frappe.get_doc("POS Invoice Merge Log", log_name)
+                    for field in (
+                        "consolidated_invoice",
+                        "consolidated_credit_note",
+                    ):
+                        si = log_doc.get(field)
+                        if si:
+                            sales_invoices.add(si)
+                    if log_doc.docstatus == 1:
+                        log_doc.cancel()
+                    frappe.delete_doc("POS Invoice Merge Log", log_doc.name, force=1)
+
+                if frappe.db.has_column("POS Invoice", "consolidated_invoice"):
+                    frappe.db.set_value("POS Invoice", pos_invoice, "consolidated_invoice", None)
+
+                if frappe.db.has_column("POS Invoice", "status"):
+                    pos_doc = frappe.get_doc("POS Invoice", pos_invoice)
+                    pos_doc.set_status(update=True)
+
+            if sales_invoice:
+                if frappe.db.has_column("Sales Invoice", "pos_closing_entry"):
+                    frappe.db.set_value("Sales Invoice", sales_invoice, "pos_closing_entry", None)
+                sales_invoices.add(sales_invoice)
+
+        for si in sales_invoices:
+            if frappe.db.exists("Sales Invoice", si):
+                si_doc = frappe.get_doc("Sales Invoice", si)
+                if si_doc.docstatus == 1:
+                    si_doc.cancel()
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] CLEAR_CLOSING_ENTRY_INVOICES_COMPLETED - POS Closing Shift {self.name}")
+
+    def _set_closing_entry_invoices(self):
+        """Set `pos_closing_entry` on linked invoices."""
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] SET_CLOSING_ENTRY_INVOICES_START - POS Closing Shift {self.name}")
+
+        for d in self.pos_transactions:
+            invoice = d.get("sales_invoice") or d.get("pos_invoice")
+            if not invoice:
+                continue
+            doctype = "Sales Invoice" if d.get("sales_invoice") else "POS Invoice"
+            if frappe.db.has_column(doctype, "pos_closing_entry"):
+                frappe.db.set_value(doctype, invoice, "pos_closing_entry", self.name)
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] SET_CLOSING_ENTRY_INVOICES_COMPLETED - POS Closing Shift {self.name}")
 
     def delete_draft_invoices(self):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] DELETE_DRAFT_INVOICES - POS Closing Shift {self.name}")
@@ -246,9 +341,20 @@ class POSClosingShift(Document):
             # Calculate total actual closing from summaries
             total_actual_closing = sum(flt(s.get("closing_amount", 0)) for s in updated_summaries)
 
-            # Calculate total expected closing from expected_closing_amounts JSON
-            expected_closing = _parse_json_safe(getattr(shift_report, "expected_closing_amounts", None), {})
-            total_expected_closing = sum(flt(amount, 2) for amount in expected_closing.values())
+            # ✅ UPDATE expected_closing_amounts JSON field from payment summaries
+            expected_closing_amounts = {}
+            for summary in updated_summaries:
+                method = summary.get("payment_method")
+                expected_amount = summary.get("expected_closing_amount", 0)
+                if method:
+                    expected_closing_amounts[method] = flt(expected_amount, 2)
+
+            # Update shift report with expected_closing_amounts
+            shift_report.expected_closing_amounts = frappe.as_json(expected_closing_amounts)
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 UPDATE_SHIFT_REPORT_AND_SUMMARIES_EXPECTED_AMOUNTS - Updated expected_closing_amounts: {expected_closing_amounts}")
+
+            # Calculate total expected closing from updated expected_closing_amounts
+            total_expected_closing = sum(expected_closing_amounts.values())
 
             difference = total_actual_closing - total_expected_closing
 
@@ -1055,3 +1161,87 @@ def submit_printed_invoices(pos_opening_shift):
     except Exception as e:
         log.error(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_PRINTED_INVOICES_FAILED - Error submitting printed invoices for shift {pos_opening_shift}: {str(e)}")
         frappe.log_error(f"Error submitting printed invoices for shift {pos_opening_shift}: {str(e)}")
+
+
+def consolidate_pos_invoices(pos_invoices):
+    """Consolidate POS invoices into consolidated sales invoices."""
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] CONSOLIDATE_POS_INVOICES_START - Consolidating {len(pos_invoices)} POS invoices")
+
+    try:
+        # Group invoices by customer and return status
+        consolidated_groups = {}
+
+        for inv in pos_invoices:
+            customer = inv.get("customer") or "Walk-in Customer"
+            is_return = inv.get("is_return", 0)
+            return_against = inv.get("return_against")
+
+            key = f"{customer}_{is_return}_{return_against or ''}"
+
+            if key not in consolidated_groups:
+                consolidated_groups[key] = []
+
+            consolidated_groups[key].append(inv)
+
+        # Create consolidated invoices for each group
+        for group_key, invoices in consolidated_groups.items():
+            if len(invoices) > 1:  # Only consolidate if more than 1 invoice
+                try:
+                    # Create consolidated sales invoice
+                    consolidated_invoice = frappe.new_doc("Sales Invoice")
+                    consolidated_invoice.customer = invoices[0].get("customer") or "Walk-in Customer"
+                    consolidated_invoice.is_pos = 1
+                    consolidated_invoice.pos_profile = frappe.db.get_value("POS Opening Shift",
+                        frappe.db.get_value("POS Invoice", invoices[0].pos_invoice, "pos_opening_shift"),
+                        "pos_profile")
+
+                    # Add items from all invoices in the group
+                    for inv in invoices:
+                        pos_invoice = frappe.get_doc("POS Invoice", inv.pos_invoice)
+
+                        for item in pos_invoice.items:
+                            consolidated_invoice.append("items", {
+                                "item_code": item.item_code,
+                                "qty": item.qty,
+                                "rate": item.rate,
+                                "amount": item.amount,
+                                "uom": item.uom,
+                                "conversion_factor": item.conversion_factor,
+                            })
+
+                        # Add taxes
+                        for tax in pos_invoice.taxes:
+                            consolidated_invoice.append("taxes", {
+                                "charge_type": tax.charge_type,
+                                "account_head": tax.account_head,
+                                "rate": tax.rate,
+                                "amount": tax.amount,
+                            })
+
+                    # Set posting date and other fields
+                    consolidated_invoice.posting_date = frappe.utils.today()
+                    consolidated_invoice.due_date = frappe.utils.today()
+
+                    # Calculate totals
+                    consolidated_invoice.calculate_taxes_and_totals()
+
+                    # Save and submit
+                    consolidated_invoice.insert(ignore_permissions=True)
+                    consolidated_invoice.submit()
+
+                    # Update POS invoices to reference consolidated invoice
+                    for inv in invoices:
+                        frappe.db.set_value("POS Invoice", inv.pos_invoice,
+                            "consolidated_invoice", consolidated_invoice.name)
+
+                    log.info(f"[SHIFT_CLOSE_WORKFLOW] CONSOLIDATE_POS_INVOICES_SUCCESS - Created consolidated invoice {consolidated_invoice.name} for {len(invoices)} POS invoices")
+
+                except Exception as e:
+                    log.error(f"[SHIFT_CLOSE_WORKFLOW] CONSOLIDATE_POS_INVOICES_ERROR - Failed to consolidate group {group_key}: {str(e)}")
+                    continue
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] CONSOLIDATE_POS_INVOICES_COMPLETED - Processed {len(consolidated_groups)} groups")
+
+    except Exception as e:
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] CONSOLIDATE_POS_INVOICES_FAILED - Error consolidating POS invoices: {str(e)}")
+        frappe.log_error(f"Error consolidating POS invoices: {str(e)}")
