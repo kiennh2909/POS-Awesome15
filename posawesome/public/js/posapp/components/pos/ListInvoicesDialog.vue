@@ -1342,12 +1342,46 @@ export default {
 
 			this.verifying = true;
 			try {
-				console.log("Verifying shift report:", this.shiftReportId);
+				let shiftReportId = null;
+
+				// Priority: use from loaded shiftReportData first
+				if (this.shiftReportData && this.shiftReportData.shift_report_id) {
+					shiftReportId = this.shiftReportData.shift_report_id;
+					console.log("[VERIFY] ✅ Using shift_report_id from loaded data:", shiftReportId);
+				}
+				// Fallback: extract from original prop if needed
+				else if (this.shiftReportId) {
+					if (typeof this.shiftReportId === 'string') {
+						shiftReportId = this.shiftReportId;
+						console.log("[VERIFY] ✅ Using string shiftReportId:", shiftReportId);
+					} else if (typeof this.shiftReportId === 'object' && this.shiftReportId !== null) {
+						// Extract from object as fallback
+						if (this.shiftReportId.doctype === "POS Opening Shift" && this.shiftReportId.shift_report) {
+							shiftReportId = this.shiftReportId.shift_report;
+							console.log("[VERIFY] ✅ Extracted from POS Opening Shift:", shiftReportId);
+						} else if (this.shiftReportId.doctype === "POS Shift Report" && this.shiftReportId.name) {
+							shiftReportId = this.shiftReportId.name;
+							console.log("[VERIFY] ✅ Extracted from POS Shift Report:", shiftReportId);
+						} else if (this.shiftReportId.shift_report_id) {
+							shiftReportId = this.shiftReportId.shift_report_id;
+							console.log("[VERIFY] ✅ Using shift_report_id field:", shiftReportId);
+						}
+					}
+				}
+
+				// ✅ VALIDATE SHIFT REPORT ID
+				if (!shiftReportId || shiftReportId.trim() === '') {
+					console.error("[VERIFY] ❌ No valid shift report ID found");
+					this.showError("No shift report ID available for verification");
+					return;
+				}
+
+				console.log("[VERIFY] 📋 Verifying shift report:", shiftReportId);
 
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.shift_verification.verify_shift_report",
 					args: {
-						shift_report_id: this.shiftReportId
+						shift_report_id: shiftReportId
 					}
 				});
 
@@ -1363,7 +1397,7 @@ export default {
 					// Emit event to disable Pay/Return buttons on main interface
 					if (this.eventBus) {
 						this.eventBus.emit("shift_report_verified", {
-							shift_report_id: this.shiftReportId,
+							shift_report_id: shiftReportId,
 							verification_status: "Verified",
 							disable_transaction_buttons: true
 						});
