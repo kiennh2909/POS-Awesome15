@@ -505,40 +505,6 @@ def update_shift_report(shift_report_id, data):
 			"message": str(e)
 		}
 
-@frappe.whitelist()
-def delete_shift_report(shift_report_id):
-	"""
-	Delete POS Shift Report
-
-	Args:
-		shift_report_id (str): Shift report ID or name
-
-	Returns:
-		dict: Delete result
-	"""
-	try:
-		if not frappe.db.exists("POS Shift Report", shift_report_id):
-			frappe.throw(_("Shift report not found"))
-
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
-
-		# Only allow deletion of open reports
-		if shift_report.status != "Open":
-			frappe.throw(_("Cannot delete closed or submitted shift reports"))
-
-		shift_report.delete()
-
-		return {
-			"success": True,
-			"message": _("Shift report deleted successfully")
-		}
-
-	except Exception as e:
-		frappe.log_error(str(e), "Delete Shift Report Error")
-		return {
-			"success": False,
-			"message": str(e)
-		}
 
 @frappe.whitelist()
 def get_footer_status_data():
@@ -704,131 +670,7 @@ def get_shift_reports(filters=None, limit_page_length=20, limit_start=0):
 			"message": str(e)
 		}
 
-@frappe.whitelist()
-def get_current_shift_report():
-	"""
-	Get current shift report for logged-in user
 
-	Returns:
-		dict: Current shift report data
-	"""
-	try:
-		user = frappe.session.user
-
-		# Find active opening shift for current user
-		active_shift = frappe.get_all(
-			"POS Opening Shift",
-			filters={
-				"owner": user,
-				"docstatus": 1,
-				"status": "Open"
-			},
-			fields=["name"],
-			limit=1
-		)
-
-		if not active_shift:
-			return {
-				"success": False,
-				"message": _("No active opening shift found for current user")
-			}
-
-		# Find shift report for this opening shift
-		shift_report = frappe.get_all(
-			"POS Shift Report",
-			filters={
-				"pos_opening_shift": active_shift[0].name,
-				"status": "Open"
-			},
-			fields=["name"],
-			limit=1
-		)
-
-		if not shift_report:
-			return {
-				"success": False,
-				"message": _("No active shift report found")
-			}
-
-		# Return full shift report data
-		return get_shift_report(shift_report[0].name)
-
-	except Exception as e:
-		frappe.log_error(str(e), "Get Current Shift Report Error")
-		return {
-			"success": False,
-			"message": str(e)
-		}
-
-@frappe.whitelist()
-def submit_shift_report(shift_report_id):
-	"""
-	Submit POS Shift Report
-
-	Args:
-		shift_report_id (str): Shift report ID or name
-
-	Returns:
-		dict: Submit result
-	"""
-	try:
-		if not frappe.db.exists("POS Shift Report", shift_report_id):
-			frappe.throw(_("Shift report not found"))
-
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
-
-		# Validate before submit
-		if shift_report.verification_status != "Confirmed":
-			frappe.throw(_("Shift report must be confirmed before submission"))
-
-		shift_report.submit()
-
-		return {
-			"success": True,
-			"message": _("Shift report submitted successfully")
-		}
-
-	except Exception as e:
-		frappe.log_error(str(e), "Submit Shift Report Error")
-		return {
-			"success": False,
-			"message": str(e)
-		}
-
-@frappe.whitelist()
-def cancel_shift_report(shift_report_id):
-	"""
-	Cancel POS Shift Report
-
-	Args:
-		shift_report_id (str): Shift report ID or name
-
-	Returns:
-		dict: Cancel result
-	"""
-	try:
-		if not frappe.db.exists("POS Shift Report", shift_report_id):
-			frappe.throw(_("Shift report not found"))
-
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
-
-		# Only allow cancellation of open reports
-		if shift_report.status != "Open":
-			frappe.throw(_("Cannot cancel submitted shift reports"))
-
-		shift_report.cancel()
-
-		return {
-			"success": True,
-			"message": _("Shift report cancelled successfully")
-		}
-
-	except Exception as e:
-		frappe.log_error(str(e), "Cancel Shift Report Error")
-		return {
-			"success": False,
-			"message": str(e)
-		}
 
 
 @frappe.whitelist()
@@ -850,6 +692,45 @@ def get_shift_report_with_payment_summary(shift_report_id):
 		log.info(f"[SHIFT_REPORT_API] 📋 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Getting basic shift report data")
 		shift_report_data = get_shift_report(shift_report_id)
 		log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Got shift report: {shift_report_data.get('name', 'Unknown')}")
+
+		# 1.5. Tính toán lại Total Sales & Total Returns khi click "List Invoice" (chỉ khi shift chưa verify)
+		shift_report_doc = frappe.get_doc("POS Shift Report", shift_report_data["name"])
+		current_verification_status = getattr(shift_report_doc, 'verification_status', 'Pending')
+
+		if current_verification_status in ['Pending', None, '']:
+			log.info(f"[SHIFT_REPORT_API] 🔄 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Shift chưa verify, tính toán lại Total Sales & Total Returns")
+
+			# Tính toán Total Sales & Total Returns từ invoices
+			if shift_report_doc.invoices:
+				total_sales = 0
+				total_returns = 0
+				invoice_count = len(shift_report_doc.invoices)
+
+				for invoice in shift_report_doc.invoices:
+					# total_sales: only count Paid invoices that are not returns (successful sales)
+					if invoice.status == "Paid" and not invoice.is_return:
+						total_sales += invoice.total_amount or 0
+
+					# total_returns: count both return invoices (is_return=1) and cancelled invoices
+					if invoice.status == "Cancelled" or invoice.is_return:
+						total_returns += invoice.total_amount or 0
+
+				# Cập nhật document
+				shift_report_doc.invoice_count = invoice_count
+				shift_report_doc.total_sales = total_sales
+				shift_report_doc.total_returns = total_returns
+				shift_report_doc.save(ignore_permissions=True)
+
+				# Cập nhật lại dữ liệu trả về với giá trị mới tính
+				shift_report_data["invoice_count"] = invoice_count
+				shift_report_data["total_sales"] = total_sales
+				shift_report_data["total_returns"] = total_returns
+
+				log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Đã tính toán lại: Count={invoice_count}, Sales={total_sales}, Returns={total_returns}")
+			else:
+				log.info(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - No invoices found for shift: {shift_report_data['name']}")
+		else:
+			log.info(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Shift đã verify (status: {current_verification_status}), sử dụng dữ liệu hiện có")
 
 		# 2. Try to create/update payment summaries (only if not already verified)
 		try:

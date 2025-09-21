@@ -15,7 +15,10 @@ class POSShiftReport(Document):
 		self.validate_shift_report_id()
 		self.validate_dates()
 		self.validate_amounts()
-		self.update_calculated_fields()
+		# Update invoice count only (Total Sales & Total Returns calculated on "List Invoice" click)
+		if self.invoices:
+			self.invoice_count = len(self.invoices)
+			log.info(f"[SHIFT_REPORT_VALIDATE] 📊 VALIDATE - Updated invoice count: {self.invoice_count} - Shift Report: {self.name}")
 
 	def before_submit(self):
 		"""Actions before submitting the document"""
@@ -88,38 +91,6 @@ class POSShiftReport(Document):
 		# Calculate difference
 		if self.total_expected_closing and self.total_actual_closing:
 			self.difference = self.total_actual_closing - self.total_expected_closing
-
-	def update_calculated_fields(self):
-		"""Update calculated fields"""
-		log.info(f"[SHIFT_REPORT_CALC] 🔢 UPDATE_CALCULATED_FIELDS - Start - Shift Report: {self.name}")
-
-		# Update invoice count and totals from child table
-		if self.invoices:
-			self.invoice_count = len(self.invoices)
-			total_sales = 0
-			total_returns = 0
-
-			log.info(f"[SHIFT_REPORT_CALC] 📊 UPDATE_CALCULATED_FIELDS - Processing {len(self.invoices)} invoices - Shift Report: {self.name}")
-
-			for invoice in self.invoices:
-				log.info(f"[SHIFT_REPORT_CALC] 📋 UPDATE_CALCULATED_FIELDS - Processing invoice: {invoice.invoice_no}, Status: {invoice.status}, Amount: {invoice.total_amount}, Is Return: {invoice.is_return}")
-
-				# total_sales: only count Paid invoices that are not returns (successful sales)
-				if invoice.status == "Paid" and not invoice.is_return:
-					total_sales += invoice.total_amount or 0
-					log.info(f"[SHIFT_REPORT_CALC] 💰 UPDATE_CALCULATED_FIELDS - Added to total_sales: {invoice.total_amount} - Invoice: {invoice.invoice_no}")
-
-				# total_returns: count both return invoices (is_return=1) and cancelled invoices
-				if invoice.status == "Cancelled" or invoice.is_return:
-					total_returns += invoice.total_amount or 0
-					log.info(f"[SHIFT_REPORT_CALC] 💸 UPDATE_CALCULATED_FIELDS - Added to total_returns: {invoice.total_amount} - Invoice: {invoice.invoice_no} (Status: {invoice.status}, Is Return: {invoice.is_return})")
-
-			self.total_sales = total_sales
-			self.total_returns = total_returns
-
-			log.info(f"[SHIFT_REPORT_CALC] ✅ UPDATE_CALCULATED_FIELDS - Completed - Shift Report: {self.name}, Count: {self.invoice_count}, Sales: {self.total_sales}, Returns: {self.total_returns}")
-		else:
-			log.info(f"[SHIFT_REPORT_CALC] ⚠️ UPDATE_CALCULATED_FIELDS - No invoices found - Shift Report: {self.name}")
 
 	def verify_report(self, verified_by=None):
 		"""Mark report as verified"""
@@ -236,8 +207,10 @@ class POSShiftReport(Document):
 				"status": invoice.status
 			})
 
-		# Update calculated fields
-		self.update_calculated_fields()
+		# Update invoice count only (Total Sales/Returns calculated on "List Invoice" click)
+		if self.invoices:
+			self.invoice_count = len(self.invoices)
+			log.info(f"[SHIFT_REPORT_UPDATE] 📊 UPDATE_FROM_INVOICES - Updated invoice count: {self.invoice_count} - Shift Report: {self.name}")
 		self.get_payment_breakdown()
 
 	def update_related_closing_shift(self):
@@ -304,28 +277,3 @@ def create_shift_report_from_opening(opening_shift_name):
 
 	shift_report.insert()
 	return shift_report
-
-@frappe.whitelist()
-def get_shift_report_summary(shift_report_id):
-	"""Get summary of shift report"""
-	if not frappe.db.exists("POS Shift Report", shift_report_id):
-		frappe.throw(_("Shift report not found"))
-
-	report = frappe.get_doc("POS Shift Report", shift_report_id)
-
-	return {
-		"shift_report_id": report.shift_report_id,
-		"status": report.status,
-		"opening_date": report.opening_date,
-		"opening_time": report.opening_time,
-		"closing_date": report.closing_date,
-		"total_opening_amount": report.total_opening_amount,
-		"total_expected_closing": report.total_expected_closing,
-		"total_actual_closing": report.total_actual_closing,
-		"difference": report.difference,
-		"invoice_count": report.invoice_count,
-		"total_sales": report.total_sales,
-		"total_returns": report.total_returns,
-		"verification_status": report.verification_status,
-		"payment_breakdown": json.loads(report.payment_breakdown or "{}")
-	}
