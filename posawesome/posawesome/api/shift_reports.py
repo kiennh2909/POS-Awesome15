@@ -117,26 +117,30 @@ def create_shift_report(data):
 @frappe.whitelist()
 def get_shift_report(shift_report_id):
 	"""
-	Get POS Shift Report by shift_report_id field
+	Get POS Shift Report by shift_report_id field or name
 
 	Args:
-		shift_report_id (str): Shift report ID (string only)
+		shift_report_id (str): Shift report ID or name
 
 	Returns:
 		dict: Shift report data
 	"""
 	try:
-		# Find shift report by shift_report_id field
+		# Try to find shift report by shift_report_id field first
 		shift_reports = frappe.get_all("POS Shift Report",
 			filters={"shift_report_id": shift_report_id},
 			fields=["name"],
 			limit=1
 		)
 
+		# If not found by shift_report_id, try by name
 		if not shift_reports:
-			frappe.throw(_("Shift report not found"))
-
-		shift_report = frappe.get_doc("POS Shift Report", shift_reports[0].name)
+			if frappe.db.exists("POS Shift Report", shift_report_id):
+				shift_report = frappe.get_doc("POS Shift Report", shift_report_id)
+			else:
+				frappe.throw(_("Shift report not found"))
+		else:
+			shift_report = frappe.get_doc("POS Shift Report", shift_reports[0].name)
 
 		# Return formatted data
 		return {

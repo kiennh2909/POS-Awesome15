@@ -10,7 +10,7 @@
 						<div class="shift-info" v-if="shiftReportData">
 							<div class="shift-info-item">
 								<span class="shift-info-label">{{ __("Shift ID:") }}</span>
-								<span class="shift-info-value">{{ shiftReportData.shift_report_id || 'N/A' }}</span>
+								<span class="shift-info-value">{{ displayShiftReportId }}</span>
 							</div>
 							<div class="shift-info-item" v-if="shiftReportData.created">
 								<span class="shift-info-label">{{ __("Started:") }}</span>
@@ -384,6 +384,9 @@ export default {
 				this.$emit("update:modelValue", value);
 			}
 		},
+		displayShiftReportId() {
+			return this.shiftReportData?.shift_report_id || this.shiftReportData?.name || 'Loading...';
+		},
 		filteredInvoices() {
 			let filtered = [...this.invoices];
 
@@ -570,6 +573,11 @@ export default {
 
 				// Store shift report data for verification status
 				this.shiftReportData = shiftReportData;
+				console.log("[LOAD_INVOICES] ✅ Shift report data set:", {
+					shift_report_id: shiftReportData.shift_report_id,
+					name: shiftReportData.name,
+					status: shiftReportData.status
+				});
 
 				// Load shift report data for footer status bar
 				await this.loadShiftReportData();
