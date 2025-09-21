@@ -14,20 +14,20 @@
 								{{ __("Reconcile payment methods and close shift") }}
 							</p>
 							<!-- Shift Information -->
-							<div class="shift-info" v-if="dialog_data.pos_opening_shift">
+							<div class="shift-info">
 								<div class="shift-info-item">
 									<span class="shift-info-label">{{ __("Shift ID:") }}</span>
-									<span class="shift-info-value">{{ dialog_data.pos_opening_shift }}</span>
+									<span class="shift-info-value">{{ dialog_data.pos_opening_shift || 'N/A' }}</span>
 								</div>
-								<div class="shift-info-item" v-if="getShiftReportId">
+								<div class="shift-info-item">
 									<span class="shift-info-label">{{ __("Report ID:") }}</span>
-									<span class="shift-info-value shift-report-id" :class="getShiftReportStatusClass">{{ getShiftReportId }}</span>
+									<span class="shift-info-value shift-report-id" :class="getShiftReportStatusClass">{{ getShiftReportId || 'N/A' }}</span>
 								</div>
-								<div class="shift-info-item" v-if="dialog_data.verification_status">
+								<div class="shift-info-item">
 									<span class="shift-info-label">{{ __("Status:") }}</span>
 									<span class="shift-info-value verification-status-text" :class="getVerificationStatusClass">{{ getVerificationStatusText(dialog_data.verification_status) }}</span>
 								</div>
-								<div class="shift-info-item" v-if="dialog_data.period_start_date">
+								<div class="shift-info-item">
 									<span class="shift-info-label">{{ __("Open Time:") }}</span>
 									<span class="shift-info-value">{{ formatDateTime(dialog_data.period_start_date, dialog_data.period_start_time) }}</span>
 								</div>
@@ -210,7 +210,7 @@ export default {
 
 
 		formatDateTime(date, time) {
-			if (!date) return '';
+			if (!date) return 'N/A';
 
 			try {
 				let dateTimeStr = date;
