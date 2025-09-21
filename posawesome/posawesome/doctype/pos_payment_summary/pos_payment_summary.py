@@ -66,21 +66,12 @@ def update_payment_summary_on_invoice_submit(invoice_name):
 
 		shift_report_name = shift_reports[0].name
 
-		# Cập nhật payment summaries trước
+		# Cập nhật payment summaries và totals (totals được gọi tự động trong create_payment_summaries_for_shift)
 		payment_result = create_payment_summaries_for_shift(shift_report_name)
 		if not payment_result.get("success"):
 			return payment_result
 
-		# Sau đó cập nhật shift report totals
-		try:
-			update_shift_report_totals(shift_report_name)
-			log.info(f"[PAYMENT_SUMMARY] Successfully updated payment summary and totals for invoice {invoice_name}")
-		except Exception as totals_error:
-			log.error(f"[PAYMENT_SUMMARY] Payment summaries updated but totals update failed for invoice {invoice_name}: {str(totals_error)}")
-			# Vẫn return success vì payment summaries đã được cập nhật thành công
-			# Totals có thể được update lại sau hoặc manually
-			payment_result["warning"] = f"Payment summaries updated successfully, but shift report totals update failed: {str(totals_error)}"
-
+		log.info(f"[PAYMENT_SUMMARY] Successfully updated payment summary and totals for invoice {invoice_name}")
 		return payment_result
 
 	except Exception as e:
@@ -133,9 +124,12 @@ def create_payment_summaries_for_shift(shift_report_name):
 
 		frappe.db.commit()
 
+		# Cập nhật shift report totals ngay khi payment summaries thành công
+		update_shift_report_totals(shift_report_name)
+
 		return {
 			"success": True,
-			"message": f"Updated {len(payment_summaries)} payment methods",
+			"message": f"Updated {len(payment_summaries)} payment methods and shift totals",
 			"data": {
 				"payment_summaries": payment_summaries,
 				"invoice_count": len(invoices)
