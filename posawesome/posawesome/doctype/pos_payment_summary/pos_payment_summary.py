@@ -68,9 +68,94 @@ class POSPaymentSummary(Document):
 		log.info(f"[PAYMENT_SUMMARY] Calculated difference for {self.payment_method}: {self.difference} = {self.closing_amount} - {self.expected_closing_amount}")
 
 
+
 # --------------------------------------------------------------------
 # Core API
 # --------------------------------------------------------------------
+
+@frappe.whitelist()
+def initialize_payment_summaries_for_shift(shift_report_name):
+	"""
+	Khởi tạo "rỗng" toàn bộ POS Payment Summary theo Opening Shift (1:1 phương thức).
+	- Xoá sạch record cũ của shift này (an toàn vì chỉ là bảng tổng hợp).
+	- Tạo mới mỗi MOP với opening_amount & closing_amount = opening_amount.
+	"""
+	try:
+		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
+		company, pos_profile, currency = _get_company_profile_currency(shift_report)
+
+		# Initialize logger with POS Profile name
+		
+
+		log.info(f"[PAYMENT_SUMMARY] Init summaries for: {shift_report_name}")
+
+		# Opening amounts
+		opening_amounts = {}
+		try:
+			opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
+			if getattr(opening_shift, "balance_details", None):
+				for d in opening_shift.balance_details:
+					opening_amounts[d.mode_of_payment] = flt(d.amount or 0, 2)
+		except Exception as e:
+			log.error(f"[PAYMENT_SUMMARY] Cannot read opening amounts: {str(e)}")
+
+		# Cleanup old
+		existing = frappe.get_all(
+			"POS Payment Summary",
+			filters={"shift_report_id": shift_report.shift_report_id, "pos_shift_report": shift_report.name},
+			fields=["name", "payment_method"],
+		)
+		for row in existing:
+			try:
+				frappe.delete_doc("POS Payment Summary", row.name, ignore_permissions=True)
+			except Exception as de:
+				log.warning(f"[PAYMENT_SUMMARY] Cannot delete {row.name}: {str(de)}")
+
+		# Create fresh
+		created = 0
+		shift_start_time = _compose_datetime(getattr(shift_report, "opening_date", None), getattr(shift_report, "opening_time", None))
+		shift_end_time = _compose_datetime(getattr(shift_report, "closing_date", None), getattr(shift_report, "closing_time", None))
+
+		for method, opening_amount in opening_amounts.items():
+			try:
+				doc = frappe.get_doc(
+					{
+						"doctype": "POS Payment Summary",
+						"shift_report_id": shift_report.shift_report_id,
+						"pos_shift_report": shift_report.name,
+						"pos_opening_shift": shift_report.pos_opening_shift,
+						"posting_date": getattr(shift_report, "opening_date", None),
+						"shift_start_time": shift_start_time,
+						"shift_end_time": shift_end_time,
+						"payment_method": method,
+						"payment_method_type": get_payment_method_type(method),
+						"currency": currency,
+						"company": company,
+						"pos_profile": pos_profile,
+						"opening_amount": opening_amount,
+						"transaction_amount": 0.0,
+						"expected_closing_amount": opening_amount,  # Initially = opening_amount (no transactions)
+						"closing_amount": 0.0,  # Will be entered by user
+						"transaction_count": 0,
+						"notes": f"Initialized for shift report {shift_report.name}",
+					}
+				)
+				doc.insert(ignore_permissions=True)
+				created += 1
+			except Exception as ce:
+				log.error(f"[PAYMENT_SUMMARY] Cannot init '{method}': {str(ce)}")
+
+		log.info(f"[PAYMENT_SUMMARY] ✅ Initialized {created} record(s)")
+		return {"success": True, "message": f"Initialized {created} records", "data": {"initialized_count": created}}
+
+	except Exception as e:
+		# Fallback logger if initialization failed
+		fallback_log = get_logger("pos_payment_summary")
+		fallback_log.error(f"[PAYMENT_SUMMARY] Error initializing: {str(e)}")
+		return {"success": False, "message": f"Error initializing: {str(e)}"}
+
+
+
 @frappe.whitelist()
 def create_payment_summaries_for_shift(shift_report_name):
     """
@@ -813,84 +898,3 @@ def run_pos_payment_summary_migration():
 			"error": str(e)
 		}
 
-
-@frappe.whitelist()
-def initialize_payment_summaries_for_shift(shift_report_name):
-	"""
-	Khởi tạo "rỗng" toàn bộ POS Payment Summary theo Opening Shift (1:1 phương thức).
-	- Xoá sạch record cũ của shift này (an toàn vì chỉ là bảng tổng hợp).
-	- Tạo mới mỗi MOP với opening_amount & closing_amount = opening_amount.
-	"""
-	try:
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
-		company, pos_profile, currency = _get_company_profile_currency(shift_report)
-
-		# Initialize logger with POS Profile name
-		
-
-		log.info(f"[PAYMENT_SUMMARY] Init summaries for: {shift_report_name}")
-
-		# Opening amounts
-		opening_amounts = {}
-		try:
-			opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
-			if getattr(opening_shift, "balance_details", None):
-				for d in opening_shift.balance_details:
-					opening_amounts[d.mode_of_payment] = flt(d.amount or 0, 2)
-		except Exception as e:
-			log.error(f"[PAYMENT_SUMMARY] Cannot read opening amounts: {str(e)}")
-
-		# Cleanup old
-		existing = frappe.get_all(
-			"POS Payment Summary",
-			filters={"shift_report_id": shift_report.shift_report_id, "pos_shift_report": shift_report.name},
-			fields=["name", "payment_method"],
-		)
-		for row in existing:
-			try:
-				frappe.delete_doc("POS Payment Summary", row.name, ignore_permissions=True)
-			except Exception as de:
-				log.warning(f"[PAYMENT_SUMMARY] Cannot delete {row.name}: {str(de)}")
-
-		# Create fresh
-		created = 0
-		shift_start_time = _compose_datetime(getattr(shift_report, "opening_date", None), getattr(shift_report, "opening_time", None))
-		shift_end_time = _compose_datetime(getattr(shift_report, "closing_date", None), getattr(shift_report, "closing_time", None))
-
-		for method, opening_amount in opening_amounts.items():
-			try:
-				doc = frappe.get_doc(
-					{
-						"doctype": "POS Payment Summary",
-						"shift_report_id": shift_report.shift_report_id,
-						"pos_shift_report": shift_report.name,
-						"pos_opening_shift": shift_report.pos_opening_shift,
-						"posting_date": getattr(shift_report, "opening_date", None),
-						"shift_start_time": shift_start_time,
-						"shift_end_time": shift_end_time,
-						"payment_method": method,
-						"payment_method_type": get_payment_method_type(method),
-						"currency": currency,
-						"company": company,
-						"pos_profile": pos_profile,
-						"opening_amount": opening_amount,
-						"transaction_amount": 0.0,
-						"expected_closing_amount": opening_amount,  # Initially = opening_amount (no transactions)
-						"closing_amount": 0.0,  # Will be entered by user
-						"transaction_count": 0,
-						"notes": f"Initialized for shift report {shift_report.name}",
-					}
-				)
-				doc.insert(ignore_permissions=True)
-				created += 1
-			except Exception as ce:
-				log.error(f"[PAYMENT_SUMMARY] Cannot init '{method}': {str(ce)}")
-
-		log.info(f"[PAYMENT_SUMMARY] ✅ Initialized {created} record(s)")
-		return {"success": True, "message": f"Initialized {created} records", "data": {"initialized_count": created}}
-
-	except Exception as e:
-		# Fallback logger if initialization failed
-		fallback_log = get_logger("pos_payment_summary")
-		fallback_log.error(f"[PAYMENT_SUMMARY] Error initializing: {str(e)}")
-		return {"success": False, "message": f"Error initializing: {str(e)}"}

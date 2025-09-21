@@ -45,7 +45,7 @@ def create_shift_report(data):
 			"shift_report_id": data.get("shift_report_id") or f"SHIFT-{opening_shift.name}",
 			"pos_opening_shift": opening_shift.name,
 			"opening_date": opening_shift.posting_date,
-			"opening_time": opening_shift.posting_time,
+			"opening_time": frappe.utils.get_time(opening_shift.period_start_date),
 			"opened_by": opening_shift.owner,
 			"opening_amounts": data.get("opening_amounts", "{}"),
 			"status": "Open"
