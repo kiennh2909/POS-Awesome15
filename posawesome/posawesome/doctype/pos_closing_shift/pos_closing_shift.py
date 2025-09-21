@@ -92,8 +92,43 @@ class POSClosingShift(Document):
 
         log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_PAYMENT_RECONCILIATION_COMPLETED - Updated {updated_count} payment reconciliation records")
 
+    def calculate_payment_amounts(self):
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 💰 CALCULATE_PAYMENT_AMOUNTS - POS Closing Shift {self.name}")
+        try:
+            expected_amounts = {}
+            actual_amounts = {}
+            difference_amounts = {}
+
+            for payment in self.payment_reconciliation:
+                mode = payment.mode_of_payment
+                if mode:
+                    expected_amounts[mode] = flt(payment.expected_amount or 0)
+                    actual_amounts[mode] = flt(payment.closing_amount or 0)
+                    difference_amounts[mode] = flt(payment.difference or 0)
+
+            # Store as JSON strings
+            self.expected_amounts = frappe.as_json(expected_amounts) if expected_amounts else "{}"
+            self.actual_amounts = frappe.as_json(actual_amounts) if actual_amounts else "{}"
+            self.difference_amounts = frappe.as_json(difference_amounts) if difference_amounts else "{}"
+
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ CALCULATE_PAYMENT_AMOUNTS_COMPLETED - Calculated amounts for {len(actual_amounts)} payment methods")
+
+        except Exception as e:
+            # Set empty JSON objects as fallback
+            self.expected_amounts = "{}"
+            self.actual_amounts = "{}"
+            self.difference_amounts = "{}"
+
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ CALCULATE_PAYMENT_AMOUNTS_ERROR - Failed to calculate payment amounts for {self.name}: {str(e)}")
+
     def on_submit(self):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚀 ON_SUBMIT_START - POS Closing Shift {self.name} submission started")
+
+        # STEP 0: Update payment reconciliation and amounts with final closing amounts
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 ON_SUBMIT_UPDATE_RECONCILIATION - Updating payment reconciliation with final amounts")
+        self.update_payment_reconciliation()
+        self.calculate_payment_amounts()
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_AMOUNTS_UPDATED - Payment amounts updated with closing amounts")
 
         # STEP 1: Validate shift report verification status before submission
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 ON_SUBMIT_VALIDATE_VERIFICATION - Checking shift report verification status")
