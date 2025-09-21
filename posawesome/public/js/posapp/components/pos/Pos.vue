@@ -341,10 +341,53 @@ export default {
 						// Emit success event for UI refresh and cache clearing
 						this.eventBus.emit("shift_closed_success");
 
-						// Reload opening entry after a short delay
-						setTimeout(() => {
-							this.check_opening_entry();
-						}, 1000);
+						// Handle post-submit cleanup from backend response
+						console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP_START - Processing backend response data:`, r.message.data);
+
+						if (r.message.data) {
+							const responseData = r.message.data;
+							console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP_DATA - Response data keys:`, Object.keys(responseData));
+
+							// Check if backend requires logout
+							if (responseData.requires_logout) {
+								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - ✅ Backend requires logout: ${responseData.requires_logout}`);
+								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - 🔄 Starting browser cache clearing...`);
+
+								// Clear browser cache/storage
+								this.clearBrowserCache();
+
+								// Logout user after a short delay
+								setTimeout(() => {
+									console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - 🚪 Performing logout after 1.5s delay`);
+									this.performLogout();
+								}, 1500);
+							} else {
+								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - ❌ Backend does NOT require logout: ${responseData.requires_logout}`);
+							}
+
+							// Check if backend requires UI refresh
+							if (responseData.requires_ui_refresh) {
+								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - ✅ Backend requires UI refresh: ${responseData.requires_ui_refresh}`);
+
+								// Refresh page after logout delay
+								setTimeout(() => {
+									console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - 🔄 Refreshing page after 2s delay`);
+									window.location.reload();
+								}, 2000);
+							} else {
+								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - ❌ Backend does NOT require UI refresh: ${responseData.requires_ui_refresh}`);
+							}
+
+							console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP_COMPLETED - Post-submit cleanup flags processed`);
+
+						} else {
+							console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP_NO_DATA - No response data received, using fallback`);
+							// Fallback: Reload opening entry after a short delay
+							setTimeout(() => {
+								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP_FALLBACK - Reloading opening entry after 1s delay`);
+								this.check_opening_entry();
+							}, 1000);
+						}
 
 					} else {
 						// Handle API error response
@@ -377,6 +420,92 @@ export default {
 					// Always clear loading state
 					this.submitting_closing = false;
 				});
+		},
+
+		clearBrowserCache() {
+			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Clear Browser Cache Start
+			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE_START - Clearing browser cache and storage`);
+
+			try {
+				// Clear localStorage
+				localStorage.clear();
+				console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Cleared localStorage`);
+
+				// Clear sessionStorage
+				sessionStorage.clear();
+				console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Cleared sessionStorage`);
+
+				// Clear IndexedDB databases (if any POS-related)
+				if (window.indexedDB) {
+					// Clear specific POS databases
+					const dbNames = ['pos_offline_db', 'pos_cache', 'posawesome_offline'];
+					dbNames.forEach(dbName => {
+						try {
+							const deleteRequest = window.indexedDB.deleteDatabase(dbName);
+							deleteRequest.onsuccess = () => {
+								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Cleared IndexedDB: ${dbName}`);
+							};
+							deleteRequest.onerror = () => {
+								console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Failed to clear IndexedDB: ${dbName}`);
+							};
+						} catch (e) {
+							console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Error clearing IndexedDB ${dbName}:`, e);
+						}
+					});
+				}
+
+				// Clear cache storage (if supported)
+				if ('caches' in window) {
+					caches.keys().then(names => {
+						names.forEach(name => {
+							caches.delete(name);
+							console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Cleared cache: ${name}`);
+						});
+					}).catch(e => {
+						console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Error clearing caches:`, e);
+					});
+				}
+
+				console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE_COMPLETED - Browser cache cleared successfully`);
+
+			} catch (error) {
+				console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE_ERROR - Error clearing browser cache:`, error);
+			}
+		},
+
+		performLogout() {
+			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Perform Logout Start
+			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT_START - Performing user logout`);
+
+			try {
+				// Use Frappe's logout mechanism if available
+				if (window.frappe && frappe.app) {
+					console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT - Using frappe.app.logout()`);
+					frappe.app.logout();
+				} else if (window.frappe && frappe.call) {
+					// Fallback: Call logout API
+					console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT - Using frappe.call logout API`);
+					frappe.call({
+						method: "logout",
+						callback: () => {
+							console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT - Logout API called successfully`);
+						}
+					});
+				} else {
+					// Last resort: Redirect to login page
+					console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT - Redirecting to login page`);
+					window.location.href = '/login';
+				}
+
+				console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT_COMPLETED - Logout initiated successfully`);
+
+			} catch (error) {
+				console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT_ERROR - Error performing logout:`, error);
+
+				// Fallback: Force redirect to login
+				console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT_FALLBACK - Force redirect to login`);
+				window.location.href = '/login';
+			}
 		},
 		get_offers(pos_profile) {
 			// Load cached offers if available
