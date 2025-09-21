@@ -37,7 +37,7 @@
 			</v-col>
 
 			<v-col xl="7" lg="7" md="7" sm="7" cols="12" class="pos dynamic-col">
-				<Invoice></Invoice>
+				<Invoice :shiftVerificationStatus="shift_report_data.verification_status"></Invoice>
 			</v-col>
 		</v-row>
 	</div>

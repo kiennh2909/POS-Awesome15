@@ -80,6 +80,8 @@ def create_payment_summaries_for_shift(shift_report_name):
     - Khởi tạo đầy đủ MOP từ Opening Shift (nếu thiếu)
     - Upsert từng dòng summary
     - Validate tính nhất quán (tự bù thiếu, throw nếu thừa)
+
+    CHÚ Ý: Chỉ thực hiện khi shift CHƯA được verify để tránh tính đi tính lại nhiều lần
     """
     import time
     start_time = time.time()
@@ -90,6 +92,21 @@ def create_payment_summaries_for_shift(shift_report_name):
         shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
         company, pos_profile, currency = _get_company_profile_currency(shift_report)
         log.info(f"[PAYMENT_SUMMARY] ✅ STEP 1: Shift report: {shift_report.name} (ID: {shift_report.shift_report_id})")
+
+        # ✅ CHECK VERIFICATION STATUS - Skip if already verified to avoid recalculation
+        current_verification_status = getattr(shift_report, 'verification_status', 'Pending')
+        if current_verification_status in ['Verified', 'Confirmed']:
+            log.info(f"[PAYMENT_SUMMARY] ⚠️ SKIP - Shift report already verified (status: {current_verification_status}). Skipping payment summary calculation to avoid recalculation.")
+            return {
+                "success": True,
+                "message": f"Payment summaries not recalculated - shift report already verified",
+                "data": {
+                    "skipped": True,
+                    "reason": "already_verified",
+                    "verification_status": current_verification_status,
+                    "processing_time": time.time() - start_time
+                }
+            }
 
         # STEP 2. Invoices (đã Submit) - Enhanced logging
         invoices = frappe.get_all(

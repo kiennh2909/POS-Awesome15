@@ -94,7 +94,30 @@
 			<v-col cols="12">
 				<v-row dense>
 					<v-col cols="3" class="button-col pa-1">
+						<v-tooltip
+							v-if="isShiftVerified"
+							text="Cannot save - Shift report has been verified"
+							location="top"
+						>
+							<template v-slot:activator="{ props }">
+								<v-btn
+									v-bind="props"
+									block
+									color="accent"
+									theme="dark"
+									size="small"
+									prepend-icon="mdi-content-save"
+									@click="$emit('save-and-clear')"
+									class="summary-btn"
+									title="Ctrl+<u>S</u> - Save and Clear"
+									:disabled="isShiftVerified"
+								>
+									{{ __("SAVE") }}
+								</v-btn>
+							</template>
+						</v-tooltip>
 						<v-btn
+							v-else
 							block
 							color="accent"
 							theme="dark"
@@ -108,7 +131,30 @@
 						</v-btn>
 					</v-col>
 					<v-col cols="3" class="button-col pa-1">
+						<v-tooltip
+							v-if="isShiftVerified"
+							text="Cannot load drafts - Shift report has been verified"
+							location="top"
+						>
+							<template v-slot:activator="{ props }">
+								<v-btn
+									v-bind="props"
+									block
+									color="warning"
+									theme="dark"
+									size="small"
+									prepend-icon="mdi-file-document"
+									@click="$emit('load-drafts')"
+									class="white-text-btn summary-btn"
+									title="Ctrl+<u>L</u> - Load Drafts"
+									:disabled="isShiftVerified"
+								>
+									{{ __("LOAD") }}
+								</v-btn>
+							</template>
+						</v-tooltip>
 						<v-btn
+							v-else
 							block
 							color="warning"
 							theme="dark"
@@ -122,7 +168,30 @@
 						</v-btn>
 					</v-col>
 					<v-col cols="3" class="button-col pa-1">
+						<v-tooltip
+							v-if="isShiftVerified"
+							text="Cannot cancel sale - Shift report has been verified"
+							location="top"
+						>
+							<template v-slot:activator="{ props }">
+								<v-btn
+									v-bind="props"
+									block
+									color="error"
+									theme="dark"
+									size="small"
+									prepend-icon="mdi-close-circle"
+									@click="$emit('cancel-sale')"
+									class="summary-btn"
+									title="Ctrl+<u>C</u> - Cancel Sale"
+									:disabled="isShiftVerified"
+								>
+									{{ __("CANCEL") }}
+								</v-btn>
+							</template>
+						</v-tooltip>
 						<v-btn
+							v-else
 							block
 							color="error"
 							theme="dark"
@@ -158,7 +227,30 @@
 			<v-col cols="12">
 				<v-row dense>
 					<v-col cols="3" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col pa-1">
+						<v-tooltip
+							v-if="isShiftVerified"
+							text="Cannot print draft - Shift report has been verified"
+							location="top"
+						>
+							<template v-slot:activator="{ props }">
+								<v-btn
+									v-bind="props"
+									block
+									color="primary"
+									theme="dark"
+									size="small"
+									prepend-icon="mdi-file-document-outline"
+									@click="$emit('print-draft')"
+									class="summary-btn"
+									title="Ctrl+<u>D</u> - Draft Invoice"
+									:disabled="isShiftVerified"
+								>
+									{{ __("DRAFT") }}
+								</v-btn>
+							</template>
+						</v-tooltip>
 						<v-btn
+							v-else
 							block
 							color="primary"
 							theme="dark"
@@ -172,7 +264,30 @@
 						</v-btn>
 					</v-col>
 					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? 3 : 4" class="button-col pa-1">
+						<v-tooltip
+							v-if="isShiftVerified"
+							text="Cannot process payment - Shift report has been verified"
+							location="top"
+						>
+							<template v-slot:activator="{ props }">
+								<v-btn
+									v-bind="props"
+									block
+									color="success"
+									theme="dark"
+									size="small"
+									prepend-icon="mdi-credit-card"
+									@click="$emit('show-payment')"
+									class="summary-btn pay-btn"
+									title="Ctrl+<u>P</u> - Payment"
+									:disabled="isShiftVerified"
+								>
+									{{ __("PAY") }}
+								</v-btn>
+							</template>
+						</v-tooltip>
 						<v-btn
+							v-else
 							block
 							color="success"
 							theme="dark"

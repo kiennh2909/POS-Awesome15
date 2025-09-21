@@ -851,12 +851,16 @@ def get_shift_report_with_payment_summary(shift_report_id):
 		shift_report_data = get_shift_report(shift_report_id)
 		log.info(f"[SHIFT_REPORT_API] ✅ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Got shift report: {shift_report_data.get('name', 'Unknown')}")
 
-		# 2. Try to create/update payment summaries
+		# 2. Try to create/update payment summaries (only if not already verified)
 		try:
 			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import create_payment_summaries_for_shift
 			log.info(f"[SHIFT_REPORT_API] 💰 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Creating payment summaries for: {shift_report_data['name']}")
 			payment_result = create_payment_summaries_for_shift(shift_report_data["name"])
 			log.info(f"[SHIFT_REPORT_API] 📊 GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Payment summary creation result: {payment_result}")
+
+			# Check if payment summaries were skipped due to verification
+			if payment_result.get("data", {}).get("skipped"):
+				log.info(f"[SHIFT_REPORT_API] ⚠️ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Payment summaries skipped (already verified), will use existing data")
 		except ImportError as ie:
 			log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Cannot import create_payment_summaries_for_shift: {str(ie)}")
 			shift_report_data["payment_summaries"] = []
@@ -866,7 +870,7 @@ def get_shift_report_with_payment_summary(shift_report_id):
 			shift_report_data["payment_summaries"] = []
 			return shift_report_data
 
-		# 3. Check if payment summary creation was successful
+		# 3. Check if payment summary creation was successful or skipped
 		if not payment_result.get("success"):
 			log.error(f"[SHIFT_REPORT_API] ❌ GET_SHIFT_REPORT_WITH_PAYMENT_SUMMARY - Payment summary creation failed: {payment_result.get('message')}")
 			shift_report_data["payment_summaries"] = []
