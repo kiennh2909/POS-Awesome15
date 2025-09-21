@@ -85,7 +85,7 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 		company, pos_profile, currency = _get_company_profile_currency(shift_report)
 
 		# Initialize logger with POS Profile name
-		
+		log = get_logger("shift_report")
 
 		log.info(f"[PAYMENT_SUMMARY] Init summaries for: {shift_report_name}")
 
