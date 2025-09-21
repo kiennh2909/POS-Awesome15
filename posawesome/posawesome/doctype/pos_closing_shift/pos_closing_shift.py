@@ -72,6 +72,10 @@ class POSClosingShift(Document):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 VALIDATE_UPDATE_RECONCILIATION - Updating payment reconciliation")
         self.update_payment_reconciliation()
 
+        # Ensure JSON fields have valid values
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 VALIDATE_ENSURE_JSON_FIELDS - Ensuring JSON fields have valid values")
+        self.ensure_json_fields_valid()
+
         log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE_COMPLETED - POS Closing Shift {self.name} validation completed successfully")
 
     def update_payment_reconciliation(self):
@@ -91,6 +95,27 @@ class POSClosingShift(Document):
             updated_count += 1
 
         log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_PAYMENT_RECONCILIATION_COMPLETED - Updated {updated_count} payment reconciliation records")
+
+    def ensure_json_fields_valid(self):
+        """Ensure JSON fields have valid values to prevent Frappe validation errors"""
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔧 ENSURE_JSON_FIELDS_VALID - Ensuring JSON fields are valid")
+
+        # Ensure expected_amounts is valid JSON
+        if not self.expected_amounts or self.expected_amounts == "":
+            self.expected_amounts = "{}"
+            log.debug(f"[SHIFT_CLOSE_WORKFLOW] ✅ ENSURE_JSON_FIELDS_VALID - Set expected_amounts to empty JSON")
+
+        # Ensure actual_amounts is valid JSON
+        if not self.actual_amounts or self.actual_amounts == "":
+            self.actual_amounts = "{}"
+            log.debug(f"[SHIFT_CLOSE_WORKFLOW] ✅ ENSURE_JSON_FIELDS_VALID - Set actual_amounts to empty JSON")
+
+        # Ensure difference_amounts is valid JSON
+        if not self.difference_amounts or self.difference_amounts == "":
+            self.difference_amounts = "{}"
+            log.debug(f"[SHIFT_CLOSE_WORKFLOW] ✅ ENSURE_JSON_FIELDS_VALID - Set difference_amounts to empty JSON")
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ENSURE_JSON_FIELDS_VALID_COMPLETED - All JSON fields are valid")
 
     def calculate_payment_amounts(self):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 💰 CALCULATE_PAYMENT_AMOUNTS - POS Closing Shift {self.name}")
@@ -128,6 +153,7 @@ class POSClosingShift(Document):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 ON_SUBMIT_UPDATE_RECONCILIATION - Updating payment reconciliation with final amounts")
         self.update_payment_reconciliation()
         self.calculate_payment_amounts()
+        self.ensure_json_fields_valid()  # Ensure JSON fields are valid before submit
         log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_AMOUNTS_UPDATED - Payment amounts updated with closing amounts")
 
         # STEP 1: Validate shift report verification status before submission
