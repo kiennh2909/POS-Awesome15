@@ -462,11 +462,54 @@ export default {
 		try {
 			console.log("Loading invoices for shift:", this.shiftReportId);
 
+			// ✅ DETERMINE THE CORRECT SHIFT REPORT ID
+			let actualShiftReportId = this.shiftReportId;
+
+			// If shiftReportId is an object (POS Opening Shift), find the associated shift report
+			if (typeof this.shiftReportId === 'object' && this.shiftReportId !== null) {
+				console.log("[LOAD_INVOICES] 📋 shiftReportId is an object, extracting shift report ID...");
+
+				if (this.shiftReportId.doctype === "POS Opening Shift") {
+					try {
+						const shiftReports = await frappe.call({
+							method: "frappe.client.get_list",
+							args: {
+								doctype: "POS Shift Report",
+								filters: {
+									pos_opening_shift: this.shiftReportId.name
+								},
+								fields: ["name", "shift_report_id"],
+								limit: 1
+							}
+						});
+
+						if (shiftReports.message && shiftReports.message.length > 0) {
+							const shiftReport = shiftReports.message[0];
+							actualShiftReportId = shiftReport.name; // Use the actual name
+							console.log("[LOAD_INVOICES] ✅ Found associated shift report:", actualShiftReportId);
+						} else {
+							console.error("[LOAD_INVOICES] ❌ No shift report found for opening shift:", this.shiftReportId.name);
+							this.showError("No shift report found for this opening shift. Please create a shift report first.");
+							return;
+						}
+					} catch (error) {
+						console.error("[LOAD_INVOICES] ❌ Error finding shift report:", error);
+						this.showError("Error finding shift report for this opening shift.");
+						return;
+					}
+				} else if (this.shiftReportId.doctype === "POS Shift Report") {
+					actualShiftReportId = this.shiftReportId.name;
+					console.log("[LOAD_INVOICES] ✅ Using shift report name directly:", actualShiftReportId);
+				}
+			}
+
+			console.log("[LOAD_INVOICES] Using shift report ID:", actualShiftReportId);
+
 			// ✅ REAL API CALL - Sử dụng API mới với payment summary
 			const response = await frappe.call({
 				method: "posawesome.posawesome.api.shift_reports.get_shift_report_with_payment_summary",
 				args: {
-					shift_report_id: this.shiftReportId
+					shift_report_id: actualShiftReportId
 				}
 			});
 
@@ -504,7 +547,7 @@ export default {
 
 				this.totalInvoices = this.invoices.length;
 
-				console.log(`Loaded ${this.invoices.length} invoices for shift ${this.shiftReportId}`);
+				console.log(`Loaded ${this.invoices.length} invoices for shift ${actualShiftReportId}`);
 				console.log("Summary:", this.summary);
 
 				// ✅ LOAD PAYMENT SUMMARY FROM NEW API RESPONSE
@@ -577,18 +620,37 @@ export default {
 				if (this.shiftReportId.doctype === "POS Opening Shift") {
 					console.log("[SHIFT_REPORT] ⚠️  Received POS Opening Shift object, need to get associated shift report");
 
-					// Try to get shift report from opening shift
-					if (this.shiftReportId.shift_report) {
-						console.log("[SHIFT_REPORT] ✅ Opening shift has shift_report:", this.shiftReportId.shift_report);
-						actualShiftReportId = this.shiftReportId.shift_report;
-					} else {
-						console.error("[SHIFT_REPORT] ❌ Opening shift has no associated shift report");
-						console.error("[SHIFT_REPORT] Opening shift details:", {
-							name: this.shiftReportId.name,
-							status: this.shiftReportId.status,
-							user: this.shiftReportId.user
+					// Find shift report by pos_opening_shift field
+					try {
+						const shiftReports = await frappe.call({
+							method: "frappe.client.get_list",
+							args: {
+								doctype: "POS Shift Report",
+								filters: {
+									pos_opening_shift: this.shiftReportId.name
+								},
+								fields: ["name", "shift_report_id"],
+								limit: 1
+							}
 						});
-						this.showError("No shift report found for this opening shift. Please create a shift report first.");
+
+						if (shiftReports.message && shiftReports.message.length > 0) {
+							const shiftReport = shiftReports.message[0];
+							console.log("[SHIFT_REPORT] ✅ Found associated shift report:", shiftReport.name, "ID:", shiftReport.shift_report_id);
+							actualShiftReportId = shiftReport.name; // Use the actual name, not shift_report_id
+						} else {
+							console.error("[SHIFT_REPORT] ❌ No shift report found for opening shift:", this.shiftReportId.name);
+							console.error("[SHIFT_REPORT] Opening shift details:", {
+								name: this.shiftReportId.name,
+								status: this.shiftReportId.status,
+								user: this.shiftReportId.user
+							});
+							this.showError("No shift report found for this opening shift. Please create a shift report first.");
+							return;
+						}
+					} catch (error) {
+						console.error("[SHIFT_REPORT] ❌ Error finding shift report for opening shift:", error);
+						this.showError("Error finding shift report for this opening shift.");
 						return;
 					}
 				}
@@ -648,8 +710,6 @@ export default {
 			}
 
 			console.log("[SHIFT_REPORT] ✅ Final shiftReportId to use:", actualShiftReportId);
-			console.log("[SHIFT_REPORT] 📊 Original object had shift_report:", this.shiftReportId.shift_report);
-			console.log("[SHIFT_REPORT] 📊 Original object had shift_report_id:", this.shiftReportId.shift_report_id);
 
 			console.log("[SHIFT_REPORT] Using custom API with ID:", actualShiftReportId);
 			const shiftReportResponse = await frappe.call({
