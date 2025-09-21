@@ -319,6 +319,60 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 		return None
 
 
+@frappe.whitelist()
+def get_payment_summaries_for_shift(shift_report_name):
+	"""
+	Lấy danh sách POS Payment Summary cho một shift report.
+
+	Args:
+		shift_report_name (str): Tên của POS Shift Report
+
+	Returns:
+		dict: Danh sách payment summaries
+	"""
+	try:
+		log.info(f"[GET_PAYMENT_SUMMARIES] 📊 Getting payment summaries for shift: {shift_report_name}")
+
+		# Kiểm tra shift report tồn tại
+		if not frappe.db.exists("POS Shift Report", shift_report_name):
+			log.error(f"[GET_PAYMENT_SUMMARIES] ❌ Shift report not found: {shift_report_name}")
+			return {
+				"success": False,
+				"message": "Shift report not found"
+			}
+
+		# Lấy tất cả payment summaries cho shift report này
+		payment_summaries = frappe.get_all("POS Payment Summary",
+			filters={"pos_shift_report": shift_report_name},
+			fields=[
+				"payment_method", "opening_amount", "transaction_amount",
+				"expected_closing_amount", "closing_amount", "difference",
+				"transaction_count", "sales_amount", "returns_amount",
+				"currency", "company", "pos_profile"
+			],
+			order_by="payment_method"
+		)
+
+		log.info(f"[GET_PAYMENT_SUMMARIES] ✅ Found {len(payment_summaries)} payment summaries for shift: {shift_report_name}")
+
+		# Log chi tiết từng payment method
+		for summary in payment_summaries:
+			log.debug(f"[GET_PAYMENT_SUMMARIES] {summary.payment_method}: Opening={summary.opening_amount}, Transactions={summary.transaction_amount}, Expected={summary.expected_closing_amount}, Actual={summary.closing_amount}, Diff={summary.difference}")
+
+		return {
+			"success": True,
+			"message": f"Found {len(payment_summaries)} payment summaries",
+			"data": payment_summaries
+		}
+
+	except Exception as e:
+		log.error(f"[GET_PAYMENT_SUMMARIES] 💥 Error getting payment summaries for shift {shift_report_name}: {str(e)}")
+		return {
+			"success": False,
+			"message": str(e)
+		}
+
+
 def get_valid_payment_methods_for_shift(shift_report):
 	"""Đọc danh sách Mode of Payment từ POS Opening Shift (balance_details)."""
 	try:
