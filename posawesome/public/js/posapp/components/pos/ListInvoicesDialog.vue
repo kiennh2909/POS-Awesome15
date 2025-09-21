@@ -49,7 +49,7 @@
 							</v-chip>
 						</div>
 
-						<div class="d-flex gap-2">
+						<div class="d-flex action-buttons-group">
 							<!-- Verify Button -->
 							<v-tooltip
 								v-if="isVerifiedOrConfirmed"
@@ -63,7 +63,7 @@
 										prepend-icon="mdi-check-circle-outline"
 										:disabled="isVerifiedOrConfirmed"
 										@click="verifyShiftReport"
-										size="small"
+										class="action-btn"
 									>
 										{{ __("Verify") }}
 									</v-btn>
@@ -76,7 +76,7 @@
 								prepend-icon="mdi-check-circle-outline"
 								:loading="verifying"
 								@click="verifyShiftReport"
-								size="small"
+								class="action-btn"
 							>
 								{{ __("Verify") }}
 							</v-btn>
@@ -86,7 +86,7 @@
 								variant="outlined"
 								prepend-icon="mdi-printer"
 								@click="printReport"
-								size="small"
+								class="action-btn"
 							>
 								{{ __("Print") }}
 							</v-btn>
@@ -95,14 +95,14 @@
 								variant="flat"
 								prepend-icon="mdi-download"
 								@click="exportData"
-								size="small"
+								class="action-btn"
 							>
 								{{ __("Export") }}
 							</v-btn>
 							<v-btn
 								variant="text"
 								@click="close"
-								size="small"
+								class="action-btn"
 							>
 								{{ __("Close") }}
 							</v-btn>
@@ -1649,6 +1649,18 @@ export default {
 	padding: 2px 6px;
 	border-radius: 4px;
 	border: 1px solid rgba(var(--v-theme-primary), 0.2);
+}
+
+/* Action Buttons Styling */
+.action-buttons-group {
+	gap: 5px;
+}
+
+.action-btn {
+	min-height: 44px !important;
+	padding: 0 16px !important;
+	font-size: 0.9rem !important;
+	font-weight: 500 !important;
 }
 
 /* Responsive adjustments */
