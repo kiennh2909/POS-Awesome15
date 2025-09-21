@@ -651,8 +651,9 @@ def make_closing_shift_from_opening(opening_shift):
                 if not cash_mode_of_payment:
                     cash_mode_of_payment = "Cash"
                 if existing_pay[0].mode_of_payment == cash_mode_of_payment:
-                    amount = p.amount - d.change_amount
-                    log.debug(f"[SHIFT_CLOSE_WORKFLOW] 💵 MAKE_CLOSING_SHIFT_CASH_ADJUST - Cash payment adjusted: {p.amount} - {d.change_amount} = {amount}")
+                    change_amount = flt(d.get("change_amount", 0))
+                    amount = p.amount - change_amount
+                    log.debug(f"[SHIFT_CLOSE_WORKFLOW] 💵 MAKE_CLOSING_SHIFT_CASH_ADJUST - Cash payment adjusted: {p.amount} - {change_amount} = {amount}")
                 else:
                     amount = p.amount
                 existing_pay[0].expected_amount += flt(amount)
