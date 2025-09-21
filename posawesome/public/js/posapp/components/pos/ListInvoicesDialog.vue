@@ -145,20 +145,22 @@
 						<template #item.expected_closing_amount="{ item }">
 							<span class="currency-amount">{{ formatCurrency(item.expected_closing_amount || 0) }}</span>
 						</template>
-					</v-data-table>
 
-					<!-- Total Row -->
-					<v-divider class="my-3"></v-divider>
-					<div class="total-row d-flex justify-space-between align-center">
-						<span class="font-weight-bold">{{ __("TOTAL") }}</span>
-						<div class="d-flex gap-6 align-center">
-							<span class="font-weight-bold currency-amount">{{ formatCurrency(totalOpeningAmount) }}</span>
-							<span class="font-weight-bold text-success currency-amount">{{ formatCurrency(totalSalesAmount) }}</span>
-							<span class="font-weight-bold text-error currency-amount">{{ formatCurrency(totalReturnsAmount) }}</span>
-							<span class="font-weight-bold text-success currency-amount">{{ formatCurrency(totalTransactionAmount) }}</span>
-							<span class="font-weight-bold currency-amount">{{ formatCurrency(totalExpectedClosingAmount) }}</span>
-						</div>
-					</div>
+						<!-- Total Row at the bottom of the table -->
+						<template #bottom>
+							<v-divider></v-divider>
+							<tr class="table-total-row">
+								<td class="font-weight-bold text-primary">{{ __("TOTAL") }}</td>
+								<td class="font-weight-bold currency-amount text-center">{{ formatCurrency(totalOpeningAmount) }}</td>
+								<td class="font-weight-bold currency-amount text-success text-center">{{ formatCurrency(totalSalesAmount) }}</td>
+								<td class="font-weight-bold currency-amount text-error text-center">{{ formatCurrency(totalReturnsAmount) }}</td>
+								<td class="font-weight-bold currency-amount text-center" :class="totalTransactionAmount >= 0 ? 'text-success' : 'text-error'">
+									{{ formatCurrency(totalTransactionAmount) }}
+								</td>
+								<td class="font-weight-bold currency-amount text-center">{{ formatCurrency(totalExpectedClosingAmount) }}</td>
+							</tr>
+						</template>
+					</v-data-table>
 				</div>
 
 				<v-divider></v-divider>
@@ -1578,15 +1580,6 @@ export default {
 	font-size: 0.85rem;
 }
 
-/* Total Row Styles */
-.total-row {
-	background: linear-gradient(135deg, rgb(var(--v-theme-primary)) 0%, rgb(var(--v-theme-primary-variant)) 100%);
-	color: rgb(var(--v-theme-on-primary));
-	font-weight: 600;
-	border-radius: 8px;
-	margin: 8px 0;
-	padding: 12px 16px;
-}
 
 /* Responsive Design for 13-inch screens */
 @media (max-width: 1366px) {
@@ -1681,6 +1674,26 @@ export default {
 	letter-spacing: 0.5px;
 }
 
+/* Table Total Row Styling */
+.table-total-row {
+	background: linear-gradient(135deg, rgb(var(--v-theme-primary)) 0%, rgb(var(--v-theme-primary-variant)) 100%);
+	color: rgb(var(--v-theme-on-primary));
+	border-top: 2px solid rgb(var(--v-theme-primary-variant));
+}
+
+.table-total-row td {
+	padding: 12px 16px !important;
+	border-bottom: none !important;
+	font-size: 0.9rem !important;
+	font-weight: 600 !important;
+	text-align: center;
+}
+
+.table-total-row td:first-child {
+	text-align: left;
+	font-size: 0.95rem !important;
+}
+
 /* Loading states */
 .loading-overlay {
 	position: absolute;
@@ -1716,8 +1729,9 @@ export default {
 }
 
 /* Dark theme adjustments */
-:deep(.dark-theme) .total-row,
-:deep(.v-theme--dark) .total-row {
+
+:deep(.dark-theme) .table-total-row,
+:deep(.v-theme--dark) .table-total-row {
 	background: linear-gradient(135deg, rgb(var(--v-theme-primary)) 0%, rgb(var(--v-theme-primary-variant)) 100%);
 }
 
