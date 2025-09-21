@@ -137,6 +137,8 @@ def initialize_payment_summaries_for_shift(shift_report_name):
 						"expected_closing_amount": opening_amount,  # Initially = opening_amount (no transactions)
 						"closing_amount": 0.0,  # Will be entered by user
 						"transaction_count": 0,
+						"sales_amount": 0.0,  # Initialize sales_amount
+						"returns_amount": 0.0,  # Initialize returns_amount
 						"notes": f"Initialized for shift report {shift_report.name}",
 					}
 				)
@@ -516,6 +518,8 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 			doc.transaction_count = data["transaction_count"]
 			doc.transaction_amount = transaction_amount
 			doc.expected_closing_amount = expected_closing_amount  # Calculated: Opening + Transaction
+			doc.sales_amount = data["sales_amount"]  # Add sales_amount
+			doc.returns_amount = data["returns_amount"]  # Add returns_amount
 			# closing_amount remains as user input (don't overwrite)
 			doc.difference = flt(doc.closing_amount - expected_closing_amount, 2)
 			doc.save()
@@ -542,6 +546,8 @@ def _create_or_update_payment_summary(shift_report, method, data, opening_amount
 					"transaction_amount": transaction_amount,
 					"expected_closing_amount": expected_closing_amount,  # Calculated: Opening + Transaction
 					"closing_amount": closing_amount,  # Actual: From database or user input
+					"sales_amount": data["sales_amount"],  # Add sales_amount
+					"returns_amount": data["returns_amount"],  # Add returns_amount
 					"notes": f"Auto-generated from shift report {shift_report.name}",
 				}
 			)
