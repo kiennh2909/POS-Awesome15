@@ -16,6 +16,10 @@ log = get_logger("shift_close")
 
 class POSClosingShift(Document):
     def validate(self):
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 VALIDATE_START - POS Closing Shift {self.name}, User: {self.user}, Opening Shift: {self.pos_opening_shift}")
+
+        # Check for existing submitted closing shifts
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 VALIDATE_CHECK_EXISTING - Checking for existing closing shifts for user {self.user} and opening shift {self.pos_opening_shift}")
         user = frappe.get_all(
             "POS Closing Shift",
             filters={
@@ -27,6 +31,7 @@ class POSClosingShift(Document):
         )
 
         if user:
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ VALIDATE_DUPLICATE_FOUND - Found {len(user)} existing submitted closing shift(s) for user {self.user}")
             frappe.throw(
                 _(
                     "POS Closing Shift {} against {} between selected period".format(
@@ -36,94 +41,162 @@ class POSClosingShift(Document):
                 title=_("Invalid Period"),
             )
 
-        if frappe.db.get_value("POS Opening Shift", self.pos_opening_shift, "status") != "Open":
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE_NO_DUPLICATE - No duplicate closing shifts found")
+
+        # Check opening shift status
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 VALIDATE_CHECK_OPENING_STATUS - Checking status of opening shift {self.pos_opening_shift}")
+        opening_status = frappe.db.get_value("POS Opening Shift", self.pos_opening_shift, "status")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 VALIDATE_OPENING_STATUS - Opening shift status: {opening_status}")
+
+        if opening_status != "Open":
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ VALIDATE_INVALID_OPENING - Opening shift {self.pos_opening_shift} is not open (status: {opening_status})")
             frappe.throw(
                 _("Selected POS Opening Shift should be open."),
                 title=_("Invalid Opening Entry"),
             )
 
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE_OPENING_VALID - Opening shift is valid and open")
+
         # Set shift_report field if not provided
         if not self.shift_report and self.pos_opening_shift:
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 VALIDATE_FIND_SHIFT_REPORT - Finding shift report for opening shift {self.pos_opening_shift}")
             shift_report = frappe.db.get_value("POS Shift Report", {"pos_opening_shift": self.pos_opening_shift}, "name")
+
             if shift_report:
                 self.shift_report = shift_report
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE_SHIFT_REPORT_FOUND - Found shift report: {shift_report}")
             else:
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ VALIDATE_NO_SHIFT_REPORT - No shift report found for opening shift {self.pos_opening_shift}")
                 frappe.throw(_("No shift report found for this opening shift. Please ensure shift report is created before closing shift."))
 
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 VALIDATE_UPDATE_RECONCILIATION - Updating payment reconciliation")
         self.update_payment_reconciliation()
 
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE_COMPLETED - POS Closing Shift {self.name} validation completed successfully")
+
     def update_payment_reconciliation(self):
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 💰 UPDATE_PAYMENT_RECONCILIATION_START - POS Closing Shift {self.name}")
         # update the difference values in Payment Reconciliation child table
         precision = frappe.get_cached_value("System Settings", None, "currency_precision") or 3
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 UPDATE_PAYMENT_RECONCILIATION_PRECISION - Using currency precision: {precision}")
+
+        updated_count = 0
         for d in self.payment_reconciliation:
-            d.difference = flt(d.closing_amount, precision) - flt(d.expected_amount, precision)
+            expected = flt(d.expected_amount, precision)
+            closing = flt(d.closing_amount, precision)
+            difference = closing - expected
+            d.difference = difference
+
+            log.debug(f"[SHIFT_CLOSE_WORKFLOW] 🔢 UPDATE_PAYMENT_RECONCILIATION_CALC - {d.mode_of_payment}: Expected={expected}, Closing={closing}, Difference={difference}")
+            updated_count += 1
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_PAYMENT_RECONCILIATION_COMPLETED - Updated {updated_count} payment reconciliation records")
 
     def on_submit(self):
-        # Validate shift report verification status before submission
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚀 ON_SUBMIT_START - POS Closing Shift {self.name} submission started")
+
+        # STEP 1: Validate shift report verification status before submission
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 ON_SUBMIT_VALIDATE_VERIFICATION - Checking shift report verification status")
         if self.shift_report:
             shift_report_status = frappe.db.get_value("POS Shift Report", self.shift_report, "verification_status")
-            if shift_report_status not in ["Verified", "Confirmed"]:
-                frappe.throw(_("Shift must be verified before closing. Please verify the shift report first."))
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 ON_SUBMIT_VERIFICATION_STATUS - Shift report {self.shift_report} status: {shift_report_status}")
 
+            if shift_report_status not in ["Verified", "Confirmed"]:
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ ON_SUBMIT_VERIFICATION_FAILED - Shift report not verified (status: {shift_report_status})")
+                frappe.throw(_("Shift must be verified before closing. Please verify the shift report first."))
+        else:
+            log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ ON_SUBMIT_NO_SHIFT_REPORT - No shift report linked to closing shift {self.name}")
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_VERIFICATION_PASSED - Verification check passed")
+
+        # STEP 2: Update opening shift reference
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 ON_SUBMIT_UPDATE_OPENING_SHIFT - Updating opening shift {self.pos_opening_shift}")
         opening_entry = frappe.get_doc("POS Opening Shift", self.pos_opening_shift)
         opening_entry.pos_closing_shift = self.name
         opening_entry.set_status()
         opening_entry.save()
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_OPENING_SHIFT_UPDATED - Opening shift updated successfully")
 
+        # STEP 3: Delete draft invoices
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🗑️ ON_SUBMIT_DELETE_DRAFT_INVOICES - Deleting draft invoices")
         self.delete_draft_invoices()
 
-        # Update shift report and payment summaries
+        # STEP 4: Update shift report and payment summaries
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 ON_SUBMIT_UPDATE_SHIFT_REPORT - Updating shift report and payment summaries")
         self.update_shift_report_and_summaries()
 
-        # link invoices with this closing shift so ERPNext can block edits
+        # STEP 5: Link invoices with this closing shift so ERPNext can block edits
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔗 ON_SUBMIT_SET_CLOSING_ENTRY - Setting closing entry on invoices")
         self._set_closing_entry_invoices()
 
         # POS Invoice consolidation removed - only use Sales Invoice
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_COMPLETED - POS Closing Shift {self.name} submitted successfully")
 
     def update_shift_report_and_summaries(self):
         """Update POS Shift Report and Payment Summaries with closing data"""
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 UPDATE_SHIFT_REPORT_START - POS Closing Shift {self.name}")
+
         if not self.shift_report:
+            log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_SKIP - No shift report linked to closing shift {self.name}")
             return
 
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 UPDATE_SHIFT_REPORT_LOAD - Loading shift report {self.shift_report}")
         shift_report = frappe.get_doc("POS Shift Report", self.shift_report)
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_LOADED - Shift report loaded successfully")
 
         # Get payment summaries
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 UPDATE_SHIFT_REPORT_GET_SUMMARIES - Getting payment summaries for shift report")
         from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import get_payment_summaries_for_shift
         summaries_result = get_payment_summaries_for_shift(shift_report.name)
 
         if not summaries_result.get("success") or not summaries_result.get("data"):
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_NO_SUMMARIES - No payment summaries found for shift report {shift_report.name}")
             frappe.throw(_("No payment summaries found. Shift must be verified with payment summaries before closing."))
 
         summaries = summaries_result["data"]
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_SUMMARIES_FOUND - Found {len(summaries)} payment summaries")
 
         # Update closing amounts in payment summaries
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 UPDATE_SHIFT_REPORT_UPDATE_SUMMARIES - Updating closing amounts in payment summaries")
         closing_amounts_map = {}
         for payment in self.payment_reconciliation:
             method = payment.get("mode_of_payment")
             closing_amount = flt(payment.get("closing_amount", 0))
             if method:
                 closing_amounts_map[method] = closing_amount
+                log.debug(f"[SHIFT_CLOSE_WORKFLOW] 💰 UPDATE_SHIFT_REPORT_CLOSING_MAP - {method}: {closing_amount}")
 
+        updated_summaries_count = 0
         for summary in summaries:
             method = summary.get("payment_method")
             if method and method in closing_amounts_map:
                 closing_amount = closing_amounts_map[method]
+                expected_amount = flt(summary.get("expected_closing_amount", 0))
+                difference = expected_amount - closing_amount
+
                 frappe.db.set_value("POS Payment Summary",
                     {"shift_report_id": self.shift_report, "payment_method": method},
                     {
                         "closing_amount": closing_amount,
-                        "difference": flt(summary.get("expected_closing_amount", 0)) - closing_amount,
+                        "difference": difference,
                         "shift_end_time": self.period_end_date
                     }
                 )
+                updated_summaries_count += 1
+                log.debug(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_SUMMARY_UPDATED - {method}: closing={closing_amount}, expected={expected_amount}, diff={difference}")
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_SUMMARIES_UPDATED - Updated {updated_summaries_count} payment summaries")
 
         # Update shift report
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📈 UPDATE_SHIFT_REPORT_CALCULATE_TOTALS - Calculating totals")
         total_actual_closing = sum(flt(s.get("closing_amount", 0)) for s in summaries)
 
         # Get existing expected amounts from shift report (already calculated during verification)
         existing_expected = _parse_json_safe(shift_report.expected_closing_amounts or "{}")
         total_expected_closing = sum(existing_expected.values())
         difference = total_actual_closing - total_expected_closing
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 💵 UPDATE_SHIFT_REPORT_TOTALS_CALCULATED - Actual: {total_actual_closing}, Expected: {total_expected_closing}, Difference: {difference}")
 
         shift_report.closing_date = self.period_end_date
         shift_report.closed_by = self.user
@@ -139,43 +212,74 @@ class POSClosingShift(Document):
                 actual_closing_amounts[method] = flt(summary.get("closing_amount", 0))
 
         shift_report.actual_closing_amounts = frappe.as_json(actual_closing_amounts)
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 UPDATE_SHIFT_REPORT_DATA_SET - Shift report data updated")
 
         try:
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 💾 UPDATE_SHIFT_REPORT_SAVING - Saving shift report {shift_report.name}")
             shift_report.save(ignore_permissions=True)
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_SAVED - Shift report saved successfully")
         except frappe.ValidationError as ve:
             if "Status cannot be" in str(ve) and "Paid" in str(ve):
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ UPDATE_SHIFT_REPORT_VALIDATION_BYPASS - Validation error detected, bypassing: {str(ve)}")
                 shift_report.flags.ignore_validate = True
                 shift_report.save(ignore_permissions=True)
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_SAVED_BYPASS - Shift report saved with validation bypass")
             else:
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ UPDATE_SHIFT_REPORT_VALIDATION_ERROR - Validation error: {str(ve)}")
                 raise
 
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ UPDATE_SHIFT_REPORT_COMPLETED - Shift report and payment summaries updated successfully")
+
     def on_cancel(self):
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚫 ON_CANCEL_START - POS Closing Shift {self.name} cancellation started")
+
         if frappe.db.exists("POS Opening Shift", self.pos_opening_shift):
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 ON_CANCEL_UPDATE_OPENING - Updating opening shift {self.pos_opening_shift}")
             opening_entry = frappe.get_doc("POS Opening Shift", self.pos_opening_shift)
             if opening_entry.pos_closing_shift == self.name:
                 opening_entry.pos_closing_shift = ""
                 opening_entry.set_status()
                 opening_entry.save()
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_CANCEL_OPENING_UPDATED - Opening shift updated successfully")
+            else:
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ ON_CANCEL_OPENING_NOT_LINKED - Opening shift {self.pos_opening_shift} is not linked to this closing shift")
+        else:
+            log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ ON_CANCEL_OPENING_NOT_FOUND - Opening shift {self.pos_opening_shift} not found")
 
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🧹 ON_CANCEL_CLEAR_INVOICES - Clearing closing entry from invoices")
         self._clear_closing_entry_invoices()
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_CANCEL_COMPLETED - POS Closing Shift {self.name} cancelled successfully")
 
     def _clear_closing_entry_invoices(self):
         """Clear closing shift links, cancel merge logs and cancel consolidated sales invoices."""
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🧹 CLEAR_CLOSING_ENTRY_START - POS Closing Shift {self.name}")
+
         sales_invoices = set()
+        processed_count = 0
+        pos_invoice_count = 0
+        sales_invoice_count = 0
+
         for d in self.pos_transactions:
             pos_invoice = d.get("pos_invoice")
             sales_invoice = d.get("sales_invoice")
+
             if pos_invoice:
+                pos_invoice_count += 1
+                log.debug(f"[SHIFT_CLOSE_WORKFLOW] 🔄 CLEAR_CLOSING_ENTRY_PROCESS_POS - Processing POS Invoice {pos_invoice}")
+
                 if frappe.db.has_column("POS Invoice", "pos_closing_entry"):
                     frappe.db.set_value("POS Invoice", pos_invoice, "pos_closing_entry", None)
+                    log.debug(f"[SHIFT_CLOSE_WORKFLOW] ✅ CLEAR_CLOSING_ENTRY_CLEARED_POS - Cleared closing entry from POS Invoice {pos_invoice}")
 
                 merge_logs = frappe.get_all(
                     "POS Invoice Merge Log",
                     filters={"pos_invoice": pos_invoice},
                     pluck="name",
                 )
-                for log in merge_logs:
-                    log_doc = frappe.get_doc("POS Invoice Merge Log", log)
+
+                for log_name in merge_logs:
+                    log_doc = frappe.get_doc("POS Invoice Merge Log", log_name)
                     for field in (
                         "consolidated_invoice",
                         "consolidated_credit_note",
@@ -185,6 +289,7 @@ class POSClosingShift(Document):
                             sales_invoices.add(si)
                     if log_doc.docstatus == 1:
                         log_doc.cancel()
+                        log.debug(f"[SHIFT_CLOSE_WORKFLOW] 🚫 CLEAR_CLOSING_ENTRY_CANCELLED_LOG - Cancelled merge log {log_name}")
                     frappe.delete_doc("POS Invoice Merge Log", log_doc.name, force=1)
 
                 if frappe.db.has_column("POS Invoice", "consolidated_invoice"):
@@ -195,45 +300,95 @@ class POSClosingShift(Document):
                     pos_doc.set_status(update=True)
 
             if sales_invoice:
+                sales_invoice_count += 1
+                log.debug(f"[SHIFT_CLOSE_WORKFLOW] 🔄 CLEAR_CLOSING_ENTRY_PROCESS_SALES - Processing Sales Invoice {sales_invoice}")
+
                 if frappe.db.has_column("Sales Invoice", "pos_closing_entry"):
                     frappe.db.set_value("Sales Invoice", sales_invoice, "pos_closing_entry", None)
+                    log.debug(f"[SHIFT_CLOSE_WORKFLOW] ✅ CLEAR_CLOSING_ENTRY_CLEARED_SALES - Cleared closing entry from Sales Invoice {sales_invoice}")
                 sales_invoices.add(sales_invoice)
 
+            processed_count += 1
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 CLEAR_CLOSING_ENTRY_PROCESSED - Processed {processed_count} transactions (POS: {pos_invoice_count}, Sales: {sales_invoice_count})")
+
+        cancelled_invoices = 0
         for si in sales_invoices:
             if frappe.db.exists("Sales Invoice", si):
                 si_doc = frappe.get_doc("Sales Invoice", si)
                 if si_doc.docstatus == 1:
                     si_doc.cancel()
+                    cancelled_invoices += 1
+                    log.debug(f"[SHIFT_CLOSE_WORKFLOW] 🚫 CLEAR_CLOSING_ENTRY_CANCELLED_INVOICE - Cancelled consolidated invoice {si}")
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ CLEAR_CLOSING_ENTRY_COMPLETED - Cleared closing entries and cancelled {cancelled_invoices} consolidated invoices")
 
     def _set_closing_entry_invoices(self):
         """Set `pos_closing_entry` on linked invoices."""
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔗 SET_CLOSING_ENTRY_START - POS Closing Shift {self.name}")
+
+        updated_count = 0
+        skipped_count = 0
+
         for d in self.pos_transactions:
             invoice = d.get("sales_invoice") or d.get("pos_invoice")
             if not invoice:
+                skipped_count += 1
                 continue
+
             doctype = "Sales Invoice" if d.get("sales_invoice") else "POS Invoice"
+
             if frappe.db.has_column(doctype, "pos_closing_entry"):
-                frappe.db.set_value(doctype, invoice, "pos_closing_entry", self.name)
+                try:
+                    frappe.db.set_value(doctype, invoice, "pos_closing_entry", self.name)
+                    updated_count += 1
+                    log.debug(f"[SHIFT_CLOSE_WORKFLOW] ✅ SET_CLOSING_ENTRY_UPDATED - Set closing entry on {doctype} {invoice}")
+                except Exception as e:
+                    log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SET_CLOSING_ENTRY_ERROR - Failed to set closing entry on {doctype} {invoice}: {str(e)}")
+            else:
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ SET_CLOSING_ENTRY_NO_COLUMN - {doctype} does not have pos_closing_entry column")
+                skipped_count += 1
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SET_CLOSING_ENTRY_COMPLETED - Updated {updated_count} invoices, skipped {skipped_count}")
 
     def delete_draft_invoices(self):
-        if frappe.get_value("POS Profile", self.pos_profile, "posa_allow_delete"):
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🗑️ DELETE_DRAFT_INVOICES_START - POS Closing Shift {self.name}")
+
+        allow_delete = frappe.get_value("POS Profile", self.pos_profile, "posa_allow_delete")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 DELETE_DRAFT_INVOICES_CHECK_PERMISSION - POS Profile {self.pos_profile} allow_delete: {allow_delete}")
+
+        if allow_delete:
             # Only handle Sales Invoice (POS Invoice logic removed)
             doctype = "Sales Invoice"
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 DELETE_DRAFT_INVOICES_FINDING - Finding draft {doctype} for opening shift {self.pos_opening_shift}")
+
             data = frappe.db.sql(
                 f"""
-  select
-      name
-  from
-      `tab{doctype}`
-  where
-      docstatus = 0 and posa_is_printed = 0 and posa_pos_opening_shift = %s
-  """,
+   select
+       name
+   from
+       `tab{doctype}`
+   where
+       docstatus = 0 and posa_is_printed = 0 and posa_pos_opening_shift = %s
+   """,
                 (self.pos_opening_shift),
                 as_dict=1,
             )
 
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 DELETE_DRAFT_INVOICES_FOUND - Found {len(data)} draft invoices to delete")
+
+            deleted_count = 0
             for invoice in data:
-                frappe.delete_doc(doctype, invoice.name, force=1)
+                try:
+                    frappe.delete_doc(doctype, invoice.name, force=1)
+                    deleted_count += 1
+                    log.debug(f"[SHIFT_CLOSE_WORKFLOW] ✅ DELETE_DRAFT_INVOICES_DELETED - Deleted draft invoice {invoice.name}")
+                except Exception as e:
+                    log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ DELETE_DRAFT_INVOICES_ERROR - Failed to delete invoice {invoice.name}: {str(e)}")
+
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ DELETE_DRAFT_INVOICES_COMPLETED - Successfully deleted {deleted_count} draft invoices")
+        else:
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ⏭️ DELETE_DRAFT_INVOICES_SKIP - POS Profile does not allow draft invoice deletion")
 
     @frappe.whitelist()
     def get_payment_reconciliation_details(self):
@@ -302,12 +457,24 @@ def get_payments_entries(pos_opening_shift):
 
 @frappe.whitelist()
 def make_closing_shift_from_opening(opening_shift):
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🏗️ MAKE_CLOSING_SHIFT_START - Creating closing shift from opening shift data")
+
     opening_shift = json.loads(opening_shift)
+    opening_shift_name = opening_shift.get("name")
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 MAKE_CLOSING_SHIFT_DATA - Opening shift: {opening_shift_name}, User: {opening_shift.get('user')}")
+
     # Default to Sales Invoice (POS Invoice logic removed)
     doctype = "Sales Invoice"
-    submit_printed_invoices(opening_shift.get("name"), doctype)
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 📄 MAKE_CLOSING_SHIFT_DOCTYPE - Using doctype: {doctype}")
+
+    # Submit printed invoices first
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🖨️ MAKE_CLOSING_SHIFT_SUBMIT_PRINTED - Submitting printed invoices for opening shift {opening_shift_name}")
+    submit_printed_invoices(opening_shift_name, doctype)
+
+    # Create closing shift document
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 MAKE_CLOSING_SHIFT_CREATE_DOC - Creating POS Closing Shift document")
     closing_shift = frappe.new_doc("POS Closing Shift")
-    closing_shift.pos_opening_shift = opening_shift.get("name")
+    closing_shift.pos_opening_shift = opening_shift_name
     closing_shift.period_start_date = opening_shift.get("period_start_date")
     closing_shift.period_end_date = frappe.utils.get_datetime()
     closing_shift.pos_profile = opening_shift.get("pos_profile")
@@ -317,13 +484,20 @@ def make_closing_shift_from_opening(opening_shift):
     closing_shift.net_total = 0
     closing_shift.total_quantity = 0
 
-    invoices = get_pos_invoices(opening_shift.get("name"), doctype)
+    # Get invoices data
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 MAKE_CLOSING_SHIFT_GET_INVOICES - Getting {doctype} for opening shift {opening_shift_name}")
+    invoices = get_pos_invoices(opening_shift_name, doctype)
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_INVOICES_FOUND - Found {len(invoices)} invoices")
 
     pos_transactions = []
     taxes = []
     payments = []
     pos_payments_table = []
-    for detail in opening_shift.get("balance_details"):
+
+    # Process balance details from opening shift
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 💰 MAKE_CLOSING_SHIFT_PROCESS_BALANCE - Processing balance details")
+    balance_details = opening_shift.get("balance_details", [])
+    for detail in balance_details:
         payments.append(
             frappe._dict(
                 {
@@ -333,9 +507,12 @@ def make_closing_shift_from_opening(opening_shift):
                 }
             )
         )
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_BALANCE_PROCESSED - Processed {len(balance_details)} balance details")
 
     invoice_field = "pos_invoice" if doctype == "POS Invoice" else "sales_invoice"
 
+    # Process invoices
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 MAKE_CLOSING_SHIFT_PROCESS_INVOICES - Processing {len(invoices)} invoices")
     for d in invoices:
         pos_transactions.append(
             frappe._dict(
@@ -351,6 +528,7 @@ def make_closing_shift_from_opening(opening_shift):
         closing_shift.net_total += flt(d.net_total)
         closing_shift.total_quantity += flt(d.total_qty)
 
+        # Process taxes
         for t in d.taxes:
             existing_tax = [tx for tx in taxes if tx.account_head == t.account_head and tx.rate == t.rate]
             if existing_tax:
@@ -366,6 +544,7 @@ def make_closing_shift_from_opening(opening_shift):
                     )
                 )
 
+        # Process payments
         for p in d.payments:
             existing_pay = [pay for pay in payments if pay.mode_of_payment == p.mode_of_payment]
             if existing_pay:
@@ -378,6 +557,7 @@ def make_closing_shift_from_opening(opening_shift):
                     cash_mode_of_payment = "Cash"
                 if existing_pay[0].mode_of_payment == cash_mode_of_payment:
                     amount = p.amount - d.change_amount
+                    log.debug(f"[SHIFT_CLOSE_WORKFLOW] 💵 MAKE_CLOSING_SHIFT_CASH_ADJUST - Cash payment adjusted: {p.amount} - {d.change_amount} = {amount}")
                 else:
                     amount = p.amount
                 existing_pay[0].expected_amount += flt(amount)
@@ -392,7 +572,11 @@ def make_closing_shift_from_opening(opening_shift):
                     )
                 )
 
-    pos_payments = get_payments_entries(opening_shift.get("name"))
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_INVOICES_PROCESSED - Processed invoices. Grand Total: {closing_shift.grand_total}")
+
+    # Process payment entries
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 💳 MAKE_CLOSING_SHIFT_PROCESS_PAYMENTS - Processing payment entries")
+    pos_payments = get_payments_entries(opening_shift_name)
 
     for py in pos_payments:
         pos_payments_table.append(
@@ -420,9 +604,12 @@ def make_closing_shift_from_opening(opening_shift):
                 )
             )
 
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_PAYMENTS_PROCESSED - Processed {len(pos_payments)} payment entries")
+
     # Set shift_report field if exists
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 MAKE_CLOSING_SHIFT_FIND_REPORT - Finding shift report for opening shift {opening_shift_name}")
     shift_report = frappe.db.exists("POS Shift Report", {
-        "pos_opening_shift": opening_shift.get("name")
+        "pos_opening_shift": opening_shift_name
     })
 
     if shift_report:
@@ -430,30 +617,53 @@ def make_closing_shift_from_opening(opening_shift):
         # Get verification status from shift report
         verification_status = frappe.db.get_value("POS Shift Report", shift_report, "verification_status")
         closing_shift.verification_status = verification_status or "Pending"
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_FROM_OPENING - Found existing shift report: {shift_report}, Status: {verification_status}")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_REPORT_FOUND - Found existing shift report: {shift_report}, Status: {verification_status}")
     else:
         closing_shift.verification_status = "Pending"
-        log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ MAKE_CLOSING_SHIFT_FROM_OPENING - No shift report found for opening shift: {opening_shift.get('name')}")
+        log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ MAKE_CLOSING_SHIFT_NO_REPORT - No shift report found for opening shift: {opening_shift_name}")
 
+    # Set child tables
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 MAKE_CLOSING_SHIFT_SET_TABLES - Setting child tables")
     closing_shift.set("pos_transactions", pos_transactions)
     closing_shift.set("payment_reconciliation", payments)
     closing_shift.set("taxes", taxes)
     closing_shift.set("pos_payments", pos_payments_table)
 
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_COMPLETED - Closing shift created successfully. Transactions: {len(pos_transactions)}, Payments: {len(payments)}")
     return closing_shift
 
 
 @frappe.whitelist()
 def submit_closing_shift(closing_shift):
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚀 SUBMIT_CLOSING_SHIFT_START - Starting closing shift submission")
+
     closing_shift = json.loads(closing_shift)
+    closing_shift_name = closing_shift.get("name")
+    opening_shift = closing_shift.get("pos_opening_shift")
+    user = closing_shift.get("user")
+
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_DATA - Closing shift: {closing_shift_name}, Opening shift: {opening_shift}, User: {user}")
+
+    # Get closing shift document
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 SUBMIT_CLOSING_SHIFT_LOAD_DOC - Loading closing shift document {closing_shift_name}")
     closing_shift_doc = frappe.get_doc(closing_shift)
     closing_shift_doc.flags.ignore_permissions = True
+
+    # Save the document (this will trigger validation and on_submit)
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 💾 SUBMIT_CLOSING_SHIFT_SAVE - Saving closing shift document")
     closing_shift_doc.save()
+
+    # Submit the document
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_SUBMIT - Submitting closing shift document")
     closing_shift_doc.submit()
+
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎉 SUBMIT_CLOSING_SHIFT_COMPLETED - Closing shift {closing_shift_doc.name} submitted successfully")
     return closing_shift_doc.name
 
 
 def submit_printed_invoices(pos_opening_shift, doctype):
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🖨️ SUBMIT_PRINTED_INVOICES_START - Opening shift: {pos_opening_shift}, Doctype: {doctype}")
+
     invoices_list = frappe.get_all(
         doctype,
         filters={
@@ -462,6 +672,20 @@ def submit_printed_invoices(pos_opening_shift, doctype):
             "posa_is_printed": 1,
         },
     )
+
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 SUBMIT_PRINTED_INVOICES_FOUND - Found {len(invoices_list)} printed invoices to submit")
+
+    submitted_count = 0
+    failed_count = 0
+
     for invoice in invoices_list:
-        invoice_doc = frappe.get_doc(doctype, invoice.name)
-        invoice_doc.submit()
+        try:
+            invoice_doc = frappe.get_doc(doctype, invoice.name)
+            invoice_doc.submit()
+            submitted_count += 1
+            log.debug(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_PRINTED_INVOICES_SUBMITTED - Submitted invoice {invoice.name}")
+        except Exception as e:
+            failed_count += 1
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_PRINTED_INVOICES_FAILED - Failed to submit invoice {invoice.name}: {str(e)}")
+
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_PRINTED_INVOICES_COMPLETED - Submitted: {submitted_count}, Failed: {failed_count}")
