@@ -1,36 +1,14 @@
 from __future__ import unicode_literals
-import re
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import get_datetime, cstr, flt
+from frappe.utils import flt
 
 from posawesome.posawesome.utils.logging import get_logger
 
 # Initialize logger
-log = get_logger("shifts")
-# --------------------------------------------------------------------
-# Logger (will be initialized per POS Profile)
-# --------------------------------------------------------------------
-
-# --------------------------------------------------------------------
-# Helpers
-# --------------------------------------------------------------------
-def _compose_datetime(date_val, time_val=None):
-	"""Ghép Date + Time thành Datetime (local). Nếu thiếu time => 00:00:00."""
-	if date_val and time_val:
-		return get_datetime(f"{date_val} {time_val}")
-	if date_val:
-		return get_datetime(f"{date_val} 00:00:00")
-	return None
-
-
-def _norm_mop(name: str) -> str:
-	"""Chuẩn hoá tên Mode of Payment để so sánh an toàn (strip, collapse space, casefold)."""
-	s = cstr(name or "").strip()
-	s = re.sub(r"\s+", " ", s)
-	return s.casefold()
+log = get_logger("invoice")
 
 
 # --------------------------------------------------------------------
@@ -46,9 +24,6 @@ class POSPaymentSummary(Document):
 		"""Đảm bảo expected_closing_amount = opening_amount + transaction_amount."""
 		expected_closing = flt(self.opening_amount, 2) + flt(self.transaction_amount, 2)
 		if abs(flt(self.expected_closing_amount, 2) - expected_closing) > 0.01:
-			# Update expected_closing_amount if it doesn't match calculation
-			pos_profile = getattr(self, "pos_profile", None)
-
 			log.warning(
 				f"[PAYMENT_SUMMARY] Expected closing mismatch for {self.payment_method} in shift {self.shift_report_id}: "
 				f"{self.expected_closing_amount} -> {expected_closing}"
@@ -62,11 +37,7 @@ class POSPaymentSummary(Document):
 		else:
 			self.difference = 0.0
 
-		# Get POS Profile for logging
-		pos_profile = getattr(self, "pos_profile", None)
-
-		log.info(f"[PAYMENT_SUMMARY] Calculated difference for {self.payment_method}: {self.difference} = {self.closing_amount} - {self.expected_closing_amount}")
-
+		log.info(f"[PAYMENT_SUMMARY] Calculated difference for {self.payment_method}: {self.difference}")
 
 
 # --------------------------------------------------------------------
@@ -74,544 +45,284 @@ class POSPaymentSummary(Document):
 # --------------------------------------------------------------------
 
 @frappe.whitelist()
-def initialize_payment_summaries_for_shift(shift_report_name):
+def update_payment_summary_on_invoice_submit(invoice_name):
 	"""
-	Khởi tạo "rỗng" toàn bộ POS Payment Summary theo Opening Shift (1:1 phương thức).
-	- Xoá sạch record cũ của shift này (an toàn vì chỉ là bảng tổng hợp).
-	- Tạo mới mỗi MOP với opening_amount & closing_amount = opening_amount.
+	Cập nhật POS Payment Summary khi submit hoặc cancel invoice.
+	Được gọi từ Sales Invoice hooks.
 	"""
 	try:
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
-		company, pos_profile, currency = _get_company_profile_currency(shift_report)
+		invoice = frappe.get_doc("Sales Invoice", invoice_name)
 
-		# Initialize logger with POS Profile name
-		log = get_logger("shift_report")
+		if not getattr(invoice, "posa_pos_opening_shift", None):
+			return {"success": True, "message": "Not a POS invoice"}
 
-		log.info(f"[PAYMENT_SUMMARY] Init summaries for: {shift_report_name}")
-
-		# Opening amounts
-		opening_amounts = {}
-		try:
-			opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
-			if getattr(opening_shift, "balance_details", None):
-				for d in opening_shift.balance_details:
-					opening_amounts[d.mode_of_payment] = flt(d.amount or 0, 2)
-		except Exception as e:
-			log.error(f"[PAYMENT_SUMMARY] Cannot read opening amounts: {str(e)}")
-
-		# Cleanup old
-		existing = frappe.get_all(
-			"POS Payment Summary",
-			filters={"shift_report_id": shift_report.shift_report_id, "pos_shift_report": shift_report.name},
-			fields=["name", "payment_method"],
+		shift_reports = frappe.get_all("POS Shift Report",
+			filters={"pos_opening_shift": invoice.posa_pos_opening_shift},
+			fields=["name"]
 		)
-		for row in existing:
-			try:
-				frappe.delete_doc("POS Payment Summary", row.name, ignore_permissions=True)
-			except Exception as de:
-				log.warning(f"[PAYMENT_SUMMARY] Cannot delete {row.name}: {str(de)}")
 
-		# Create fresh
-		created = 0
-		shift_start_time = _compose_datetime(getattr(shift_report, "opening_date", None), getattr(shift_report, "opening_time", None))
-		shift_end_time = _compose_datetime(getattr(shift_report, "closing_date", None), getattr(shift_report, "closing_time", None))
+		if not shift_reports:
+			return {"success": True, "message": "No shift report found"}
 
-		for method, opening_amount in opening_amounts.items():
-			try:
-				doc = frappe.get_doc(
-					{
-						"doctype": "POS Payment Summary",
-						"shift_report_id": shift_report.shift_report_id,
-						"pos_shift_report": shift_report.name,
-						"pos_opening_shift": shift_report.pos_opening_shift,
-						"posting_date": getattr(shift_report, "opening_date", None),
-						"shift_start_time": shift_start_time,
-						"shift_end_time": shift_end_time,
-						"payment_method": method,
-						"payment_method_type": get_payment_method_type(method),
-						"currency": currency,
-						"company": company,
-						"pos_profile": pos_profile,
-						"opening_amount": opening_amount,
-						"transaction_amount": 0.0,
-						"expected_closing_amount": opening_amount,  # Initially = opening_amount (no transactions)
-						"closing_amount": 0.0,  # Will be entered by user
-						"transaction_count": 0,
-						"sales_amount": 0.0,  # Initialize sales_amount
-						"returns_amount": 0.0,  # Initialize returns_amount
-						"notes": f"Initialized for shift report {shift_report.name}",
-					}
-				)
-				doc.insert(ignore_permissions=True)
-				created += 1
-			except Exception as ce:
-				log.error(f"[PAYMENT_SUMMARY] Cannot init '{method}': {str(ce)}")
+		shift_report_name = shift_reports[0].name
 
-		log.info(f"[PAYMENT_SUMMARY] ✅ Initialized {created} record(s)")
-		return {"success": True, "message": f"Initialized {created} records", "data": {"initialized_count": created}}
+		# Cập nhật payment summaries trước
+		payment_result = create_payment_summaries_for_shift(shift_report_name)
+		if not payment_result.get("success"):
+			return payment_result
+
+		# Sau đó cập nhật shift report totals
+		try:
+			update_shift_report_totals(shift_report_name)
+			log.info(f"[PAYMENT_SUMMARY] Successfully updated payment summary and totals for invoice {invoice_name}")
+		except Exception as totals_error:
+			log.error(f"[PAYMENT_SUMMARY] Payment summaries updated but totals update failed for invoice {invoice_name}: {str(totals_error)}")
+			# Vẫn return success vì payment summaries đã được cập nhật thành công
+			# Totals có thể được update lại sau hoặc manually
+			payment_result["warning"] = f"Payment summaries updated successfully, but shift report totals update failed: {str(totals_error)}"
+
+		return payment_result
 
 	except Exception as e:
-		# Fallback logger if initialization failed
-		fallback_log = get_logger("pos_payment_summary")
-		fallback_log.error(f"[PAYMENT_SUMMARY] Error initializing: {str(e)}")
-		return {"success": False, "message": f"Error initializing: {str(e)}"}
-
+		log.error(f"Error updating payment summary on invoice submit: {str(e)}")
+		return {"success": False, "message": str(e)}
 
 
 @frappe.whitelist()
 def create_payment_summaries_for_shift(shift_report_name):
-    """
-    Tổng hợp POS Payment Summary cho một ca (Shift Report).
-    - Lấy invoices theo POS Opening Shift
-    - Tổng hợp theo MOP (support split-tender)
-    - Khởi tạo đầy đủ MOP từ Opening Shift (nếu thiếu)
-    - Upsert từng dòng summary
-    - Validate tính nhất quán (tự bù thiếu, throw nếu thừa)
-
-    CHÚ Ý: Chỉ thực hiện khi shift CHƯA được verify để tránh tính đi tính lại nhiều lần
-    """
-    import time
-    start_time = time.time()
-
-    try:
-        # STEP 1. Shift Report
-        log.info(f"[PAYMENT_SUMMARY] 🚀 START create summaries: {shift_report_name}")
-        shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
-        company, pos_profile, currency = _get_company_profile_currency(shift_report)
-        log.info(f"[PAYMENT_SUMMARY] ✅ STEP 1: Shift report: {shift_report.name} (ID: {shift_report.shift_report_id})")
-
-        # ✅ CHECK VERIFICATION STATUS - Skip if already verified to avoid recalculation
-        current_verification_status = getattr(shift_report, 'verification_status', 'Pending')
-        if current_verification_status in ['Verified', 'Confirmed']:
-            log.info(f"[PAYMENT_SUMMARY] ⚠️ SKIP - Shift report already verified (status: {current_verification_status}). Skipping payment summary calculation to avoid recalculation.")
-            return {
-                "success": True,
-                "message": f"Payment summaries not recalculated - shift report already verified",
-                "data": {
-                    "skipped": True,
-                    "reason": "already_verified",
-                    "verification_status": current_verification_status,
-                    "processing_time": time.time() - start_time
-                }
-            }
-
-        # STEP 2. Invoices (đã Submit) - Enhanced logging
-        invoices = frappe.get_all(
-            "Sales Invoice",
-            filters={"posa_pos_opening_shift": shift_report.pos_opening_shift, "docstatus": 1},
-            fields=["name", "grand_total", "is_return"]
-        )
-        log.info(f"[PAYMENT_SUMMARY] ✅ STEP 2: Found {len(invoices)} invoices")
-
-        # Log invoice breakdown for debugging
-        if invoices:
-            sales_count = sum(1 for inv in invoices if not inv.is_return)
-            returns_count = sum(1 for inv in invoices if inv.is_return)
-            total_amount = sum(flt(inv.grand_total or 0) for inv in invoices)
-            log.info(f"[PAYMENT_SUMMARY] 📊 STEP 2: Invoice breakdown - Sales: {sales_count}, Returns: {returns_count}, Total Amount: {total_amount}")
-
-        # STEP 3. Valid MOP từ Opening Shift (source of truth)
-        valid_payment_methods = get_valid_payment_methods_for_shift(shift_report)
-        log.info(f"[PAYMENT_SUMMARY] ✅ STEP 3: Valid payment methods: {valid_payment_methods}")
-
-        # STEP 4. Group & calc theo MOP (support split-tender)
-        log.info(f"[PAYMENT_SUMMARY] 🔄 STEP 4: Calculating payment methods from {len(invoices)} invoices")
-        payment_data = _calculate_payment_methods(invoices, None, valid_payment_methods)
-        log.info(f"[PAYMENT_SUMMARY] ✅ STEP 4: Grouped {len(payment_data)} payment method(s)")
-
-        # Log payment data summary
-        for method, data in payment_data.items():
-            log.info(f"[PAYMENT_SUMMARY] 💳 STEP 4: {method} - Transactions: {data['transaction_count']}, Amount: {data['transaction_amount']}, Sales: {data['sales_amount']}, Returns: {data['returns_amount']}")
-
-        # STEP 5. Load opening amounts & expected closing
-        opening_amounts = {}
-        try:
-            opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
-            if getattr(opening_shift, "balance_details", None):
-                for detail in opening_shift.balance_details:
-                    opening_amounts[detail.mode_of_payment] = flt(detail.amount or 0, 2)
-            log.info(f"[PAYMENT_SUMMARY] ✅ STEP 5: Opening amounts loaded: {len(opening_amounts)} method(s)")
-            for method, amount in opening_amounts.items():
-                log.info(f"[PAYMENT_SUMMARY] 💰 STEP 5: Opening {method}: {amount}")
-        except Exception as e:
-            log.error(f"[PAYMENT_SUMMARY] ❌ STEP 5: Cannot load opening amounts: {str(e)}")
-
-        expected_closing = _parse_json_safe(getattr(shift_report, "expected_closing_amounts", None), {}) or {}
-        log.info(f"[PAYMENT_SUMMARY] ✅ STEP 5: Expected closing loaded: {len(expected_closing)} method(s)")
-        for method, amount in expected_closing.items():
-            log.info(f"[PAYMENT_SUMMARY] 🎯 STEP 5: Expected {method}: {amount}")
-
-        # STEP 6. Bảo đảm đủ MOP từ Opening Shift (kể cả không có giao dịch)
-        original_payment_data_count = len(payment_data)
-        for mop in (valid_payment_methods or []):
-            if mop not in payment_data:
-                payment_data[mop] = {
-                    "transaction_count": 0,
-                    "transaction_amount": 0.0,
-                    "sales_amount": 0.0,
-                    "returns_amount": 0.0
-                }
-                log.info(f"[PAYMENT_SUMMARY] ➕ STEP 6: Added missing payment method: {mop}")
-
-        if len(payment_data) > original_payment_data_count:
-            log.info(f"[PAYMENT_SUMMARY] ✅ STEP 6: Added {len(payment_data) - original_payment_data_count} missing payment methods")
-
-        # STEP 7. Upsert từng MOP
-        payment_summaries = []
-        created_count, updated_count, error_count = 0, 0, 0
-
-        log.info(f"[PAYMENT_SUMMARY] 📋 STEP 7: Upserting {len(payment_data)} payment method(s)")
-        for method, data in sorted(payment_data.items(), key=lambda kv: kv[0]):
-            try:
-                log.info(f"[PAYMENT_SUMMARY] 🔄 STEP 7: Processing {method}")
-                result = _create_or_update_payment_summary(
-                    shift_report=shift_report,
-                    method=method,
-                    data=data,
-                    opening_amounts=opening_amounts,
-                    expected_closing=expected_closing
-                )
-                if not result:
-                    log.warning(f"[PAYMENT_SUMMARY] ⚠️ STEP 7: No result for '{method}'")
-                    error_count += 1
-                    continue
-
-                if result.get("created"):
-                    created_count += 1
-                    log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: Created summary for {method}")
-                else:
-                    updated_count += 1
-                    log.info(f"[PAYMENT_SUMMARY] ♻️ STEP 7: Updated summary for {method}")
-
-                payment_summaries.append(result["summary"])
-            except Exception as e:
-                error_count += 1
-                log.error(f"[PAYMENT_SUMMARY] ❌ STEP 7: Error upserting '{method}': {str(e)}")
-
-        log.info(f"[PAYMENT_SUMMARY] ✅ STEP 7: Completed. Created={created_count}, Updated={updated_count}, Error={error_count}")
-
-        # STEP 8. Validate consistency (auto-bù thiếu, throw nếu thừa)
-        log.info(f"[PAYMENT_SUMMARY] 📋 STEP 8: Validating consistency")
-        try:
-            validate_payment_summary_consistency(shift_report)
-            log.info(f"[PAYMENT_SUMMARY] ✅ STEP 8: Consistency validation passed")
-        except Exception as consistency_error:
-            log.error(f"[PAYMENT_SUMMARY] ❌ STEP 8: Consistency validation failed: {str(consistency_error)}")
-            # Continue processing but log the error
-
-        # STEP 9. Commit (giữ lại vì nhiều nơi gọi qua client). Tuỳ dự án có thể bỏ.
-        frappe.db.commit()
-        log.info(f"[PAYMENT_SUMMARY] 💾 STEP 9: Database committed")
-
-        # STEP 10. Performance logging
-        end_time = time.time()
-        duration = end_time - start_time
-        log.info(f"[PAYMENT_SUMMARY] ⏱️ STEP 10: Duration: {duration:.2f}s")
-
-        # STEP 11. Return with enhanced data
-        result_data = {
-            "success": True,
-            "message": f"Processed {len(payment_summaries)} payment method(s) with validation",
-            "data": {
-                "payment_summaries": payment_summaries,
-                "created_count": created_count,
-                "updated_count": updated_count,
-                "failed_count": error_count,
-                "total_methods": len(payment_summaries),
-                "validation_passed": True,
-                "processing_time": duration,
-                "invoice_count": len(invoices),
-                "payment_method_count": len(payment_data)
-            }
-        }
-
-        log.info(f"[PAYMENT_SUMMARY] 🎉 COMPLETED for shift {shift_report_name} in {duration:.2f}s")
-        return result_data
-
-    except Exception as e:
-        end_time = time.time()
-        duration = end_time - start_time
-
-        # Fallback logger if initialization failed
-        fallback_log = get_logger("pos_payment_summary")
-        fallback_log.error(f"[PAYMENT_SUMMARY] 💥 FAILED after {duration:.2f}s: {str(e)}")
-
-        return {
-            "success": False,
-            "message": f"Error creating payment summaries: {str(e)}",
-            "data": {
-                "processing_time": duration,
-                "error": str(e)
-            }
-        }
-
-
-def _calculate_payment_methods(invoices, _invoice_payments_unused=None, valid_payment_methods=None):
-    """
-    Tổng hợp tiền theo MOP với split-tender:
-    - Batch fetch tất cả Sales Invoice Payment cho list invoices (tránh N+1).
-    - Nếu invoice không có dòng payment: fallback 'Tiền mặt - POS' = grand_total.
-    """
-    log.info(f"[PAYMENT_SUMMARY] 🔄 _calculate_payment_methods: Processing {len(invoices)} invoices")
-    payment_methods = {}
-
-    # Init trước các MOP hợp lệ để luôn có key
-    if valid_payment_methods:
-        for m in valid_payment_methods:
-            payment_methods[m] = {
-                "transaction_count": 0,
-                "transaction_amount": 0.0,
-                "sales_amount": 0.0,
-                "returns_amount": 0.0
-            }
-        log.info(f"[PAYMENT_SUMMARY] 📋 _calculate_payment_methods: Initialized {len(valid_payment_methods)} valid payment methods")
-
-    if not invoices:
-        log.info(f"[PAYMENT_SUMMARY] ⚠️ _calculate_payment_methods: No invoices to process")
-        return payment_methods
-
-    inv_names = [inv.name for inv in invoices]
-    log.info(f"[PAYMENT_SUMMARY] 📊 _calculate_payment_methods: Processing invoices: {inv_names[:5]}{'...' if len(inv_names) > 5 else ''}")
-
-    # Batch fetch tất cả payments
-    p_rows = frappe.get_all(
-        "Sales Invoice Payment",
-        filters={"parent": ["in", inv_names]},
-        fields=["parent", "mode_of_payment", "amount"]
-    )
-    log.info(f"[PAYMENT_SUMMARY] 💳 _calculate_payment_methods: Found {len(p_rows)} payment records for {len(invoices)} invoices")
-
-    # index payments theo invoice
-    pay_by_inv = {}
-    for r in p_rows:
-        pay_by_inv.setdefault(r.parent, []).append(r)
-
-    # Process từng invoice
-    total_processed = 0
-    fallback_used = 0
-
-    for inv in invoices:
-        rows = pay_by_inv.get(inv.name, [])
-        if not rows:
-            # Fallback nếu không có payment detail
-            rows = [{"mode_of_payment": "Tiền mặt - POS", "amount": inv.grand_total or 0}]
-            fallback_used += 1
-            log.debug(f"[PAYMENT_SUMMARY] ⚠️ _calculate_payment_methods: Using fallback for invoice {inv.name}")
-
-        for r in rows:
-            method = (r.get("mode_of_payment") or "Tiền mặt - POS")
-            if valid_payment_methods and method not in valid_payment_methods:
-                log.warning(f"[PAYMENT_SUMMARY] 🚫 _calculate_payment_methods: Skip invalid MOP '{method}' for invoice {inv.name}")
-                continue
-
-            amt = flt(r.get("amount") or 0, 2)
-
-            if method not in payment_methods:
-                payment_methods[method] = {
-                    "transaction_count": 0,
-                    "transaction_amount": 0.0,
-                    "sales_amount": 0.0,
-                    "returns_amount": 0.0
-                }
-                log.info(f"[PAYMENT_SUMMARY] ➕ _calculate_payment_methods: Added new payment method: {method}")
-
-            # đếm theo dòng payment (hợp lý cho split-tender)
-            payment_methods[method]["transaction_count"] += 1
-
-            if inv.is_return:
-                payment_methods[method]["returns_amount"] += abs(amt)
-                payment_methods[method]["transaction_amount"] -= abs(amt)
-                log.debug(f"[PAYMENT_SUMMARY] ↩️ _calculate_payment_methods: Return {method} -{abs(amt)} for invoice {inv.name}")
-            else:
-                payment_methods[method]["sales_amount"] += amt
-                payment_methods[method]["transaction_amount"] += amt
-                log.debug(f"[PAYMENT_SUMMARY] 💰 _calculate_payment_methods: Sale {method} +{amt} for invoice {inv.name}")
-
-        total_processed += 1
-
-    # Summary logging
-    log.info(f"[PAYMENT_SUMMARY] ✅ _calculate_payment_methods: Processed {total_processed} invoices, used fallback for {fallback_used}")
-    log.info(f"[PAYMENT_SUMMARY] 📈 _calculate_payment_methods: Final payment methods: {len(payment_methods)}")
-
-    for method, data in payment_methods.items():
-        log.info(f"[PAYMENT_SUMMARY] 💵 _calculate_payment_methods: {method} - Tx: {data['transaction_count']}, Amount: {data['transaction_amount']}, Sales: {data['sales_amount']}, Returns: {data['returns_amount']}")
-
-    return payment_methods
-
-
-def _parse_json_safe(json_string, default=None):
-	"""Parse JSON an toàn."""
-	if not json_string:
-		return default or {}
-	try:
-		return frappe.parse_json(json_string)
-	except Exception:
-		log.warning(f"[PAYMENT_SUMMARY] Could not parse JSON: {cstr(json_string)[:80]}...")
-		return default or {}
-
-
-def _get_company_profile_currency(shift_report):
 	"""
-	Lấy (company, pos_profile, currency) theo thứ tự ưu tiên:
-	- company, pos_profile từ Opening Shift nếu có
-	- currency từ POS Profile -> Company.default_currency -> 'USD'
+	Tạo/cập nhật POS Payment Summary cho một ca làm việc.
 	"""
-	company = None
-	pos_profile = None
-	currency = None
-
 	try:
-		opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
-		company = getattr(opening_shift, "company", None)
-		pos_profile = getattr(opening_shift, "pos_profile", None)
+		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
+
+		if getattr(shift_report, 'verification_status', 'Pending') in ['Verified', 'Confirmed']:
+			return {"success": True, "message": "Shift already verified"}
+
+		invoices = frappe.get_all(
+			"Sales Invoice",
+			filters={"posa_pos_opening_shift": shift_report.pos_opening_shift, "docstatus": 1},
+			fields=["name", "grand_total", "is_return"]
+		)
+
+		valid_methods = get_valid_payment_methods_for_shift(shift_report)
+		payment_data = _calculate_payment_methods(invoices, valid_methods)
+
+		opening_amounts = {}
+		try:
+			opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
+			for detail in opening_shift.balance_details or []:
+				opening_amounts[detail.mode_of_payment] = flt(detail.amount or 0, 2)
+		except:
+			pass
+
+		for method in valid_methods:
+			if method not in payment_data:
+				payment_data[method] = {
+					"transaction_count": 0,
+					"transaction_amount": 0.0,
+					"sales_amount": 0.0,
+					"returns_amount": 0.0
+				}
+
+		payment_summaries = []
+		for method, data in payment_data.items():
+			result = _create_or_update_payment_summary(shift_report, method, data, opening_amounts)
+			if result:
+				payment_summaries.append(result)
+
+		frappe.db.commit()
+
+		return {
+			"success": True,
+			"message": f"Updated {len(payment_summaries)} payment methods",
+			"data": {
+				"payment_summaries": payment_summaries,
+				"invoice_count": len(invoices)
+			}
+		}
+
 	except Exception as e:
-		log.warning(f"[PAYMENT_SUMMARY] Cannot get company/pos_profile from opening shift: {str(e)}")
-
-	if pos_profile:
-		try:
-			currency = frappe.db.get_value("POS Profile", pos_profile, "currency")
-		except Exception:
-			pass
-
-	if not currency and company:
-		try:
-			currency = frappe.get_cached_value("Company", company, "default_currency")
-		except Exception:
-			pass
-
-	return company or "NVL-DaiLoan", pos_profile or "", currency or "USD"
+		log.error(f"Error creating payment summaries: {str(e)}")
+		return {"success": False, "message": str(e)}
 
 
-def _create_or_update_payment_summary(shift_report, method, data, opening_amounts, expected_closing):
+def update_shift_report_totals(shift_report_name):
+	"""
+	Cập nhật tổng số liệu trong POS Shift Report từ payment summaries.
+	"""
+	try:
+		summaries = frappe.get_all("POS Payment Summary",
+			filters={"pos_shift_report": shift_report_name},
+			fields=["sales_amount", "returns_amount", "transaction_amount"]
+		)
+
+		total_sales = sum(flt(s.sales_amount or 0) for s in summaries)
+		total_returns = sum(flt(s.returns_amount or 0) for s in summaries)
+
+		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
+		shift_report.total_sales = total_sales
+		shift_report.total_returns = total_returns
+		shift_report.save(ignore_permissions=True)
+
+		log.info(f"Updated shift report totals: Sales={total_sales}, Returns={total_returns}")
+
+	except Exception as e:
+		log.error(f"Error updating shift report totals: {str(e)}")
+
+
+def _calculate_payment_methods(invoices, valid_payment_methods=None):
+	"""Tổng hợp tiền theo MOP với split-tender."""
+	from collections import defaultdict
+
+	log.info(f"[PAYMENT_CALC] Starting calculation for {len(invoices)} invoices, valid_methods: {valid_payment_methods}")
+
+	# Khởi tạo dict với default structure cho mỗi MOP
+	payment_methods = defaultdict(lambda: {
+		"transaction_count": 0,
+		"transaction_amount": 0.0,
+		"sales_amount": 0.0,
+		"returns_amount": 0.0
+	})
+
+	# Khởi tạo các MOP hợp lệ nếu được chỉ định
+	if valid_payment_methods:
+		for method in valid_payment_methods:
+			payment_methods[method]  # Trigger defaultdict
+		log.info(f"[PAYMENT_CALC] Initialized {len(valid_payment_methods)} valid payment methods")
+
+	if not invoices:
+		log.info("[PAYMENT_CALC] No invoices to process, returning empty result")
+		return dict(payment_methods)
+
+	# Batch fetch tất cả payments
+	inv_names = [inv.name for inv in invoices]
+	log.debug(f"[PAYMENT_CALC] Processing invoices: {inv_names[:3]}{'...' if len(inv_names) > 3 else ''}")
+
+	payments = frappe.get_all(
+		"Sales Invoice Payment",
+		filters={"parent": ["in", inv_names]},
+		fields=["parent", "mode_of_payment", "amount"]
+	)
+	log.info(f"[PAYMENT_CALC] Found {len(payments)} payment records for {len(invoices)} invoices")
+
+	# Group payments theo invoice
+	pay_by_inv = defaultdict(list)
+	for payment in payments:
+		pay_by_inv[payment.parent].append(payment)
+
+	fallback_count = 0
+	processed_count = 0
+
+	# Process từng invoice
+	for inv in invoices:
+		rows = pay_by_inv.get(inv.name, [])
+
+		# Fallback nếu invoice không có payment detail
+		if not rows:
+			rows = [{"mode_of_payment": "CASH", "amount": inv.grand_total or 0}]
+			fallback_count += 1
+			log.debug(f"[PAYMENT_CALC] Using fallback for invoice {inv.name}: {inv.grand_total}")
+
+		for row in rows:
+			method = row.get("mode_of_payment") or "CASH"
+
+			# Skip nếu method không hợp lệ
+			if valid_payment_methods and method not in valid_payment_methods:
+				log.debug(f"[PAYMENT_CALC] Skipping invalid method '{method}' for invoice {inv.name}")
+				continue
+
+			amt = flt(row.get("amount") or 0, 2)
+			data = payment_methods[method]
+
+			data["transaction_count"] += 1
+
+			if inv.is_return:
+				data["returns_amount"] += abs(amt)
+				data["transaction_amount"] -= abs(amt)
+				log.debug(f"[PAYMENT_CALC] Return: {method} -{abs(amt)} for invoice {inv.name}")
+			else:
+				data["sales_amount"] += amt
+				data["transaction_amount"] += amt
+				log.debug(f"[PAYMENT_CALC] Sale: {method} +{amt} for invoice {inv.name}")
+
+		processed_count += 1
+
+	log.info(f"[PAYMENT_CALC] Processed {processed_count} invoices, used fallback for {fallback_count}")
+
+	# Log kết quả tổng hợp
+	result = dict(payment_methods)
+	for method, data in result.items():
+		log.info(f"[PAYMENT_CALC] {method}: {data['transaction_count']} tx, Amount: {data['transaction_amount']}, Sales: {data['sales_amount']}, Returns: {data['returns_amount']}")
+
+	log.info(f"[PAYMENT_CALC] Completed calculation for {len(result)} payment methods")
+	return result
+
+
+def _create_or_update_payment_summary(shift_report, method, data, opening_amounts):
 	"""Upsert 1 dòng POS Payment Summary cho 1 phương thức thanh toán."""
 	try:
-		company, pos_profile, currency = _get_company_profile_currency(shift_report)
-		shift_report_id = shift_report.shift_report_id
+		opening_amount = flt(opening_amounts.get(method, 0), 2)
+		transaction_amount = flt(data["transaction_amount"], 2)
+		expected_closing_amount = flt(opening_amount + transaction_amount, 2)
 
 		existing = frappe.db.exists(
 			"POS Payment Summary",
 			{
-				"shift_report_id": shift_report_id,
+				"shift_report_id": shift_report.shift_report_id,
 				"payment_method": method,
 				"pos_shift_report": shift_report.name,
 			},
 		)
 
-		opening_amount = flt(opening_amounts.get(method, 0), 2)
-		transaction_amount = flt(data["transaction_amount"], 2)
-		expected_closing_amount = flt(opening_amount + transaction_amount, 2)
-		# closing_amount will be entered by user (Actual Closing)
-		closing_amount = expected_closing.get(method, 0)  # Get from database if exists
-
-		shift_start_time = _compose_datetime(
-			getattr(shift_report, "opening_date", None),
-			getattr(shift_report, "opening_time", None),
-		)
-		shift_end_time = _compose_datetime(
-			getattr(shift_report, "closing_date", None),
-			getattr(shift_report, "closing_time", None),
-		)
-
 		if existing:
-			# Update
 			doc = frappe.get_doc("POS Payment Summary", existing)
 			doc.transaction_count = data["transaction_count"]
 			doc.transaction_amount = transaction_amount
-			doc.expected_closing_amount = expected_closing_amount  # Calculated: Opening + Transaction
-			doc.sales_amount = data["sales_amount"]  # Add sales_amount
-			doc.returns_amount = data["returns_amount"]  # Add returns_amount
-			# closing_amount remains as user input (don't overwrite)
+			doc.expected_closing_amount = expected_closing_amount
+			doc.sales_amount = data["sales_amount"]
+			doc.returns_amount = data["returns_amount"]
 			doc.difference = flt(doc.closing_amount - expected_closing_amount, 2)
 			doc.save()
-			created = False
-			log.info(f"[PAYMENT_SUMMARY] ♻️ Updated '{method}' -> {doc.name}")
 		else:
-			# Create with autoname
 			doc = frappe.get_doc(
 				{
 					"doctype": "POS Payment Summary",
-					"shift_report_id": shift_report_id,
+					"shift_report_id": shift_report.shift_report_id,
 					"pos_shift_report": shift_report.name,
 					"pos_opening_shift": shift_report.pos_opening_shift,
 					"posting_date": getattr(shift_report, "opening_date", None),
-					"shift_start_time": shift_start_time,
-					"shift_end_time": shift_end_time,
 					"payment_method": method,
-					"payment_method_type": get_payment_method_type(method),
-					"currency": currency,
-					"transaction_count": data["transaction_count"],
-					"company": company,
-					"pos_profile": pos_profile,
+					"currency": getattr(shift_report, "currency", "USD"),
+					"company": getattr(shift_report, "company", ""),
+					"pos_profile": getattr(shift_report, "pos_profile", ""),
 					"opening_amount": opening_amount,
 					"transaction_amount": transaction_amount,
-					"expected_closing_amount": expected_closing_amount,  # Calculated: Opening + Transaction
-					"closing_amount": closing_amount,  # Actual: From database or user input
-					"sales_amount": data["sales_amount"],  # Add sales_amount
-					"returns_amount": data["returns_amount"],  # Add returns_amount
+					"expected_closing_amount": expected_closing_amount,
+					"closing_amount": 0.0,
+					"transaction_count": data["transaction_count"],
+					"sales_amount": data["sales_amount"],
+					"returns_amount": data["returns_amount"],
 					"notes": f"Auto-generated from shift report {shift_report.name}",
 				}
 			)
+			doc.insert(ignore_permissions=True)
 
-			# Debug autoname
-			expected_name = f"{shift_report_id}-{method.replace(' ', '_').replace('-', '_')}"
-			log.info(f"[PAYMENT_SUMMARY] 📝 Creating '{method}' with expected name: {expected_name}")
-
-			doc.insert()
-			created = True
-			log.info(f"[PAYMENT_SUMMARY] ✅ Created '{method}' -> {doc.name}")
-
-		summary = {
+		return {
 			"payment_method": method,
 			"opening_amount": opening_amount,
 			"transaction_amount": transaction_amount,
-			"expected_closing_amount": expected_closing_amount,  # Calculated
-			"closing_amount": closing_amount,  # Actual (user input)
-			"difference": flt(closing_amount - expected_closing_amount, 2),
+			"expected_closing_amount": expected_closing_amount,
+			"closing_amount": doc.closing_amount,
+			"difference": flt(doc.closing_amount - expected_closing_amount, 2),
 			"transaction_count": data["transaction_count"],
 			"sales_amount": data["sales_amount"],
 			"returns_amount": data["returns_amount"],
 		}
-		return {"created": created, "summary": summary}
 
 	except Exception as e:
 		log.error(f"[PAYMENT_SUMMARY] Error processing '{method}': {str(e)}")
 		return None
-
-
-@frappe.whitelist()
-def get_payment_summaries_for_shift(shift_report_name):
-	"""Trả về danh sách POS Payment Summary cho 1 Shift Report."""
-	try:
-		# Get POS Profile from shift report for logging
-		shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
-		company, pos_profile, currency = _get_company_profile_currency(shift_report)	
-
-		log.info(f"[PAYMENT_SUMMARY] Fetch summaries for: {shift_report_name}")
-		rows = frappe.get_all(
-			"POS Payment Summary",
-			filters={"pos_shift_report": shift_report_name},
-			fields=[
-				"name",
-				"payment_method",
-				"payment_method_type",
-				"opening_amount",
-				"transaction_amount",
-				"closing_amount",
-				"expected_closing_amount",
-				"difference",
-				"transaction_count",
-				"currency",
-				"posting_date",
-				"pos_profile",
-			],
-			order_by="payment_method",
-		)
-		return {"success": True, "data": rows}
-	except Exception as e:
-		# Fallback logger
-		fallback_log = get_logger("pos_payment_summary")
-		fallback_log.error(f"[PAYMENT_SUMMARY] Error getting summaries: {str(e)}")
-		return {"success": False, "message": f"Error: {str(e)}"}
 
 
 def get_valid_payment_methods_for_shift(shift_report):
@@ -619,288 +330,7 @@ def get_valid_payment_methods_for_shift(shift_report):
 	try:
 		opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
 		methods = [d.mode_of_payment for d in (opening_shift.balance_details or [])]
-
-		# Get POS Profile for logging
-		pos_profile = getattr(opening_shift, "pos_profile", None)		
-
-		log.info(f"[PAYMENT_SUMMARY] Valid MOP (Opening Shift): {methods}")
 		return methods
 	except Exception as e:
-		# Fallback logger
-		fallback_log = get_logger("pos_payment_summary")
-		fallback_log.error(f"[PAYMENT_SUMMARY] Error reading valid MOPs: {str(e)}")
+		log.error(f"[PAYMENT_SUMMARY] Error reading valid MOPs: {str(e)}")
 		return []
-
-
-def validate_payment_summary_consistency(shift_report):
-	"""
-	Đảm bảo Summary khớp Opening Shift:
-	- Thiếu MOP trong Summary => auto-add record rỗng (opening_amount có sẵn).
-	- Thừa MOP trong Summary (không có ở Opening) => THROW để sửa cấu hình.
-	- Sau khi auto-bù: số lượng phải 1:1.
-	"""
-	try:
-		opening_shift = frappe.get_doc("POS Opening Shift", shift_report.pos_opening_shift)
-		pos_profile = getattr(opening_shift, "pos_profile", None) or getattr(shift_report, "pos_profile", None)
-		company = getattr(opening_shift, "company", None)
-		# currency ưu tiên POS Profile -> Company -> USD
-		currency = None
-		if pos_profile:
-			currency = frappe.db.get_value("POS Profile", pos_profile, "currency")
-		if not currency and company:
-			currency = frappe.get_cached_value("Company", company, "default_currency")
-		currency = currency or "USD"
-
-		# Opening methods map
-		open_map = {}
-		for d in (opening_shift.balance_details or []):
-			open_map[_norm_mop(d.mode_of_payment)] = (d.mode_of_payment, flt(d.amount or 0, 2))
-		open_set = set(open_map.keys())
-
-		filters = {
-			"shift_report_id": shift_report.shift_report_id,
-			"pos_shift_report": shift_report.name,
-		}
-
-		summ_rows = frappe.get_all(
-			"POS Payment Summary",
-			filters=filters,
-			fields=["name", "payment_method"],
-		)
-		sum_map = {}
-		for r in summ_rows:
-			sum_map.setdefault(_norm_mop(r.payment_method), []).append(r.name)
-		sum_set = set(sum_map.keys())
-
-		missing = open_set - sum_set
-		extra = sum_set - open_set
-
-		# Auto-add missing with zero tx
-		if missing:
-			shift_start_time = _compose_datetime(getattr(shift_report, "opening_date", None), getattr(shift_report, "opening_time", None))
-			shift_end_time = _compose_datetime(getattr(shift_report, "closing_date", None), getattr(shift_report, "closing_time", None))
-
-			for norm in missing:
-				orig, opening_amt = open_map[norm]
-				try:
-					doc = frappe.get_doc(
-						{
-							"doctype": "POS Payment Summary",
-							"shift_report_id": shift_report.shift_report_id,
-							"pos_shift_report": shift_report.name,
-							"pos_opening_shift": shift_report.pos_opening_shift,
-							"posting_date": getattr(shift_report, "opening_date", None),
-							"shift_start_time": shift_start_time,
-							"shift_end_time": shift_end_time,
-							"payment_method": orig,
-							"payment_method_type": get_payment_method_type(orig),
-							"currency": currency,
-							"company": company,
-							"pos_profile": pos_profile,
-							"opening_amount": opening_amt,
-							"transaction_amount": 0.0,
-							"expected_closing_amount": opening_amt,  # Initially = opening_amount
-							"closing_amount": 0.0,  # Will be entered by user
-							"transaction_count": 0,
-							"notes": f"Auto-added to ensure consistency for shift {shift_report.name}",
-						}
-					)
-					doc.insert(ignore_permissions=True)
-					log.info(f"[PAYMENT_SUMMARY] ➕ Auto-added missing MOP '{orig}'")
-				except Exception as ie:
-					log.error(f"[PAYMENT_SUMMARY] ❌ Cannot auto-add '{orig}': {str(ie)}")
-
-		# Throw if extra exists
-		if extra:
-			readable = []
-			for norm in extra:
-				sample = (sum_map.get(norm) or [None])[0]
-				mop = frappe.db.get_value("POS Payment Summary", sample, "payment_method") if sample else "(unknown)"
-				readable.append(mop or "(unknown)")
-			msg = f"Payment methods không khớp: Summary có phương thức không có ở Opening Shift: {readable}"
-			log.error(f"[PAYMENT_SUMMARY] {msg}")
-			frappe.throw(msg)
-
-		# Recount after auto-bù
-		count_sum = frappe.db.count("POS Payment Summary", filters)
-		count_open = len(open_map)
-		if count_sum != count_open:
-			err = f"Tính nhất quán dữ liệu bị vi phạm: {count_sum} payment summaries vs {count_open} opening details"
-			log.error(f"[PAYMENT_SUMMARY] {err}")
-			frappe.throw(err)
-
-		log.info(f"[PAYMENT_SUMMARY] ✅ Consistency OK: {count_sum} == {count_open}")
-
-	except Exception as e:
-		# Fallback logger if initialization failed
-		fallback_log = get_logger("pos_payment_summary")
-		fallback_log.error(f"[PAYMENT_SUMMARY] Lỗi validate tính nhất quán: {str(e)}")
-		raise
-
-
-def _resolve_allowed_payment_types():
-	"""Đọc danh sách payment method types cho phép từ DocType definition."""
-	try:
-		df = frappe.get_meta("POS Payment Summary").get_field("payment_method_type")
-		raw = (df.options or "").split("\n")
-		return [o.strip() for o in raw if o and o.strip()]
-	except Exception as e:
-		log.warning(f"[PAYMENT_SUMMARY] Cannot read field options for payment_method_type: {str(e)}")
-		return ["Tiền mặt", "Card", "Digital", "Khác"]
-
-
-def get_payment_method_type(payment_method):
-	"""
-	Direct mapping từ Mode of Payment name sang Type theo chuẩn hệ thống.
-	Sử dụng mapping cố định thay vì dựa vào database type.
-	"""
-	allowed = _resolve_allowed_payment_types()
-	allowed_set = set(allowed)
-
-	def pick(*cands):
-		"""Pick first candidate available in allowed set."""
-		for c in cands:
-			if c in allowed_set:
-				return c
-		return allowed[0] if allowed else "Tiền mặt"
-
-	# Direct mapping từ Mode of Payment name sang Type
-	payment_method_mapping = {
-		# Standard mappings theo yêu cầu
-		"BANK": "Bank",
-		"CASH": "Cash",
-		"MPOS": "Bank",
-		"POINT": "Cash",
-		"QRPAY": "Bank",
-		"WALLET": "Bank",
-
-		# Case-insensitive variants
-		"bank": "Bank",
-		"cash": "Cash",
-		"mpos": "Bank",
-		"point": "Cash",
-		"qrpay": "Bank",
-		"wallet": "Bank",
-
-		# Common variations
-		"Tiền mặt": "Cash",
-		"Cash": "Cash",
-		"Bank Transfer": "Bank",
-		"Credit Card": "Bank",
-		"Debit Card": "Bank",
-		"Mobile Payment": "Bank",
-		"Digital Wallet": "Bank",
-		"QR Payment": "Bank",
-	}
-
-	try:
-		# Normalize payment method name for matching
-		normalized_method = payment_method.strip().upper() if payment_method else ""
-
-		# Try direct mapping first
-		if normalized_method in payment_method_mapping:
-			mapped_type = payment_method_mapping[normalized_method]
-			# Validate against allowed types
-			if mapped_type in allowed_set:
-				return mapped_type
-
-		# Fallback to database type if direct mapping fails
-		try:
-			db_type = (frappe.db.get_value("Mode of Payment", payment_method, "type") or "").strip().casefold()
-
-			if db_type in ("cash", "tiền mặt"):
-				return pick("Tiền mặt", "Cash")
-
-			if db_type in ("bank", "mobile payment", "wallet", "upi", "qr"):
-				return pick("Bank", "Mobile Payment", "Digital")
-
-			if db_type in ("card", "credit card", "debit card"):
-				return pick("Card", "Bank")
-
-			if db_type in ("general", "other", "khác"):
-				return pick("Khác", "General")
-		except Exception:
-			pass  # Continue to final fallback
-
-		# Final fallback
-		return pick("Tiền mặt", "Cash", "Khác")
-
-	except Exception as e:
-		# Fallback logger
-		fallback_log = get_logger("pos_payment_summary")
-		fallback_log.error(f"[PAYMENT_SUMMARY] Error getting type for '{payment_method}': {str(e)}")
-		return pick("Tiền mặt", "Cash", "Khác")
-
-
-def run_pos_payment_summary_migration():
-	"""
-	Migration script để cập nhật POS Payment Summary DocType.
-	Chạy trong bench console để áp dụng thay đổi autoname và unique constraint.
-	"""
-	print("🚀 POS PAYMENT SUMMARY MIGRATION SCRIPT")
-	print("=" * 50)
-
-	try:
-		# STEP 1: Check current state
-		print("📋 STEP 1: Checking current DocType state...")
-		meta = frappe.get_meta("POS Payment Summary")
-		print(f"   Current autoname: {meta.autoname}")
-
-		field = meta.get_field("shift_report_id")
-		if field:
-			unique = getattr(field, 'unique', False)
-			print(f"   shift_report_id unique: {unique}")
-
-		# STEP 2: Run migration
-		print("\n⚙️ STEP 2: Migration step skipped (migrate_app not available)")
-		print("   ℹ️  Manual migration may be required")
-
-		# STEP 3: Verify changes
-		print("\n✅ STEP 3: Verifying changes...")
-		meta_after = frappe.get_meta("POS Payment Summary")
-		print(f"   New autoname: {meta_after.autoname}")
-
-		field_after = meta_after.get_field("shift_report_id")
-		if field_after:
-			unique_after = getattr(field_after, 'unique', False)
-			print(f"   shift_report_id unique: {unique_after}")
-
-		# STEP 4: Test autoname
-		print("\n🧪 STEP 4: Testing autoname generation...")
-		test_doc = frappe.get_doc({
-			"doctype": "POS Payment Summary",
-			"shift_report_id": "MIGRATION-TEST-001",
-			"payment_method": "Tiền mặt - POS"
-		})
-
-		autoname_result = test_doc.get_autoname()
-		print(f"   Test autoname: {autoname_result}")
-
-		# STEP 5: Clear cache
-		print("\n🧹 STEP 5: Clearing cache...")
-		frappe.clear_cache()
-		print("   ✅ Cache cleared")
-
-		print("\n🎉 MIGRATION SUCCESSFUL!")
-		print("=" * 50)
-		print("📊 Summary:")
-		print(f"   • Autoname: {meta_after.autoname}")
-		print(f"   • Unique removed: {not unique_after if 'unique_after' in locals() else 'N/A'}")
-		print(f"   • Test autoname works: {autoname_result}")
-
-		return {
-			"success": True,
-			"autoname": meta_after.autoname,
-			"test_autoname": autoname_result
-		}
-
-	except Exception as e:
-		print(f"\n💥 MIGRATION FAILED: {str(e)}")
-		import traceback
-		traceback.print_exc()
-
-		return {
-			"success": False,
-			"error": str(e)
-		}
-

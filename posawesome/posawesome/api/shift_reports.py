@@ -473,9 +473,48 @@ def migrate_pos_opening_shift_references():
 		}
 
 @frappe.whitelist()
+def get_shift_report_readonly(shift_report_id):
+	"""
+	Get POS Shift Report with Payment Summary data (READ-ONLY)
+	Chỉ đọc data từ các bảng đã có, không cập nhật gì
+
+	Args:
+		shift_report_id (str): Shift report ID (string only)
+
+	Returns:
+		dict: Shift report data with payment summary (read-only)
+	"""
+	try:
+		# Get basic shift report data
+		shift_report_data = get_shift_report(shift_report_id)
+
+		# Get payment summaries (read-only)
+		try:
+			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import get_payment_summaries_for_shift
+			payment_summaries_result = get_payment_summaries_for_shift(shift_report_data["name"])
+
+			if payment_summaries_result.get("success"):
+				shift_report_data["payment_summaries"] = payment_summaries_result["data"]
+			else:
+				shift_report_data["payment_summaries"] = []
+		except Exception:
+			shift_report_data["payment_summaries"] = []
+
+		return shift_report_data
+
+	except Exception as e:
+		frappe.log_error(str(e), "Get Shift Report Readonly Error")
+		return {
+			"success": False,
+			"message": _("Error getting shift report: {0}").format(str(e))
+		}
+
+
+@frappe.whitelist()
 def get_shift_report_with_payment_summary(shift_report_id):
 	"""
-	Get POS Shift Report with Payment Summary data
+	Get POS Shift Report with Payment Summary data (WITH UPDATES)
+	Sử dụng cho các chức năng cần cập nhật data
 
 	Args:
 		shift_report_id (str): Shift report ID (string only)

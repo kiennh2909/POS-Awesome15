@@ -20,7 +20,7 @@ log = get_logger("invoice")
 
 
 def validate(doc, method):
-	log.info(f"[INVOICE_VALIDATION] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}, Amount: {doc.grand_total}")
+	log.info(f"[INVOICE_VALIDATION] START - Invoice: {doc.name}, Amount: {doc.grand_total}")
 
 	validate_shift(doc)
 	set_patient(doc)
@@ -28,7 +28,7 @@ def validate(doc, method):
 	calc_delivery_charges(doc)
 	apply_tax_inclusive(doc)
 
-	log.info(f"[INVOICE_VALIDATION] ✅ COMPLETED - Invoice: {doc.name}")
+	log.info(f"[INVOICE_VALIDATION] COMPLETED - Invoice: {doc.name}")
 
 
 # def before_submit(doc, method):
@@ -41,51 +41,63 @@ def validate(doc, method):
 # 	log.info(f"[BEFORE_SUBMIT] ✅ COMPLETED - Invoice: {doc.name}")
 
 def before_submit(doc, method):
-	log.info(f"[BEFORE_SUBMIT] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}, Amount: {doc.grand_total}")
-	log.info(f"[BEFORE_SUBMIT] ✅ COMPLETED - Invoice: {doc.name}")
+	log.info(f"[BEFORE_SUBMIT] START - Invoice: {doc.name}")
 
 
 def on_submit(doc, method):
-	"""Update shift report when invoice is submitted"""
-	log.info(f"[INVOICE_TRACKING] 📤 ON_SUBMIT - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
+	"""Update shift report and payment summary when invoice is submitted"""
+	log.info(f"[INVOICE_TRACKING] ON_SUBMIT - Trigger on - Invoice: {doc.name}, Amount: {doc.grand_total}")
 
 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
-		log.info(f"[INVOICE_TRACKING] 🔄 ON_SUBMIT - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: submit")
-		update_shift_report_with_invoice(doc, "submit")  # Use correct action
+		update_shift_report_with_invoice(doc, "submit")
 	else:
-		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_SUBMIT - No shift report reference - Invoice: {doc.name}")
+		log.warning(f"[INVOICE_TRACKING] No shift report reference - Invoice: {doc.name}")
+
+	# Update POS Payment Summary
+	try:
+		from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import update_payment_summary_on_invoice_submit
+		result = update_payment_summary_on_invoice_submit(doc.name)
+		if not result.get("success"):
+			log.warning(f"[PAYMENT_SUMMARY] Failed to update payment summary for invoice: {doc.name}")
+	except Exception as e:
+		log.error(f"[PAYMENT_SUMMARY] Error updating payment summary for invoice {doc.name}: {str(e)}")
 
 def on_cancel(doc, method):
-	"""Update shift report when invoice is cancelled"""
-	log.info(f"[INVOICE_TRACKING] 🗑️ ON_CANCEL - Invoice: {doc.name}, Status: {doc.status}, Amount: {doc.grand_total}, Shift Report: {getattr(doc, 'pos_shift_report', 'None')}")
+	"""Update shift report and payment summary when invoice is cancelled"""
+	log.info(f"[INVOICE_TRACKING] ON_CANCEL - Trigger on - Invoice: {doc.name}, Amount: {doc.grand_total}")
 
 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
-		log.info(f"[INVOICE_TRACKING] 🔄 ON_CANCEL - Calling update_shift_report_with_invoice - Invoice: {doc.name}, Action: cancel")
-		update_shift_report_with_invoice(doc, "cancel")  # Use correct action
+		update_shift_report_with_invoice(doc, "cancel")
 	else:
-		log.warning(f"[INVOICE_TRACKING] ⚠️ ON_CANCEL - No shift report reference - Invoice: {doc.name}")
+		log.warning(f"[INVOICE_TRACKING] No shift report reference - Invoice: {doc.name}")
+
+	# Update POS Payment Summary
+	try:
+		from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import update_payment_summary_on_invoice_submit
+		result = update_payment_summary_on_invoice_submit(doc.name)
+		if not result.get("success"):
+			log.warning(f"[PAYMENT_SUMMARY] Failed to update payment summary for cancelled invoice: {doc.name}")
+	except Exception as e:
+		log.error(f"[PAYMENT_SUMMARY] Error updating payment summary for cancelled invoice {doc.name}: {str(e)}")
 
 def before_cancel(doc, method):
-	log.info(f"[BEFORE_CANCEL] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}, Amount: {doc.grand_total}")
+	log.info(f"[BEFORE_CANCEL] START - Invoice: {doc.name}")
 
 	update_coupon(doc, "Cancelled")
 
-	log.info(f"[BEFORE_CANCEL] ✅ COMPLETED - Invoice: {doc.name}")
+	log.info(f"[BEFORE_CANCEL] COMPLETED - Invoice: {doc.name}")
 
 def add_loyalty_point(invoice_doc):
-	log.info(f"[LOYALTY_POINTS] 🎯 START - Invoice: {invoice_doc.name}, Customer: {invoice_doc.customer}")
+	log.info(f"[LOYALTY_POINTS] START - Invoice: {invoice_doc.name}")
 
 	loyalty_points_added = 0
 	for offer in invoice_doc.posa_offers:
 		if offer.offer == "Loyalty Point":
-			log.info(f"[LOYALTY_POINTS] 🎫 Processing offer: {offer.offer_name}")
 			original_offer = frappe.get_doc("POS Offer", offer.offer_name)
 			if original_offer.loyalty_points > 0:
 				loyalty_program = frappe.get_value("Customer", invoice_doc.customer, "loyalty_program")
 				if not loyalty_program:
 					loyalty_program = original_offer.loyalty_program
-
-				log.info(f"[LOYALTY_POINTS] 💰 Adding {original_offer.loyalty_points} points to program: {loyalty_program}")
 
 				doc = frappe.get_doc(
 					{
@@ -103,13 +115,12 @@ def add_loyalty_point(invoice_doc):
 				)
 				doc.insert(ignore_permissions=True)
 				loyalty_points_added += original_offer.loyalty_points
-				log.info(f"[LOYALTY_POINTS] ✅ Added loyalty points entry: {doc.name}")
 
-	log.info(f"[LOYALTY_POINTS] 🎉 COMPLETED - Total points added: {loyalty_points_added}")
+	log.info(f"[LOYALTY_POINTS] COMPLETED - Total points added: {loyalty_points_added}")
 
 
 def create_sales_order(doc):
-	log.info(f"[SALES_ORDER] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}")
+	log.info(f"[SALES_ORDER] START - Invoice: {doc.name}")
 
 	# Check conditions for creating sales order
 	conditions_met = (
@@ -121,21 +132,14 @@ def create_sales_order(doc):
 		and frappe.get_value("POS Profile", doc.pos_profile, "posa_allow_sales_order")
 	)
 
-	log.info(f"[SALES_ORDER] 🔍 Conditions check - Opening Shift: {bool(doc.posa_pos_opening_shift)}, POS Profile: {bool(doc.pos_profile)}, Is POS: {bool(doc.is_pos)}, Delivery Date: {bool(doc.posa_delivery_date)}, Update Stock: {bool(doc.update_stock)}, Allow Sales Order: {bool(frappe.get_value('POS Profile', doc.pos_profile, 'posa_allow_sales_order'))}")
-
 	if conditions_met:
-		log.info(f"[SALES_ORDER] ✅ Conditions met, creating sales order")
 		sales_order_doc = make_sales_order(doc.name)
 		if sales_order_doc:
-			log.info(f"[SALES_ORDER] 📋 Sales order created: {sales_order_doc.name}")
 			sales_order_doc.posa_notes = doc.posa_notes
 			sales_order_doc.flags.ignore_permissions = True
 			sales_order_doc.flags.ignore_account_permission = True
 			sales_order_doc.save()
-			log.info(f"[SALES_ORDER] 💾 Sales order saved: {sales_order_doc.name}")
-
 			sales_order_doc.submit()
-			log.info(f"[SALES_ORDER] ✅ Sales order submitted: {sales_order_doc.name}")
 
 			url = frappe.utils.get_url_to_form(sales_order_doc.doctype, sales_order_doc.name)
 			msgprint = "Sales Order Created at <a href='{0}'>{1}</a>".format(url, sales_order_doc.name)
@@ -147,13 +151,11 @@ def create_sales_order(doc):
 				doc.items[i].so_detail = item.name
 				i += 1
 
-			log.info(f"[SALES_ORDER] 🔗 Linked {i} items to sales order")
+			log.info(f"[SALES_ORDER] COMPLETED - Sales order created: {sales_order_doc.name}")
 		else:
-			log.warning(f"[SALES_ORDER] ⚠️ Failed to create sales order for invoice: {doc.name}")
+			log.warning(f"[SALES_ORDER] Failed to create sales order for invoice: {doc.name}")
 	else:
-		log.info(f"[SALES_ORDER] ℹ️ Conditions not met, skipping sales order creation")
-
-	log.info(f"[SALES_ORDER] 🎉 COMPLETED - Invoice: {doc.name}")
+		log.info(f"[SALES_ORDER] Conditions not met, skipping sales order creation")
 
 
 def make_sales_order(source_name, target_doc=None, ignore_permissions=True):
@@ -200,58 +202,34 @@ def make_sales_order(source_name, target_doc=None, ignore_permissions=True):
 
 
 def update_coupon(doc, transaction_type):
-	log.info(f"[COUPON_UPDATE] 🎯 START - Invoice: {doc.name}, Transaction Type: {transaction_type}")
+	log.info(f"[COUPON_UPDATE] START - Invoice: {doc.name}, Type: {transaction_type}")
 
 	coupons_updated = 0
 	for coupon in doc.posa_coupons:
-		if not coupon.applied:
-			log.debug(f"[COUPON_UPDATE] ⏭️ Skipping unapplied coupon: {coupon.coupon}")
-			continue
+		if coupon.applied:
+			update_coupon_code_count(coupon.coupon, transaction_type)
+			coupons_updated += 1
 
-		log.info(f"[COUPON_UPDATE] 🎫 Updating coupon: {coupon.coupon}")
-		update_coupon_code_count(coupon.coupon, transaction_type)
-		coupons_updated += 1
-
-	log.info(f"[COUPON_UPDATE] ✅ COMPLETED - Updated {coupons_updated} coupons")
+	log.info(f"[COUPON_UPDATE] COMPLETED - Updated {coupons_updated} coupons")
 
 
 def set_patient(doc):
-	log.info(f"[PATIENT_SETUP] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}")
-
 	domain = get_company_domain(doc.company)
-	log.info(f"[PATIENT_SETUP] 🏥 Company domain: {domain}")
-
-	if domain != "Healthcare":
-		log.info(f"[PATIENT_SETUP] ℹ️ Not healthcare domain, skipping patient setup")
-		return
-
-	log.info(f"[PATIENT_SETUP] 🔍 Looking for patient linked to customer: {doc.customer}")
-	patient_list = frappe.get_all("Patient", filters={"customer": doc.customer}, page_length=1)
-
-	if len(patient_list) > 0:
-		doc.patient = patient_list[0].name
-		log.info(f"[PATIENT_SETUP] ✅ Patient set: {doc.patient}")
-	else:
-		log.info(f"[PATIENT_SETUP] ℹ️ No patient found for customer: {doc.customer}")
-
-	log.info(f"[PATIENT_SETUP] 🎉 COMPLETED - Invoice: {doc.name}")
+	if domain == "Healthcare":
+		patient_list = frappe.get_all("Patient", filters={"customer": doc.customer}, page_length=1)
+		if len(patient_list) > 0:
+			doc.patient = patient_list[0].name
+			log.info(f"[PATIENT_SETUP] Patient set: {doc.patient}")
 
 
 def auto_set_delivery_charges(doc):
-	log.info(f"[DELIVERY_CHARGES] 🎯 START - Invoice: {doc.name}, POS Profile: {doc.pos_profile}")
-
 	if not doc.pos_profile:
-		log.info(f"[DELIVERY_CHARGES] ℹ️ No POS profile, skipping delivery charges setup")
 		return
 
 	auto_set_enabled = frappe.get_cached_value("POS Profile", doc.pos_profile, "posa_auto_set_delivery_charges")
-	log.info(f"[DELIVERY_CHARGES] 🔧 Auto set delivery charges enabled: {bool(auto_set_enabled)}")
-
 	if not auto_set_enabled:
-		log.info(f"[DELIVERY_CHARGES] ℹ️ Auto set delivery charges disabled, skipping")
 		return
 
-	log.info(f"[DELIVERY_CHARGES] 🔍 Getting applicable delivery charges")
 	delivery_charges = get_applicable_delivery_charges(
 		doc.company,
 		doc.pos_profile,
@@ -261,37 +239,18 @@ def auto_set_delivery_charges(doc):
 		restrict=True,
 	)
 
-	log.info(f"[DELIVERY_CHARGES] 📋 Found {len(delivery_charges)} applicable delivery charges")
-
 	if doc.posa_delivery_charges:
-		log.info(f"[DELIVERY_CHARGES] 📦 Delivery charges already set: {doc.posa_delivery_charges}")
-		if doc.posa_delivery_charges_rate:
-			log.info(f"[DELIVERY_CHARGES] 💰 Delivery charges rate already set: {doc.posa_delivery_charges_rate}")
-			return
-		else:
-			if len(delivery_charges) > 0:
-				doc.posa_delivery_charges_rate = delivery_charges[0].rate
-				log.info(f"[DELIVERY_CHARGES] ✅ Set delivery charges rate: {delivery_charges[0].rate}")
-			else:
-				log.info(f"[DELIVERY_CHARGES] ℹ️ No applicable delivery charges found")
+		if not doc.posa_delivery_charges_rate and len(delivery_charges) > 0:
+			doc.posa_delivery_charges_rate = delivery_charges[0].rate
 	else:
 		if len(delivery_charges) > 0:
 			doc.posa_delivery_charges = delivery_charges[0].name
 			doc.posa_delivery_charges_rate = delivery_charges[0].rate
-			log.info(f"[DELIVERY_CHARGES] ✅ Set delivery charges: {delivery_charges[0].name} at rate {delivery_charges[0].rate}")
-		else:
-			doc.posa_delivery_charges = None
-			doc.posa_delivery_charges_rate = None
-			log.info(f"[DELIVERY_CHARGES] ℹ️ No delivery charges applicable, set to None")
-
-	log.info(f"[DELIVERY_CHARGES] 🎉 COMPLETED - Invoice: {doc.name}")
+			log.info(f"[DELIVERY_CHARGES] Set delivery charges: {delivery_charges[0].name}")
 
 
 def calc_delivery_charges(doc):
-	log.info(f"[CALC_DELIVERY_CHARGES] 🎯 START - Invoice: {doc.name}, POS Profile: {doc.pos_profile}")
-
 	if not doc.pos_profile:
-		log.info(f"[CALC_DELIVERY_CHARGES] ℹ️ No POS profile, skipping calculation")
 		return
 
 	old_doc = None
@@ -299,37 +258,26 @@ def calc_delivery_charges(doc):
 
 	if not doc.is_new():
 		old_doc = doc.get_doc_before_save()
-		log.info(f"[CALC_DELIVERY_CHARGES] 📝 Existing document, checking for changes")
 		if not doc.posa_delivery_charges and not old_doc.posa_delivery_charges:
-			log.info(f"[CALC_DELIVERY_CHARGES] ℹ️ No delivery charges in both old and new, skipping")
 			return
 	else:
-		log.info(f"[CALC_DELIVERY_CHARGES] 🆕 New document")
 		if not doc.posa_delivery_charges:
-			log.info(f"[CALC_DELIVERY_CHARGES] ℹ️ No delivery charges set, skipping")
 			return
 
 	if not doc.posa_delivery_charges:
 		doc.posa_delivery_charges_rate = 0
-		log.info(f"[CALC_DELIVERY_CHARGES] ℹ️ No delivery charges, set rate to 0")
 
 	charges_doc = None
 	if doc.posa_delivery_charges:
-		log.info(f"[CALC_DELIVERY_CHARGES] 📦 Loading delivery charges document: {doc.posa_delivery_charges}")
 		charges_doc = frappe.get_cached_doc("Delivery Charges", doc.posa_delivery_charges)
 		doc.posa_delivery_charges_rate = charges_doc.default_rate
-		log.info(f"[CALC_DELIVERY_CHARGES] 💰 Set default rate: {charges_doc.default_rate}")
 
 		charges_profile = next((i for i in charges_doc.profiles if i.pos_profile == doc.pos_profile), None)
 		if charges_profile:
 			doc.posa_delivery_charges_rate = charges_profile.rate
-			log.info(f"[CALC_DELIVERY_CHARGES] ✅ Applied profile-specific rate: {charges_profile.rate}")
-		else:
-			log.info(f"[CALC_DELIVERY_CHARGES] ℹ️ No profile-specific rate found, using default")
 
 	# Remove old delivery charges from taxes if changed
 	if old_doc and old_doc.posa_delivery_charges:
-		log.info(f"[CALC_DELIVERY_CHARGES] 🔄 Checking for old delivery charges to remove")
 		old_charges = next(
 			(
 				i
@@ -341,11 +289,9 @@ def calc_delivery_charges(doc):
 		if old_charges:
 			doc.taxes.remove(old_charges)
 			calculate_taxes_and_totals = True
-			log.info(f"[CALC_DELIVERY_CHARGES] 🗑️ Removed old delivery charges from taxes")
 
 	# Add new delivery charges to taxes
 	if doc.posa_delivery_charges:
-		log.info(f"[CALC_DELIVERY_CHARGES] ➕ Adding delivery charges to taxes")
 		doc.append(
 			"taxes",
 			{
@@ -357,54 +303,32 @@ def calc_delivery_charges(doc):
 			},
 		)
 		calculate_taxes_and_totals = True
-		log.info(f"[CALC_DELIVERY_CHARGES] ✅ Added delivery charges to taxes: {doc.posa_delivery_charges_rate}")
 
 	if calculate_taxes_and_totals:
-		log.info(f"[CALC_DELIVERY_CHARGES] 🧮 Recalculating taxes and totals")
 		doc.calculate_taxes_and_totals()
-		log.info(f"[CALC_DELIVERY_CHARGES] ✅ Taxes and totals recalculated")
-
-	log.info(f"[CALC_DELIVERY_CHARGES] 🎉 COMPLETED - Invoice: {doc.name}")
 
 
 def apply_tax_inclusive(doc):
 	"""Mark taxes as inclusive based on POS Profile setting."""
-	log.info(f"[TAX_INCLUSIVE] 🎯 START - Invoice: {doc.name}, POS Profile: {doc.pos_profile}")
-
 	if not doc.pos_profile:
-		log.info(f"[TAX_INCLUSIVE] ℹ️ No POS profile, skipping tax inclusive setup")
 		return
 
 	try:
 		tax_inclusive = frappe.get_cached_value("POS Profile", doc.pos_profile, "posa_tax_inclusive")
-		log.info(f"[TAX_INCLUSIVE] 🔧 Tax inclusive setting: {bool(tax_inclusive)}")
 	except Exception as e:
 		tax_inclusive = 0
-		log.warning(f"[TAX_INCLUSIVE] ⚠️ Failed to get tax inclusive setting: {str(e)}")
 
 	if not tax_inclusive:
-		log.info(f"[TAX_INCLUSIVE] ℹ️ Tax inclusive disabled, skipping")
 		return
 
-	log.info(f"[TAX_INCLUSIVE] 📊 Processing {len(doc.get('taxes', []))} tax entries")
 	has_changes = False
-	changes_count = 0
-
 	for tax in doc.get("taxes", []):
 		if not tax.included_in_print_rate:
-			log.debug(f"[TAX_INCLUSIVE] 🔄 Setting tax inclusive for: {tax.description}")
 			tax.included_in_print_rate = 1
 			has_changes = True
-			changes_count += 1
-
-	log.info(f"[TAX_INCLUSIVE] ✅ Made {changes_count} tax entries inclusive")
 
 	if has_changes:
-		log.info(f"[TAX_INCLUSIVE] 🧮 Recalculating taxes and totals")
 		doc.calculate_taxes_and_totals()
-		log.info(f"[TAX_INCLUSIVE] ✅ Taxes and totals recalculated")
-
-	log.info(f"[TAX_INCLUSIVE] 🎉 COMPLETED - Invoice: {doc.name}")
 
 
 def get_invoice_payment_method(invoice_doc):
@@ -434,8 +358,6 @@ def get_invoice_payment_method(invoice_doc):
 
 		# Check if invoice has payments child table
 		if hasattr(invoice_doc, 'payments') and invoice_doc.payments:
-			log.debug(f"[PAYMENT_METHOD] Found {len(invoice_doc.payments)} payment entries for invoice {invoice_doc.name}")
-
 			for payment in invoice_doc.payments:
 				if payment.amount > 0:
 					method = payment.mode_of_payment or "Cash"
@@ -445,18 +367,15 @@ def get_invoice_payment_method(invoice_doc):
 						breakdown[method] = payment.amount
 
 			if breakdown:
-				log.debug(f"[PAYMENT_METHOD] Payment breakdown: {breakdown}")
 				return breakdown
 
 		# Fallback: Check payment entries linked to this invoice
-		log.debug(f"[PAYMENT_METHOD] No payments found in child table, checking Payment Entry references")
 		payment_entries = frappe.get_all("Payment Entry Reference",
 			filters={"reference_name": invoice_doc.name, "reference_doctype": "Sales Invoice"},
 			fields=["parent"]
 		)
 
 		if payment_entries:
-			log.debug(f"[PAYMENT_METHOD] Found {len(payment_entries)} payment entry references")
 			for entry_ref in payment_entries:
 				payment_entry = frappe.get_doc("Payment Entry", entry_ref.parent)
 				if payment_entry.payment_type == "Receive" and payment_entry.paid_amount > 0:
@@ -468,10 +387,8 @@ def get_invoice_payment_method(invoice_doc):
 
 		# Default fallback
 		if not breakdown:
-			log.debug(f"[PAYMENT_METHOD] No payment methods found, using default: Cash")
 			breakdown = {"Cash": invoice_doc.grand_total or 0}
 
-		log.debug(f"[PAYMENT_METHOD] Final breakdown: {breakdown}")
 		return breakdown
 
 	except Exception as e:
@@ -483,23 +400,17 @@ def get_invoice_payment_method(invoice_doc):
 
 def validate_shift(doc):
 	if doc.posa_pos_opening_shift and doc.pos_profile and doc.is_pos:
-		# LOG: Start validation
-		log.info(f"[INVOICE_TRACKING] 🔍 VALIDATE_SHIFT - Invoice: {doc.name}, Opening Shift: {doc.posa_pos_opening_shift}")
-
 		# check if shift is open
 		shift = frappe.get_cached_doc("POS Opening Shift", doc.posa_pos_opening_shift)
 		if shift.status != "Open":
-			log.error(f"[INVOICE_TRACKING] ❌ VALIDATE_SHIFT - Shift not open - Invoice: {doc.name}, Shift: {shift.name}, Status: {shift.status}")
 			frappe.throw(_("POS Shift {0} is not open").format(shift.name))
 
 		# check if shift is for the same profile
 		if shift.pos_profile != doc.pos_profile:
-			log.error(f"[INVOICE_TRACKING] ❌ VALIDATE_SHIFT - Profile mismatch - Invoice: {doc.name}, Invoice Profile: {doc.pos_profile}, Shift Profile: {shift.pos_profile}")
 			frappe.throw(_("POS Opening Shift {0} is not for the same POS Profile").format(shift.name))
 
 		# check if shift is for the same company
 		if shift.company != doc.company:
-			log.error(f"[INVOICE_TRACKING] ❌ VALIDATE_SHIFT - Company mismatch - Invoice: {doc.name}, Invoice Company: {doc.company}, Shift Company: {shift.company}")
 			frappe.throw(_("POS Opening Shift {0} is not for the same company").format(shift.name))
 
 		# Set shift report reference - Try multiple approaches
@@ -509,7 +420,6 @@ def validate_shift(doc):
 		if hasattr(shift, 'shift_report') and shift.shift_report:
 			doc.pos_shift_report = shift.shift_report
 			doc.shift_report_id = shift.shift_report_id
-			log.info(f"[INVOICE_TRACKING] ✅ VALIDATE_SHIFT - Set shift report from opening shift - Invoice: {doc.name}, Shift Report: {shift.shift_report}")
 			shift_report_found = True
 
 		# Approach 2: If not found, query shift report directly by pos_opening_shift
@@ -527,16 +437,12 @@ def validate_shift(doc):
 				if shift_reports:
 					doc.pos_shift_report = shift_reports[0].name
 					doc.shift_report_id = shift_reports[0].shift_report_id
-					log.info(f"[INVOICE_TRACKING] ✅ VALIDATE_SHIFT - Set shift report from query - Invoice: {doc.name}, Shift Report: {shift_reports[0].name}")
 					shift_report_found = True
-				else:
-					log.warning(f"[INVOICE_TRACKING] ⚠️ VALIDATE_SHIFT - No active shift report found for opening shift: {doc.posa_pos_opening_shift}")
 			except Exception as query_error:
-				log.error(f"[INVOICE_TRACKING] ❌ VALIDATE_SHIFT - Error querying shift report: {str(query_error)}")
+				log.error(f"[INVOICE_TRACKING] Error querying shift report: {str(query_error)}")
 
 		if not shift_report_found:
-			log.warning(f"[INVOICE_TRACKING] ⚠️ VALIDATE_SHIFT - No shift report reference set - Invoice: {doc.name}")
-			log.info(f"[INVOICE_TRACKING] ℹ️ VALIDATE_SHIFT - Opening shift details - Name: {shift.name}, Status: {shift.status}")
+			log.warning(f"[INVOICE_TRACKING] No shift report reference set - Invoice: {doc.name}")
 
 
 def update_shift_report_with_invoice(invoice_doc, action):
@@ -548,147 +454,73 @@ def update_shift_report_with_invoice(invoice_doc, action):
         invoice_doc: Sales Invoice document
         action: "submit" or "cancel"
     """
-    import time
-    start_time = time.time()
-
-    log.info(f"[INVOICE_TRACKING] 🎯 UPDATE_SHIFT_REPORT - START - Invoice: {invoice_doc.name}, Action: {action}, Amount: {invoice_doc.grand_total}")
-
-    # FIX: Validate action parameter
     if action not in ["submit", "cancel"]:
-        log.error(f"[INVOICE_TRACKING] ❌ UPDATE_SHIFT_REPORT - Invalid action: {action}")
+        log.error(f"[INVOICE_TRACKING] Invalid action: {action}")
+        return
+
+    if not hasattr(invoice_doc, 'pos_shift_report') or not invoice_doc.pos_shift_report:
+        log.warning(f"[INVOICE_TRACKING] No shift report reference - Invoice: {invoice_doc.name}")
         return
 
     try:
-        if not hasattr(invoice_doc, 'pos_shift_report') or not invoice_doc.pos_shift_report:
-            log.warning(f"[INVOICE_TRACKING] ❌ UPDATE_SHIFT_REPORT - No shift report reference - Invoice: {invoice_doc.name}")
-            return
-
         shift_report_name = invoice_doc.pos_shift_report
-        invoice_amount = invoice_doc.grand_total or 0
-
-        log.info(f"[INVOICE_TRACKING] 📋 UPDATE_SHIFT_REPORT - Processing shift report: {shift_report_name}")
-        log.info(f"[INVOICE_TRACKING] 💰 UPDATE_SHIFT_REPORT - Invoice details: Amount={invoice_amount}, Customer={invoice_doc.customer}, IsReturn={invoice_doc.is_return}")
-
-        # FIX: Use manual transaction management for older Frappe versions
-        needs_totals_update = False  # Track if we need to update totals
 
         if action == "submit":
-            log.info(f"[INVOICE_TRACKING] ➕ UPDATE_SHIFT_REPORT - PROCESSING SUBMIT ACTION")
-
-            # Check if invoice already exists (optimized query)
+            # Check if invoice already exists
             existing_count = frappe.db.count("POS Shift Report Invoice", {
                 "parent": shift_report_name,
                 "invoice_no": invoice_doc.name
             })
 
-            log.info(f"[INVOICE_TRACKING] 🔍 UPDATE_SHIFT_REPORT - Existing records check: {existing_count} found")
-
             if existing_count > 0:
-                log.info(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice already exists, will update totals only")
-                needs_totals_update = True  # Still need to update totals
-            else:
-                # Get COMPLETE payment breakdown (now returns dict)
-                log.info(f"[INVOICE_TRACKING] 💳 UPDATE_SHIFT_REPORT - Getting payment breakdown")
-                payment_breakdown = get_invoice_payment_method(invoice_doc)
+                log.info(f"[INVOICE_TRACKING] Invoice already exists in shift report: {invoice_doc.name}")
+                return
 
-                # Convert to JSON string for database storage
-                payment_method_json = frappe.as_json(payment_breakdown)
+            # Get payment breakdown and insert new record
+            payment_breakdown = get_invoice_payment_method(invoice_doc)
+            payment_method_json = frappe.as_json(payment_breakdown)
 
-                log.info(f"[INVOICE_TRACKING] 💳 UPDATE_SHIFT_REPORT - Payment breakdown: {payment_breakdown}")
-                log.debug(f"[INVOICE_TRACKING] 📄 UPDATE_SHIFT_REPORT - JSON for storage: {payment_method_json}")
+            child_name = frappe.generate_hash(length=10)
+            is_return_value = 1 if invoice_doc.is_return else 0
+            invoice_status_value = invoice_doc.status or "Paid"
 
-                # FIX: Generate name for child table row
-                child_name = frappe.generate_hash(length=10)
-                log.info(f"[INVOICE_TRACKING] 🆔 UPDATE_SHIFT_REPORT - Generated child name: {child_name}")
+            frappe.db.sql("""
+                INSERT INTO `tabPOS Shift Report Invoice`
+                (name, parent, parenttype, parentfield, invoice_no, invoice_date, invoice_time,
+                 customer, total_amount, paid_amount, tax_amount, payment_method,
+                 is_return, status, invoice_status, creation, modified, modified_by, owner)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s, %s)
+                ON DUPLICATE KEY UPDATE
+                	status = VALUES(status),
+                	invoice_status = VALUES(invoice_status),
+                	modified = NOW(),
+                	modified_by = VALUES(modified_by)
+            """, (
+                child_name, shift_report_name, "POS Shift Report", "invoices",
+                invoice_doc.name, invoice_doc.posting_date, invoice_doc.posting_time,
+                invoice_doc.customer, invoice_doc.grand_total or 0,
+                invoice_doc.paid_amount or 0, invoice_doc.total_taxes_and_charges or 0,
+                payment_method_json, is_return_value, "Submitted", invoice_status_value,
+                frappe.session.user, frappe.session.user
+            ))
 
-                # FIX: Normalize boolean to tinyint (0/1)
-                is_return_value = 1 if (invoice_doc.is_return or False) else 0
-
-                # FIX: Separate workflow status and invoice status
-                workflow_status = "Submitted" if action == "submit" else "Cancelled"
-                invoice_status_value = invoice_doc.status or "Paid"
-                log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Status mapping: workflow='{workflow_status}', invoice='{invoice_status_value}'")
-
-                # FIX: Handle race condition with INSERT ... ON DUPLICATE KEY UPDATE
-                try:
-                    log.info(f"[INVOICE_TRACKING] 💾 UPDATE_SHIFT_REPORT - Executing INSERT query")
-
-                    frappe.db.sql("""
-                        INSERT INTO `tabPOS Shift Report Invoice`
-                        (name, parent, parenttype, parentfield, invoice_no, invoice_date, invoice_time,
-                         customer, total_amount, paid_amount, tax_amount, payment_method,
-                         is_return, status, invoice_status, creation, modified, modified_by, owner)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s, %s)
-                        ON DUPLICATE KEY UPDATE
-                        	status = VALUES(status),
-                        	invoice_status = VALUES(invoice_status),
-                        	modified = NOW(),
-                        	modified_by = VALUES(modified_by)
-                    """, (
-                        child_name, shift_report_name, "POS Shift Report", "invoices",
-                        invoice_doc.name, invoice_doc.posting_date, invoice_doc.posting_time,
-                        invoice_doc.customer, invoice_amount, invoice_doc.paid_amount or 0,
-                        invoice_doc.total_taxes_and_charges or 0, payment_method_json,  # Store JSON
-                        is_return_value, workflow_status, invoice_status_value,  # Separate statuses
-                        frappe.session.user, frappe.session.user
-                    ))
-
-                    log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Successfully added invoice to shift report")
-                    log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Record details: Child={child_name}, Parent={shift_report_name}, Amount={invoice_amount}")
-                    if len(payment_breakdown) > 1:
-                        log.info(f"[INVOICE_TRACKING] ℹ️ UPDATE_SHIFT_REPORT - Invoice has {len(payment_breakdown)} payment methods")
-                    needs_totals_update = True
-
-                except Exception as insert_error:
-                    log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Insert failed (duplicate?): {str(insert_error)}")
-                    needs_totals_update = True  # Still need to update totals
+            log.info(f"[INVOICE_TRACKING] Added invoice to shift report: {invoice_doc.name}")
 
         elif action == "cancel":
-            log.info(f"[INVOICE_TRACKING] ❌ UPDATE_SHIFT_REPORT - PROCESSING CANCEL ACTION")
-
-            # FIX: Check affected rows properly
-            before_count = frappe.db.count("POS Shift Report Invoice", {
-                "parent": shift_report_name,
-                "invoice_no": invoice_doc.name,
-                "status": ["!=", "Cancelled"]
-            })
-            log.info(f"[INVOICE_TRACKING] 🔍 UPDATE_SHIFT_REPORT - Records to cancel: {before_count}")
-
-            # OPTIMIZED: Direct update without select
-            log.info(f"[INVOICE_TRACKING] 💾 UPDATE_SHIFT_REPORT - Executing UPDATE query for cancel")
-            frappe.db.sql("""
+            # Update existing records to cancelled status
+            result = frappe.db.sql("""
                 UPDATE `tabPOS Shift Report Invoice`
                 SET status = 'Cancelled', invoice_status = %s, modified = NOW(), modified_by = %s
                 WHERE parent = %s AND invoice_no = %s AND status != 'Cancelled'
             """, (invoice_doc.status or "Cancelled", frappe.session.user, shift_report_name, invoice_doc.name))
 
-            after_count = frappe.db.count("POS Shift Report Invoice", {
-                "parent": shift_report_name,
-                "invoice_no": invoice_doc.name,
-                "status": ["!=", "Cancelled"]
-            })
-
-            affected_rows = before_count - after_count
-            log.info(f"[INVOICE_TRACKING] 📊 UPDATE_SHIFT_REPORT - Cancel operation: Before={before_count}, After={after_count}, Affected={affected_rows}")
-
+            affected_rows = frappe.db.sql("SELECT ROW_COUNT()")[0][0]
             if affected_rows > 0:
-                log.info(f"[INVOICE_TRACKING] ✅ UPDATE_SHIFT_REPORT - Successfully marked invoice as cancelled ({affected_rows} rows)")
-                needs_totals_update = True
+                log.info(f"[INVOICE_TRACKING] Cancelled invoice in shift report: {invoice_doc.name} ({affected_rows} rows)")
             else:
-                log.warning(f"[INVOICE_TRACKING] ⚠️ UPDATE_SHIFT_REPORT - Invoice not found or already cancelled")
-
-        # NOTE: Totals are now calculated from POS Payment Summary table, not POS Shift Report Invoice
-        # The recalculation is handled by get_shift_report_with_payment_summary API
-        # when the shift report is loaded, ensuring centralized and efficient calculation.
-        log.info(f"[INVOICE_TRACKING] ℹ️ UPDATE_SHIFT_REPORT - Totals calculation moved to POS Payment Summary table")
-
-        end_time = time.time()
-        duration = end_time - start_time
-        log.info(f"[INVOICE_TRACKING] 🎉 UPDATE_SHIFT_REPORT - COMPLETED - Invoice: {invoice_doc.name}, Action: {action}, Duration: {duration:.2f}s")
+                log.warning(f"[INVOICE_TRACKING] Invoice not found or already cancelled: {invoice_doc.name}")
 
     except Exception as e:
-        end_time = time.time()
-        duration = end_time - start_time
-        log.error(f"[INVOICE_TRACKING] 💥 UPDATE_SHIFT_REPORT - FAILED - Invoice: {invoice_doc.name}, Action: {action}, Duration: {duration:.2f}s, Error: {str(e)}")
+        log.error(f"[INVOICE_TRACKING] Failed to update shift report for invoice {invoice_doc.name}: {str(e)}")
         # Don't raise error to prevent invoice submission/cancellation failure
   

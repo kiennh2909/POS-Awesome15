@@ -528,7 +528,7 @@ export default {
 
 			// ✅ REAL API CALL - Sử dụng API mới với payment summary
 			const response = await frappe.call({
-				method: "posawesome.posawesome.api.shift_reports.get_shift_report_with_payment_summary",
+				method: "posawesome.posawesome.api.shift_reports.get_shift_report_readonly",
 				args: {
 					shift_report_id: actualShiftReportId
 				}
