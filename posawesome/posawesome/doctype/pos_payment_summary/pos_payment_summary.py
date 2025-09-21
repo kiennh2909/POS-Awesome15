@@ -9,7 +9,7 @@ from frappe.utils import get_datetime, cstr, flt
 from posawesome.posawesome.utils.logging import get_logger
 
 # Initialize logger
-log = get_logger("shift_report")
+log = get_logger("shifts")
 # --------------------------------------------------------------------
 # Logger (will be initialized per POS Profile)
 # --------------------------------------------------------------------

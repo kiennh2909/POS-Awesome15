@@ -22,54 +22,80 @@ def create_shift_report(data):
 		dict: Created shift report data
 	"""
 	try:
-		# Validate required fields
+		log.info(f"[SHIFT_REPORT_API] 🚀 START create_shift_report - Data: {data}")
+
+		# STEP 1: Validate required fields
+		log.info(f"[SHIFT_REPORT_API] 📋 STEP 1: Validating required fields")
 		if not data.get("pos_opening_shift"):
+			log.error(f"[SHIFT_REPORT_API] ❌ STEP 1: POS Opening Shift is required")
 			frappe.throw(_("POS Opening Shift is required"))
 
-		if not frappe.db.exists("POS Opening Shift", data.get("pos_opening_shift")):
+		pos_opening_shift = data.get("pos_opening_shift")
+		log.info(f"[SHIFT_REPORT_API] ✅ STEP 1: POS Opening Shift provided: {pos_opening_shift}")
+
+		# STEP 2: Check if POS Opening Shift exists
+		log.info(f"[SHIFT_REPORT_API] 🔍 STEP 2: Checking if POS Opening Shift exists: {pos_opening_shift}")
+		if not frappe.db.exists("POS Opening Shift", pos_opening_shift):
+			log.error(f"[SHIFT_REPORT_API] ❌ STEP 2: POS Opening Shift not found: {pos_opening_shift}")
 			frappe.throw(_("POS Opening Shift not found"))
 
-		# Check if shift report already exists
+		log.info(f"[SHIFT_REPORT_API] ✅ STEP 2: POS Opening Shift exists: {pos_opening_shift}")
+
+		# STEP 3: Check if shift report already exists
+		log.info(f"[SHIFT_REPORT_API] 🔍 STEP 3: Checking if shift report already exists for opening shift: {pos_opening_shift}")
 		existing = frappe.db.exists("POS Shift Report",
-			{"pos_opening_shift": data.get("pos_opening_shift")}
+			{"pos_opening_shift": pos_opening_shift}
 		)
 		if existing:
+			log.warning(f"[SHIFT_REPORT_API] ⚠️ STEP 3: Shift report already exists for opening shift: {pos_opening_shift}")
 			frappe.throw(_("Shift report already exists for this opening shift"))
 
-		# Get opening shift data
-		opening_shift = frappe.get_doc("POS Opening Shift", data.get("pos_opening_shift"))
+		log.info(f"[SHIFT_REPORT_API] ✅ STEP 3: No existing shift report found")
 
-		# Create shift report
+		# STEP 4: Get opening shift data
+		log.info(f"[SHIFT_REPORT_API] 📥 STEP 4: Loading POS Opening Shift data: {pos_opening_shift}")
+		opening_shift = frappe.get_doc("POS Opening Shift", pos_opening_shift)
+		log.info(f"[SHIFT_REPORT_API] ✅ STEP 4: Loaded opening shift - Date: {opening_shift.posting_date}, User: {opening_shift.owner}")
+
+		# STEP 5: Create shift report document
+		log.info(f"[SHIFT_REPORT_API] 📝 STEP 5: Creating POS Shift Report document")
+		shift_report_id = data.get("shift_report_id") or f"SHIFT-{opening_shift.name}"
+		opening_time = frappe.utils.get_time(opening_shift.period_start_date)
+
 		shift_report = frappe.get_doc({
 			"doctype": "POS Shift Report",
-			"shift_report_id": data.get("shift_report_id") or f"SHIFT-{opening_shift.name}",
+			"shift_report_id": shift_report_id,
 			"pos_opening_shift": opening_shift.name,
 			"opening_date": opening_shift.posting_date,
-			"opening_time": frappe.utils.get_time(opening_shift.period_start_date),
+			"opening_time": opening_time,
 			"opened_by": opening_shift.owner,
 			"opening_amounts": data.get("opening_amounts", "{}"),
 			"status": "Open"
 		})
 
+		log.info(f"[SHIFT_REPORT_API] 📋 STEP 5: Shift report data prepared - ID: {shift_report_id}, Opening Time: {opening_time}")
 		shift_report.insert()
+		log.info(f"[SHIFT_REPORT_API] ✅ STEP 5: POS Shift Report created successfully: {shift_report.name}")
 
-		# ✅ AUTO-CREATE POS PAYMENT SUMMARY RECORDS
-		log.info(f"[SHIFT_REPORT_API] 🔄 CREATE_SHIFT_REPORT - Auto-creating POS Payment Summary records for: {shift_report.name}")
+		# STEP 6: Auto-create POS Payment Summary records
+		log.info(f"[SHIFT_REPORT_API] 🔄 STEP 6: Auto-creating POS Payment Summary records for: {shift_report.name}")
 		try:
 			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import initialize_payment_summaries_for_shift
 
 			init_result = initialize_payment_summaries_for_shift(shift_report.name)
 
 			if init_result.get("success"):
-				log.info(f"[SHIFT_REPORT_API] ✅ CREATE_SHIFT_REPORT - Auto-created {init_result['data']['initialized_count']} POS Payment Summary records")
+				initialized_count = init_result['data']['initialized_count']
+				log.info(f"[SHIFT_REPORT_API] ✅ STEP 6: Auto-created {initialized_count} POS Payment Summary records")
 			else:
-				log.warning(f"[SHIFT_REPORT_API] ⚠️ CREATE_SHIFT_REPORT - Failed to auto-create POS Payment Summary: {init_result.get('message')}")
+				log.warning(f"[SHIFT_REPORT_API] ⚠️ STEP 6: Failed to auto-create POS Payment Summary: {init_result.get('message')}")
 
 		except Exception as init_error:
-			log.error(f"[SHIFT_REPORT_API] ❌ CREATE_SHIFT_REPORT - Error auto-creating POS Payment Summary: {str(init_error)}")
+			log.error(f"[SHIFT_REPORT_API] ❌ STEP 6: Error auto-creating POS Payment Summary: {str(init_error)}")
 			# Don't fail the entire operation if payment summary creation fails
 			# Just log the error and continue
 
+		log.info(f"[SHIFT_REPORT_API] 🎉 COMPLETED create_shift_report successfully - Shift Report: {shift_report.name} (ID: {shift_report_id})")
 		return {
 			"success": True,
 			"message": _("Shift report created successfully"),
@@ -81,6 +107,7 @@ def create_shift_report(data):
 		}
 
 	except Exception as e:
+		log.error(f"[SHIFT_REPORT_API] 💥 FAILED create_shift_report - Error: {str(e)}")
 		frappe.log_error(str(e), "Create Shift Report Error")
 		return {
 			"success": False,
