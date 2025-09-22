@@ -110,6 +110,9 @@
 			</v-tooltip>
 		</v-btn>
 
+		<!-- Reports Menu component slot -->
+		<slot name="reports-menu"></slot>
+
 		<!-- Menu component slot -->
 		<slot name="menu"></slot>
 

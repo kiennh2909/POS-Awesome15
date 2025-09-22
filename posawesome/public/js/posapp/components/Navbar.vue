@@ -30,6 +30,19 @@
 				/>
 			</template>
 
+			<!-- Slot for reports menu -->
+			<template #reports-menu>
+				<ReportsMenu
+					@show-shift-reports="showShiftReportsDialog = true"
+					@show-item-reports="showItemReportsDialog = true"
+					@show-tax-reports="showTaxReportsDialog = true"
+					@show-inventory-reports="showInventoryReportsDialog = true"
+					@show-price-reports="showPriceReportsDialog = true"
+					@show-employee-reports="showEmployeeReportsDialog = true"
+					@show-promotion-reports="showPromotionReportsDialog = true"
+				/>
+			</template>
+
 			<!-- Slot for menu -->
 			<template #menu>
 				<NavbarMenu
@@ -80,6 +93,43 @@
 			:pos-profile="posProfile"
 			@deleted="updateAfterDelete"
 			@sync-all="syncPendingInvoices"
+		/>
+
+		<!-- Reports Dialogs -->
+		<ReportsDialog
+			v-model="showShiftReportsDialog"
+			report-type="shift"
+			:pos-profile="posProfile"
+		/>
+		<ReportsDialog
+			v-model="showItemReportsDialog"
+			report-type="item"
+			:pos-profile="posProfile"
+		/>
+		<ReportsDialog
+			v-model="showTaxReportsDialog"
+			report-type="tax"
+			:pos-profile="posProfile"
+		/>
+		<ReportsDialog
+			v-model="showInventoryReportsDialog"
+			report-type="inventory"
+			:pos-profile="posProfile"
+		/>
+		<ReportsDialog
+			v-model="showPriceReportsDialog"
+			report-type="price"
+			:pos-profile="posProfile"
+		/>
+		<ReportsDialog
+			v-model="showEmployeeReportsDialog"
+			report-type="employee"
+			:pos-profile="posProfile"
+		/>
+		<ReportsDialog
+			v-model="showPromotionReportsDialog"
+			report-type="promotion"
+			:pos-profile="posProfile"
 		/>
 
 		<!-- Offer Notification Dialog -->
@@ -147,10 +197,12 @@ export default {
 		NavbarAppBar,
 		NavbarDrawer,
 		NavbarMenu,
+		ReportsMenu,
 		StatusIndicator,
 		CacheUsageMeter,
 		AboutDialog,
 		OfflineInvoicesDialog: OfflineInvoices,
+		ReportsDialog,
 	},
 	props: {
 		posProfile: {
@@ -198,6 +250,14 @@ export default {
 			companyImg: "/assets/posawesome/js/posapp/components/pos/pos.png",
 			showAboutDialog: false,
 			showOfflineInvoices: false,
+			// Reports Dialog States
+			showShiftReportsDialog: false,
+			showItemReportsDialog: false,
+			showTaxReportsDialog: false,
+			showInventoryReportsDialog: false,
+			showPriceReportsDialog: false,
+			showEmployeeReportsDialog: false,
+			showPromotionReportsDialog: false,
 			freeze: false,
 			freezeTitle: "",
 			freezeMsg: "",
