@@ -928,10 +928,10 @@ def validate_shift_can_be_closed(opening_shift_name):
 @frappe.whitelist()
 def submit_closing_shift_v2(closing_shift):
     """
-    NEW API - Improved version with better error handling and serialization
-    Uses direct database operations instead of document object manipulation
+    NEW API - Combined create and submit closing shift in one call
+    If document doesn't exist, creates it first using make_closing_shift_from_opening logic
     """
-    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚀 SUBMIT_CLOSING_SHIFT_V2_START - Starting NEW closing shift submission - User: {frappe.session.user}")
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚀 SUBMIT_CLOSING_SHIFT_V2_START - Starting combined closing shift submission - User: {frappe.session.user}")
 
     try:
         # Parse input data
@@ -945,13 +945,32 @@ def submit_closing_shift_v2(closing_shift):
         user = closing_shift_data.get("user")
 
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_V2_DATA - Closing shift: {closing_shift_name}, Opening shift: {opening_shift}, User: {user}")
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_V2_SHIFT_REPORT - Shift report: {shift_report}, Shift report ID: {shift_report_id}")
 
-        # STEP 1: Validate closing shift exists and is in draft state
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 SUBMIT_CLOSING_SHIFT_V2_VALIDATE_DOC - Validating closing shift document")
-        if not frappe.db.exists("POS Closing Shift", closing_shift_name):
-            raise frappe.ValidationError(_("POS Closing Shift '{0}' does not exist").format(closing_shift_name))
+        # STEP 1: Create document if it doesn't exist
+        if not closing_shift_name or not frappe.db.exists("POS Closing Shift", closing_shift_name):
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 SUBMIT_CLOSING_SHIFT_V2_CREATE_DOC - Document doesn't exist, creating new one")
 
+            # Prepare opening shift data for creation
+            opening_shift_data = {
+                "name": opening_shift,
+                "pos_profile": closing_shift_data.get("pos_profile"),
+                "user": user,
+                "company": closing_shift_data.get("company", "Default Company"),
+                "period_start_date": closing_shift_data.get("period_start_date"),
+                "period_start_time": closing_shift_data.get("period_start_time"),
+                "balance_details": closing_shift_data.get("balance_details", [])
+            }
+
+            # Create the document using make_closing_shift_from_opening
+            closing_shift_doc = make_closing_shift_from_opening(json.dumps(opening_shift_data))
+            closing_shift_name = closing_shift_doc.name
+
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_V2_CREATED - Created closing shift: {closing_shift_name}")
+        else:
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_V2_LOAD_DOC - Loading existing document: {closing_shift_name}")
+            closing_shift_doc = frappe.get_doc("POS Closing Shift", closing_shift_name)
+
+        # STEP 2: Validate document is in draft state
         current_docstatus = frappe.db.get_value("POS Closing Shift", closing_shift_name, "docstatus")
         if current_docstatus != 0:
             raise frappe.ValidationError(_("POS Closing Shift '{0}' is not in draft state (current status: {1})").format(closing_shift_name, current_docstatus))

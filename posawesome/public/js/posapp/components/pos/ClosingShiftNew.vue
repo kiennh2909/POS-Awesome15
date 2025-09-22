@@ -204,21 +204,26 @@ export default {
 		},
 
 		async closeShift() {
-			const missingAmounts = this.paymentSummaryData.filter(item =>
-				item.actual_closing_amount === undefined ||
-				item.actual_closing_amount === null ||
-				item.actual_closing_amount === ''
-			);
+			// Validate that all actual closing amounts are valid numbers
+			const invalidAmounts = this.paymentSummaryData.filter(item => {
+				const value = item.actual_closing_amount;
+				if (value === undefined || value === null || value === '') {
+					return false; // Empty is allowed, will default to 0
+				}
+				const numValue = parseFloat(value);
+				return isNaN(numValue);
+			});
 
-			if (missingAmounts.length > 0) {
-				this.showError("Please enter actual closing amounts for all payment methods");
+			if (invalidAmounts.length > 0) {
+				this.showError("Please enter valid numbers for actual closing amounts");
 				return;
 			}
 
 			this.closingShift = true;
 			try {
-				const openingShiftData = {
-					name: typeof this.shiftReportId === 'object' ? this.shiftReportId.name : this.shiftReportId,
+				// Single API call to create and submit closing shift
+				const closingShiftData = {
+					pos_opening_shift: typeof this.shiftReportId === 'object' ? this.shiftReportId.name : this.shiftReportId,
 					pos_profile: this.posProfile.name,
 					user: frappe.session.user,
 					company: this.posProfile.company,
@@ -227,44 +232,43 @@ export default {
 					balance_details: this.paymentSummaryData.map(item => ({
 						mode_of_payment: item.payment_method,
 						amount: item.opening_amount || 0
-					}))
+					})),
+					payment_reconciliation: this.paymentSummaryData.map(item => {
+						const actualClosing = item.actual_closing_amount;
+						let closingAmount = 0;
+
+						if (actualClosing !== '' && actualClosing !== null && actualClosing !== undefined) {
+							const parsed = parseFloat(actualClosing);
+							if (!isNaN(parsed)) {
+								closingAmount = parsed;
+							}
+						}
+
+						return {
+							mode_of_payment: item.payment_method,
+							opening_amount: parseFloat(item.opening_amount) || 0,
+							expected_amount: parseFloat(item.expected_closing_amount) || 0,
+							closing_amount: closingAmount,
+							difference: parseFloat(item.difference) || 0
+						};
+					})
 				};
 
 				const response = await frappe.call({
-					method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.make_closing_shift_from_opening",
+					method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift_v2",
 					args: {
-						opening_shift: JSON.stringify(openingShiftData)
+						closing_shift: JSON.stringify(closingShiftData)
 					}
 				});
 
-				if (response.message) {
-					const submitResponse = await frappe.call({
-						method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift_v2",
-						args: {
-							closing_shift: JSON.stringify({
-								name: response.message.name,
-								pos_opening_shift: response.message.pos_opening_shift,
-								user: frappe.session.user,
-								payment_reconciliation: this.paymentSummaryData.map(item => ({
-									mode_of_payment: item.payment_method,
-									opening_amount: item.opening_amount,
-									expected_amount: item.expected_closing_amount,
-									closing_amount: parseFloat(item.actual_closing_amount) || 0,
-									difference: item.difference
-								}))
-							})
-						}
-					});
-
-					if (submitResponse.message?.success) {
-						this.showSuccess(__("Shift closed successfully"));
-						this.close();
-						if (this.eventBus) {
-							this.eventBus.emit("shift_closed_success");
-						}
-					} else {
-						this.showError(submitResponse.message?.message || __("Failed to close shift"));
+				if (response.message?.success) {
+					this.showSuccess(__("Shift closed successfully"));
+					this.close();
+					if (this.eventBus) {
+						this.eventBus.emit("shift_closed_success");
 					}
+				} else {
+					this.showError(response.message?.message || __("Failed to close shift"));
 				}
 			} catch (error) {
 				console.error("Error closing shift:", error);
