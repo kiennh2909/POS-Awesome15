@@ -759,55 +759,54 @@ def make_closing_shift_from_opening(opening_shift):
 
 @frappe.whitelist()
 def submit_closing_shift(closing_shift):
-    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚀 SUBMIT_CLOSING_SHIFT_START - Starting closing shift submission - User: {frappe.session.user}")
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚀 SUBMIT_CLOSING_SHIFT_START - KIEM TRA - Starting closing shift submission - User: {frappe.session.user}")
 
     try:
         # Parse input data
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_PARSE - Parsing closing shift JSON data")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 1. SUBMIT_CLOSING_SHIFT_PARSE - Parsing closing shift JSON data")
         closing_shift_data = json.loads(closing_shift)
 
         closing_shift_name = closing_shift_data.get("name")
         opening_shift = closing_shift_data.get("pos_opening_shift")
         user = closing_shift_data.get("user")
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_DATA - Closing shift: {closing_shift_name}, Opening shift: {opening_shift}, User: {user}")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 2. SUBMIT_CLOSING_SHIFT_DATA - Closing shift: {closing_shift_name}, Opening shift: {opening_shift}, User: {user}")
 
         # Get closing shift document
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 SUBMIT_CLOSING_SHIFT_LOAD_DOC - Loading closing shift document {closing_shift_name}")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 3. SUBMIT_CLOSING_SHIFT_LOAD_DOC - Loading closing shift document {closing_shift_name}")
         closing_shift_doc = frappe.get_doc(closing_shift_data)
         closing_shift_doc.flags.ignore_permissions = True
 
         # Save the document (this will trigger validation and on_submit)
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 💾 SUBMIT_CLOSING_SHIFT_SAVE - Saving closing shift document (triggers validation & on_submit)")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 4. SUBMIT_CLOSING_SHIFT_SAVE - Saving closing shift document (triggers validation & on_submit)")
         closing_shift_doc.save()
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_SAVE_COMPLETED - Document saved")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 5. SUBMIT_CLOSING_SHIFT_SAVE_COMPLETED - Document saved")
 
         # Submit the document
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_SUBMIT - Submitting closing shift document")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 6. SUBMIT_CLOSING_SHIFT_SUBMIT - Submitting closing shift document")
         closing_shift_doc.submit()
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎉 SUBMIT_CLOSING_SHIFT_SUBMIT_COMPLETED - Document submitted")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 7. SUBMIT_CLOSING_SHIFT_SUBMIT_COMPLETED - Document submitted")
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎉 SUBMIT_CLOSING_SHIFT_COMPLETED - Closing shift {closing_shift_doc.name} submitted successfully")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 8. SUBMIT_CLOSING_SHIFT_COMPLETED - Closing shift {closing_shift_name} submitted successfully")
 
         # Return success response with logout and refresh signals
+        # Use stored values instead of accessing document object to avoid serialization issues
         return {
             "success": True,
             "message": _("POS Closing Shift submitted successfully"),
             "data": {
-                "name": closing_shift_doc.name,
-                "docstatus": closing_shift_doc.docstatus,
+                "name": closing_shift_name,
+                "docstatus": 1,  # Submitted status
                 "requires_logout": True,  # Signal to frontend to logout user
                 "requires_ui_refresh": True  # Signal to frontend to refresh UI
             }
         }
 
     except frappe.ValidationError as ve:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT_VALIDATION_ERROR - Validation error: {str(ve)}")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ 9. SUBMIT_CLOSING_SHIFT_VALIDATION_ERROR - Validation error: {str(ve)}")
         raise
     except Exception as e:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT_ERROR - Unexpected error: {str(e)}")
-        frappe.log_error(f"Unexpected error in submit_closing_shift: {str(e)}", "POS Closing Shift Submit Error")
-
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ 10. SUBMIT_CLOSING_SHIFT_ERROR - Unexpected error: {str(e)}")
         return {
             "success": False,
             "message": _("An unexpected error occurred while submitting closing shift: {0}").format(str(e))
