@@ -1,4 +1,6 @@
 <template>
+	<!-- Debug: Check if ClosingDialog component is rendering -->
+	{{ console.log('[CLOSING_DIALOG] Template rendering, closingDialog:', closingDialog, 'dialog_data:', dialog_data) }}
 	<v-row justify="center">
 		<v-dialog v-model="closingDialog" max-width="900px" persistent>
 			<v-card elevation="8" class="closing-dialog-card">

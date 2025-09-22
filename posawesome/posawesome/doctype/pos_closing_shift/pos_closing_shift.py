@@ -958,6 +958,22 @@ def submit_closing_shift_v2(closing_shift):
         # STEP 2: Update closing shift data directly in database
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 💾 SUBMIT_CLOSING_SHIFT_V2_UPDATE_DATA - Updating closing shift data in database")
 
+        # Get shift report verification details if shift_report exists
+        shift_report_fields = {}
+        if closing_shift_data.get("shift_report"):
+            try:
+                shift_report_doc = frappe.get_doc("POS Shift Report", closing_shift_data.get("shift_report"))
+                shift_report_fields = {
+                    "shift_report_id": shift_report_doc.shift_report_id,
+                    "verification_date": shift_report_doc.verification_date,
+                    "verified_by": shift_report_doc.verified_by,
+                    "confirmation_date": shift_report_doc.confirmation_date,
+                    "confirmed_by": shift_report_doc.confirmed_by
+                }
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_CLOSING_SHIFT_V2_SHIFT_REPORT_DATA - Retrieved verification data: {shift_report_fields}")
+            except Exception as e:
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_CLOSING_SHIFT_V2_SHIFT_REPORT_ERROR - Could not get shift report data: {str(e)}")
+
         # Update main fields
         update_fields = {
             "period_end_date": closing_shift_data.get("period_end_date", frappe.utils.now()),
@@ -968,7 +984,8 @@ def submit_closing_shift_v2(closing_shift):
             "expected_amounts": closing_shift_data.get("expected_amounts", "{}"),
             "actual_amounts": closing_shift_data.get("actual_amounts", "{}"),
             "difference_amounts": closing_shift_data.get("difference_amounts", "{}"),
-            "verification_status": closing_shift_data.get("verification_status", "Pending")
+            "verification_status": closing_shift_data.get("verification_status", "Pending"),
+            **shift_report_fields  # Include shift report verification fields
         }
 
         frappe.db.set_value("POS Closing Shift", closing_shift_name, update_fields, update_modified=False)
