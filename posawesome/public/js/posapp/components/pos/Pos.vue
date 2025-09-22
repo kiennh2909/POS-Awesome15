@@ -10,7 +10,7 @@
 		<TaxRollDialog></TaxRollDialog>
 		<ListInvoicesDialog
 			v-model="showListInvoicesDialog"
-			:shift-report-id="pos_opening_shift"
+			:shift-report-id="pos_shift_report || pos_opening_shift"
 			:pos-profile="pos_profile"
 		></ListInvoicesDialog>
 		<OpeningDialog v-if="dialog" :dialog="dialog"></OpeningDialog>

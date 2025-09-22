@@ -541,9 +541,9 @@ export default {
 
 			console.log("API Response:", response);
 
-			if (response.message && response.message.invoices) {
+			if (response.message && response.message.success && response.message.data && response.message.data.invoices) {
 				// ✅ HANDLE SHIFT REPORT DATA - API trả về object với invoices array
-				const shiftReportData = response.message;
+				const shiftReportData = response.message.data;
 
 				console.log("Shift Report Data:", shiftReportData);
 
@@ -626,6 +626,9 @@ export default {
 			} else {
 				console.warn("No shift report data found or invalid response format");
 				console.log("Response structure:", response);
+				if (response.message && !response.message.success) {
+					this.showError(response.message.message || "Failed to load shift report data");
+				}
 				this.invoices = [];
 				this.totalInvoices = 0;
 				this.summary = {
