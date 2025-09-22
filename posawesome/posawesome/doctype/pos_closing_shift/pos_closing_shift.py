@@ -793,7 +793,6 @@ def submit_closing_shift(closing_shift):
         return {
             "success": True,
             "message": _("POS Closing Shift submitted successfully"),
-            "request_id": request_id,
             "data": {
                 "name": closing_shift_doc.name,
                 "docstatus": closing_shift_doc.docstatus,
