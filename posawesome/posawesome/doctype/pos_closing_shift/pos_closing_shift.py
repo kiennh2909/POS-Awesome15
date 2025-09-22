@@ -950,9 +950,19 @@ def submit_closing_shift_v2(closing_shift):
         if not closing_shift_name or not frappe.db.exists("POS Closing Shift", closing_shift_name):
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 SUBMIT_CLOSING_SHIFT_V2_CREATE_DOC - Document doesn't exist, creating new one")
 
+            # Check if opening_shift is actually a POS Shift Report ID
+            actual_opening_shift = opening_shift
+            if opening_shift and frappe.db.exists("POS Shift Report", opening_shift):
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 SUBMIT_CLOSING_SHIFT_V2_SHIFT_REPORT_FOUND - '{opening_shift}' is a POS Shift Report, getting opening shift")
+                actual_opening_shift = frappe.db.get_value("POS Shift Report", opening_shift, "pos_opening_shift")
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_V2_OPENING_SHIFT_FOUND - Found opening shift: {actual_opening_shift}")
+
+            if not actual_opening_shift:
+                raise frappe.ValidationError(_("Could not find valid POS Opening Shift for: {0}").format(opening_shift))
+
             # Prepare opening shift data for creation
             opening_shift_data = {
-                "name": opening_shift,
+                "name": actual_opening_shift,
                 "pos_profile": closing_shift_data.get("pos_profile"),
                 "user": user,
                 "company": closing_shift_data.get("company", "Default Company"),
@@ -969,6 +979,13 @@ def submit_closing_shift_v2(closing_shift):
         else:
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_V2_LOAD_DOC - Loading existing document: {closing_shift_name}")
             closing_shift_doc = frappe.get_doc("POS Closing Shift", closing_shift_name)
+
+            # Update opening_shift if it was passed as a POS Shift Report ID
+            if opening_shift and frappe.db.exists("POS Shift Report", opening_shift):
+                actual_opening_shift = frappe.db.get_value("POS Shift Report", opening_shift, "pos_opening_shift")
+                if actual_opening_shift and actual_opening_shift != closing_shift_doc.pos_opening_shift:
+                    closing_shift_doc.pos_opening_shift = actual_opening_shift
+                    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 SUBMIT_CLOSING_SHIFT_V2_UPDATED_OPENING_SHIFT - Updated opening shift to: {actual_opening_shift}")
 
         # STEP 2: Validate document is in draft state
         current_docstatus = frappe.db.get_value("POS Closing Shift", closing_shift_name, "docstatus")

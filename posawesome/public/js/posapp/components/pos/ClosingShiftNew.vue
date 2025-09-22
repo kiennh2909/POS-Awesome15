@@ -222,8 +222,14 @@ export default {
 			this.closingShift = true;
 			try {
 				// Single API call to create and submit closing shift
+				// Use POS Opening Shift from shift report data, or fallback to shiftReportId if it's already an opening shift
+				let posOpeningShift = this.shiftReportData?.pos_opening_shift;
+				if (!posOpeningShift) {
+					posOpeningShift = typeof this.shiftReportId === 'object' ? this.shiftReportId.name : this.shiftReportId;
+				}
+
 				const closingShiftData = {
-					pos_opening_shift: typeof this.shiftReportId === 'object' ? this.shiftReportId.name : this.shiftReportId,
+					pos_opening_shift: posOpeningShift,
 					pos_profile: this.posProfile.name,
 					user: frappe.session.user,
 					company: this.posProfile.company,
