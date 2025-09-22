@@ -757,7 +757,12 @@ def make_closing_shift_from_opening(opening_shift):
         closing_shift.set("taxes", taxes)
         closing_shift.set("pos_payments", pos_payments_table)
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_COMPLETED - Closing shift created successfully. Transactions: {len(pos_transactions)}, Payments: {len(payments)}")
+        # Save the closing shift document to generate name
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 💾 MAKE_CLOSING_SHIFT_SAVE - Saving closing shift document")
+        closing_shift.insert(ignore_permissions=True)
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_SAVED - Closing shift saved with name: {closing_shift.name}")
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_COMPLETED - Closing shift created successfully. Name: {closing_shift.name}, Transactions: {len(pos_transactions)}, Payments: {len(payments)}")
         return closing_shift
 
     except Exception as e:
