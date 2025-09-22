@@ -64,7 +64,7 @@
 									<p class="text-body-2 text-grey">
 										{{ __("Enter closing amounts for each payment method") }}
 									</p>
-									<v-alert v-if="!isVerifiedOrConfirmed" type="error" class="mt-3">
+									<v-alert v-if="!isVerifiedOrConfirmed && (dialog_data.shift_report || dialog_data.shift_report_id)" type="error" class="mt-3">
 										{{ __("Shift Report must be verified before closing shift") }}
 									</v-alert>
 									<v-alert v-if="allFieldsEmpty" type="warning" class="mt-3">
@@ -138,7 +138,7 @@
 				<v-spacer></v-spacer>
 
 				<v-tooltip
-					v-if="!isVerifiedOrConfirmed"
+					v-if="!isVerifiedOrConfirmed && (dialog_data.shift_report || dialog_data.shift_report_id)"
 					text="Shift report must be verified before closing shift"
 					location="top"
 				>
@@ -273,6 +273,11 @@ export default {
 			return this.dialog_data.verification_status === 'Verified';
 		},
 		isVerifiedOrConfirmed() {
+			// Allow closing if shift report exists and is verified, OR if no shift report exists (optional)
+			const hasShiftReport = this.dialog_data.shift_report || this.dialog_data.shift_report_id;
+			if (!hasShiftReport) {
+				return true; // Allow closing without shift report
+			}
 			return this.dialog_data.verification_status === 'Verified' ||
 				   this.dialog_data.verification_status === 'Confirmed';
 		},

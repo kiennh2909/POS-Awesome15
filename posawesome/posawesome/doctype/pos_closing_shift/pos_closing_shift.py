@@ -57,7 +57,7 @@ class POSClosingShift(Document):
 
         log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE_OPENING_VALID - Opening shift is valid and open")
 
-        # Set shift_report field if not provided
+        # Set shift_report field if not provided (optional - shift report is not required for closing)
         if not self.shift_report and self.pos_opening_shift:
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 VALIDATE_FIND_SHIFT_REPORT - Finding shift report for opening shift {self.pos_opening_shift}")
             shift_report = frappe.db.get_value("POS Shift Report", {"pos_opening_shift": self.pos_opening_shift}, "name")
@@ -66,8 +66,7 @@ class POSClosingShift(Document):
                 self.shift_report = shift_report
                 log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE_SHIFT_REPORT_FOUND - Found shift report: {shift_report}")
             else:
-                log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ VALIDATE_NO_SHIFT_REPORT - No shift report found for opening shift {self.pos_opening_shift}")
-                frappe.throw(_("No shift report found for this opening shift. Please ensure shift report is created before closing shift."))
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] ℹ️ VALIDATE_NO_SHIFT_REPORT - No shift report found for opening shift {self.pos_opening_shift}, but allowing close anyway")
 
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 VALIDATE_UPDATE_RECONCILIATION - Updating payment reconciliation")
         self.update_payment_reconciliation()
@@ -179,17 +178,16 @@ class POSClosingShift(Document):
             self.ensure_json_fields_valid()  # Ensure JSON fields are valid before submit
             log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP0_COMPLETED - Payment amounts updated")
 
-            # STEP 1: Validate shift report verification status before submission
+            # STEP 1: Validate shift report verification status before submission (optional)
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 ON_SUBMIT_STEP1_VALIDATE_VERIFICATION - Checking shift report verification status")
             if self.shift_report:
                 shift_report_status = frappe.db.get_value("POS Shift Report", self.shift_report, "verification_status")
                 log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 ON_SUBMIT_STEP1_VERIFICATION_STATUS - Shift report {self.shift_report} status: {shift_report_status}")
 
                 if shift_report_status not in ["Verified", "Confirmed"]:
-                    log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ ON_SUBMIT_STEP1_VERIFICATION_FAILED - Shift report not verified (status: {shift_report_status})")
-                    frappe.throw(_("Shift must be verified before closing. Please verify the shift report first."))
+                    log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ ON_SUBMIT_STEP1_VERIFICATION_PENDING - Shift report not verified (status: {shift_report_status}), but allowing close anyway")
             else:
-                log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ ON_SUBMIT_STEP1_NO_SHIFT_REPORT - No shift report linked to closing shift {self.name}")
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] ℹ️ ON_SUBMIT_STEP1_NO_SHIFT_REPORT - No shift report linked to closing shift {self.name}, proceeding without verification")
 
             log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP1_COMPLETED - Verification check passed")
 
@@ -572,6 +570,7 @@ def make_closing_shift_from_opening(opening_shift):
         # VALIDATION: Check if shift can be closed
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 MAKE_CLOSING_SHIFT_VALIDATION - Checking if shift can be closed")
         validation_result = validate_shift_can_be_closed(opening_shift_name)
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 MAKE_CLOSING_SHIFT_VALIDATION_RESULT - Can close: {validation_result.get('can_close')}, Message: {validation_result.get('message')}")
 
         if not validation_result.get("can_close"):
             log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ MAKE_CLOSING_SHIFT_BLOCKED - Validation failed: {validation_result.get('message')}")
@@ -884,22 +883,19 @@ def validate_shift_can_be_closed(opening_shift_name):
                 "message": _("Cannot close shift. POS Opening Shift '{0}' is not open (current status: {1})").format(opening_shift_name, opening_shift.status)
             }
 
-        # Check 2: Shift report exists and is not closed
+        # Check 2: If shift report exists, ensure it's not closed (optional check)
         shift_report_name = frappe.db.get_value("POS Shift Report", {"pos_opening_shift": opening_shift_name}, "name")
-        if not shift_report_name:
-            log.warning(f"[SHIFT_CLOSE_VALIDATION] ⚠️ NO_SHIFT_REPORT - No shift report found for opening shift {opening_shift_name}")
-            return {
-                "can_close": False,
-                "message": _("Cannot close shift. No shift report found for POS Opening Shift '{0}'").format(opening_shift_name)
-            }
-
-        shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
-        if shift_report.status == "Closed":
-            log.warning(f"[SHIFT_CLOSE_VALIDATION] ⚠️ SHIFT_ALREADY_CLOSED - Shift report {shift_report_name} is already closed")
-            return {
-                "can_close": False,
-                "message": _("Cannot close shift. Shift Report '{0}' is already closed").format(shift_report_name)
-            }
+        if shift_report_name:
+            shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
+            if shift_report.status == "Closed":
+                log.warning(f"[SHIFT_CLOSE_VALIDATION] ⚠️ SHIFT_ALREADY_CLOSED - Shift report {shift_report_name} is already closed")
+                return {
+                    "can_close": False,
+                    "message": _("Cannot close shift. Shift Report '{0}' is already closed").format(shift_report_name)
+                }
+            log.info(f"[SHIFT_CLOSE_VALIDATION] ✅ SHIFT_REPORT_EXISTS - Shift report {shift_report_name} exists and is not closed")
+        else:
+            log.info(f"[SHIFT_CLOSE_VALIDATION] ℹ️ NO_SHIFT_REPORT - No shift report found for opening shift {opening_shift_name}, but allowing close anyway")
 
         # Check 3: No existing submitted closing shift
         existing_closing = frappe.db.exists("POS Closing Shift", {
