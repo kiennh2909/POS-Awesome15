@@ -8,8 +8,8 @@
 						<h3 class="header-title">{{ reportConfig.title }}</h3>
 						<div class="report-info" v-if="reportData">
 							<div class="report-info-item">
-								<span class="report-info-label">{{ __("Report Date:") }}</span>
-								<span class="report-info-value">{{ formatDate(selectedDate) }}</span>
+								<span class="report-info-label">{{ __("Period:") }}</span>
+								<span class="report-info-value">{{ formatDate(fromDate) }} - {{ formatDate(toDate) }}</span>
 							</div>
 							<div class="report-info-item">
 								<span class="report-info-label">{{ __("Generated:") }}</span>
@@ -34,17 +34,39 @@
 							<h6 class="text-subtitle-1 mb-0">{{ __("Report Filters") }}</h6>
 						</div>
 						<div class="d-flex filter-controls gap-3">
-							<!-- Date Picker -->
+							<!-- Date Range Pickers -->
 							<v-text-field
-								v-model="selectedDate"
+								v-model="fromDate"
 								type="date"
-								:label="__('Select Date')"
+								:label="__('From Date')"
 								density="compact"
 								variant="outlined"
 								:max="maxDate"
 								class="date-filter"
-								@change="loadReportData"
 							></v-text-field>
+							<v-text-field
+								v-model="toDate"
+								type="date"
+								:label="__('To Date')"
+								density="compact"
+								variant="outlined"
+								:max="maxDate"
+								:min="fromDate"
+								class="date-filter"
+							></v-text-field>
+
+							<!-- Generate Report Button -->
+							<v-btn
+								color="primary"
+								variant="outlined"
+								prepend-icon="mdi-chart-line"
+								@click="loadReportData"
+								:loading="loading"
+								:disabled="!fromDate || !toDate"
+								class="action-btn"
+							>
+								{{ __("Generate") }}
+							</v-btn>
 
 							<!-- Export Button -->
 							<v-btn
@@ -53,6 +75,7 @@
 								prepend-icon="mdi-download"
 								@click="exportReport"
 								:loading="exporting"
+								:disabled="!reportData"
 								class="action-btn"
 							>
 								{{ __("Export") }}
@@ -64,6 +87,7 @@
 								variant="outlined"
 								prepend-icon="mdi-printer"
 								@click="printReport"
+								:disabled="!reportData"
 								class="action-btn"
 							>
 								{{ __("Print") }}
@@ -113,14 +137,14 @@
 						:item-key="reportConfig.itemKey"
 					>
 						<template #item="{ item }">
-							<tr>
+							<tr :class="item.isTotalRow ? 'total-row' : ''">
 								<td v-for="(header, hIndex) in tableHeaders" :key="hIndex" :class="header.align ? `text-${header.align}` : ''">
 									<!-- Custom rendering based on header type -->
-									<span v-if="header.key === 'amount' || header.key === 'total'" :class="item.amountClass || 'text-success'">
+									<span v-if="header.key.includes('amount') || header.key.includes('total') || header.key.includes('sale') || header.key.includes('return') || header.key.includes('net') || header.key.includes('cash') || header.key.includes('bank') || header.key.includes('qrpay') || header.key.includes('card') || header.key.includes('other') || header.key.includes('submitted') || header.key.includes('difference')" :class="item.isTotalRow ? 'font-weight-bold text-primary' : 'text-success'">
 										{{ formatCurrency(item[header.key]) }}
 									</span>
-									<span v-else-if="header.key === 'date'" :class="item.dateClass">
-										{{ formatDate(item[header.key]) }}
+									<span v-else-if="header.key === 'date'" :class="item.isTotalRow ? 'font-weight-bold text-primary' : ''">
+										{{ item[header.key] }}
 									</span>
 									<span v-else-if="header.key === 'status'" :class="item.statusClass">
 										<v-chip
@@ -130,6 +154,9 @@
 										>
 											{{ item[header.key] }}
 										</v-chip>
+									</span>
+									<span v-else-if="header.key.includes('invoice_count')" :class="item.isTotalRow ? 'font-weight-bold text-primary' : ''">
+										{{ item[header.key] }}
 									</span>
 									<span v-else :class="item[header.key + 'Class']">
 										{{ item[header.key] }}
@@ -178,7 +205,8 @@ export default {
 		return {
 			loading: false,
 			exporting: false,
-			selectedDate: new Date().toISOString().split('T')[0],
+			fromDate: new Date().toISOString().split('T')[0],
+			toDate: new Date().toISOString().split('T')[0],
 			currentPage: 1,
 			itemsPerPage: 10,
 			reportData: null,
@@ -246,33 +274,44 @@ export default {
 	watch: {
 		modelValue(newVal) {
 			if (newVal) {
-				this.loadReportData();
+				// Reset data when dialog opens
+				this.resetData();
 			}
 		},
 		reportType() {
 			if (this.modelValue) {
-				this.loadReportData();
+				this.resetData();
 			}
 		}
 	},
 	methods: {
 		async loadReportData() {
-			if (!this.selectedDate) return;
-
+			if (!this.fromDate || !this.toDate) return;
+	
 			this.loading = true;
 			try {
+				const args = {
+					company: this.posProfile?.company || frappe.defaults.get_default("company"),
+					pos_profile: this.posProfile?.name
+				};
+	
+				// Add date parameters based on report type
+				if (this.reportType === 'shift') {
+					args.from_date = this.fromDate;
+					args.to_date = this.toDate;
+				} else {
+					args.date = this.fromDate; // For backward compatibility with other reports
+				}
+	
 				const response = await frappe.call({
 					method: `posawesome.posawesome.api.reports.get_${this.reportType}_report`,
-					args: {
-						date: this.selectedDate,
-						pos_profile: this.posProfile?.name
-					}
+					args: args
 				});
-
+	
 				if (response.message) {
 					this.reportData = response.message;
 					this.tableData = response.message.data || [];
-					this.summaryData = response.message.summary || null;
+					this.summaryData = this.buildSummaryCards(response.message.summary);
 					this.tableHeaders = response.message.headers || this.getDefaultHeaders();
 				}
 			} catch (error) {
@@ -281,6 +320,25 @@ export default {
 			} finally {
 				this.loading = false;
 			}
+		},
+	
+		buildSummaryCards(summary) {
+			if (!summary) return null;
+	
+			const cards = [];
+	
+			if (this.reportType === 'shift') {
+				cards.push(
+					{ label: "Tổng hóa đơn bán", value: summary.total_sale_invoices || 0, colorClass: "text-success" },
+					{ label: "Tổng hóa đơn hoàn", value: summary.total_return_invoices || 0, colorClass: "text-error" },
+					{ label: "Tổng doanh số", value: this.formatCurrency(summary.total_sale_amount || 0), colorClass: "text-success" },
+					{ label: "Tổng hoàn tiền", value: this.formatCurrency(summary.total_return_amount || 0), colorClass: "text-error" },
+					{ label: "Doanh thu ròng", value: this.formatCurrency(summary.total_net_amount || 0), colorClass: "text-primary" },
+					{ label: "Tiền mặt", value: this.formatCurrency(summary.total_cash_amount || 0), colorClass: "text-info" }
+				);
+			}
+	
+			return cards;
 		},
 
 		getDefaultHeaders() {
@@ -342,14 +400,24 @@ export default {
 		async exportReport() {
 			this.exporting = true;
 			try {
+				const args = {
+					company: this.posProfile?.company || frappe.defaults.get_default("company"),
+					pos_profile: this.posProfile?.name
+				};
+	
+				// Add date parameters based on report type
+				if (this.reportType === 'shift') {
+					args.from_date = this.fromDate;
+					args.to_date = this.toDate;
+				} else {
+					args.date = this.fromDate; // For backward compatibility
+				}
+	
 				const response = await frappe.call({
 					method: `posawesome.posawesome.api.reports.export_${this.reportType}_report`,
-					args: {
-						date: this.selectedDate,
-						pos_profile: this.posProfile?.name
-					}
+					args: args
 				});
-
+	
 				if (response.message?.file_url) {
 					window.open(response.message.file_url);
 				} else {
@@ -409,6 +477,8 @@ export default {
 						th, td { border: 1px solid #000; padding: 8px; text-align: left; }
 						th { background-color: #f5f5f5; font-weight: bold; }
 						.amount { text-align: right; }
+						.total-row { background-color: #fff3cd !important; font-weight: bold; }
+						.total-cell { color: #856404 !important; }
 						.summary-cards { display: flex; gap: 15px; margin-bottom: 20px; }
 						.card { flex: 1; border: 1px solid #000; padding: 10px; border-radius: 4px; text-align: center; }
 						.card-title { font-size: 10px; color: #000; margin-bottom: 5px; font-weight: bold; }
@@ -420,7 +490,7 @@ export default {
 					<div class="header">
 						<h1>${this.reportConfig.title}</h1>
 						<p>Hồ sơ POS: ${this.posProfile?.name || 'N/A'}</p>
-						<p>Ngày báo cáo: ${this.formatDate(this.selectedDate)}</p>
+						<p>Ngày báo cáo: ${this.formatDate(this.fromDate)} - ${this.formatDate(this.toDate)}</p>
 						<p>Ngày in: ${printDate} ${printTime}</p>
 					</div>`;
 
@@ -455,15 +525,28 @@ export default {
 							</thead>
 							<tbody>`;
 			this.tableData.forEach(item => {
-				content += `<tr>`;
+				const isTotalRow = item.isTotalRow;
+				const rowClass = isTotalRow ? 'total-row' : '';
+				content += `<tr class="${rowClass}">`;
 				this.tableHeaders.forEach(header => {
 					let value = item[header.key] || '';
-					if (header.key === 'amount' || header.key === 'total' || header.key === 'tax_amount') {
+					let cellClass = '';
+
+					if (header.key.includes('amount') || header.key.includes('total') || header.key.includes('sale') ||
+						header.key.includes('return') || header.key.includes('net') || header.key.includes('cash') ||
+						header.key.includes('bank') || header.key.includes('qrpay') || header.key.includes('card') ||
+						header.key.includes('other') || header.key.includes('submitted') || header.key.includes('difference')) {
 						value = this.formatCurrency(value);
+						cellClass = 'amount';
 					} else if (header.key === 'date') {
 						value = this.formatDate(value);
 					}
-					content += `<td>${value}</td>`;
+
+					if (isTotalRow) {
+						cellClass += ' total-cell';
+					}
+
+					content += `<td class="${cellClass}">${value}</td>`;
 				});
 				content += `</tr>`;
 			});
@@ -488,6 +571,10 @@ export default {
 			this.summaryData = null;
 			this.tableHeaders = [];
 			this.currentPage = 1;
+			// Reset dates to current date
+			const today = new Date().toISOString().split('T')[0];
+			this.fromDate = today;
+			this.toDate = today;
 		},
 
 		formatCurrency(amount) {
@@ -614,6 +701,16 @@ export default {
 .report-table :deep(.v-data-table__td) {
 	padding: 8px 12px;
 	font-size: 0.85rem;
+}
+
+.total-row {
+	background-color: #fff3cd !important;
+	border-top: 2px solid #ffc107;
+	font-weight: bold;
+}
+
+.total-row td {
+	color: #856404 !important;
 }
 
 .header-content {

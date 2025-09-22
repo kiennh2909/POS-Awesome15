@@ -4,60 +4,204 @@ from frappe.utils import getdate, nowdate, get_datetime
 import json
 
 @frappe.whitelist()
-def get_shift_report(date=None, pos_profile=None):
-	"""Get shift report data for a specific date"""
+def get_shift_report(company=None, pos_profile=None, from_date=None, to_date=None):
+	"""Get comprehensive shift report data with sales, payments and cash reconciliation"""
 	try:
-		if not date:
-			date = nowdate()
+		# Validate required parameters
+		if not company:
+			return {"error": "Company is required"}
+		if not from_date or not to_date:
+			return {"error": "Date range is required"}
 
 		user = frappe.session.user
 		user_roles = frappe.get_roles(user)
 
-		# Build filters based on user role
-		filters = {
-			"posting_date": date,
-			"docstatus": 1  # Only submitted shifts
+		# Build invoice filters
+		invoice_filters = {
+			"company": company,
+			"posting_date": ["between", [from_date, to_date]],
+			"docstatus": 1,  # Only submitted invoices
+			"is_pos": 1
 		}
 
-		# If not Sales Manager, only show user's shifts
-		if "Sales Manager" not in user_roles:
-			filters["owner"] = user
-
-		# If POS profile specified, filter by it
 		if pos_profile:
-			filters["pos_profile"] = pos_profile
+			invoice_filters["pos_profile"] = pos_profile
 
-		shifts = frappe.get_all(
-			"POS Shift Report",
-			filters=filters,
+		# If not Sales Manager, only show user's invoices
+		if "Sales Manager" not in user_roles:
+			invoice_filters["owner"] = user
+
+		# Get all POS invoices in date range
+		invoices = frappe.get_all(
+			"Sales Invoice",
+			filters=invoice_filters,
 			fields=[
-				"name", "shift_report_id", "posting_date", "posting_time",
-				"total_sales", "total_returns", "net_sales", "owner",
-				"pos_profile", "status", "verification_status"
-			],
-			order_by="posting_time desc"
+				"name", "posting_date", "is_return", "grand_total",
+				"pos_profile", "owner", "currency"
+			]
 		)
 
-		# Calculate summary
-		summary = {
-			"total_shifts": len(shifts),
-			"total_sales": sum(float(s.get("total_sales", 0)) for s in shifts),
-			"total_returns": sum(float(s.get("total_returns", 0)) for s in shifts),
-			"net_sales": sum(float(s.get("net_sales", 0)) for s in shifts)
+		# Group data by date
+		daily_data = {}
+
+		# Process invoices
+		for invoice in invoices:
+			date_key = invoice.posting_date
+
+			if date_key not in daily_data:
+				daily_data[date_key] = {
+					"date": date_key,
+					"sale_invoice_count": 0,
+					"return_invoice_count": 0,
+					"sale_amount": 0,
+					"return_amount": 0,
+					"net_amount": 0,
+					"cash_amount": 0,
+					"bank_amount": 0,
+					"qrpay_amount": 0,
+					"card_amount": 0,
+					"other_amount": 0,
+					"cash_submitted": 0,
+					"difference": 0,
+					"currency": invoice.currency
+				}
+
+			# Count invoices and amounts
+			if invoice.is_return:
+				daily_data[date_key]["return_invoice_count"] += 1
+				daily_data[date_key]["return_amount"] += abs(float(invoice.grand_total))
+			else:
+				daily_data[date_key]["sale_invoice_count"] += 1
+				daily_data[date_key]["sale_amount"] += float(invoice.grand_total)
+
+		# Get payment details for each invoice
+		invoice_names = [inv.name for inv in invoices]
+		if invoice_names:
+			payments = frappe.db.sql("""
+				SELECT
+					sip.parent as invoice_no,
+					si.posting_date,
+					sip.mode_of_payment,
+					sip.amount
+				FROM `tabSales Invoice Payment` sip
+				JOIN `tabSales Invoice` si ON sip.parent = si.name
+				WHERE sip.parent IN ({})
+			""".format(','.join(['%s'] * len(invoice_names))), invoice_names, as_dict=True)
+
+			# Process payments
+			for payment in payments:
+				date_key = payment.posting_date
+				if date_key in daily_data:
+					amount = float(payment.amount)
+					mode = payment.mode_of_payment.lower()
+
+					# Map payment modes to categories
+					if 'cash' in mode:
+						daily_data[date_key]["cash_amount"] += amount
+					elif 'bank' in mode or 'transfer' in mode:
+						daily_data[date_key]["bank_amount"] += amount
+					elif 'qr' in mode or 'qrcode' in mode:
+						daily_data[date_key]["qrpay_amount"] += amount
+					elif 'card' in mode or 'credit' in mode or 'debit' in mode:
+						daily_data[date_key]["card_amount"] += amount
+					else:
+						daily_data[date_key]["other_amount"] += amount
+
+		# Get POS closing shifts for cash submitted amounts
+		shift_filters = {
+			"company": company,
+			"period_start_date": ["between", [from_date, to_date]],
+			"docstatus": 1
 		}
 
+		if pos_profile:
+			shift_filters["pos_profile"] = pos_profile
+
+		if "Sales Manager" not in user_roles:
+			shift_filters["user"] = user
+
+		closing_shifts = frappe.get_all(
+			"POS Closing Shift",
+			filters=shift_filters,
+			fields=[
+				"name", "period_start_date", "cash_to_deposit",
+				"pos_profile", "user"
+			]
+		)
+
+		# Process closing shifts
+		for shift in closing_shifts:
+			date_key = shift.period_start_date
+			if date_key in daily_data:
+				daily_data[date_key]["cash_submitted"] += float(shift.get("cash_to_deposit", 0))
+
+		# Calculate NET amounts and differences
+		for date_key, data in daily_data.items():
+			data["net_amount"] = data["sale_amount"] - data["return_amount"]
+			data["difference"] = data["cash_submitted"] - data["cash_amount"]
+
+		# Convert to list and sort by date
+		report_data = list(daily_data.values())
+		report_data.sort(key=lambda x: x["date"])
+
+		# Calculate grand totals
+		grand_total = {
+			"date": "TOTAL",
+			"sale_invoice_count": sum(d["sale_invoice_count"] for d in report_data),
+			"return_invoice_count": sum(d["return_invoice_count"] for d in report_data),
+			"sale_amount": sum(d["sale_amount"] for d in report_data),
+			"return_amount": sum(d["return_amount"] for d in report_data),
+			"net_amount": sum(d["net_amount"] for d in report_data),
+			"cash_amount": sum(d["cash_amount"] for d in report_data),
+			"bank_amount": sum(d["bank_amount"] for d in report_data),
+			"qrpay_amount": sum(d["qrpay_amount"] for d in report_data),
+			"card_amount": sum(d["card_amount"] for d in report_data),
+			"other_amount": sum(d["other_amount"] for d in report_data),
+			"cash_submitted": sum(d["cash_submitted"] for d in report_data),
+			"difference": sum(d["difference"] for d in report_data),
+			"currency": report_data[0]["currency"] if report_data else "VND",
+			"isTotalRow": True
+		}
+
+		# Add grand total to the end
+		report_data.append(grand_total)
+
+		# Define headers
 		headers = [
-			{ "title": _("Shift ID"), "key": "shift_report_id", "width": "120px" },
-			{ "title": _("Employee"), "key": "owner", "width": "150px" },
-			{ "title": _("Start Time"), "key": "posting_time", "width": "120px" },
-			{ "title": _("Total Sales"), "key": "total_sales", "width": "120px", "align": "end" },
-			{ "title": _("Total Returns"), "key": "total_returns", "width": "120px", "align": "end" },
-			{ "title": _("Net Sales"), "key": "net_sales", "width": "120px", "align": "end" },
-			{ "title": _("Status"), "key": "status", "width": "100px" }
+			{ "title": _("Ngày"), "key": "date", "width": "100px" },
+			{ "title": _("Hóa đơn bán hàng"), "key": "sale_invoice_count", "width": "120px", "align": "end" },
+			{ "title": _("Hóa đơn hoàn"), "key": "return_invoice_count", "width": "100px", "align": "end" },
+			{ "title": _("Tổng doanh số (SALE)"), "key": "sale_amount", "width": "140px", "align": "end" },
+			{ "title": _("Số tiền hoàn (RETURN)"), "key": "return_amount", "width": "140px", "align": "end" },
+			{ "title": _("Số tiền NET"), "key": "net_amount", "width": "120px", "align": "end" },
+			{ "title": _("CASH"), "key": "cash_amount", "width": "100px", "align": "end" },
+			{ "title": _("BANK"), "key": "bank_amount", "width": "100px", "align": "end" },
+			{ "title": _("QRPAY"), "key": "qrpay_amount", "width": "100px", "align": "end" },
+			{ "title": _("CARD"), "key": "card_amount", "width": "100px", "align": "end" },
+			{ "title": _("OTHER"), "key": "other_amount", "width": "100px", "align": "end" },
+			{ "title": _("Nộp cuối ca"), "key": "cash_submitted", "width": "120px", "align": "end" },
+			{ "title": _("Chênh lệch"), "key": "difference", "width": "100px", "align": "end" },
+			{ "title": _("Tiền tệ"), "key": "currency", "width": "80px" }
 		]
 
+		# Summary for cards
+		summary = {
+			"total_sale_invoices": grand_total["sale_invoice_count"],
+			"total_return_invoices": grand_total["return_invoice_count"],
+			"total_sale_amount": grand_total["sale_amount"],
+			"total_return_amount": grand_total["return_amount"],
+			"total_net_amount": grand_total["net_amount"],
+			"total_cash_amount": grand_total["cash_amount"],
+			"total_bank_amount": grand_total["bank_amount"],
+			"total_qrpay_amount": grand_total["qrpay_amount"],
+			"total_card_amount": grand_total["card_amount"],
+			"total_other_amount": grand_total["other_amount"],
+			"total_cash_submitted": grand_total["cash_submitted"],
+			"total_difference": grand_total["difference"]
+		}
+
 		return {
-			"data": shifts,
+			"data": report_data,
 			"summary": summary,
 			"headers": headers
 		}
@@ -465,42 +609,59 @@ def get_promotion_report(date=None, pos_profile=None):
 		return {"error": str(e)}
 
 @frappe.whitelist()
-def export_shift_report(date=None, pos_profile=None):
+def export_shift_report(company=None, pos_profile=None, from_date=None, to_date=None):
 	"""Export shift report to Excel"""
 	try:
-		report_data = get_shift_report(date, pos_profile)
+		report_data = get_shift_report(company, pos_profile, from_date, to_date)
 
 		if "error" in report_data:
 			return {"error": report_data["error"]}
 
 		# Generate Excel content
-		content = "SHIFT REPORT\n"
-		content += f"Date: {date}\n"
-		content += f"Generated: {get_datetime().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+		content = "BÁO CÁO TOÀN CA - TỔNG HỢP DOANH SỐ\n"
+		content += f"Công ty: {company}\n"
+		content += f"Hồ sơ POS: {pos_profile or 'Tất cả'}\n"
+		content += f"Khoảng thời gian: {from_date} - {to_date}\n"
+		content += f"Xuất báo cáo: {get_datetime().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
 
 		# Summary
 		summary = report_data["summary"]
-		content += "SUMMARY\n"
-		content += f"Total Shifts: {summary['total_shifts']}\n"
-		content += f"Total Sales: {summary['total_sales']}\n"
-		content += f"Total Returns: {summary['total_returns']}\n"
-		content += f"Net Sales: {summary['net_sales']}\n\n"
+		content += "TỔNG QUAN\n"
+		content += f"Tổng hóa đơn bán: {summary['total_sale_invoices']}\n"
+		content += f"Tổng hóa đơn hoàn: {summary['total_return_invoices']}\n"
+		content += f"Tổng doanh số: {summary['total_sale_amount']}\n"
+		content += f"Tổng hoàn tiền: {summary['total_return_amount']}\n"
+		content += f"Doanh thu ròng: {summary['total_net_amount']}\n"
+		content += f"Tiền mặt: {summary['total_cash_amount']}\n"
+		content += f"Ngân hàng: {summary['total_bank_amount']}\n"
+		content += f"QR Pay: {summary['total_qrpay_amount']}\n"
+		content += f"Thẻ tín dụng: {summary['total_card_amount']}\n"
+		content += f"Khác: {summary['total_other_amount']}\n"
+		content += f"Nộp cuối ca: {summary['total_cash_submitted']}\n"
+		content += f"Chênh lệch: {summary['total_difference']}\n\n"
 
 		# Data
-		content += "SHIFT DETAILS\n"
-		content += "Shift ID\tEmployee\tStart Time\tTotal Sales\tTotal Returns\tNet Sales\tStatus\n"
+		content += "CHI TIẾT THEO NGÀY\n"
+		content += "Ngày\tHóa đơn bán\tHóa đơn hoàn\tTổng doanh số\tSố tiền hoàn\tSố tiền NET\tCASH\tBANK\tQRPAY\tCARD\tOTHER\tNộp cuối ca\tChênh lệch\tTiền tệ\n"
 
-		for shift in report_data["data"]:
-			content += f"{shift.get('shift_report_id', '')}\t"
-			content += f"{shift.get('owner', '')}\t"
-			content += f"{shift.get('posting_time', '')}\t"
-			content += f"{shift.get('total_sales', 0)}\t"
-			content += f"{shift.get('total_returns', 0)}\t"
-			content += f"{shift.get('net_sales', 0)}\t"
-			content += f"{shift.get('status', '')}\n"
+		for row in report_data["data"]:
+			content += f"{row.get('date', '')}\t"
+			content += f"{row.get('sale_invoice_count', 0)}\t"
+			content += f"{row.get('return_invoice_count', 0)}\t"
+			content += f"{row.get('sale_amount', 0)}\t"
+			content += f"{row.get('return_amount', 0)}\t"
+			content += f"{row.get('net_amount', 0)}\t"
+			content += f"{row.get('cash_amount', 0)}\t"
+			content += f"{row.get('bank_amount', 0)}\t"
+			content += f"{row.get('qrpay_amount', 0)}\t"
+			content += f"{row.get('card_amount', 0)}\t"
+			content += f"{row.get('other_amount', 0)}\t"
+			content += f"{row.get('cash_submitted', 0)}\t"
+			content += f"{row.get('difference', 0)}\t"
+			content += f"{row.get('currency', 'VND')}\n"
 
 		# Create file
-		file_name = f"shift_report_{date}.xlsx"
+		file_name = f"bao_cao_toan_ca_{from_date}_{to_date}.xlsx"
 		file_doc = frappe.get_doc({
 			"doctype": "File",
 			"file_name": file_name,
