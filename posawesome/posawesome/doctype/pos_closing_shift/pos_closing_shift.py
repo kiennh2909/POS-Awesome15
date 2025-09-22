@@ -992,20 +992,23 @@ def submit_closing_shift_v2(closing_shift):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 137: LOAD_CLOSING_SHIFT - Loading closing shift document: {closing_shift_name}")
         closing_shift_doc = frappe.get_doc("POS Closing Shift", closing_shift_name)
 
-        # Update payment reconciliation with user-entered closing amounts
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 138: UPDATE_PAYMENT_RECONCILIATION - Updating payment reconciliation")
-        for payment_data in payment_reconciliation:
-            mode = payment_data.get("mode_of_payment")
-            closing_amount = flt(payment_data.get("closing_amount", 0))
+        # TEMPORARILY SKIP: Update payment reconciliation with user-entered closing amounts
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 138: SKIP_UPDATE_PAYMENT_RECONCILIATION - Temporarily skipping payment reconciliation update to test other issues")
 
-            # Find matching payment reconciliation record
-            for pr in closing_shift_doc.payment_reconciliation:
-                if pr.mode_of_payment == mode:
-                    pr.closing_amount = closing_amount
-                    log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 139: UPDATED_CLOSING_AMOUNT - {mode}: {closing_amount}")
-                    break
+        # # Update payment reconciliation with user-entered closing amounts
+        # log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 138: UPDATE_PAYMENT_RECONCILIATION - Updating payment reconciliation")
+        # for payment_data in payment_reconciliation:
+        #     mode = payment_data.get("mode_of_payment")
+        #     closing_amount = flt(payment_data.get("closing_amount", 0))
 
-        # Save the updated document
+        #     # Find matching payment reconciliation record
+        #     for pr in closing_shift_doc.payment_reconciliation:
+        #         if pr.mode_of_payment == mode:
+        #             pr.closing_amount = closing_amount
+        #             log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 139: UPDATED_CLOSING_AMOUNT - {mode}: {closing_amount}")
+        #             break
+
+        # Save the updated document (without payment reconciliation changes)
         log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 140: SAVE_CLOSING_SHIFT - Saving updated closing shift")
         closing_shift_doc.save(ignore_permissions=True)
         log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 141: SAVED_CLOSING_SHIFT - Closing shift saved successfully")
