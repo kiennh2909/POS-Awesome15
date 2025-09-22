@@ -931,9 +931,12 @@ def submit_closing_shift_v2(closing_shift):
 
         closing_shift_name = closing_shift_data.get("name")
         opening_shift = closing_shift_data.get("pos_opening_shift")
+        shift_report = closing_shift_data.get("shift_report")
+        shift_report_id = closing_shift_data.get("shift_report_id")
         user = closing_shift_data.get("user")
 
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_V2_DATA - Closing shift: {closing_shift_name}, Opening shift: {opening_shift}, User: {user}")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_V2_SHIFT_REPORT - Shift report: {shift_report}, Shift report ID: {shift_report_id}")
 
         # STEP 1: Validate closing shift exists and is in draft state
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 SUBMIT_CLOSING_SHIFT_V2_VALIDATE_DOC - Validating closing shift document")

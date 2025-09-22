@@ -291,6 +291,8 @@ export default {
 		submit_closing_pos(data) {
 			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Submit Closing POS Start
 			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_START - Opening shift: ${data?.pos_opening_shift}, User: ${frappe.session.user}`);
+			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_DATA - Full data:`, data);
+			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_SHIFT_REPORT - Shift report: ${data?.shift_report}, Shift report ID: ${data?.shift_report_id}`);
 
 			// Validate input data
 			if (!data || !data.pos_opening_shift) {

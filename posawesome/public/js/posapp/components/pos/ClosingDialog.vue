@@ -13,25 +13,6 @@
 							<p class="header-subtitle">
 								{{ __("Reconcile payment methods and close shift") }}
 							</p>
-							<!-- Shift Information -->
-							<div class="shift-info">
-								<div class="shift-info-item">
-									<span class="shift-info-label">{{ __("Shift ID:") }}</span>
-									<span class="shift-info-value">{{ dialog_data.pos_opening_shift || 'N/A' }}</span>
-								</div>
-								<div class="shift-info-item">
-									<span class="shift-info-label">{{ __("Report ID:") }}</span>
-									<span class="shift-info-value shift-report-id" :class="getShiftReportStatusClass">{{ getShiftReportId || 'N/A' }}</span>
-								</div>
-								<div class="shift-info-item">
-									<span class="shift-info-label">{{ __("Status:") }}</span>
-									<span class="shift-info-value verification-status-text" :class="getVerificationStatusClass">{{ getVerificationStatusText(dialog_data.verification_status) }}</span>
-								</div>
-								<div class="shift-info-item">
-									<span class="shift-info-label">{{ __("Open Time:") }}</span>
-									<span class="shift-info-value">{{ formatDateTime(dialog_data.period_start_date, dialog_data.period_start_time) }}</span>
-								</div>
-							</div>
 						</div>
 					</div>
 				</v-card-title>
@@ -40,6 +21,36 @@
 
 				<v-card-text class="pa-0 white-background">
 					<v-container class="pa-6">
+						<!-- Shift Information Section -->
+						<v-row class="mb-6">
+							<v-col cols="12">
+								<v-card variant="outlined" class="shift-info-card pa-4">
+									<h5 class="text-h6 text-primary mb-4 d-flex align-center">
+										<v-icon class="me-2">mdi-information-outline</v-icon>
+										{{ __("Shift Information") }}
+									</h5>
+									<div class="shift-info-grid">
+										<div class="shift-info-item">
+											<span class="shift-info-label">{{ __("Shift ID:") }}</span>
+											<span class="shift-info-value">{{ dialog_data.pos_opening_shift || 'N/A' }}</span>
+										</div>
+										<div class="shift-info-item">
+											<span class="shift-info-label">{{ __("Report ID:") }}</span>
+											<span class="shift-info-value shift-report-id" :class="getShiftReportStatusClass">{{ getShiftReportId || 'N/A' }}</span>
+										</div>
+										<div class="shift-info-item">
+											<span class="shift-info-label">{{ __("Status:") }}</span>
+											<span class="shift-info-value verification-status-text" :class="getVerificationStatusClass">{{ getVerificationStatusText(dialog_data.verification_status) }}</span>
+										</div>
+										<div class="shift-info-item">
+											<span class="shift-info-label">{{ __("Open Time:") }}</span>
+											<span class="shift-info-value">{{ formatDateTime(dialog_data.period_start_date, dialog_data.period_start_time) }}</span>
+										</div>
+									</div>
+								</v-card>
+							</v-col>
+						</v-row>
+
 						<v-row>
 							<v-col cols="12" class="pa-1">
 								<div class="table-header mb-4">
@@ -200,6 +211,10 @@ export default {
 			this.closingDialog = false;
 		},
 		submit_dialog() {
+			console.log("[CLOSING_DIALOG] Submitting closing shift with data:", this.dialog_data);
+			console.log("[CLOSING_DIALOG] Shift Report ID being used:", this.getShiftReportId);
+			console.log("[CLOSING_DIALOG] Verification status:", this.dialog_data.verification_status);
+
 			this.eventBus.emit("submit_closing_pos", this.dialog_data);
 			this.closingDialog = false;
 		},
@@ -494,38 +509,49 @@ export default {
 	justify-content: space-between;
 }
 
-/* Shift Information Styles */
-.shift-info {
-	margin-top: 8px;
-	padding: 8px 12px;
-	background: rgba(255, 255, 255, 0.1);
-	border-radius: 6px;
-	border: 1px solid rgba(255, 255, 255, 0.2);
+/* Shift Information Card */
+.shift-info-card {
+	background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+	border: 2px solid #e9ecef !important;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.shift-info-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+	gap: 16px;
 }
 
 .shift-info-item {
 	display: flex;
-	align-items: center;
-	gap: 8px;
-	margin-bottom: 2px;
+	flex-direction: column;
+	gap: 4px;
+	padding: 12px;
+	background: white;
+	border-radius: 8px;
+	border: 1px solid #dee2e6;
+	transition: all 0.3s ease;
 }
 
-.shift-info-item:last-child {
-	margin-bottom: 0;
+.shift-info-item:hover {
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	transform: translateY(-1px);
 }
 
 .shift-info-label {
-	font-size: 0.85rem;
+	font-size: 0.8rem;
 	font-weight: 600;
-	color: #666;
-	min-width: 60px;
+	color: #6c757d;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
 }
 
 .shift-info-value {
-	font-size: 0.85rem;
-	font-weight: 500;
-	color: #333;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: #495057;
 	font-family: 'Courier New', monospace;
+	word-break: break-all;
 }
 
 .shift-report-id.unverified {
@@ -557,7 +583,7 @@ export default {
 	color: #666 !important;
 }
 
-/* And the responsive section: */
+/* Responsive Design */
 @media (max-width: 768px) {
 	.dialog-actions-container {
 		flex-direction: column;
@@ -568,11 +594,28 @@ export default {
 		width: 100%;
 	}
 
-
 	.header-content {
 		flex-direction: column;
 		align-items: flex-start;
 		gap: 12px;
+	}
+
+	/* Shift Information Card Mobile */
+	.shift-info-grid {
+		grid-template-columns: 1fr;
+		gap: 12px;
+	}
+
+	.shift-info-item {
+		padding: 10px;
+	}
+
+	.shift-info-label {
+		font-size: 0.75rem;
+	}
+
+	.shift-info-value {
+		font-size: 0.9rem;
 	}
 }
 </style>
