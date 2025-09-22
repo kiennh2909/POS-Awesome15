@@ -270,6 +270,10 @@ export default {
 				if (response.message?.success) {
 					this.showSuccess(__("Shift closed successfully"));
 					this.close();
+
+					// Handle post-submit cleanup: logout, clear cache, refresh
+					await this.handlePostShiftClose();
+
 					if (this.eventBus) {
 						this.eventBus.emit("shift_closed_success");
 					}
@@ -322,6 +326,118 @@ export default {
 		currencySymbol(currency) {
 			const symbols = { 'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'KES': 'KSh' };
 			return symbols[currency] || currency || '$';
+		},
+
+		async handlePostShiftClose() {
+			console.log("[SHIFT_CLOSE_SUCCESS] Starting post-shift-close cleanup: logout, clear cache, refresh");
+
+			try {
+				// Step 1: Clear browser cache/storage
+				await this.clearBrowserCache();
+
+				// Step 2: Logout user after a short delay
+				setTimeout(() => {
+					console.log("[SHIFT_CLOSE_SUCCESS] Performing user logout");
+					this.performLogout();
+				}, 1500);
+
+				// Step 3: Refresh page after logout delay
+				setTimeout(() => {
+					console.log("[SHIFT_CLOSE_SUCCESS] Refreshing page");
+					window.location.reload();
+				}, 2500);
+
+			} catch (error) {
+				console.error("[SHIFT_CLOSE_SUCCESS] Error during post-shift-close cleanup:", error);
+				// Fallback: Force refresh after error
+				setTimeout(() => {
+					window.location.reload();
+				}, 1000);
+			}
+		},
+
+		async clearBrowserCache() {
+			console.log("[SHIFT_CLOSE_SUCCESS] Clearing browser cache and storage");
+
+			try {
+				// Clear localStorage
+				localStorage.clear();
+				console.log("[SHIFT_CLOSE_SUCCESS] Cleared localStorage");
+
+				// Clear sessionStorage
+				sessionStorage.clear();
+				console.log("[SHIFT_CLOSE_SUCCESS] Cleared sessionStorage");
+
+				// Clear IndexedDB databases (if any POS-related)
+				if (window.indexedDB) {
+					const dbNames = ['pos_offline_db', 'pos_cache', 'posawesome_offline'];
+					const clearPromises = dbNames.map(dbName => {
+						return new Promise((resolve) => {
+							try {
+								const deleteRequest = window.indexedDB.deleteDatabase(dbName);
+								deleteRequest.onsuccess = () => {
+									console.log(`[SHIFT_CLOSE_SUCCESS] Cleared IndexedDB: ${dbName}`);
+									resolve();
+								};
+								deleteRequest.onerror = () => {
+									console.warn(`[SHIFT_CLOSE_SUCCESS] Failed to clear IndexedDB: ${dbName}`);
+									resolve();
+								};
+							} catch (e) {
+								console.warn(`[SHIFT_CLOSE_SUCCESS] Error clearing IndexedDB ${dbName}:`, e);
+								resolve();
+							}
+						});
+					});
+					await Promise.all(clearPromises);
+				}
+
+				// Clear cache storage (if supported)
+				if ('caches' in window) {
+					const cacheNames = await caches.keys();
+					await Promise.all(cacheNames.map(name => caches.delete(name)));
+					console.log("[SHIFT_CLOSE_SUCCESS] Cleared cache storage");
+				}
+
+				console.log("[SHIFT_CLOSE_SUCCESS] Browser cache cleared successfully");
+
+			} catch (error) {
+				console.error("[SHIFT_CLOSE_SUCCESS] Error clearing browser cache:", error);
+			}
+		},
+
+		performLogout() {
+			console.log("[SHIFT_CLOSE_SUCCESS] Performing user logout");
+
+			try {
+				// Use Frappe's logout mechanism if available
+				if (window.frappe && frappe.app) {
+					console.log("[SHIFT_CLOSE_SUCCESS] Using frappe.app.logout()");
+					frappe.app.logout();
+				} else if (window.frappe && frappe.call) {
+					// Fallback: Call logout API
+					console.log("[SHIFT_CLOSE_SUCCESS] Using frappe.call logout API");
+					frappe.call({
+						method: "logout",
+						callback: () => {
+							console.log("[SHIFT_CLOSE_SUCCESS] Logout API called successfully");
+						}
+					});
+				} else {
+					// Last resort: Redirect to login page
+					console.log("[SHIFT_CLOSE_SUCCESS] Redirecting to login page");
+					window.location.href = '/login';
+				}
+
+				console.log("[SHIFT_CLOSE_SUCCESS] Logout initiated successfully");
+
+			} catch (error) {
+				console.error("[SHIFT_CLOSE_SUCCESS] Error performing logout:", error);
+
+				// Fallback: Force redirect to login
+				console.log("[SHIFT_CLOSE_SUCCESS] Force redirect to login");
+				window.location.href = '/login';
+			}
 		}
 	}
 };
