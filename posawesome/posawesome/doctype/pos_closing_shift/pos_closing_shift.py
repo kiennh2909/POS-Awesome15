@@ -539,6 +539,43 @@ def get_cashiers(doctype, txt, searchfield, start, page_len, filters):
     return result
 
 
+def submit_printed_invoices(pos_opening_shift, doctype):
+    """
+    Submit printed invoices for the opening shift
+    This function ensures all printed invoices are properly submitted before closing
+    """
+    try:
+        log.info(f"[SUBMIT_PRINTED_INVOICES] START - Submitting printed invoices for opening shift: {pos_opening_shift}, doctype: {doctype}")
+
+        # Find draft invoices that are marked as printed
+        draft_invoices = frappe.get_all(doctype,
+            filters={
+                "posa_pos_opening_shift": pos_opening_shift,
+                "docstatus": 0,  # Draft
+                "posa_is_printed": 1  # Marked as printed
+            },
+            fields=["name"]
+        )
+
+        submitted_count = 0
+        for invoice in draft_invoices:
+            try:
+                # Submit the invoice
+                invoice_doc = frappe.get_doc(doctype, invoice.name)
+                invoice_doc.submit()
+                submitted_count += 1
+                log.debug(f"[SUBMIT_PRINTED_INVOICES] Submitted invoice: {invoice.name}")
+            except Exception as e:
+                log.error(f"[SUBMIT_PRINTED_INVOICES] Failed to submit invoice {invoice.name}: {str(e)}")
+                continue
+
+        log.info(f"[SUBMIT_PRINTED_INVOICES] COMPLETED - Submitted {submitted_count} printed invoices")
+
+    except Exception as e:
+        log.error(f"[SUBMIT_PRINTED_INVOICES] ERROR - Failed to submit printed invoices: {str(e)}")
+        # Don't raise error to prevent blocking closing shift creation
+
+
 @frappe.whitelist()
 def get_pos_invoices(pos_opening_shift, doctype=None):
     if not doctype:
