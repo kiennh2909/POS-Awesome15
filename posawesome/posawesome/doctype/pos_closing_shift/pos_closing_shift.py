@@ -734,10 +734,18 @@ def make_closing_shift_from_opening(opening_shift):
 
         if shift_report:
             closing_shift.shift_report = shift_report
-            # Get verification status from shift report
-            verification_status = frappe.db.get_value("POS Shift Report", shift_report, "verification_status")
+            # Get shift report details
+            shift_report_doc = frappe.get_doc("POS Shift Report", shift_report)
+            verification_status = shift_report_doc.verification_status
             closing_shift.verification_status = verification_status or "Pending"
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_REPORT_FOUND - Found existing shift report: {shift_report}, Status: {verification_status}")
+            # Also set shift_report_id for display
+            closing_shift.shift_report_id = shift_report_doc.shift_report_id
+            # Set full verification details
+            closing_shift.verification_date = shift_report_doc.verification_date
+            closing_shift.verified_by = shift_report_doc.verified_by
+            closing_shift.confirmation_date = shift_report_doc.confirmation_date
+            closing_shift.confirmed_by = shift_report_doc.confirmed_by
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_REPORT_FOUND - Found existing shift report: {shift_report}, ID: {shift_report_doc.shift_report_id}, Status: {verification_status}, Verified by: {shift_report_doc.verified_by}")
         else:
             closing_shift.verification_status = "Pending"
             log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ MAKE_CLOSING_SHIFT_NO_REPORT - No shift report found for opening shift: {opening_shift_name}")
