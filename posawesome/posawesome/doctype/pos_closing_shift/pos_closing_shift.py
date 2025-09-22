@@ -1001,7 +1001,7 @@ def submit_closing_shift_v2(closing_shift):
         # Update payment reconciliation
         if closing_shift_data.get("payment_reconciliation"):
             # Clear existing payment reconciliation
-            frappe.db.delete("POS Closing Shift Payment Reconciliation", {"parent": closing_shift_name})
+            frappe.db.delete("POS Closing Shift Detail", {"parent": closing_shift_name})
 
             # Insert new payment reconciliation
             for i, payment in enumerate(closing_shift_data["payment_reconciliation"]):
@@ -1019,7 +1019,7 @@ def submit_closing_shift_v2(closing_shift):
                         ))
 
                 frappe.get_doc({
-                    "doctype": "POS Closing Shift Payment Reconciliation",
+                    "doctype": "POS Closing Shift Detail",
                     "parent": closing_shift_name,
                     "parenttype": "POS Closing Shift",
                     "parentfield": "payment_reconciliation",
