@@ -315,7 +315,7 @@ export default {
 			const startTime = Date.now();
 
 			frappe.call({
-				method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift",
+				method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift_v2",
 				args: {
 					closing_shift: JSON.stringify(data),
 				},
