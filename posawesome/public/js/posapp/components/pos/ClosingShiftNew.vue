@@ -53,6 +53,15 @@
 						</div>
 						<div class="d-flex action-buttons-group">
 							<v-btn
+								color="info"
+								variant="outlined"
+								prepend-icon="mdi-printer"
+								@click="printShiftSummary"
+								class="action-btn"
+							>
+								{{ __("Print") }}
+							</v-btn>
+							<v-btn
 								color="primary"
 								variant="flat"
 								prepend-icon="mdi-store-clock"
@@ -391,6 +400,256 @@ export default {
 				'Confirmed': 'mdi-check-circle-outline'
 			};
 			return icons[status] || 'mdi-help-circle';
+		},
+
+		async printShiftSummary() {
+			try {
+				console.log("[PRINT_SHIFT_SUMMARY] Bắt đầu in tổng kết ca");
+
+				// Tạo nội dung in
+				const printContent = this.generatePrintContent();
+
+				// Mở cửa sổ in
+				const printWindow = window.open('', '_blank', 'width=800,height=600');
+				if (!printWindow) {
+					this.showError("Không thể mở cửa sổ in. Vui lòng kiểm tra chặn popup.");
+					return;
+				}
+
+				printWindow.document.write(printContent);
+				printWindow.document.close();
+
+				// Đợi nội dung load xong thì in
+				printWindow.onload = function() {
+					printWindow.print();
+					printWindow.close();
+				};
+
+				this.showSuccess("Đã gửi lệnh in thành công");
+
+			} catch (error) {
+				console.error("[PRINT_SHIFT_SUMMARY] Lỗi khi in tổng kết ca:", error);
+				this.showError("Lỗi khi in tổng kết ca");
+			}
+		},
+
+		generatePrintContent() {
+			const now = new Date();
+			const printDate = now.toLocaleDateString('vi-VN');
+			const printTime = now.toLocaleTimeString('vi-VN');
+
+			let content = `
+				<!DOCTYPE html>
+				<html lang="vi">
+				<head>
+					<title>TỔNG KẾT CA LÀM VIỆC</title>
+					<meta charset="UTF-8">
+					<style>
+						@page {
+							size: A4;
+							margin: 1cm;
+						}
+						body {
+							font-family: 'Arial', 'Times New Roman', serif;
+							font-size: 12px;
+							line-height: 1.4;
+							color: #000;
+							max-width: 100%;
+							background: white;
+							-webkit-print-color-adjust: exact;
+							color-adjust: exact;
+						}
+						.header {
+							text-align: center;
+							border-bottom: 2px solid #1976d2;
+							padding-bottom: 10px;
+							margin-bottom: 20px;
+						}
+						.header h1 {
+							color: #1976d2;
+							margin: 0;
+							font-size: 20px;
+							font-weight: bold;
+						}
+						.header p {
+							margin: 5px 0;
+							color: #333;
+							font-size: 11px;
+						}
+						.section {
+							margin-bottom: 20px;
+						}
+						.section h2 {
+							color: #1976d2;
+							font-size: 14px;
+							border-bottom: 1px solid #ddd;
+							padding-bottom: 5px;
+							margin-bottom: 10px;
+							font-weight: bold;
+						}
+						table {
+							width: 100%;
+							border-collapse: collapse;
+							margin-bottom: 15px;
+							font-size: 11px;
+						}
+						th, td {
+							border: 1px solid #000;
+							padding: 8px;
+							text-align: left;
+						}
+						th {
+							background-color: #f5f5f5 !important;
+							font-weight: bold;
+							color: #000;
+							-webkit-print-color-adjust: exact;
+							color-adjust: exact;
+						}
+						.total-row {
+							background-color: #e3f2fd !important;
+							font-weight: bold;
+							-webkit-print-color-adjust: exact;
+							color-adjust: exact;
+						}
+						.amount {
+							text-align: right;
+							font-family: 'Courier New', monospace;
+							font-weight: bold;
+						}
+						.positive {
+							color: #2e7d32;
+						}
+						.negative {
+							color: #d32f2f;
+						}
+						.summary-cards {
+							display: flex;
+							gap: 15px;
+							margin-bottom: 20px;
+						}
+						.card {
+							flex: 1;
+							border: 1px solid #000;
+							padding: 10px;
+							border-radius: 4px;
+							text-align: center;
+						}
+						.card-title {
+							font-size: 10px;
+							color: #666;
+							margin-bottom: 5px;
+							font-weight: bold;
+						}
+						.card-value {
+							font-size: 16px;
+							font-weight: bold;
+							color: #1976d2;
+						}
+						.print-info {
+							text-align: center;
+							font-size: 10px;
+							color: #999;
+							margin-top: 20px;
+							border-top: 1px solid #eee;
+							padding-top: 10px;
+						}
+						@media print {
+							body { -webkit-print-color-adjust: exact; color-adjust: exact; }
+							th { background-color: #f5f5f5 !important; }
+							.total-row { background-color: #e3f2fd !important; }
+						}
+					</style>
+				</head>
+				<body>
+					<div class="header">
+						<h1>TỔNG KẾT CA LÀM VIỆC</h1>
+						<p>Hồ sơ POS: ${this.posProfile?.name || 'N/A'}</p>
+						<p>Nhân viên: ${frappe.session?.user_fullname || frappe.session?.user || 'N/A'}</p>
+						<p>Ngày in: ${printDate} ${printTime}</p>
+					</div>
+
+					<div class="section">
+						<h2>THÔNG TIN CA</h2>
+						<table>
+							<tr><td><strong>ID Ca:</strong></td><td>${this.displayShiftReportId}</td></tr>
+							<tr><td><strong>Thời gian mở:</strong></td><td>${this.formatDateTime(this.shiftReportData?.opening_date, this.shiftReportData?.opening_time)}</td></tr>
+							<tr><td><strong>Trạng thái xác minh:</strong></td><td>${this.shiftReportData?.verification_status || 'Chưa xác minh'}</td></tr>
+						</table>
+					</div>
+
+					<div class="section">
+						<h2>TỔNG QUAN</h2>
+						<div class="summary-cards">
+							<div class="card">
+								<div class="card-title">Tổng hóa đơn</div>
+								<div class="card-value">${this.shiftReportData?.invoice_count || 0}</div>
+							</div>
+							<div class="card">
+								<div class="card-title">Tổng bán</div>
+								<div class="card-value positive">${this.formatCurrency(this.shiftReportData?.total_sales || 0)}</div>
+							</div>
+							<div class="card">
+								<div class="card-title">Tổng trả lại</div>
+								<div class="card-value negative">${this.formatCurrency(this.shiftReportData?.total_returns || 0)}</div>
+							</div>
+							<div class="card">
+								<div class="card-title">Tổng thu</div>
+								<div class="card-value">${this.formatCurrency((this.shiftReportData?.total_sales || 0) + (this.shiftReportData?.total_returns || 0))}</div>
+							</div>
+						</div>
+					</div>
+
+					<div class="section">
+						<h2>ĐỐI CHIẾU THANH TOÁN THEO PHƯƠNG THỨC</h2>
+						<table>
+							<thead>
+								<tr>
+									<th>Phương thức thanh toán</th>
+									<th class="amount">Số dư đầu</th>
+									<th class="amount">Bán hàng</th>
+									<th class="amount">Trả lại</th>
+									<th class="amount">Giao dịch</th>
+									<th class="amount">Dự kiến đóng</th>
+									<th class="amount">Thực đóng</th>
+									<th class="amount">Chênh lệch</th>
+								</tr>
+							</thead>
+							<tbody>
+			`;
+
+			// Thêm các hàng payment summary
+			this.paymentSummaryDataWithTotal.forEach(item => {
+				const transactionClass = item.transaction_amount >= 0 ? 'positive' : 'negative';
+				const isTotalRow = item.isTotalRow;
+				const rowClass = isTotalRow ? 'total-row' : '';
+
+				content += `
+					<tr class="${rowClass}">
+						<td>${item.payment_method}</td>
+						<td class="amount">${this.formatCurrency(item.opening_amount || 0)}</td>
+						<td class="amount positive">${this.formatCurrency(item.sales_amount || 0)}</td>
+						<td class="amount negative">${this.formatCurrency(item.returns_amount || 0)}</td>
+						<td class="amount ${transactionClass}">${this.formatCurrency(item.transaction_amount || 0)}</td>
+						<td class="amount">${this.formatCurrency(item.expected_closing_amount || 0)}</td>
+						<td class="amount">${this.formatCurrency(item.actual_closing_amount || 0)}</td>
+						<td class="amount">${this.formatCurrency(item.difference || 0)}</td>
+					</tr>
+				`;
+			});
+
+			content += `
+							</tbody>
+						</table>
+					</div>
+
+					<div class="print-info">
+						<p>Báo cáo được tạo tự động bởi hệ thống POS</p>
+						<p>Chỉ in trang tổng kết để đối chiếu</p>
+					</div>
+				</body>
+			</html>`;
+
+			return content;
 		},
 
 		async handlePostShiftClose() {
