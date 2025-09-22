@@ -481,40 +481,61 @@ def migrate_pos_opening_shift_references():
 
 @frappe.whitelist()
 def get_shift_report_readonly(shift_report_id):
-	"""
-	Get POS Shift Report with Payment Summary data (READ-ONLY)
-	Chỉ đọc data từ các bảng đã có, không cập nhật gì
+    """
+    Get POS Shift Report with Payment Summary data (READ-ONLY)
+    """
+    try:
+        log.info(f"[GET_SHIFT_REPORT_READONLY] 🚀 START - Shift Report ID: {shift_report_id}, User: {frappe.session.user}")
 
-	Args:
-		shift_report_id (str): Shift report ID (string only)
+        # 1) Lấy Shift Report chuẩn
+        log.info(f"[GET_SHIFT_REPORT_READONLY] 📋 STEP 1: Getting shift report data for: {shift_report_id}")
+        sr_resp = get_shift_report(shift_report_id)
+        if not sr_resp.get("success"):
+            log.error(f"[GET_SHIFT_REPORT_READONLY] ❌ STEP 1: Failed to get shift report - {sr_resp.get('message')}")
+            return sr_resp
 
-	Returns:
-		dict: Shift report data with payment summary (read-only)
-	"""
-	try:
-		# Get basic shift report data
-		shift_report_data = get_shift_report(shift_report_id)
+        # Luôn làm việc trên phần 'data'
+        sr_data = sr_resp.get("data") or {}
+        sr_name = sr_data.get("name")
+        log.info(f"[GET_SHIFT_REPORT_READONLY] ✅ STEP 1: Shift report data retrieved - Name: {sr_name}")
 
-		# Get payment summaries (read-only)
-		try:
-			from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import get_payment_summaries_for_shift
-			payment_summaries_result = get_payment_summaries_for_shift(shift_report_data["name"])
+        # 2) Lấy payment summaries (đọc-only)
+        log.info(f"[GET_SHIFT_REPORT_READONLY] 💰 STEP 2: Getting payment summaries for shift report: {sr_name}")
+        try:
+            from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import (
+                get_payment_summaries_for_shift
+            )
+            # >>> BUG FIX: dùng data['name'] chứ không phải root['name']
+            ps_result = get_payment_summaries_for_shift(sr_name) if sr_name else {"success": False}
+            log.info(f"[GET_SHIFT_REPORT_READONLY] 📊 STEP 2a: Payment summaries result - Success: {ps_result.get('success')}, Data count: {len(ps_result.get('data', [])) if ps_result.get('data') else 0}")
 
-			if payment_summaries_result.get("success"):
-				shift_report_data["payment_summaries"] = payment_summaries_result["data"]
-			else:
-				shift_report_data["payment_summaries"] = []
-		except Exception:
-			shift_report_data["payment_summaries"] = []
+            if ps_result.get("success"):
+                # >>> BUG FIX: gắn vào sr_resp['data'] để FE đọc ở response.message.data.payment_summaries
+                sr_data["payment_summaries"] = ps_result.get("data", [])
+                log.info(f"[GET_SHIFT_REPORT_READONLY] ✅ STEP 2b: Payment summaries added to data - Count: {len(ps_result['data'])}")
+            else:
+                sr_data["payment_summaries"] = []
+                log.warning(f"[GET_SHIFT_REPORT_READONLY] ⚠️ STEP 2b: Payment summaries failed - Message: {ps_result.get('message')}")
+        except Exception as _e:
+            # Không phá vỡ flow nếu tóm lược lỗi
+            sr_data["payment_summaries"] = []
+            log.error(f"[GET_SHIFT_REPORT_READONLY] ❌ STEP 2b: Exception getting payment summaries: {str(_e)}")
 
-		return shift_report_data
+        # 3) Trả lại theo cùng format (success/message/data)
+        log.info(f"[GET_SHIFT_REPORT_READONLY] 📦 STEP 3: Preparing final response - Payment summaries in data: {len(sr_data.get('payment_summaries', []))}")
+        return {
+            "success": True,
+            "message": _("Shift report retrieved successfully"),
+            "data": sr_data,
+        }
 
-	except Exception as e:
-		frappe.log_error(str(e), "Get Shift Report Readonly Error")
-		return {
-			"success": False,
-			"message": _("Error getting shift report: {0}").format(str(e))
-		}
+    except Exception as e:
+        log.error(f"[GET_SHIFT_REPORT_READONLY] 💥 FAILED - Shift Report ID: {shift_report_id}, Error: {str(e)}")
+        frappe.log_error(str(e), "Get Shift Report Readonly Error")
+        return {
+            "success": False,
+            "message": _("Error getting shift report: {0}").format(str(e)),
+        }
 
 
 
