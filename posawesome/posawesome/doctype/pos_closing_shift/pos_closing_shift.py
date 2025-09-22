@@ -965,9 +965,21 @@ def submit_closing_shift_v2(closing_shift):
                     log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: NO_OPENING_SHIFT - Shift report {opening_shift} has no associated opening shift")
                     frappe.throw(_("Shift report has no associated opening shift"))
 
+            # Prepare opening shift data with payment reconciliation from client
+            opening_shift_data = {
+                "name": actual_opening_shift,
+                "pos_profile": closing_shift_data.get("pos_profile"),
+                "user": user,
+                "company": closing_shift_data.get("company", "Default Company"),
+                "period_start_date": closing_shift_data.get("period_start_date"),
+                "period_start_time": closing_shift_data.get("period_start_time"),
+                "balance_details": closing_shift_data.get("balance_details", []),
+                "payment_reconciliation": closing_shift_data.get("payment_reconciliation", [])
+            }
+
             # Create the closing shift document
             log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 135: CREATE_CLOSING_SHIFT - Creating closing shift for opening shift: {actual_opening_shift}")
-            closing_shift_doc = make_closing_shift_from_opening(json.dumps({"name": actual_opening_shift}))
+            closing_shift_doc = make_closing_shift_from_opening(json.dumps(opening_shift_data))
             closing_shift_name = closing_shift_doc.name
             log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 136: CREATED_CLOSING_SHIFT - Created closing shift: {closing_shift_name}")
 
