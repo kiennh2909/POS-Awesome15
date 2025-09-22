@@ -1,8 +1,11 @@
 import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, get_datetime
+from frappe.utils.logger import get_logger
 import json
 from functools import reduce
+
+log = get_logger("pos_report")
 
 @frappe.whitelist()
 def get_shift_report(company=None, pos_profile=None, from_date=None, to_date=None):
@@ -37,7 +40,7 @@ def get_shift_report(company=None, pos_profile=None, from_date=None, to_date=Non
 			"Sales Invoice",
 			filters=invoice_filters,
 			fields=[
-				"name", "posting_date", "is_return", "grand_total",
+				"name", "posting_date", "is_return", "base_grand_total", "grand_total",
 				"pos_profile", "owner", "currency"
 			]
 		)
@@ -70,10 +73,10 @@ def get_shift_report(company=None, pos_profile=None, from_date=None, to_date=Non
 			# Count invoices and amounts
 			if invoice.is_return:
 				daily_data[date_key]["return_invoice_count"] += 1
-				daily_data[date_key]["return_amount"] += abs(float(invoice.grand_total))
+				daily_data[date_key]["return_amount"] += abs(float(invoice.base_grand_total or invoice.grand_total))
 			else:
 				daily_data[date_key]["sale_invoice_count"] += 1
-				daily_data[date_key]["sale_amount"] += float(invoice.grand_total)
+				daily_data[date_key]["sale_amount"] += float(invoice.base_grand_total or invoice.grand_total)
 
 		# Get payment details for each invoice
 		invoice_names = [inv.name for inv in invoices]
@@ -83,7 +86,7 @@ def get_shift_report(company=None, pos_profile=None, from_date=None, to_date=Non
 					sip.parent as invoice_no,
 					si.posting_date,
 					sip.mode_of_payment,
-					sip.amount
+					COALESCE(sip.base_amount, sip.amount) as amount
 				FROM `tabSales Invoice Payment` sip
 				JOIN `tabSales Invoice` si ON sip.parent = si.name
 				WHERE sip.parent IN ({})
@@ -730,18 +733,18 @@ def export_item_report(date=None, pos_profile=None):
 def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_date=None, cashier=None, user=None):
 	try:
 		# Log input parameters
-		frappe.logger("shift_report").info(f"[SHIFT_LIST_REPORT] Input: company={company}, pos_profile={pos_profile}, from_date={from_date}, to_date={to_date}, cashier={cashier}, user={user}, session_user={frappe.session.user}")
+		log.info(f"[SHIFT_LIST_REPORT] Input: company={company}, pos_profile={pos_profile}, from_date={from_date}, to_date={to_date}, cashier={cashier}, user={user}, session_user={frappe.session.user}")
 
 		if not company:
-			frappe.logger("shift_report").warning("[SHIFT_LIST_REPORT] Missing required parameter: company")
+			log.warning("[SHIFT_LIST_REPORT] Missing required parameter: company")
 			return {"error": "Company is required"}
 		if not from_date or not to_date:
-			frappe.logger("shift_report").warning("[SHIFT_LIST_REPORT] Missing required parameter: date range")
+			log.warning("[SHIFT_LIST_REPORT] Missing required parameter: date range")
 			return {"error": "Date range is required"}
 
 		session_user = frappe.session.user
 		roles = set(frappe.get_roles(session_user))
-		frappe.logger("shift_report").info(f"[SHIFT_LIST_REPORT] User roles: {list(roles)}")
+		log.info(f"[SHIFT_LIST_REPORT] User roles: {list(roles)}")
 
 		# --- 1) Build shift filters
 		shift_filters = {
@@ -773,10 +776,10 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 			order_by="period_end_date asc, period_end_time asc"
 		)
 
-		frappe.logger("shift_report").info(f"[SHIFT_LIST_REPORT] Found {len(shifts)} shifts matching filters")
+		log.info(f"[SHIFT_LIST_REPORT] Found {len(shifts)} shifts matching filters")
 
 		if not shifts:
-			frappe.logger("shift_report").info("[SHIFT_LIST_REPORT] No shifts found, returning empty result")
+			log.info("[SHIFT_LIST_REPORT] No shifts found, returning empty result")
 			return {"success": True, "data": [], "summary": {k:0 for k in [
 				"total_shifts","total_sale_invoices","total_return_invoices","total_sale_amount",
 				"total_return_amount","total_net_amount","total_cash_amount","total_bank_amount",
@@ -808,7 +811,7 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 					"base_grand_total","grand_total","currency","owner","pos_closing_shift"]
 		)
 
-		frappe.logger("shift_report").info(f"[SHIFT_LIST_REPORT] Found {len(invoices)} invoices in date range")
+		log.info(f"[SHIFT_LIST_REPORT] Found {len(invoices)} invoices in date range")
 
 		# --- 4) Partition invoices to shifts
 		# Prefer explicit link; otherwise match by datetime within shift window & same pos_profile
@@ -836,7 +839,7 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 				fallback_bucket.append(inv.name)
 
 		if fallback_bucket:
-			frappe.logger("shift_report").warning(f"[SHIFT_LIST_REPORT] {len(fallback_bucket)} invoices not matched to any shift: {fallback_bucket}")
+			log.warning(f"[SHIFT_LIST_REPORT] {len(fallback_bucket)} invoices not matched to any shift: {fallback_bucket}")
 
 		# --- 5) Fetch all payments for those invoices in one query
 		all_inv_names = [inv.name for inv in invoices]
@@ -854,7 +857,7 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 			for r in rows:
 				pay_map.setdefault(r.inv, []).append(r)
 
-		frappe.logger("shift_report").info(f"[SHIFT_LIST_REPORT] Found {len(rows)} payment records for {len(pay_map)} invoices")
+		log.info(f"[SHIFT_LIST_REPORT] Found {len(rows)} payment records for {len(pay_map)} invoices")
 
 		# --- 6) Helper: normalize mode of payment
 		def normalize_mop(m):
@@ -938,14 +941,14 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 			summary["total_difference"] += row["difference"]
 
 		result = {"success": True, "data": data, "summary": summary}
-		frappe.logger("shift_report").info(f"[SHIFT_LIST_REPORT] Output: success=True, shifts_count={len(data)}, summary={summary}")
+		log.info(f"[SHIFT_LIST_REPORT] Output: success=True, shifts_count={len(data)}, summary={summary}")
 		return result
 
 	except Exception as e:
-		frappe.logger("shift_report").error(f"[SHIFT_LIST_REPORT] Error: {str(e)}")
+		log.error(f"[SHIFT_LIST_REPORT] Error: {str(e)}")
 		frappe.log_error(f"[SHIFT_REPORT] {frappe.get_traceback()}")
 		result = {"error": str(e)}
-		frappe.logger("shift_report").info(f"[SHIFT_LIST_REPORT] Output: error={str(e)}")
+		log.info(f"[SHIFT_LIST_REPORT] Output: error={str(e)}")
 		return result
 
 @frappe.whitelist()
