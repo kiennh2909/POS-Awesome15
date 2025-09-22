@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, get_datetime
 import json
+from functools import reduce
 
 @frappe.whitelist()
 def get_shift_report(company=None, pos_profile=None, from_date=None, to_date=None):
@@ -723,6 +724,279 @@ def export_item_report(date=None, pos_profile=None):
 
 	except Exception as e:
 		frappe.log_error(f"Error exporting item report: {str(e)}")
+		return {"error": str(e)}
+
+@frappe.whitelist()
+def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_date=None, cashier=None, user=None):
+	"""Get comprehensive shift list report with sales, payments and cash reconciliation"""
+	try:
+		# Validate required parameters
+		if not company:
+			return {"error": "Company is required"}
+		if not from_date or not to_date:
+			return {"error": "Date range is required"}
+
+		user_session = frappe.session.user
+		user_roles = frappe.get_roles(user_session)
+
+		# Build shift filters
+		shift_filters = {
+			"company": company,
+			"period_start_date": ["between", [from_date, to_date]],
+			"docstatus": 1
+		}
+
+		if pos_profile:
+			shift_filters["pos_profile"] = pos_profile
+
+		# If not Sales Manager, only show user's shifts or specified user
+		if "Sales Manager" not in user_roles:
+			shift_filters["user"] = user_session
+		elif user:
+			shift_filters["user"] = user
+		elif cashier:
+			shift_filters["user"] = cashier
+
+		# Get all POS Closing Shifts in date range
+		shifts = frappe.get_all(
+			"POS Closing Shift",
+			filters=shift_filters,
+			fields=[
+				"name", "user", "pos_profile", "period_start_date", "period_end_date",
+				"cash_to_deposit", "cash_counted", "company", "currency",
+				"workflow_state", "creation"
+			],
+			order_by="period_start_date desc"
+		)
+
+		if not shifts:
+			return {
+				"success": True,
+				"data": [],
+				"summary": {
+					"total_shifts": 0,
+					"total_sale_invoices": 0,
+					"total_return_invoices": 0,
+					"total_sale_amount": 0,
+					"total_return_amount": 0,
+					"total_net_amount": 0,
+					"total_cash_amount": 0,
+					"total_bank_amount": 0,
+					"total_qrpay_amount": 0,
+					"total_card_amount": 0,
+					"total_other_amount": 0,
+					"total_cash_submitted": 0,
+					"total_difference": 0
+				}
+			}
+
+		# Process each shift
+		shift_data = []
+		for shift in shifts:
+			shift_info = {
+				"name": shift.name,
+				"shift_id": shift.name,
+				"user": shift.user,
+				"user_fullname": frappe.db.get_value("User", shift.user, "full_name") or shift.user,
+				"date": shift.period_start_date,
+				"status": shift.workflow_state or "Closed",
+				"currency": shift.currency,
+				"sale_invoice_count": 0,
+				"return_invoice_count": 0,
+				"sale_amount": 0,
+				"return_amount": 0,
+				"net_amount": 0,
+				"cash_amount": 0,
+				"bank_amount": 0,
+				"qrpay_amount": 0,
+				"card_amount": 0,
+				"other_amount": 0,
+				"cash_submitted": float(shift.get("cash_to_deposit", 0) or shift.get("cash_counted", 0)),
+				"difference": 0
+			}
+
+			# Get invoices linked to this shift
+			# First try to find invoices linked directly to this closing shift
+			linked_invoices = frappe.get_all(
+				"Sales Invoice",
+				filters={
+					"pos_closing_shift": shift.name,
+					"docstatus": 1
+				},
+				fields=["name", "is_return", "grand_total", "posting_date"]
+			)
+
+			# If no direct links, find invoices by time range
+			if not linked_invoices:
+				linked_invoices = frappe.get_all(
+					"Sales Invoice",
+					filters={
+						"posting_date": shift.period_start_date,
+						"pos_profile": shift.pos_profile,
+						"owner": shift.user,
+						"docstatus": 1,
+						"is_pos": 1
+					},
+					fields=["name", "is_return", "grand_total", "posting_date"]
+				)
+
+			# Process invoices
+			invoice_names = [inv.name for inv in linked_invoices]
+			for inv in linked_invoices:
+				if inv.is_return:
+					shift_info["return_invoice_count"] += 1
+					shift_info["return_amount"] += abs(float(inv.grand_total))
+				else:
+					shift_info["sale_invoice_count"] += 1
+					shift_info["sale_amount"] += float(inv.grand_total)
+
+			# Get payment details for these invoices
+			if invoice_names:
+				payments = frappe.db.sql("""
+					SELECT
+						sip.mode_of_payment,
+						SUM(sip.amount) as amount
+					FROM `tabSales Invoice Payment` sip
+					WHERE sip.parent IN ({})
+					GROUP BY sip.mode_of_payment
+				""".format(','.join(['%s'] * len(invoice_names))), invoice_names, as_dict=True)
+
+				# Process payments
+				for payment in payments:
+					amount = float(payment.amount)
+					mode = payment.mode_of_payment.lower()
+
+					# Map payment modes to categories
+					if 'cash' in mode:
+						shift_info["cash_amount"] += amount
+					elif 'bank' in mode or 'transfer' in mode:
+						shift_info["bank_amount"] += amount
+					elif 'qr' in mode or 'qrcode' in mode or 'm-pesa' in mode or 'momo' in mode:
+						shift_info["qrpay_amount"] += amount
+					elif 'card' in mode or 'credit' in mode or 'debit' in mode:
+						shift_info["card_amount"] += amount
+					else:
+						shift_info["other_amount"] += amount
+
+			# Calculate NET amount and difference
+			shift_info["net_amount"] = shift_info["sale_amount"] - shift_info["return_amount"]
+			shift_info["difference"] = shift_info["cash_submitted"] - shift_info["cash_amount"]
+
+			shift_data.append(shift_info)
+
+		# Calculate summary
+		summary = {
+			"total_shifts": 0,
+			"total_sale_invoices": 0,
+			"total_return_invoices": 0,
+			"total_sale_amount": 0,
+			"total_return_amount": 0,
+			"total_net_amount": 0,
+			"total_cash_amount": 0,
+			"total_bank_amount": 0,
+			"total_qrpay_amount": 0,
+			"total_card_amount": 0,
+			"total_other_amount": 0,
+			"total_cash_submitted": 0,
+			"total_difference": 0
+		}
+
+		for shift in shift_data:
+			summary["total_shifts"] += 1
+			summary["total_sale_invoices"] += shift["sale_invoice_count"]
+			summary["total_return_invoices"] += shift["return_invoice_count"]
+			summary["total_sale_amount"] += shift["sale_amount"]
+			summary["total_return_amount"] += shift["return_amount"]
+			summary["total_net_amount"] += shift["net_amount"]
+			summary["total_cash_amount"] += shift["cash_amount"]
+			summary["total_bank_amount"] += shift["bank_amount"]
+			summary["total_qrpay_amount"] += shift["qrpay_amount"]
+			summary["total_card_amount"] += shift["card_amount"]
+			summary["total_other_amount"] += shift["other_amount"]
+			summary["total_cash_submitted"] += shift["cash_submitted"]
+			summary["total_difference"] += shift["difference"]
+
+		return {
+			"success": True,
+			"data": shift_data,
+			"summary": summary
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error getting shift list report: {str(e)}")
+		return {"error": str(e)}
+
+@frappe.whitelist()
+def export_shift_list_report(company=None, pos_profile=None, from_date=None, to_date=None, cashier=None, user=None):
+	"""Export shift list report to Excel"""
+	try:
+		report_data = get_shift_list_report(company, pos_profile, from_date, to_date, cashier, user)
+
+		if "error" in report_data:
+			return {"error": report_data["error"]}
+
+		# Generate Excel content
+		content = "BÁO CÁO DANH SÁCH CA LÀM VIỆC\n"
+		content += f"Công ty: {company}\n"
+		content += f"Hồ sơ POS: {pos_profile or 'Tất cả'}\n"
+		content += f"Nhân viên: {cashier or 'Tất cả'}\n"
+		content += f"Khoảng thời gian: {from_date} - {to_date}\n"
+		content += f"Xuất báo cáo: {get_datetime().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+
+		# Summary
+		summary = report_data["summary"]
+		content += "TỔNG QUAN\n"
+		content += f"Tổng ca: {summary['total_shifts']}\n"
+		content += f"Tổng hóa đơn bán: {summary['total_sale_invoices']}\n"
+		content += f"Tổng hóa đơn hoàn: {summary['total_return_invoices']}\n"
+		content += f"Tổng doanh số: {summary['total_sale_amount']}\n"
+		content += f"Tổng hoàn tiền: {summary['total_return_amount']}\n"
+		content += f"Doanh thu ròng: {summary['total_net_amount']}\n"
+		content += f"Tiền mặt: {summary['total_cash_amount']}\n"
+		content += f"Ngân hàng: {summary['total_bank_amount']}\n"
+		content += f"QR Pay: {summary['total_qrpay_amount']}\n"
+		content += f"Thẻ tín dụng: {summary['total_card_amount']}\n"
+		content += f"Khác: {summary['total_other_amount']}\n"
+		content += f"Nộp cuối ca: {summary['total_cash_submitted']}\n"
+		content += f"Chênh lệch: {summary['total_difference']}\n\n"
+
+		# Data
+		content += "CHI TIẾT CA LÀM VIỆC\n"
+		content += "Mã SHIFT\tNhân viên\tNgày\tTrạng thái\tHóa đơn bán\tHóa đơn hoàn\tTổng doanh số\tSố tiền hoàn\tSố tiền NET\tCASH\tBANK\tQRPAY\tCARD\tOTHER\tNộp cuối ca\tChênh lệch\tTiền tệ\n"
+
+		for row in report_data["data"]:
+			content += f"{row.get('shift_id', '')}\t"
+			content += f"{row.get('user_fullname', '')}\t"
+			content += f"{row.get('date', '')}\t"
+			content += f"{row.get('status', '')}\t"
+			content += f"{row.get('sale_invoice_count', 0)}\t"
+			content += f"{row.get('return_invoice_count', 0)}\t"
+			content += f"{row.get('sale_amount', 0)}\t"
+			content += f"{row.get('return_amount', 0)}\t"
+			content += f"{row.get('net_amount', 0)}\t"
+			content += f"{row.get('cash_amount', 0)}\t"
+			content += f"{row.get('bank_amount', 0)}\t"
+			content += f"{row.get('qrpay_amount', 0)}\t"
+			content += f"{row.get('card_amount', 0)}\t"
+			content += f"{row.get('other_amount', 0)}\t"
+			content += f"{row.get('cash_submitted', 0)}\t"
+			content += f"{row.get('difference', 0)}\t"
+			content += f"{row.get('currency', 'VND')}\n"
+
+		# Create file
+		file_name = f"bao_cao_danh_sach_ca_{from_date}_{to_date}.xlsx"
+		file_doc = frappe.get_doc({
+			"doctype": "File",
+			"file_name": file_name,
+			"content": content,
+			"is_private": 1
+		})
+		file_doc.save()
+
+		return {"file_url": file_doc.file_url}
+
+	except Exception as e:
+		frappe.log_error(f"Error exporting shift list report: {str(e)}")
 		return {"error": str(e)}
 
 # Add similar export functions for other report types...

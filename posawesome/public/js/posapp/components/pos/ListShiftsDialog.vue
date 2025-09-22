@@ -5,19 +5,23 @@
 				<v-icon class="me-2">mdi-view-list</v-icon>
 				<div class="header-content">
 					<div class="header-main">
-						<h3 class="header-title">{{ __("List Shifts") }}</h3>
-						<div class="shift-info" v-if="selectedDate">
+						<h3 class="header-title">{{ __("List Shifts Report") }}</h3>
+						<div class="shift-info" v-if="fromDate && toDate">
 							<div class="shift-info-item">
-								<span class="shift-info-label">{{ __("Date:") }}</span>
-								<span class="shift-info-value">{{ formatDate(selectedDate) }}</span>
+								<span class="shift-info-label">{{ __("Period:") }}</span>
+								<span class="shift-info-value">{{ formatDate(fromDate) }} - {{ formatDate(toDate) }}</span>
 							</div>
 							<div class="shift-info-item">
 								<span class="shift-info-label">{{ __("POS Profile:") }}</span>
 								<span class="shift-info-value">{{ posProfile?.name || 'N/A' }}</span>
 							</div>
 							<div class="shift-info-item">
-								<span class="shift-info-label">{{ __("User Role:") }}</span>
-								<span class="shift-info-value">{{ userRole === 'Sales Manager' ? 'Manager' : 'Sales Person' }}</span>
+								<span class="shift-info-label">{{ __("Cashier:") }}</span>
+								<span class="shift-info-value">{{ selectedCashier || 'All' }}</span>
+							</div>
+							<div class="shift-info-item">
+								<span class="shift-info-label">{{ __("Generated:") }}</span>
+								<span class="shift-info-value">{{ formatDateTime(new Date()) }}</span>
 							</div>
 						</div>
 					</div>
@@ -34,40 +38,79 @@
 				<!-- Filters Section -->
 				<div class="pa-4 filters-section">
 					<v-row dense>
-						<v-col cols="12" md="4">
+						<v-col cols="12" md="3">
 							<v-text-field
-								v-model="selectedDate"
-								:label="__('Select Date')"
+								v-model="fromDate"
+								:label="__('From Date')"
 								type="date"
 								variant="outlined"
 								density="compact"
 								:max="new Date().toISOString().split('T')[0]"
-								@change="loadShifts"
 								class="date-filter"
 							/>
 						</v-col>
-						<v-col cols="12" md="4">
+						<v-col cols="12" md="3">
 							<v-text-field
-								v-model="searchQuery"
-								:label="__('Search by Shift ID or Cashier')"
-								prepend-inner-icon="mdi-magnify"
+								v-model="toDate"
+								:label="__('To Date')"
+								type="date"
 								variant="outlined"
 								density="compact"
-								clearable
-								@input="debouncedSearch"
-								class="search-filter"
+								:max="new Date().toISOString().split('T')[0]"
+								:min="fromDate"
+								class="date-filter"
 							/>
 						</v-col>
-						<v-col cols="12" md="4">
+						<v-col cols="12" md="3">
 							<v-select
-								v-model="statusFilter"
-								:label="__('Filter by Status')"
-								:items="statusOptions"
+								v-model="selectedCashier"
+								:label="__('Cashier')"
+								:items="cashierOptions"
 								variant="outlined"
 								density="compact"
 								clearable
-								class="status-filter"
+								class="cashier-filter"
 							/>
+						</v-col>
+						<v-col cols="12" md="3">
+							<v-btn
+								color="primary"
+								variant="outlined"
+								prepend-icon="mdi-chart-line"
+								@click="loadShifts"
+								:loading="loading"
+								:disabled="!fromDate || !toDate"
+								class="action-btn"
+							>
+								{{ __("Generate") }}
+							</v-btn>
+
+							<v-btn
+								color="success"
+								variant="outlined"
+								prepend-icon="mdi-download"
+								@click="exportReport"
+								:loading="exporting"
+								:disabled="!shifts.length"
+								class="action-btn"
+							>
+								{{ __("Export") }}
+							</v-btn>
+
+							<v-btn
+								color="info"
+								variant="outlined"
+								prepend-icon="mdi-printer"
+								@click="printReport"
+								:disabled="!shifts.length"
+								class="action-btn"
+							>
+								{{ __("Print") }}
+							</v-btn>
+
+							<v-btn variant="text" @click="close" class="action-btn">
+								{{ __("Close") }}
+							</v-btn>
 						</v-col>
 					</v-row>
 				</div>
@@ -84,9 +127,21 @@
 					</v-col>
 					<v-col cols="12" md="2">
 						<v-card variant="outlined" class="pa-3">
+							<div class="text-caption text-medium-emphasis">{{ __("Sale Invoices") }}</div>
+							<div class="text-h6 font-weight-bold text-success">{{ summary.total_sale_invoices || 0 }}</div>
+						</v-card>
+					</v-col>
+					<v-col cols="12" md="2">
+						<v-card variant="outlined" class="pa-3">
+							<div class="text-caption text-medium-emphasis">{{ __("Return Invoices") }}</div>
+							<div class="text-h6 font-weight-bold text-error">{{ summary.total_return_invoices || 0 }}</div>
+						</v-card>
+					</v-col>
+					<v-col cols="12" md="2">
+						<v-card variant="outlined" class="pa-3">
 							<div class="text-caption text-medium-emphasis">{{ __("Total Sales") }}</div>
 							<div class="text-h6 font-weight-bold text-success">
-								{{ formatCurrency(summary.total_sales || 0) }}
+								{{ formatCurrency(summary.total_sale_amount || 0) }}
 							</div>
 						</v-card>
 					</v-col>
@@ -94,31 +149,15 @@
 						<v-card variant="outlined" class="pa-3">
 							<div class="text-caption text-medium-emphasis">{{ __("Total Returns") }}</div>
 							<div class="text-h6 font-weight-bold text-error">
-								{{ formatCurrency(summary.total_returns || 0) }}
+								{{ formatCurrency(summary.total_return_amount || 0) }}
 							</div>
 						</v-card>
 					</v-col>
 					<v-col cols="12" md="2">
 						<v-card variant="outlined" class="pa-3">
-							<div class="text-caption text-medium-emphasis">{{ __("Opening Amount") }}</div>
+							<div class="text-caption text-medium-emphasis">{{ __("Net Amount") }}</div>
 							<div class="text-h6 font-weight-bold text-primary">
-								{{ formatCurrency(summary.total_opening || 0) }}
-							</div>
-						</v-card>
-					</v-col>
-					<v-col cols="12" md="2">
-						<v-card variant="outlined" class="pa-3">
-							<div class="text-caption text-medium-emphasis">{{ __("Expected Closing") }}</div>
-							<div class="text-h6 font-weight-bold text-info">
-								{{ formatCurrency(summary.total_expected_closing || 0) }}
-							</div>
-						</v-card>
-					</v-col>
-					<v-col cols="12" md="2">
-						<v-card variant="outlined" class="pa-3">
-							<div class="text-caption text-medium-emphasis">{{ __("Actual Closing") }}</div>
-							<div class="text-h6 font-weight-bold text-warning">
-								{{ formatCurrency(summary.total_actual_closing || 0) }}
+								{{ formatCurrency(summary.total_net_amount || 0) }}
 							</div>
 						</v-card>
 					</v-col>
@@ -129,96 +168,80 @@
 				<!-- Data Table -->
 				<v-data-table
 					:headers="headers"
-					:items="filteredShifts"
+					:items="shiftsWithTotal"
 					:loading="loading"
-					:items-length="totalShifts"
-					item-key="name"
 					class="elevation-0"
 					density="compact"
 					:show-select="false"
-					:items-per-page-options="[10, 25, 50]"
-					:items-per-page="itemsPerPage"
+					:items-per-page="-1"
+					hide-default-footer
 				>
-					<template #item.shift_id="{ item }">
-						<v-chip
-							variant="outlined"
-							size="small"
-							color="primary"
-						>
-							{{ item.shift_id || item.name }}
-						</v-chip>
-					</template>
+					<template #item="{ item }">
+						<tr :class="item.isTotalRow ? 'total-row' : ''">
+							<td v-for="(header, hIndex) in headers" :key="hIndex" :class="header.align ? `text-${header.align}` : ''">
+								<!-- Shift ID -->
+								<v-chip
+									v-if="header.key === 'shift_id'"
+									variant="outlined"
+									size="small"
+									color="primary"
+								>
+									{{ item.shift_id || item.name }}
+								</v-chip>
 
-					<template #item.opening_time="{ item }">
-						<div class="text-caption">
-							{{ formatDateTime(item.opening_date, item.opening_time) }}
-						</div>
-					</template>
+								<!-- Employee -->
+								<div v-else-if="header.key === 'user'" class="text-truncate" style="max-width: 120px;">
+									{{ item.user_fullname || item.user || '-' }}
+								</div>
 
-					<template #item.user="{ item }">
-						<div class="text-truncate" style="max-width: 120px;">
-							{{ item.user_fullname || item.user || '-' }}
-						</div>
-					</template>
+								<!-- Date -->
+								<div v-else-if="header.key === 'date'" class="text-caption">
+									{{ formatDate(item.date) }}
+								</div>
 
-					<template #item.total_invoices="{ item }">
-						<span class="text-center">{{ item.invoice_count || 0 }}</span>
-					</template>
+								<!-- Status -->
+								<v-chip
+									v-else-if="header.key === 'status'"
+									variant="flat"
+									size="small"
+									:color="getStatusColor(item.status)"
+								>
+									{{ getStatusText(item.status) }}
+								</v-chip>
 
-					<template #item.total_sales="{ item }">
-						<span class="text-success font-weight-medium">
-							{{ formatCurrency(item.total_sales || 0) }}
-						</span>
-					</template>
+								<!-- Invoice counts -->
+								<span v-else-if="header.key === 'sale_invoice_count' || header.key === 'return_invoice_count'"
+									:class="item.isTotalRow ? 'font-weight-bold text-primary' : ''">
+									{{ item[header.key] || 0 }}
+								</span>
 
-					<template #item.total_opening="{ item }">
-						<span class="text-primary">
-							{{ formatCurrency(item.total_opening || 0) }}
-						</span>
-					</template>
+								<!-- Currency amounts -->
+								<span v-else-if="header.key.includes('amount') || header.key.includes('sale') || header.key.includes('return') || header.key.includes('net') || header.key.includes('cash') || header.key.includes('bank') || header.key.includes('qrpay') || header.key.includes('card') || header.key.includes('other') || header.key.includes('submitted') || header.key.includes('difference')"
+									:class="item.isTotalRow ? 'font-weight-bold text-primary' : getAmountClass(header.key)">
+									{{ formatCurrency(item[header.key] || 0) }}
+								</span>
 
-					<template #item.total_returns="{ item }">
-						<span class="text-error">
-							{{ formatCurrency(item.total_returns || 0) }}
-						</span>
-					</template>
+								<!-- Currency -->
+								<span v-else-if="header.key === 'currency'" :class="item.isTotalRow ? 'font-weight-bold text-primary' : ''">
+									{{ item.currency || 'VND' }}
+								</span>
 
-					<template #item.expected_closing_amount="{ item }">
-						<span class="text-info">
-							{{ formatCurrency(item.expected_closing_amount || 0) }}
-						</span>
-					</template>
+								<!-- Actions -->
+								<v-btn
+									v-else-if="header.key === 'actions' && !item.isTotalRow"
+									icon="mdi-eye"
+									size="small"
+									variant="text"
+									@click="viewShiftDetails(item)"
+									:title="__('View Shift Details')"
+								></v-btn>
 
-					<template #item.actual_closing_amount="{ item }">
-						<span class="text-warning">
-							{{ formatCurrency(item.actual_closing_amount || 0) }}
-						</span>
-					</template>
-
-					<template #item.closing_date="{ item }">
-						<div class="text-caption">
-							{{ item.closing_date ? formatDateTime(item.closing_date, item.closing_time) : '-' }}
-						</div>
-					</template>
-
-					<template #item.status="{ item }">
-						<v-chip
-							variant="flat"
-							size="small"
-							:color="getStatusColor(item.status)"
-						>
-							{{ getStatusText(item.status) }}
-						</v-chip>
-					</template>
-
-					<template #item.actions="{ item }">
-						<v-btn
-							icon="mdi-eye"
-							size="small"
-							variant="text"
-							@click="viewShiftDetails(item)"
-							:title="__('View Shift Details')"
-						></v-btn>
+								<!-- Default -->
+								<span v-else :class="item.isTotalRow ? 'font-weight-bold text-primary' : ''">
+									{{ item[header.key] || '-' }}
+								</span>
+							</td>
+						</tr>
 					</template>
 				</v-data-table>
 			</v-card-text>
@@ -257,39 +280,48 @@ export default {
 	data() {
 		return {
 			loading: false,
-			selectedDate: new Date().toISOString().split('T')[0], // Today by default
-			searchQuery: "",
-			statusFilter: "",
+			exporting: false,
+			fromDate: new Date().toISOString().split('T')[0],
+			toDate: new Date().toISOString().split('T')[0],
+			selectedCashier: null,
 			shifts: [],
 			totalShifts: 0,
-			itemsPerPage: 10,
 			userRole: null, // 'Sales Person' or 'Sales Manager'
+			cashierOptions: [],
 			summary: {
 				total_shifts: 0,
-				total_sales: 0,
-				total_returns: 0,
-				total_opening: 0,
-				total_expected_closing: 0,
-				total_actual_closing: 0
+				total_sale_invoices: 0,
+				total_return_invoices: 0,
+				total_sale_amount: 0,
+				total_return_amount: 0,
+				total_net_amount: 0,
+				total_cash_amount: 0,
+				total_bank_amount: 0,
+				total_qrpay_amount: 0,
+				total_card_amount: 0,
+				total_other_amount: 0,
+				total_cash_submitted: 0,
+				total_difference: 0
 			},
 			headers: [
-				{ title: this.__("Shift ID"), key: "shift_id", width: "120px" },
-				{ title: this.__("Started"), key: "opening_time", width: "140px" },
-				{ title: this.__("Cashier"), key: "user", width: "120px" },
-				{ title: this.__("Total Invoices"), key: "total_invoices", width: "100px", align: "center" },
-				{ title: this.__("Total Sales"), key: "total_sales", width: "120px", align: "end" },
-				{ title: this.__("Opening"), key: "total_opening", width: "120px", align: "end" },
-				{ title: this.__("Returns"), key: "total_returns", width: "120px", align: "end" },
-				{ title: this.__("Expected Closing"), key: "expected_closing_amount", width: "130px", align: "end" },
-				{ title: this.__("Actual Closing"), key: "actual_closing_amount", width: "130px", align: "end" },
-				{ title: this.__("Closed"), key: "closing_date", width: "140px" },
-				{ title: this.__("Status"), key: "status", width: "100px" },
+				{ title: this.__("Mã SHIFT"), key: "shift_id", width: "120px" },
+				{ title: this.__("Nhân viên"), key: "user", width: "120px" },
+				{ title: this.__("Ngày"), key: "date", width: "100px" },
+				{ title: this.__("Trạng thái"), key: "status", width: "100px" },
+				{ title: this.__("Hóa đơn bán hàng"), key: "sale_invoice_count", width: "120px", align: "end" },
+				{ title: this.__("Hóa đơn hoàn"), key: "return_invoice_count", width: "100px", align: "end" },
+				{ title: this.__("Tổng doanh số (SALE)"), key: "sale_amount", width: "140px", align: "end" },
+				{ title: this.__("Số tiền hoàn (RETURN)"), key: "return_amount", width: "140px", align: "end" },
+				{ title: this.__("Số tiền NET"), key: "net_amount", width: "120px", align: "end" },
+				{ title: this.__("CASH"), key: "cash_amount", width: "100px", align: "end" },
+				{ title: this.__("BANK"), key: "bank_amount", width: "100px", align: "end" },
+				{ title: this.__("QRPAY"), key: "qrpay_amount", width: "100px", align: "end" },
+				{ title: this.__("CARD"), key: "card_amount", width: "100px", align: "end" },
+				{ title: this.__("OTHER"), key: "other_amount", width: "100px", align: "end" },
+				{ title: this.__("Nộp cuối ca"), key: "cash_submitted", width: "120px", align: "end" },
+				{ title: this.__("Chênh lệch"), key: "difference", width: "100px", align: "end" },
+				{ title: this.__("Tiền tệ"), key: "currency", width: "80px" },
 				{ title: this.__("Actions"), key: "actions", width: "80px", sortable: false }
-			],
-			statusOptions: [
-				{ title: this.__("Open"), value: "Open" },
-				{ title: this.__("Closed"), value: "Closed" },
-				{ title: this.__("Verified"), value: "Verified" }
 			],
 			// ListInvoicesDialog integration
 			showListInvoicesDialog: false,
@@ -305,24 +337,33 @@ export default {
 				this.$emit("update:modelValue", value);
 			}
 		},
-		filteredShifts() {
-			let filtered = [...this.shifts];
+		shiftsWithTotal() {
+			const shifts = [...this.shifts];
 
-			// Search filter
-			if (this.searchQuery) {
-				const query = this.searchQuery.toLowerCase();
-				filtered = filtered.filter(item =>
-					(item.shift_id || item.name)?.toLowerCase().includes(query) ||
-					(item.user_fullname || item.user)?.toLowerCase().includes(query)
-				);
-			}
+			// Add grand total row
+			const grandTotal = {
+				shift_id: 'TOTAL',
+				user: '',
+				date: '',
+				status: '',
+				sale_invoice_count: this.summary.total_sale_invoices || 0,
+				return_invoice_count: this.summary.total_return_invoices || 0,
+				sale_amount: this.summary.total_sale_amount || 0,
+				return_amount: this.summary.total_return_amount || 0,
+				net_amount: this.summary.total_net_amount || 0,
+				cash_amount: this.summary.total_cash_amount || 0,
+				bank_amount: this.summary.total_bank_amount || 0,
+				qrpay_amount: this.summary.total_qrpay_amount || 0,
+				card_amount: this.summary.total_card_amount || 0,
+				other_amount: this.summary.total_other_amount || 0,
+				cash_submitted: this.summary.total_cash_submitted || 0,
+				difference: this.summary.total_difference || 0,
+				currency: this.shifts.length > 0 ? this.shifts[0].currency : 'VND',
+				isTotalRow: true
+			};
 
-			// Status filter
-			if (this.statusFilter) {
-				filtered = filtered.filter(item => item.status === this.statusFilter);
-			}
-
-			return filtered;
+			shifts.push(grandTotal);
+			return shifts;
 		}
 	},
 	watch: {
@@ -330,9 +371,6 @@ export default {
 			if (newVal) {
 				this.initializeDialog();
 			}
-		},
-		statusFilter() {
-			// Auto-filter when status changes
 		}
 	},
 	mounted() {
@@ -342,7 +380,8 @@ export default {
 	methods: {
 		async initializeDialog() {
 			await this.checkUserRole();
-			await this.loadShifts();
+			await this.loadCashiers();
+			// Don't auto-load shifts, wait for user to click Generate
 		},
 
 		async checkUserRole() {
@@ -357,24 +396,62 @@ export default {
 			}
 		},
 
+		async loadCashiers() {
+			try {
+				// Load available cashiers for the POS profile
+				const response = await frappe.call({
+					method: "frappe.client.get_list",
+					args: {
+						doctype: "User",
+						filters: {
+							enabled: 1,
+							user_type: "System User"
+						},
+						fields: ["name", "full_name"],
+						limit: 100
+					}
+				});
+
+				this.cashierOptions = response.message?.map(user => ({
+					title: user.full_name || user.name,
+					value: user.name
+				})) || [];
+			} catch (error) {
+				console.error("[LIST_SHIFTS] Error loading cashiers:", error);
+				this.cashierOptions = [];
+			}
+		},
+
 		async loadShifts() {
-			if (!this.selectedDate || !this.posProfile?.name) {
-				console.warn("[LIST_SHIFTS] Missing required data:", { selectedDate: this.selectedDate, posProfile: this.posProfile });
+			if (!this.fromDate || !this.toDate) {
+				this.showError("Please select both From Date and To Date");
 				return;
 			}
 
 			this.loading = true;
 			try {
-				console.log("[LIST_SHIFTS] Loading shifts for date:", this.selectedDate, "POS:", this.posProfile.name, "Role:", this.userRole);
+				console.log("[LIST_SHIFTS] Loading shifts for period:", this.fromDate, "to", this.toDate, "POS:", this.posProfile.name, "Role:", this.userRole);
+
+				const args = {
+					company: this.posProfile?.company || frappe.defaults.get_default("company"),
+					pos_profile: this.posProfile.name,
+					from_date: this.fromDate,
+					to_date: this.toDate
+				};
+
+				// Add cashier filter if selected
+				if (this.selectedCashier) {
+					args.cashier = this.selectedCashier;
+				}
+
+				// Add user filter for Sales Person role
+				if (this.userRole === 'Sales Person') {
+					args.user = frappe.session.user;
+				}
 
 				const response = await frappe.call({
-					method: "posawesome.posawesome.api.shift_reports.get_shift_list",
-					args: {
-						date: this.selectedDate,
-						pos_profile: this.posProfile.name,
-						user_role: this.userRole,
-						user: this.userRole === 'Sales Person' ? frappe.session.user : null
-					}
+					method: "posawesome.posawesome.api.reports.get_shift_list_report",
+					args: args
 				});
 
 				console.log("[LIST_SHIFTS] API Response:", response);
@@ -391,20 +468,14 @@ export default {
 					console.warn("[LIST_SHIFTS] No shifts data found");
 					this.shifts = [];
 					this.totalShifts = 0;
-					this.summary = {
-						total_shifts: 0,
-						total_sales: 0,
-						total_returns: 0,
-						total_opening: 0,
-						total_expected_closing: 0,
-						total_actual_closing: 0
-					};
+					this.resetSummary();
 				}
 			} catch (error) {
 				console.error("[LIST_SHIFTS] Error loading shifts:", error);
 				this.showError("Failed to load shifts data");
 				this.shifts = [];
 				this.totalShifts = 0;
+				this.resetSummary();
 			} finally {
 				this.loading = false;
 			}
@@ -413,34 +484,67 @@ export default {
 		calculateSummary() {
 			this.summary = this.shifts.reduce((acc, shift) => {
 				acc.total_shifts += 1;
-				acc.total_sales += parseFloat(shift.total_sales || 0);
-				acc.total_returns += parseFloat(shift.total_returns || 0);
-				acc.total_opening += parseFloat(shift.total_opening || 0);
-				acc.total_expected_closing += parseFloat(shift.expected_closing_amount || 0);
-				acc.total_actual_closing += parseFloat(shift.actual_closing_amount || 0);
+				acc.total_sale_invoices += parseInt(shift.sale_invoice_count || 0);
+				acc.total_return_invoices += parseInt(shift.return_invoice_count || 0);
+				acc.total_sale_amount += parseFloat(shift.sale_amount || 0);
+				acc.total_return_amount += parseFloat(shift.return_amount || 0);
+				acc.total_net_amount += parseFloat(shift.net_amount || 0);
+				acc.total_cash_amount += parseFloat(shift.cash_amount || 0);
+				acc.total_bank_amount += parseFloat(shift.bank_amount || 0);
+				acc.total_qrpay_amount += parseFloat(shift.qrpay_amount || 0);
+				acc.total_card_amount += parseFloat(shift.card_amount || 0);
+				acc.total_other_amount += parseFloat(shift.other_amount || 0);
+				acc.total_cash_submitted += parseFloat(shift.cash_submitted || 0);
+				acc.total_difference += parseFloat(shift.difference || 0);
 				return acc;
 			}, {
 				total_shifts: 0,
-				total_sales: 0,
-				total_returns: 0,
-				total_opening: 0,
-				total_expected_closing: 0,
-				total_actual_closing: 0
+				total_sale_invoices: 0,
+				total_return_invoices: 0,
+				total_sale_amount: 0,
+				total_return_amount: 0,
+				total_net_amount: 0,
+				total_cash_amount: 0,
+				total_bank_amount: 0,
+				total_qrpay_amount: 0,
+				total_card_amount: 0,
+				total_other_amount: 0,
+				total_cash_submitted: 0,
+				total_difference: 0
 			});
 
 			console.log("[LIST_SHIFTS] Summary calculated:", this.summary);
 		},
 
-		applyFilters() {
-			// Filters are applied automatically through computed property
+		resetSummary() {
+			this.summary = {
+				total_shifts: 0,
+				total_sale_invoices: 0,
+				total_return_invoices: 0,
+				total_sale_amount: 0,
+				total_return_amount: 0,
+				total_net_amount: 0,
+				total_cash_amount: 0,
+				total_bank_amount: 0,
+				total_qrpay_amount: 0,
+				total_card_amount: 0,
+				total_other_amount: 0,
+				total_cash_submitted: 0,
+				total_difference: 0
+			};
 		},
 
-		debounce(func, delay) {
-			let timeoutId;
-			return function (...args) {
-				clearTimeout(timeoutId);
-				timeoutId = setTimeout(() => func.apply(this, args), delay);
-			};
+		getAmountClass(key) {
+			if (key.includes('sale') || key.includes('net') || key.includes('cash') || key.includes('bank') || key.includes('qrpay') || key.includes('card')) {
+				return 'text-success';
+			} else if (key.includes('return') || key.includes('other')) {
+				return 'text-error';
+			} else if (key.includes('submitted')) {
+				return 'text-info';
+			} else if (key.includes('difference')) {
+				return 'text-warning';
+			}
+			return '';
 		},
 
 		viewShiftDetails(shift) {
@@ -518,6 +622,196 @@ export default {
 			}
 		},
 
+		async exportReport() {
+			this.exporting = true;
+			try {
+				const args = {
+					company: this.posProfile?.company || frappe.defaults.get_default("company"),
+					pos_profile: this.posProfile.name,
+					from_date: this.fromDate,
+					to_date: this.toDate
+				};
+
+				if (this.selectedCashier) {
+					args.cashier = this.selectedCashier;
+				}
+
+				if (this.userRole === 'Sales Person') {
+					args.user = frappe.session.user;
+				}
+
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.reports.export_shift_list_report",
+					args: args
+				});
+
+				if (response.message?.file_url) {
+					window.open(response.message.file_url);
+				} else {
+					this.showSuccess(`Đã xuất báo cáo danh sách ca`);
+				}
+			} catch (error) {
+				console.error(`Error exporting shift list report:`, error);
+				this.showError(`Không thể xuất báo cáo danh sách ca`);
+			} finally {
+				this.exporting = false;
+			}
+		},
+
+		async printReport() {
+			try {
+				const printContent = this.generatePrintContent();
+				const printWindow = window.open('', '_blank', 'width=800,height=600');
+				if (!printWindow) {
+					this.showError("Không thể mở cửa sổ in. Vui lòng kiểm tra chặn popup.");
+					return;
+				}
+
+				printWindow.document.write(printContent);
+				printWindow.document.close();
+
+				printWindow.onload = function() {
+					printWindow.print();
+					printWindow.close();
+				};
+
+				this.showSuccess("Đã gửi lệnh in thành công");
+			} catch (error) {
+				console.error(`Error printing shift list report:`, error);
+				this.showError(`Không thể in báo cáo danh sách ca`);
+			}
+		},
+
+		generatePrintContent() {
+			const now = new Date();
+			const printDate = now.toLocaleDateString('vi-VN');
+			const printTime = now.toLocaleTimeString('vi-VN');
+
+			let content = `
+				<!DOCTYPE html>
+				<html lang="vi">
+				<head>
+					<title>BÁO CÁO DANH SÁCH CA LÀM VIỆC</title>
+					<meta charset="UTF-8">
+					<style>
+						@page { size: A4 landscape; margin: 1cm; }
+						body { font-family: 'Arial', sans-serif; font-size: 10px; line-height: 1.3; color: #000; }
+						.header { text-align: center; border-bottom: 2px solid #1976d2; padding-bottom: 10px; margin-bottom: 15px; }
+						.header h1 { color: #000; margin: 0; font-size: 16px; font-weight: bold; }
+						.section { margin-bottom: 15px; }
+						table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 9px; }
+						th, td { border: 1px solid #000; padding: 4px 2px; text-align: left; }
+						th { background-color: #f5f5f5; font-weight: bold; font-size: 8px; }
+						.amount { text-align: right; font-family: 'Courier New', monospace; }
+						.total-row { background-color: #fff3cd !important; font-weight: bold; }
+						.total-cell { color: #856404 !important; }
+						@media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; } }
+					</style>
+				</head>
+				<body>
+					<div class="header">
+						<h1>BÁO CÁO DANH SÁCH CA LÀM VIỆC</h1>
+						<p>Hồ sơ POS: ${this.posProfile?.name || 'N/A'}</p>
+						<p>Nhân viên: ${this.selectedCashier || 'Tất cả'}</p>
+						<p>Khoảng thời gian: ${this.formatDate(this.fromDate)} - ${this.formatDate(this.toDate)}</p>
+						<p>Ngày in: ${printDate} ${printTime}</p>
+					</div>
+
+					<div class="section">
+						<h2>TỔNG QUAN</h2>
+						<table>
+							<tr>
+								<td><strong>Tổng ca:</strong></td><td>${this.summary.total_shifts}</td>
+								<td><strong>Hóa đơn bán:</strong></td><td>${this.summary.total_sale_invoices}</td>
+								<td><strong>Hóa đơn hoàn:</strong></td><td>${this.summary.total_return_invoices}</td>
+								<td><strong>Tổng SALE:</strong></td><td class="amount">${this.formatCurrency(this.summary.total_sale_amount)}</td>
+							</tr>
+							<tr>
+								<td><strong>Tổng RETURN:</strong></td><td class="amount">${this.formatCurrency(this.summary.total_return_amount)}</td>
+								<td><strong>NET Amount:</strong></td><td class="amount">${this.formatCurrency(this.summary.total_net_amount)}</td>
+								<td><strong>CASH:</strong></td><td class="amount">${this.formatCurrency(this.summary.total_cash_amount)}</td>
+								<td><strong>BANK:</strong></td><td class="amount">${this.formatCurrency(this.summary.total_bank_amount)}</td>
+							</tr>
+							<tr>
+								<td><strong>QRPAY:</strong></td><td class="amount">${this.formatCurrency(this.summary.total_qrpay_amount)}</td>
+								<td><strong>CARD:</strong></td><td class="amount">${this.formatCurrency(this.summary.total_card_amount)}</td>
+								<td><strong>OTHER:</strong></td><td class="amount">${this.formatCurrency(this.summary.total_other_amount)}</td>
+								<td><strong>Nộp cuối ca:</strong></td><td class="amount">${this.formatCurrency(this.summary.total_cash_submitted)}</td>
+							</tr>
+							<tr>
+								<td><strong>Chênh lệch:</strong></td><td class="amount">${this.formatCurrency(this.summary.total_difference)}</td>
+								<td colspan="6"></td>
+							</tr>
+						</table>
+					</div>
+
+					<div class="section">
+						<h2>CHI TIẾT CA LÀM VIỆC</h2>
+						<table>
+							<thead>
+								<tr>`;
+
+			this.headers.forEach(header => {
+				if (header.key !== 'actions') {
+					content += `<th>${header.title}</th>`;
+				}
+			});
+			content += `
+								</tr>
+							</thead>
+							<tbody>`;
+
+			this.shiftsWithTotal.forEach(item => {
+				const isTotalRow = item.isTotalRow;
+				const rowClass = isTotalRow ? 'total-row' : '';
+				content += `<tr class="${rowClass}">`;
+
+				this.headers.forEach(header => {
+					if (header.key !== 'actions') {
+						let value = item[header.key] || '';
+						let cellClass = '';
+
+						if (header.key.includes('amount') || header.key.includes('sale') || header.key.includes('return') ||
+							header.key.includes('net') || header.key.includes('cash') || header.key.includes('bank') ||
+							header.key.includes('qrpay') || header.key.includes('card') || header.key.includes('other') ||
+							header.key.includes('submitted') || header.key.includes('difference')) {
+							value = this.formatCurrency(value);
+							cellClass = 'amount';
+						} else if (header.key === 'date') {
+							value = this.formatDate(value);
+						}
+
+						if (isTotalRow) {
+							cellClass += ' total-cell';
+						}
+
+						content += `<td class="${cellClass}">${value}</td>`;
+					}
+				});
+				content += `</tr>`;
+			});
+
+			content += `
+							</tbody>
+						</table>
+					</div>
+
+					<div style="text-align: center; font-size: 8px; margin-top: 15px; border-top: 1px solid #000; padding-top: 10px;">
+						<p>Báo cáo được tạo tự động bởi hệ thống POS Awesome</p>
+						<p>© 2025 - Hệ thống POS Awesome</p>
+					</div>
+				</body>
+				</html>`;
+
+			return content;
+		},
+
+		showSuccess(message) {
+			if (window.frappe?.show_alert) {
+				frappe.show_alert({ message, indicator: 'green' });
+			}
+		},
+
 		showError(message) {
 			if (window.frappe?.show_alert) {
 				frappe.show_alert({ message, indicator: 'red' });
@@ -534,16 +828,8 @@ export default {
 		resetData() {
 			this.shifts = [];
 			this.totalShifts = 0;
-			this.searchQuery = "";
-			this.statusFilter = "";
-			this.summary = {
-				total_shifts: 0,
-				total_sales: 0,
-				total_returns: 0,
-				total_opening: 0,
-				total_expected_closing: 0,
-				total_actual_closing: 0
-			};
+			this.selectedCashier = null;
+			this.resetSummary();
 		}
 	}
 };
@@ -659,6 +945,17 @@ export default {
 	.shift-info-label {
 		min-width: auto;
 	}
+}
+
+/* Total Row Styling */
+.total-row {
+	background-color: #fff3cd !important;
+	border-top: 2px solid #ffc107;
+	font-weight: bold;
+}
+
+.total-row td {
+	color: #856404 !important;
 }
 
 /* Mobile responsive */
