@@ -1004,7 +1004,20 @@ def submit_closing_shift_v2(closing_shift):
             frappe.db.delete("POS Closing Shift Payment Reconciliation", {"parent": closing_shift_name})
 
             # Insert new payment reconciliation
-            for payment in closing_shift_data["payment_reconciliation"]:
+            for i, payment in enumerate(closing_shift_data["payment_reconciliation"]):
+                # Allow closing_amount to be empty (will default to 0) or any valid number including negative
+                closing_amount = payment.get("closing_amount")
+                if closing_amount is None or closing_amount == "":
+                    closing_amount = 0.0  # Default to 0 if not provided
+                else:
+                    try:
+                        closing_amount = float(closing_amount)
+                        # Allow any numeric value including 0 and negative numbers
+                    except (ValueError, TypeError):
+                        raise frappe.ValidationError(_("Row #{0}: Closing Amount must be a valid number for {1}").format(
+                            i + 1, payment.get("mode_of_payment", "Unknown Payment Method")
+                        ))
+
                 frappe.get_doc({
                     "doctype": "POS Closing Shift Payment Reconciliation",
                     "parent": closing_shift_name,
@@ -1013,7 +1026,7 @@ def submit_closing_shift_v2(closing_shift):
                     "mode_of_payment": payment.get("mode_of_payment"),
                     "opening_amount": payment.get("opening_amount", 0),
                     "expected_amount": payment.get("expected_amount", 0),
-                    "closing_amount": payment.get("closing_amount", 0),
+                    "closing_amount": closing_amount,
                     "difference": payment.get("difference", 0)
                 }).insert(ignore_permissions=True)
 

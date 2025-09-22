@@ -223,8 +223,15 @@ export default {
 			this.closingDialog = false;
 		},
 		initializeClosingAmounts() {
-			// Allow users to enter any closing amount including 0 or negative values
-			// No default initialization needed
+			// Default closing amounts to expected amounts
+			if (this.dialog_data.payment_reconciliation) {
+				this.dialog_data.payment_reconciliation.forEach(payment => {
+					if (payment.expected_amount !== undefined && payment.expected_amount !== null) {
+						// Set closing amount to expected amount as default
+						payment.closing_amount = payment.expected_amount;
+					}
+				});
+			}
 		},
 
 
