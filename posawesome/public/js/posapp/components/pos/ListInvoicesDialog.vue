@@ -577,11 +577,11 @@ export default {
 				console.log("Summary:", this.summary);
 
 				// ✅ LOAD PAYMENT SUMMARY FROM NEW API RESPONSE
-				if (shiftReportData.payment_summaries && shiftReportData.payment_summaries.length > 0) {
+				if (response.message.payment_summaries && response.message.payment_summaries.length > 0) {
 					// Log raw data from API for debugging
-					console.log("🔍 RAW PAYMENT SUMMARIES FROM API:", shiftReportData.payment_summaries);
+					console.log("🔍 RAW PAYMENT SUMMARIES FROM API:", response.message.payment_summaries);
 					console.log("📊 PAYMENT SUMMARIES DETAILS:");
-					shiftReportData.payment_summaries.forEach((item, index) => {
+					response.message.payment_summaries.forEach((item, index) => {
 						console.log(`  ${index + 1}. ${item.payment_method}:`, {
 							opening_amount: item.opening_amount,
 							sales_amount: item.sales_amount,
@@ -595,7 +595,7 @@ export default {
 					});
 
 					// Use data directly from POS Payment Summary table
-					this.paymentSummaryData = shiftReportData.payment_summaries.map(item => ({
+					this.paymentSummaryData = response.message.payment_summaries.map(item => ({
 						payment_method: item.payment_method,
 						opening_amount: item.opening_amount || 0,
 						sales_amount: item.sales_amount || 0,
