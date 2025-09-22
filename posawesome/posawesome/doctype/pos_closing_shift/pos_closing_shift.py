@@ -106,6 +106,11 @@ class POSClosingShift(Document):
 
         updated_count = 0
         for d in self.payment_reconciliation:
+            # Ensure closing_amount is never None or empty - required field
+            if d.closing_amount is None or d.closing_amount == "":
+                d.closing_amount = 0.0
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] WARNING: UPDATE_PAYMENT_RECONCILIATION_FIX - Fixed empty closing_amount for {d.mode_of_payment} to 0.0")
+
             expected = flt(d.expected_amount, precision)
             closing = flt(d.closing_amount, precision)
             difference = closing - expected
