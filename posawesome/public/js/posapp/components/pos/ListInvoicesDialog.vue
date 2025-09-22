@@ -539,7 +539,12 @@ export default {
 				}
 			});
 
-			console.log("API Response:", response);
+			console.log("🔍 FULL API Response:", response);
+			console.log("🔍 Response.message structure:", response.message);
+			console.log("🔍 Response.message keys:", Object.keys(response.message || {}));
+			console.log("🔍 Response.message.success:", response.message?.success);
+			console.log("🔍 Response.message.data:", response.message?.data);
+			console.log("🔍 Response.message.payment_summaries:", response.message?.payment_summaries);
 
 			if (response.message && response.message.success && response.message.data && response.message.data.invoices) {
 				// ✅ HANDLE SHIFT REPORT DATA - API trả về object với invoices array
@@ -576,41 +581,8 @@ export default {
 				console.log(`Loaded ${this.invoices.length} invoices for shift ${actualShiftReportId}`);
 				console.log("Summary:", this.summary);
 
-				// ✅ LOAD PAYMENT SUMMARY FROM NEW API RESPONSE
-				if (response.message.payment_summaries && response.message.payment_summaries.length > 0) {
-					// Log raw data from API for debugging
-					console.log("🔍 RAW PAYMENT SUMMARIES FROM API:", response.message.payment_summaries);
-					console.log("📊 PAYMENT SUMMARIES DETAILS:");
-					response.message.payment_summaries.forEach((item, index) => {
-						console.log(`  ${index + 1}. ${item.payment_method}:`, {
-							opening_amount: item.opening_amount,
-							sales_amount: item.sales_amount,
-							returns_amount: item.returns_amount,
-							transaction_amount: item.transaction_amount,
-							expected_closing_amount: item.expected_closing_amount,
-							closing_amount: item.closing_amount,
-							difference: item.difference,
-							transaction_count: item.transaction_count
-						});
-					});
-
-					// Use data directly from POS Payment Summary table
-					this.paymentSummaryData = response.message.payment_summaries.map(item => ({
-						payment_method: item.payment_method,
-						opening_amount: item.opening_amount || 0,
-						sales_amount: item.sales_amount || 0,
-						returns_amount: item.returns_amount || 0,
-						transaction_amount: item.transaction_amount || 0,
-						expected_closing_amount: item.expected_closing_amount || 0,
-						closing_amount: item.closing_amount || 0,
-						difference: item.difference || 0,
-						transaction_count: item.transaction_count || 0
-					}));
-					console.log("✅ Payment summary loaded directly from POS Payment Summary table:", this.paymentSummaryData);
-				} else {
-					// Fallback to calculation method if payment_summaries not available
-					this.loadPaymentSummaryFromShiftReport(shiftReportData);
-				}
+				// ✅ LOAD PAYMENT SUMMARY FROM SHIFT REPORT DATA
+				this.loadPaymentSummaryFromShiftReport(shiftReportData);
 
 				// Store shift report data for verification status
 				this.shiftReportData = shiftReportData;
