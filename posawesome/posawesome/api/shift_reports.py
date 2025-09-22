@@ -506,20 +506,24 @@ def get_shift_report_readonly(shift_report_id):
                 get_payment_summaries_for_shift
             )
             # >>> BUG FIX: dùng data['name'] chứ không phải root['name']
+            log.info(f"[GET_SHIFT_REPORT_READONLY] 🔍 STEP 2a: Calling get_payment_summaries_for_shift with sr_name: {sr_name}")
             ps_result = get_payment_summaries_for_shift(sr_name) if sr_name else {"success": False}
-            log.info(f"[GET_SHIFT_REPORT_READONLY] 📊 STEP 2a: Payment summaries result - Success: {ps_result.get('success')}, Data count: {len(ps_result.get('data', [])) if ps_result.get('data') else 0}")
+            log.info(f"[GET_SHIFT_REPORT_READONLY] 📊 STEP 2b: Payment summaries result - Success: {ps_result.get('success')}, Has data: {'data' in ps_result}, Data type: {type(ps_result.get('data'))}")
 
-            if ps_result.get("success"):
+            if ps_result.get("success") and ps_result.get("data"):
+                payment_data = ps_result.get("data", [])
+                log.info(f"[GET_SHIFT_REPORT_READONLY] 📋 STEP 2c: Payment summaries data: {payment_data}")
                 # >>> BUG FIX: gắn vào sr_resp['data'] để FE đọc ở response.message.data.payment_summaries
-                sr_data["payment_summaries"] = ps_result.get("data", [])
-                log.info(f"[GET_SHIFT_REPORT_READONLY] ✅ STEP 2b: Payment summaries added to data - Count: {len(ps_result['data'])}")
+                sr_data["payment_summaries"] = payment_data
+                log.info(f"[GET_SHIFT_REPORT_READONLY] ✅ STEP 2d: Payment summaries added to sr_data - Count: {len(payment_data)}")
             else:
                 sr_data["payment_summaries"] = []
-                log.warning(f"[GET_SHIFT_REPORT_READONLY] ⚠️ STEP 2b: Payment summaries failed - Message: {ps_result.get('message')}")
+                log.warning(f"[GET_SHIFT_REPORT_READONLY] ⚠️ STEP 2d: Payment summaries not available - Success: {ps_result.get('success')}, Message: {ps_result.get('message')}")
         except Exception as _e:
             # Không phá vỡ flow nếu tóm lược lỗi
             sr_data["payment_summaries"] = []
-            log.error(f"[GET_SHIFT_REPORT_READONLY] ❌ STEP 2b: Exception getting payment summaries: {str(_e)}")
+            log.error(f"[GET_SHIFT_REPORT_READONLY] ❌ STEP 2d: Exception getting payment summaries: {str(_e)}")
+            log.error(f"[GET_SHIFT_REPORT_READONLY] ❌ Exception details:", exc_info=True)
 
         # 3) Trả lại theo cùng format (success/message/data)
         log.info(f"[GET_SHIFT_REPORT_READONLY] 📦 STEP 3: Preparing final response - Payment summaries in data: {len(sr_data.get('payment_summaries', []))}")

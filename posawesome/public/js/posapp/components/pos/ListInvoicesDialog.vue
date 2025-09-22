@@ -544,7 +544,9 @@ export default {
 			console.log("🔍 Response.message keys:", Object.keys(response.message || {}));
 			console.log("🔍 Response.message.success:", response.message?.success);
 			console.log("🔍 Response.message.data:", response.message?.data);
-			console.log("🔍 Response.message.payment_summaries:", response.message?.payment_summaries);
+			console.log("🔍 Response.message.data keys:", Object.keys(response.message?.data || {}));
+			console.log("🔍 Response.message.data.payment_summaries:", response.message?.data?.payment_summaries);
+			console.log("🔍 Response.message.payment_summaries (root level):", response.message?.payment_summaries);
 
 			if (response.message && response.message.success && response.message.data && response.message.data.invoices) {
 				// ✅ HANDLE SHIFT REPORT DATA - API trả về object với invoices array
@@ -581,8 +583,27 @@ export default {
 				console.log(`Loaded ${this.invoices.length} invoices for shift ${actualShiftReportId}`);
 				console.log("Summary:", this.summary);
 
-				// ✅ LOAD PAYMENT SUMMARY FROM SHIFT REPORT DATA
-				this.loadPaymentSummaryFromShiftReport(shiftReportData);
+				// ✅ LOAD PAYMENT SUMMARY FROM API RESPONSE
+				if (response.message.data.payment_summaries && response.message.data.payment_summaries.length > 0) {
+					console.log("🔍 USING PAYMENT SUMMARIES FROM API:", response.message.data.payment_summaries);
+					// Use data directly from API
+					this.paymentSummaryData = response.message.data.payment_summaries.map(item => ({
+						payment_method: item.payment_method,
+						opening_amount: item.opening_amount || 0,
+						sales_amount: item.sales_amount || 0,
+						returns_amount: item.returns_amount || 0,
+						transaction_amount: item.transaction_amount || 0,
+						expected_closing_amount: item.expected_closing_amount || 0,
+						closing_amount: item.closing_amount || 0,
+						difference: item.difference || 0,
+						transaction_count: item.transaction_count || 0
+					}));
+					console.log("✅ Payment summary loaded directly from API:", this.paymentSummaryData);
+				} else {
+					// Fallback to calculation method if payment_summaries not available
+					console.log("⚠️ No payment summaries from API, using fallback calculation");
+					this.loadPaymentSummaryFromShiftReport(shiftReportData);
+				}
 
 				// Store shift report data for verification status
 				this.shiftReportData = shiftReportData;
@@ -782,49 +803,41 @@ export default {
 		try {
 			console.log("Loading payment summary from shift report data (fallback method)");
 
-			if (!shiftReportData || !shiftReportData.payment_breakdown) {
-				console.warn("No payment breakdown data in shift report");
-				this.paymentSummaryData = [];
+			// First try: Use payment_breakdown from shift report
+			if (shiftReportData && shiftReportData.payment_breakdown) {
+				console.log("Using payment_breakdown from shift report");
+				const paymentMethods = [];
+				const breakdown = shiftReportData.payment_breakdown;
+				const openingAmounts = shiftReportData.opening_amounts || {};
+				const expectedClosing = shiftReportData.expected_closing_amounts || {};
+
+				Object.keys(breakdown).forEach(method => {
+					const transactionAmount = breakdown[method] || 0;
+					const openingAmount = openingAmounts[method] || 0;
+					const expectedAmount = openingAmount + transactionAmount;
+					let actualClosingAmount = expectedClosing[method];
+					if (actualClosingAmount === undefined || actualClosingAmount === null) {
+						actualClosingAmount = 0;
+					}
+
+					paymentMethods.push({
+						payment_method: method,
+						opening_amount: openingAmount,
+						transaction_amount: transactionAmount,
+						expected_closing_amount: expectedAmount,
+						closing_amount: actualClosingAmount,
+						difference: actualClosingAmount - expectedAmount
+					});
+				});
+
+				this.paymentSummaryData = paymentMethods.sort((a, b) => a.payment_method.localeCompare(b.payment_method));
+				console.log("Payment summary loaded from payment_breakdown:", this.paymentSummaryData);
 				return;
 			}
 
-			// Convert payment_breakdown object to array format for UI
-			const paymentMethods = [];
-			const breakdown = shiftReportData.payment_breakdown;
-
-			// Get opening amounts from shift report (if available)
-			const openingAmounts = shiftReportData.opening_amounts || {};
-			const expectedClosing = shiftReportData.expected_closing_amounts || {};
-
-			Object.keys(breakdown).forEach(method => {
-				const transactionAmount = breakdown[method] || 0;
-				const openingAmount = openingAmounts[method] || 0;
-
-				// Expected Closing = Opening Amount + Transaction Amount (calculated)
-				const expectedAmount = openingAmount + transactionAmount;
-
-				// Actual Closing = from database (expected_closing_amounts field) - this is what cashier entered
-				let actualClosingAmount = expectedClosing[method];
-				if (actualClosingAmount === undefined || actualClosingAmount === null) {
-					actualClosingAmount = 0; // Not yet entered by cashier
-				}
-
-				paymentMethods.push({
-					payment_method: method,
-					opening_amount: openingAmount,
-					transaction_amount: transactionAmount,
-					expected_closing_amount: expectedAmount, // Calculated: Opening + Transaction
-					closing_amount: actualClosingAmount,     // Actual: Entered by cashier (from expected_closing_amounts)
-					difference: actualClosingAmount - expectedAmount
-				});
-			});
-
-			// Sort by payment method name
-			this.paymentSummaryData = paymentMethods.sort((a, b) =>
-				a.payment_method.localeCompare(b.payment_method)
-			);
-
-			console.log("Payment summary loaded from shift report (fallback):", this.paymentSummaryData);
+			// Second try: Calculate from invoices data
+			console.log("No payment_breakdown found, calculating from invoices");
+			this.calculatePaymentSummaryFromInvoices();
 
 		} catch (error) {
 			console.error("Error loading payment summary from shift report:", error);
