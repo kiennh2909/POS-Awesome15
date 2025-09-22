@@ -53,6 +53,15 @@
 						</div>
 						<div class="d-flex action-buttons-group">
 							<v-btn
+								color="success"
+								variant="outlined"
+								prepend-icon="mdi-download"
+								@click="exportShiftSummary"
+								class="action-btn"
+							>
+								{{ __("Export") }}
+							</v-btn>
+							<v-btn
 								color="info"
 								variant="outlined"
 								prepend-icon="mdi-printer"
@@ -402,6 +411,138 @@ export default {
 			return icons[status] || 'mdi-help-circle';
 		},
 
+		async exportShiftSummary() {
+			try {
+				console.log("[EXPORT_SHIFT_SUMMARY] Bắt đầu xuất tổng kết ca ra Excel");
+
+				// Tạo dữ liệu summary
+				const summaryData = this.prepareSummaryData();
+
+				// Lấy danh sách invoices
+				const invoicesData = this.prepareInvoicesData();
+
+				// Tạo nội dung Excel
+				const excelContent = this.generateExcelContent(summaryData, invoicesData);
+
+				// Tạo tên file
+				const now = new Date();
+				const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '');
+				const dateStr = now.toISOString().split('T')[0].replace(/-/g, '_');
+				const posProfileName = (this.posProfile?.name || 'Unknown').replace(/\s+/g, '_');
+				const cashierName = (frappe.session?.user || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_');
+				const fileName = `${timeStr}_${dateStr}_${posProfileName}_${cashierName}_Tong_Ket_Ca.xlsx`;
+
+				// Download file
+				const blob = new Blob(['\ufeff', excelContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+				const url = window.URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = fileName;
+				a.click();
+				window.URL.revokeObjectURL(url);
+
+				this.showSuccess(`Đã xuất thành công báo cáo tổng kết ca`);
+
+			} catch (error) {
+				console.error("[EXPORT_SHIFT_SUMMARY] Lỗi khi xuất Excel:", error);
+				this.showError("Lỗi khi xuất báo cáo tổng kết ca");
+			}
+		},
+
+		prepareSummaryData() {
+			const now = new Date();
+			const printTime = now.toLocaleString('vi-VN');
+
+			return [
+				{
+					"Loại": "THÔNG TIN CHUNG",
+					"Mã ca": this.displayShiftReportId,
+					"Hồ sơ POS": this.posProfile?.name || 'N/A',
+					"Nhân viên": frappe.session?.user_fullname || frappe.session?.user || 'N/A',
+					"Thời gian mở ca": this.formatDateTime(this.shiftReportData?.opening_date, this.shiftReportData?.opening_time),
+					"Thời gian xuất báo cáo": printTime,
+					"Trạng thái xác minh": this.shiftReportData?.verification_status || 'Chưa xác minh'
+				},
+				{}, // Empty row
+				{
+					"Loại": "TỔNG KẾT DOANH THU",
+					"Tổng số hóa đơn": this.shiftReportData?.invoice_count || 0,
+					"Tổng tiền bán": this.formatCurrency(this.shiftReportData?.total_sales || 0),
+					"Tổng tiền trả lại": this.formatCurrency(this.shiftReportData?.total_returns || 0),
+					"Tổng thu nhập": this.formatCurrency((this.shiftReportData?.total_sales || 0) + (this.shiftReportData?.total_returns || 0))
+				},
+				{} // Empty row
+			];
+		},
+
+		prepareInvoicesData() {
+			if (!this.shiftReportData?.invoices || this.shiftReportData.invoices.length === 0) {
+				return [{
+					"Loại": "DANH SÁCH HÓA ĐƠN",
+					"Thông báo": "Không có hóa đơn nào trong ca này"
+				}];
+			}
+
+			const invoiceRows = this.shiftReportData.invoices.map(invoice => ({
+				"Loại": "DANH SÁCH HÓA ĐƠN",
+				"Mã hóa đơn": invoice.invoice_no || '',
+				"Ngày": invoice.invoice_date || '',
+				"Giờ": invoice.invoice_time || '',
+				"Khách hàng": invoice.customer || 'Khách lẻ',
+				"Tổng tiền": this.formatCurrency(invoice.total_amount || 0),
+				"Phương thức thanh toán": invoice.payment_method || 'Tiền mặt',
+				"Trạng thái": invoice.status || 'Chưa xác định',
+				"Loại hóa đơn": invoice.is_return ? 'Trả lại' : 'Bán hàng'
+			}));
+
+			return invoiceRows;
+		},
+
+		generateExcelContent(summaryData, invoicesData) {
+			// Header information
+			let content = [
+				"TỔNG KẾT CA LÀM VIỆC - BÁO CÁO CHI TIẾT",
+				`Hồ sơ POS: ${this.posProfile?.name || 'N/A'}`,
+				`Mã ca: ${this.displayShiftReportId}`,
+				`Nhân viên: ${frappe.session?.user_fullname || frappe.session?.user || 'N/A'}`,
+				`Thời gian mở ca: ${this.formatDateTime(this.shiftReportData?.opening_date, this.shiftReportData?.opening_time)}`,
+				`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`,
+				""
+			];
+
+			// Summary section
+			content.push("THÔNG TIN TỔNG QUAN");
+			content.push("Tổng số hóa đơn\tTổng tiền bán\tTổng tiền trả lại\tTổng thu nhập");
+			content.push(`${this.shiftReportData?.invoice_count || 0}\t${this.formatCurrency(this.shiftReportData?.total_sales || 0)}\t${this.formatCurrency(this.shiftReportData?.total_returns || 0)}\t${this.formatCurrency((this.shiftReportData?.total_sales || 0) + (this.shiftReportData?.total_returns || 0))}`);
+			content.push("");
+
+			// Payment reconciliation section
+			content.push("BẢNG ĐỐI CHIẾU THANH TOÁN");
+			content.push("Phương thức thanh toán\tSố dư đầu ca\tDoanh thu bán\tDoanh thu trả lại\tTổng giao dịch\tDự kiến đóng ca\tThực tế đóng ca\tChênh lệch");
+
+			this.paymentSummaryDataWithTotal.forEach(item => {
+				content.push(`${item.payment_method}\t${this.formatCurrency(item.opening_amount || 0)}\t${this.formatCurrency(item.sales_amount || 0)}\t${this.formatCurrency(item.returns_amount || 0)}\t${this.formatCurrency(item.transaction_amount || 0)}\t${this.formatCurrency(item.expected_closing_amount || 0)}\t${this.formatCurrency(item.actual_closing_amount || 0)}\t${this.formatCurrency(item.difference || 0)}`);
+			});
+
+			content.push("");
+			content.push("DANH SÁCH CHI TIẾT HÓA ĐƠN");
+			content.push("Mã hóa đơn\tNgày\tGiờ\tKhách hàng\tTổng tiền\tPhương thức thanh toán\tTrạng thái\tLoại hóa đơn");
+
+			if (this.shiftReportData?.invoices && this.shiftReportData.invoices.length > 0) {
+				this.shiftReportData.invoices.forEach(invoice => {
+					content.push(`${invoice.invoice_no || ''}\t${invoice.invoice_date || ''}\t${invoice.invoice_time || ''}\t${invoice.customer || 'Khách lẻ'}\t${this.formatCurrency(invoice.total_amount || 0)}\t${invoice.payment_method || 'Tiền mặt'}\t${invoice.status || 'Chưa xác định'}\t${invoice.is_return ? 'Trả lại' : 'Bán hàng'}`);
+				});
+			} else {
+				content.push("Không có hóa đơn nào trong ca này");
+			}
+
+			content.push("");
+			content.push("Báo cáo được tạo tự động bởi hệ thống POS Awesome");
+			content.push(`Xuất vào lúc: ${new Date().toLocaleString('vi-VN')}`);
+
+			return content.join('\n');
+		},
+
 		async printShiftSummary() {
 			try {
 				console.log("[PRINT_SHIFT_SUMMARY] Bắt đầu in tổng kết ca");
@@ -453,11 +594,14 @@ export default {
 							font-family: 'Arial', 'Times New Roman', serif;
 							font-size: 12px;
 							line-height: 1.4;
-							color: #000;
+							color: #000 !important;
 							max-width: 100%;
 							background: white;
 							-webkit-print-color-adjust: exact;
 							color-adjust: exact;
+						}
+						* {
+							color: #000 !important;
 						}
 						.header {
 							text-align: center;
@@ -466,23 +610,23 @@ export default {
 							margin-bottom: 20px;
 						}
 						.header h1 {
-							color: #1976d2;
+							color: #000;
 							margin: 0;
 							font-size: 20px;
 							font-weight: bold;
 						}
 						.header p {
 							margin: 5px 0;
-							color: #333;
+							color: #000;
 							font-size: 11px;
 						}
 						.section {
 							margin-bottom: 20px;
 						}
 						.section h2 {
-							color: #1976d2;
+							color: #000;
 							font-size: 14px;
-							border-bottom: 1px solid #ddd;
+							border-bottom: 1px solid #000;
 							padding-bottom: 5px;
 							margin-bottom: 10px;
 							font-weight: bold;
@@ -517,10 +661,10 @@ export default {
 							font-weight: bold;
 						}
 						.positive {
-							color: #2e7d32;
+							color: #000;
 						}
 						.negative {
-							color: #d32f2f;
+							color: #000;
 						}
 						.summary-cards {
 							display: flex;
@@ -536,21 +680,21 @@ export default {
 						}
 						.card-title {
 							font-size: 10px;
-							color: #666;
+							color: #000;
 							margin-bottom: 5px;
 							font-weight: bold;
 						}
 						.card-value {
 							font-size: 16px;
 							font-weight: bold;
-							color: #1976d2;
+							color: #000;
 						}
 						.print-info {
 							text-align: center;
 							font-size: 10px;
-							color: #999;
+							color: #000;
 							margin-top: 20px;
-							border-top: 1px solid #eee;
+							border-top: 1px solid #000;
 							padding-top: 10px;
 						}
 						@media print {
@@ -569,48 +713,48 @@ export default {
 					</div>
 
 					<div class="section">
-						<h2>THÔNG TIN CA</h2>
+						<h2>THÔNG TIN CA LÀM VIỆC</h2>
 						<table>
-							<tr><td><strong>ID Ca:</strong></td><td>${this.displayShiftReportId}</td></tr>
-							<tr><td><strong>Thời gian mở:</strong></td><td>${this.formatDateTime(this.shiftReportData?.opening_date, this.shiftReportData?.opening_time)}</td></tr>
+							<tr><td><strong>Mã ca:</strong></td><td>${this.displayShiftReportId}</td></tr>
+							<tr><td><strong>Thời gian mở ca:</strong></td><td>${this.formatDateTime(this.shiftReportData?.opening_date, this.shiftReportData?.opening_time)}</td></tr>
 							<tr><td><strong>Trạng thái xác minh:</strong></td><td>${this.shiftReportData?.verification_status || 'Chưa xác minh'}</td></tr>
 						</table>
 					</div>
 
 					<div class="section">
-						<h2>TỔNG QUAN</h2>
+						<h2>TỔNG KẾT DOANH THU</h2>
 						<div class="summary-cards">
 							<div class="card">
-								<div class="card-title">Tổng hóa đơn</div>
+								<div class="card-title">Tổng số hóa đơn</div>
 								<div class="card-value">${this.shiftReportData?.invoice_count || 0}</div>
 							</div>
 							<div class="card">
-								<div class="card-title">Tổng bán</div>
+								<div class="card-title">Tổng tiền bán</div>
 								<div class="card-value positive">${this.formatCurrency(this.shiftReportData?.total_sales || 0)}</div>
 							</div>
 							<div class="card">
-								<div class="card-title">Tổng trả lại</div>
+								<div class="card-title">Tổng tiền trả lại</div>
 								<div class="card-value negative">${this.formatCurrency(this.shiftReportData?.total_returns || 0)}</div>
 							</div>
 							<div class="card">
-								<div class="card-title">Tổng thu</div>
+								<div class="card-title">Tổng thu nhập</div>
 								<div class="card-value">${this.formatCurrency((this.shiftReportData?.total_sales || 0) + (this.shiftReportData?.total_returns || 0))}</div>
 							</div>
 						</div>
 					</div>
 
 					<div class="section">
-						<h2>ĐỐI CHIẾU THANH TOÁN THEO PHƯƠNG THỨC</h2>
+						<h2>BẢNG ĐỐI CHIẾU THANH TOÁN</h2>
 						<table>
 							<thead>
 								<tr>
 									<th>Phương thức thanh toán</th>
-									<th class="amount">Số dư đầu</th>
-									<th class="amount">Bán hàng</th>
-									<th class="amount">Trả lại</th>
-									<th class="amount">Giao dịch</th>
-									<th class="amount">Dự kiến đóng</th>
-									<th class="amount">Thực đóng</th>
+									<th class="amount">Số dư đầu ca</th>
+									<th class="amount">Doanh thu bán</th>
+									<th class="amount">Doanh thu trả lại</th>
+									<th class="amount">Tổng giao dịch</th>
+									<th class="amount">Dự kiến đóng ca</th>
+									<th class="amount">Thực tế đóng ca</th>
 									<th class="amount">Chênh lệch</th>
 								</tr>
 							</thead>
@@ -643,8 +787,8 @@ export default {
 					</div>
 
 					<div class="print-info">
-						<p>Báo cáo được tạo tự động bởi hệ thống POS</p>
-						<p>Chỉ in trang tổng kết để đối chiếu</p>
+						<p>Báo cáo tổng kết ca được tạo tự động bởi hệ thống POS Awesome</p>
+						<p>Chỉ in trang tổng kết để đối chiếu và xác minh số liệu</p>
 					</div>
 				</body>
 			</html>`;
