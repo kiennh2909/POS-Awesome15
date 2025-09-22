@@ -117,11 +117,12 @@ export default {
 		async check_opening_entry() {
 			await initPromise;
 			await checkDbHealth();
-			return frappe
-				.call("posawesome.posawesome.api.shifts.check_opening_shift", {
+			return frappe.call({
+				method: "posawesome.posawesome.api.shifts.check_opening_shift",
+				args: {
 					user: frappe.session.user,
-				})
-				.then((r) => {
+				},
+				callback: (r) => {
 					if (r.message) {
 						this.pos_profile = r.message.pos_profile;
 						this.pos_opening_shift = r.message.pos_opening_shift;
@@ -180,8 +181,8 @@ export default {
 						}
 						this.create_opening_voucher();
 					}
-				})
-				.catch((error) => {
+				},
+				error: (error) => {
 					console.error("Failed to check opening entry:", error);
 
 					// Hiển thị cảnh báo nếu có lỗi nghiêm trọng
@@ -212,7 +213,8 @@ export default {
 						return;
 					}
 					this.create_opening_voucher();
-				});
+				}
+			});
 		},
 		create_opening_voucher() {
 			this.dialog = true;
@@ -242,45 +244,49 @@ export default {
 
 			const startTime = Date.now();
 
-			return frappe
-				.call(
-					"posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.make_closing_shift_from_opening",
-					{
+			return new Promise((resolve, reject) => {
+				frappe.call({
+					method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.make_closing_shift_from_opening",
+					args: {
 						opening_shift: this.pos_opening_shift,
 					},
-				)
-				.then((r) => {
-					const processingTime = Date.now() - startTime;
+					callback: (r) => {
+						const processingTime = Date.now() - startTime;
 
-					if (r.message) {
-						console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_SUCCESS - Closing shift data loaded successfully - Processing time: ${processingTime}ms`);
-						this.eventBus.emit("open_ClosingDialog", r.message);
+						if (r.message) {
+							console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_SUCCESS - Closing shift data loaded successfully - Processing time: ${processingTime}ms`);
+							this.eventBus.emit("open_ClosingDialog", r.message);
+							this.eventBus.emit("show_message", {
+								title: __("Closing shift data loaded"),
+								color: "success",
+							});
+							resolve(r);
+						} else {
+							console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_WARNING - No closing shift data received - Processing time: ${processingTime}ms`);
+							this.eventBus.emit("show_message", {
+								title: __("No closing shift data received"),
+								color: "warning",
+							});
+							resolve(r);
+						}
+					},
+					error: (error) => {
+						const processingTime = Date.now() - startTime;
+						const error_message = error.message || __("Failed to load closing shift data");
+
+						console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_ERROR - Failed to load closing shift data - Processing time: ${processingTime}ms - Error:`, error);
+
 						this.eventBus.emit("show_message", {
-							title: __("Closing shift data loaded"),
-							color: "success",
+							title: error_message,
+							color: "error",
 						});
-					} else {
-						console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_WARNING - No closing shift data received - Processing time: ${processingTime}ms`);
-						this.eventBus.emit("show_message", {
-							title: __("No closing shift data received"),
-							color: "warning",
-						});
+						reject(error);
+					},
+					always: () => {
+						this.loading = false;
 					}
-				})
-				.catch((error) => {
-					const processingTime = Date.now() - startTime;
-					const error_message = error.message || __("Failed to load closing shift data");
-
-					console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_ERROR - Failed to load closing shift data - Processing time: ${processingTime}ms - Error:`, error);
-
-					this.eventBus.emit("show_message", {
-						title: error_message,
-						color: "error",
-					});
-				})
-				.finally(() => {
-					this.loading = false;
 				});
+			});
 		},
 		submit_closing_pos(data) {
 			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Submit Closing POS Start
@@ -308,14 +314,12 @@ export default {
 
 			const startTime = Date.now();
 
-			frappe
-				.call(
-					"posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift",
-					{
-						closing_shift: JSON.stringify(data),
-					},
-				)
-				.then((r) => {
+			frappe.call({
+				method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift",
+				args: {
+					closing_shift: JSON.stringify(data),
+				},
+				callback: (r) => {
 					const processingTime = Date.now() - startTime;
 
 					if (r.message && r.message.success) {
@@ -401,8 +405,8 @@ export default {
 							color: "error",
 						});
 					}
-				})
-				.catch((error) => {
+				},
+				error: (error) => {
 					const processingTime = Date.now() - startTime;
 
 					// Handle network/other errors
@@ -415,11 +419,12 @@ export default {
 						title: error_message,
 						color: "error",
 					});
-				})
-				.finally(() => {
+				},
+				always: () => {
 					// Always clear loading state
 					this.submitting_closing = false;
-				});
+				}
+			});
 		},
 
 		clearBrowserCache() {
@@ -516,24 +521,26 @@ export default {
 				}
 			}
 
-			return frappe
-				.call("posawesome.posawesome.api.offers.get_offers", {
+			return frappe.call({
+				method: "posawesome.posawesome.api.offers.get_offers",
+				args: {
 					profile: pos_profile,
-				})
-				.then((r) => {
+				},
+				callback: (r) => {
 					if (r.message) {
 						console.info("LoadOffers");
 						saveOffers(r.message);
 						this.eventBus.emit("set_offers", r.message);
 					}
-				})
-				.catch((err) => {
+				},
+				error: (err) => {
 					console.error("Failed to fetch offers:", err);
 					const cached = getCachedOffers();
 					if (cached.length) {
 						this.eventBus.emit("set_offers", cached);
 					}
-				});
+				}
+			});
 		},
 		get_pos_setting() {
 			frappe.db.get_doc("POS Settings", undefined).then((doc) => {
@@ -552,29 +559,34 @@ export default {
 
 			const startTime = Date.now();
 
-			frappe.call("posawesome.posawesome.api.shift_reports.get_shift_report", {
-				shift_report_id: this.pos_shift_report
-			}).then((r) => {
-				const processingTime = Date.now() - startTime;
+			frappe.call({
+				method: "posawesome.posawesome.api.shift_reports.get_shift_report",
+				args: {
+					shift_report_id: this.pos_shift_report
+				},
+				callback: (r) => {
+					const processingTime = Date.now() - startTime;
 
-				if (r.message && r.message.success) {
-					this.shift_report_data = r.message.data;
-					this.eventBus.emit("register_shift_report", this.shift_report_data);
-					console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_SUCCESS - Shift Report data loaded successfully - Processing time: ${processingTime}ms`);
-				} else {
-					console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_ERROR - API returned unsuccessful response - Processing time: ${processingTime}ms - Response:`, r.message);
-				}
-			}).catch((err) => {
-				const processingTime = Date.now() - startTime;
+					if (r.message && r.message.success) {
+						this.shift_report_data = r.message.data;
+						this.eventBus.emit("register_shift_report", this.shift_report_data);
+						console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_SUCCESS - Shift Report data loaded successfully - Processing time: ${processingTime}ms`);
+					} else {
+						console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_ERROR - API returned unsuccessful response - Processing time: ${processingTime}ms - Response:`, r.message);
+					}
+				},
+				error: (err) => {
+					const processingTime = Date.now() - startTime;
 
-				console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_ERROR - Failed to load shift report data - Processing time: ${processingTime}ms - Error:`, err);
+					console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_ERROR - Failed to load shift report data - Processing time: ${processingTime}ms - Error:`, err);
 
-				// Hiển thị cảnh báo nếu load shift report thất bại
-				if (window.frappe && frappe.show_alert) {
-					frappe.show_alert({
-						message: __("Warning: Failed to load Shift Report data. Some features may not work properly."),
-						indicator: 'orange'
-					});
+					// Hiển thị cảnh báo nếu load shift report thất bại
+					if (window.frappe && frappe.show_alert) {
+						frappe.show_alert({
+							message: __("Warning: Failed to load Shift Report data. Some features may not work properly."),
+							indicator: 'orange'
+						});
+					}
 				}
 			});
 		},

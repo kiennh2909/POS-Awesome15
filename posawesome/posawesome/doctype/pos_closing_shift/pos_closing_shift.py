@@ -17,8 +17,7 @@ log = get_logger("shift_close")
 
 class POSClosingShift(Document):
     def validate(self):
-        validate_start = time.time()
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 VALIDATE_START - POS Closing Shift {self.name}, User: {self.user}, Opening Shift: {self.pos_opening_shift}, Timestamp: {time.time()}")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 VALIDATE_START - POS Closing Shift {self.name}, User: {self.user}, Opening Shift: {self.pos_opening_shift}")
 
         # Check for existing submitted closing shifts
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 VALIDATE_CHECK_EXISTING - Checking for existing closing shifts for user {self.user} and opening shift {self.pos_opening_shift}")
@@ -78,8 +77,7 @@ class POSClosingShift(Document):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 VALIDATE_ENSURE_JSON_FIELDS - Ensuring JSON fields have valid values")
         self.ensure_json_fields_valid()
 
-        validate_time = time.time() - validate_start
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE_COMPLETED - POS Closing Shift {self.name} validation completed successfully in {validate_time:.2f}s")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ VALIDATE_COMPLETED - POS Closing Shift {self.name} validation completed successfully")
 
     def update_payment_reconciliation(self):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 💰 UPDATE_PAYMENT_RECONCILIATION_START - POS Closing Shift {self.name}")
@@ -172,22 +170,18 @@ class POSClosingShift(Document):
             log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ CALCULATE_PAYMENT_AMOUNTS_ERROR - Failed to calculate payment amounts for {self.name}: {str(e)}")
 
     def on_submit(self):
-        step_start_time = time.time()
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚀 ON_SUBMIT_START - POS Closing Shift {self.name} submission started - User: {self.user}")
 
         try:
             # STEP 0: Update payment reconciliation and amounts with final closing amounts
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 ON_SUBMIT_STEP0_UPDATE_RECONCILIATION - Updating payment reconciliation with final amounts")
-            step0_start = time.time()
             self.update_payment_reconciliation()
             self.calculate_payment_amounts()
             self.ensure_json_fields_valid()  # Ensure JSON fields are valid before submit
-            step0_time = time.time() - step0_start
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP0_COMPLETED - Payment amounts updated in {step0_time:.2f}s")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP0_COMPLETED - Payment amounts updated")
 
             # STEP 1: Validate shift report verification status before submission
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 ON_SUBMIT_STEP1_VALIDATE_VERIFICATION - Checking shift report verification status")
-            step1_start = time.time()
             if self.shift_report:
                 shift_report_status = frappe.db.get_value("POS Shift Report", self.shift_report, "verification_status")
                 log.info(f"[SHIFT_CLOSE_WORKFLOW] 📊 ON_SUBMIT_STEP1_VERIFICATION_STATUS - Shift report {self.shift_report} status: {shift_report_status}")
@@ -198,53 +192,40 @@ class POSClosingShift(Document):
             else:
                 log.warning(f"[SHIFT_CLOSE_WORKFLOW] ⚠️ ON_SUBMIT_STEP1_NO_SHIFT_REPORT - No shift report linked to closing shift {self.name}")
 
-            step1_time = time.time() - step1_start
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP1_COMPLETED - Verification check passed in {step1_time:.2f}s")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP1_COMPLETED - Verification check passed")
 
             # STEP 2: Update opening shift reference
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔄 ON_SUBMIT_STEP2_UPDATE_OPENING_SHIFT - Updating opening shift {self.pos_opening_shift}")
-            step2_start = time.time()
             opening_entry = frappe.get_doc("POS Opening Shift", self.pos_opening_shift)
             opening_entry.pos_closing_shift = self.name
             opening_entry.set_status()
             opening_entry.save()
-            step2_time = time.time() - step2_start
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP2_COMPLETED - Opening shift updated in {step2_time:.2f}s")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP2_COMPLETED - Opening shift updated")
 
             # STEP 3: Delete draft invoices
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 🗑️ ON_SUBMIT_STEP3_DELETE_DRAFT_INVOICES - Deleting draft invoices")
-            step3_start = time.time()
             self.delete_draft_invoices()
-            step3_time = time.time() - step3_start
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP3_COMPLETED - Draft invoices deleted in {step3_time:.2f}s")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP3_COMPLETED - Draft invoices deleted")
 
             # STEP 4: Update shift report and payment summaries
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 ON_SUBMIT_STEP4_UPDATE_SHIFT_REPORT - Updating shift report and payment summaries")
-            step4_start = time.time()
             self.update_shift_report_and_summaries()
-            step4_time = time.time() - step4_start
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP4_COMPLETED - Shift report updated in {step4_time:.2f}s")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP4_COMPLETED - Shift report updated")
 
             # STEP 5: Link invoices with this closing shift so ERPNext can block edits
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔗 ON_SUBMIT_STEP5_SET_CLOSING_ENTRY - Setting closing entry on invoices")
-            step5_start = time.time()
             self._set_closing_entry_invoices()
-            step5_time = time.time() - step5_start
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP5_COMPLETED - Invoices linked in {step5_time:.2f}s")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP5_COMPLETED - Invoices linked")
 
             # POST-SUBMIT CLEANUP: Clear cache, logout, and refresh UI
             log.info(f"[SHIFT_CLOSE_WORKFLOW] 🧹 ON_SUBMIT_STEP6_POST_CLEANUP - Performing post-submit cleanup")
-            step6_start = time.time()
             self.perform_post_submit_cleanup()
-            step6_time = time.time() - step6_start
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP6_COMPLETED - Post-submit cleanup completed in {step6_time:.2f}s")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_STEP6_COMPLETED - Post-submit cleanup completed")
 
-            total_time = time.time() - step_start_time
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_COMPLETED - POS Closing Shift {self.name} submitted successfully in {total_time:.2f}s")
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ ON_SUBMIT_COMPLETED - POS Closing Shift {self.name} submitted successfully")
 
         except Exception as e:
-            error_time = time.time() - step_start_time
-            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ ON_SUBMIT_ERROR - POS Closing Shift {self.name} failed after {error_time:.2f}s: {str(e)}")
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ ON_SUBMIT_ERROR - POS Closing Shift {self.name} failed: {str(e)}")
             raise
 
     def update_shift_report_and_summaries(self):
@@ -582,8 +563,7 @@ def get_payments_entries(pos_opening_shift):
 
 @frappe.whitelist()
 def make_closing_shift_from_opening(opening_shift):
-    api_start_time = time.time()
-    request_id = f"make_req_{int(api_start_time * 1000)}_{frappe.session.user}"
+    request_id = f"make_req_{int(time.time() * 1000)}_{frappe.session.user}"
 
     log.info(f"[SHIFT_CLOSE_WORKFLOW] 🏗️ MAKE_CLOSING_SHIFT_START - Request ID: {request_id} - Creating closing shift from opening shift data - User: {frappe.session.user}")
 
@@ -594,15 +574,13 @@ def make_closing_shift_from_opening(opening_shift):
 
         # VALIDATION: Check if shift can be closed
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 MAKE_CLOSING_SHIFT_VALIDATION - Request ID: {request_id} - Checking if shift can be closed")
-        validation_start = time.time()
         validation_result = validate_shift_can_be_closed(opening_shift_name)
-        validation_time = time.time() - validation_start
 
         if not validation_result.get("can_close"):
-            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ MAKE_CLOSING_SHIFT_BLOCKED - Request ID: {request_id} - Validation failed in {validation_time:.2f}s: {validation_result.get('message')}")
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ MAKE_CLOSING_SHIFT_BLOCKED - Request ID: {request_id} - Validation failed: {validation_result.get('message')}")
             frappe.throw(validation_result.get("message"))
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_VALIDATION_PASSED - Request ID: {request_id} - Validation passed in {validation_time:.2f}s")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_VALIDATION_PASSED - Request ID: {request_id} - Validation passed")
 
         # Default to Sales Invoice (POS Invoice logic removed)
         doctype = "Sales Invoice"
@@ -771,19 +749,17 @@ def make_closing_shift_from_opening(opening_shift):
         closing_shift.set("taxes", taxes)
         closing_shift.set("pos_payments", pos_payments_table)
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_COMPLETED - Request ID: {request_id} - Closing shift created successfully in {time.time() - api_start_time:.2f}s. Transactions: {len(pos_transactions)}, Payments: {len(payments)}")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_COMPLETED - Request ID: {request_id} - Closing shift created successfully. Transactions: {len(pos_transactions)}, Payments: {len(payments)}")
         return closing_shift
 
     except Exception as e:
-        error_time = time.time() - api_start_time
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ MAKE_CLOSING_SHIFT_ERROR - Request ID: {request_id} - Failed after {error_time:.2f}s: {str(e)}")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ MAKE_CLOSING_SHIFT_ERROR - Request ID: {request_id} - Failed: {str(e)}")
         raise
 
 
 @frappe.whitelist()
 def submit_closing_shift(closing_shift):
-    start_time = time.time()
-    request_id = f"req_{int(start_time * 1000)}_{frappe.session.user}"
+    request_id = f"req_{int(time.time() * 1000)}_{frappe.session.user}"
 
     log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚀 SUBMIT_CLOSING_SHIFT_START - Request ID: {request_id} - Starting closing shift submission - User: {frappe.session.user}")
 
@@ -805,27 +781,21 @@ def submit_closing_shift(closing_shift):
 
         # Save the document (this will trigger validation and on_submit)
         log.info(f"[SHIFT_CLOSE_WORKFLOW] 💾 SUBMIT_CLOSING_SHIFT_SAVE - Request ID: {request_id} - Saving closing shift document (triggers validation & on_submit)")
-        save_start = time.time()
         closing_shift_doc.save()
-        save_time = time.time() - save_start
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_SAVE_COMPLETED - Request ID: {request_id} - Document saved in {save_time:.2f}s")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_SAVE_COMPLETED - Request ID: {request_id} - Document saved")
 
         # Submit the document
         log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_SUBMIT - Request ID: {request_id} - Submitting closing shift document")
-        submit_start = time.time()
         closing_shift_doc.submit()
-        submit_time = time.time() - submit_start
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎉 SUBMIT_CLOSING_SHIFT_SUBMIT_COMPLETED - Request ID: {request_id} - Document submitted in {submit_time:.2f}s")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎉 SUBMIT_CLOSING_SHIFT_SUBMIT_COMPLETED - Request ID: {request_id} - Document submitted")
 
-        total_time = time.time() - start_time
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎉 SUBMIT_CLOSING_SHIFT_COMPLETED - Request ID: {request_id} - Closing shift {closing_shift_doc.name} submitted successfully in {total_time:.2f}s")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎉 SUBMIT_CLOSING_SHIFT_COMPLETED - Request ID: {request_id} - Closing shift {closing_shift_doc.name} submitted successfully")
 
         # Return success response with logout and refresh signals
         return {
             "success": True,
             "message": _("POS Closing Shift submitted successfully"),
             "request_id": request_id,
-            "processing_time": total_time,
             "data": {
                 "name": closing_shift_doc.name,
                 "docstatus": closing_shift_doc.docstatus,
@@ -835,32 +805,17 @@ def submit_closing_shift(closing_shift):
         }
 
     except frappe.ValidationError as ve:
-        error_time = time.time() - start_time
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT_VALIDATION_ERROR - Request ID: {request_id} - Validation error after {error_time:.2f}s: {str(ve)}")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT_VALIDATION_ERROR - Request ID: {request_id} - Validation error: {str(ve)}")
         raise
     except Exception as e:
-        error_time = time.time() - start_time
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT_ERROR - Request ID: {request_id} - Unexpected error after {error_time:.2f}s: {str(e)}")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT_ERROR - Request ID: {request_id} - Unexpected error: {str(e)}")
         frappe.log_error(f"Unexpected error in submit_closing_shift: {str(e)}", "POS Closing Shift Submit Error")
 
         return {
             "success": False,
             "message": _("An unexpected error occurred while submitting closing shift: {0}").format(str(e)),
-            "request_id": request_id,
-            "error_time": error_time
+            "request_id": request_id
         }
-
-    # Return success response with logout and refresh signals
-    return {
-        "success": True,
-        "message": _("POS Closing Shift submitted successfully"),
-        "data": {
-            "name": closing_shift_doc.name,
-            "docstatus": closing_shift_doc.docstatus,
-            "requires_logout": True,  # Signal to frontend to logout user
-            "requires_ui_refresh": True  # Signal to frontend to refresh UI
-        }
-    }
 
 
 def submit_printed_invoices(pos_opening_shift, doctype):
