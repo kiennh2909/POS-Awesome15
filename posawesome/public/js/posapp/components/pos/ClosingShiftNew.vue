@@ -217,20 +217,24 @@ export default {
 
 			this.closingShift = true;
 			try {
-				const closingData = {
-					pos_opening_shift: typeof this.shiftReportId === 'object' ? this.shiftReportId.name : this.shiftReportId,
-					payment_reconciliation: this.paymentSummaryData.map(item => ({
+				const openingShiftData = {
+					name: typeof this.shiftReportId === 'object' ? this.shiftReportId.name : this.shiftReportId,
+					pos_profile: this.posProfile.name,
+					user: frappe.session.user,
+					company: this.posProfile.company,
+					period_start_date: this.shiftReportData?.opening_date,
+					period_start_time: this.shiftReportData?.opening_time,
+					balance_details: this.paymentSummaryData.map(item => ({
 						mode_of_payment: item.payment_method,
-						opening_amount: item.opening_amount,
-						expected_amount: item.expected_closing_amount,
-						closing_amount: parseFloat(item.actual_closing_amount) || 0,
-						difference: item.difference
+						amount: item.opening_amount || 0
 					}))
 				};
 
 				const response = await frappe.call({
 					method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.make_closing_shift_from_opening",
-					args: closingData
+					args: {
+						opening_shift: JSON.stringify(openingShiftData)
+					}
 				});
 
 				if (response.message) {
@@ -241,7 +245,13 @@ export default {
 								name: response.message.name,
 								pos_opening_shift: response.message.pos_opening_shift,
 								user: frappe.session.user,
-								payment_reconciliation: closingData.payment_reconciliation
+								payment_reconciliation: this.paymentSummaryData.map(item => ({
+									mode_of_payment: item.payment_method,
+									opening_amount: item.opening_amount,
+									expected_amount: item.expected_closing_amount,
+									closing_amount: parseFloat(item.actual_closing_amount) || 0,
+									difference: item.difference
+								}))
 							})
 						}
 					});
