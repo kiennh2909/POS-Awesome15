@@ -11,6 +11,29 @@
 								<span class="shift-info-label">{{ __("Shift ID:") }}</span>
 								<span class="shift-info-value">{{ displayShiftReportId }}</span>
 							</div>
+							<div class="shift-info-item">
+								<span class="shift-info-label">{{ __("Opened:") }}</span>
+								<span class="shift-info-value">{{ formatDateTime(shiftReportData.opening_date, shiftReportData.opening_time) }}</span>
+							</div>
+							<div class="shift-info-item">
+								<span class="shift-info-label">{{ __("Status:") }}</span>
+								<div class="d-flex flex-column align-start gap-1">
+									<v-chip
+										:color="getVerificationColor(shiftReportData.verification_status)"
+										variant="outlined"
+										size="small"
+										class="verification-status-chip"
+									>
+										<v-icon size="14" class="me-1">
+											{{ getVerificationIcon(shiftReportData.verification_status) }}
+										</v-icon>
+										{{ shiftReportData.verification_status || 'Pending' }}
+									</v-chip>
+									<span v-if="shiftReportData.verification_status === 'Pending'" class="verification-warning-text">
+										{{ __("Need to Verify before Close Shift") }}
+									</span>
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -328,6 +351,48 @@ export default {
 			return symbols[currency] || currency || '$';
 		},
 
+		formatDateTime(date, time) {
+			if (!date) return 'N/A';
+
+			try {
+				let dateTimeStr = date;
+				if (time) {
+					dateTimeStr += ' ' + time;
+				}
+
+				// Use frappe's datetime formatting if available
+				if (window.frappe && frappe.datetime) {
+					const dateObj = frappe.datetime.str_to_obj(dateTimeStr);
+					return frappe.datetime.prettyDate(dateObj) + ' ' + frappe.datetime.get_time(dateObj);
+				}
+
+				// Fallback to basic formatting
+				const dateObj = new Date(dateTimeStr);
+				return dateObj.toLocaleString();
+			} catch (e) {
+				console.warn('Error formatting datetime:', e);
+				return date + (time ? ' ' + time : '');
+			}
+		},
+
+		getVerificationColor(status) {
+			const colors = {
+				'Pending': 'warning',
+				'Verified': 'success',
+				'Confirmed': 'info'
+			};
+			return colors[status] || 'grey';
+		},
+
+		getVerificationIcon(status) {
+			const icons = {
+				'Pending': 'mdi-clock-outline',
+				'Verified': 'mdi-check-circle',
+				'Confirmed': 'mdi-check-circle-outline'
+			};
+			return icons[status] || 'mdi-help-circle';
+		},
+
 		async handlePostShiftClose() {
 			console.log("[SHIFT_CLOSE_SUCCESS] Starting post-shift-close cleanup: logout, clear cache, refresh");
 
@@ -501,5 +566,28 @@ export default {
 	background: rgba(var(--v-theme-primary), 0.1);
 	padding: 2px 6px; border-radius: 4px;
 	border: 1px solid rgba(var(--v-theme-primary), 0.2);
+}
+
+.verification-status-chip {
+	font-weight: 600;
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+	transition: all 0.3s ease;
+}
+
+.verification-status-chip:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.verification-warning-text {
+	font-size: 0.7rem;
+	color: rgb(var(--v-theme-warning));
+	font-weight: 500;
+	font-style: italic;
+	line-height: 1.2;
+	margin-top: 2px;
 }
 </style>
