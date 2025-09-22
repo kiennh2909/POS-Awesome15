@@ -51,7 +51,7 @@
 						<div class="d-flex align-center gap-4">
 							<h6 class="text-subtitle-1 mb-0">{{ __("Shift Closing Actions") }}</h6>
 						</div>
-						<div class="d-flex action-buttons-group">
+						<div class="d-flex action-buttons-group" style="gap: 5px">
 							<v-btn
 								color="success"
 								variant="outlined"
@@ -424,16 +424,14 @@ export default {
 				// Tạo nội dung Excel
 				const excelContent = this.generateExcelContent(summaryData, invoicesData);
 
-				// Tạo tên file
-				const now = new Date();
-				const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '');
-				const dateStr = now.toISOString().split('T')[0].replace(/-/g, '_');
-				const posProfileName = (this.posProfile?.name || 'Unknown').replace(/\s+/g, '_');
-				const cashierName = (frappe.session?.user || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_');
-				const fileName = `${timeStr}_${dateStr}_${posProfileName}_${cashierName}_Tong_Ket_Ca.xlsx`;
+				// Tạo tên file theo format: Ca Làm Việc + Tên người dùng mặc định
+				const userName = frappe.session?.user_fullname || frappe.session?.user || 'Unknown';
+				const fileName = `Ca Làm Việc_${userName}.xlsx`;
 
-				// Download file
-				const blob = new Blob(['\ufeff', excelContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+				// Download file Excel 2010 format
+				const blob = new Blob(['\ufeff', excelContent], {
+					type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=utf-8;'
+				});
 				const url = window.URL.createObjectURL(blob);
 				const a = document.createElement('a');
 				a.href = url;
@@ -499,14 +497,15 @@ export default {
 		},
 
 		generateExcelContent(summaryData, invoicesData) {
-			// Header information
+			// Header information - Excel 2010 format
 			let content = [
 				"TỔNG KẾT CA LÀM VIỆC - BÁO CÁO CHI TIẾT",
 				`Hồ sơ POS: ${this.posProfile?.name || 'N/A'}`,
 				`Mã ca: ${this.displayShiftReportId}`,
 				`Nhân viên: ${frappe.session?.user_fullname || frappe.session?.user || 'N/A'}`,
-				`Thời gian mở ca: ${this.formatDateTime(this.shiftReportData?.opening_date, this.shiftReportData?.opening_time)}`,
-				`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`,
+				`Thời gian mở ca: ${this.formatDateTime(this.shiftReportData?.opening_date, this.shiftReportData?.opening_time)} (${this.shiftReportData?.opening_date || 'N/A'} ${this.shiftReportData?.opening_time || ''})`,
+				`Thời gian xuất báo cáo: ${new Date().toLocaleString('vi-VN')}`,
+				`Trạng thái xác minh: ${this.shiftReportData?.verification_status || 'Chưa xác minh'}`,
 				""
 			];
 
@@ -517,7 +516,7 @@ export default {
 			content.push("");
 
 			// Payment reconciliation section
-			content.push("BẢNG ĐỐI CHIẾU THANH TOÁN");
+			content.push("BẢNG ĐỐI CHIẾU THANH TOÁN THEO PHƯƠNG THỨC");
 			content.push("Phương thức thanh toán\tSố dư đầu ca\tDoanh thu bán\tDoanh thu trả lại\tTổng giao dịch\tDự kiến đóng ca\tThực tế đóng ca\tChênh lệch");
 
 			this.paymentSummaryDataWithTotal.forEach(item => {
@@ -525,8 +524,8 @@ export default {
 			});
 
 			content.push("");
-			content.push("DANH SÁCH CHI TIẾT HÓA ĐƠN");
-			content.push("Mã hóa đơn\tNgày\tGiờ\tKhách hàng\tTổng tiền\tPhương thức thanh toán\tTrạng thái\tLoại hóa đơn");
+			content.push("DANH SÁCH CHI TIẾT TẤT CẢ HÓA ĐƠN TRONG CA");
+			content.push("Mã hóa đơn\tNgày lập\tGiờ lập\tKhách hàng\tTổng tiền\tPhương thức thanh toán\tTrạng thái\tLoại hóa đơn");
 
 			if (this.shiftReportData?.invoices && this.shiftReportData.invoices.length > 0) {
 				this.shiftReportData.invoices.forEach(invoice => {
@@ -537,8 +536,9 @@ export default {
 			}
 
 			content.push("");
-			content.push("Báo cáo được tạo tự động bởi hệ thống POS Awesome");
-			content.push(`Xuất vào lúc: ${new Date().toLocaleString('vi-VN')}`);
+			content.push("BÁO CÁO ĐƯỢC TẠO TỰ ĐỘNG BỞI HỆ THỐNG POS AWESOME");
+			content.push(`Xuất báo cáo vào lúc: ${new Date().toLocaleString('vi-VN')}`);
+			content.push("© 2025 - Hệ thống POS Awesome - Báo cáo chính thức");
 
 			return content.join('\n');
 		},
@@ -716,7 +716,7 @@ export default {
 						<h2>THÔNG TIN CA LÀM VIỆC</h2>
 						<table>
 							<tr><td><strong>Mã ca:</strong></td><td>${this.displayShiftReportId}</td></tr>
-							<tr><td><strong>Thời gian mở ca:</strong></td><td>${this.formatDateTime(this.shiftReportData?.opening_date, this.shiftReportData?.opening_time)}</td></tr>
+							<tr><td><strong>Thời gian mở ca:</strong></td><td>${this.formatDateTime(this.shiftReportData?.opening_date, this.shiftReportData?.opening_time)} (${this.shiftReportData?.opening_date || 'N/A'} ${this.shiftReportData?.opening_time || ''})</td></tr>
 							<tr><td><strong>Trạng thái xác minh:</strong></td><td>${this.shiftReportData?.verification_status || 'Chưa xác minh'}</td></tr>
 						</table>
 					</div>
