@@ -460,6 +460,12 @@ export default {
 		modelValue(newVal) {
 			if (newVal && this.shiftReportId) {
 				console.log("Dialog opened with shiftReportId:", this.shiftReportId);
+				console.log("shiftReportId type:", typeof this.shiftReportId);
+				if (typeof this.shiftReportId === 'object') {
+					console.log("shiftReportId object keys:", Object.keys(this.shiftReportId));
+					console.log("shiftReportId doctype:", this.shiftReportId.doctype);
+					console.log("shiftReportId name:", this.shiftReportId.name);
+				}
 				this.loadInvoices();
 			} else if (newVal && !this.shiftReportId) {
 				console.warn("Dialog opened but no shiftReportId provided");

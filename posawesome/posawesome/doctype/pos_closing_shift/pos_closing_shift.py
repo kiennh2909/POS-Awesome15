@@ -5,11 +5,13 @@
 from __future__ import unicode_literals
 import frappe
 import json
+from erpnext.accounts.doctype.pos_invoice_merge_log.pos_invoice_merge_log import (
+    consolidate_pos_invoices,
+)
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
 from posawesome.posawesome.utils.logging import get_logger
-from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import _parse_json_safe
 
 log = get_logger("shift_close")
 
@@ -318,6 +320,7 @@ class POSClosingShift(Document):
         total_actual_closing = sum(flt(s.get("closing_amount", 0)) for s in summaries)
 
         # Get existing expected amounts from shift report (already calculated during verification)
+        from posawesome.posawesome.doctype.pos_payment_summary.pos_payment_summary import _parse_json_safe
         existing_expected = _parse_json_safe(shift_report.expected_closing_amounts or "{}")
         total_expected_closing = sum(existing_expected.values())
         difference = total_actual_closing - total_expected_closing
@@ -490,13 +493,13 @@ class POSClosingShift(Document):
 
             data = frappe.db.sql(
                 f"""
-   select
-        name
-    from
-        `tab{doctype}`
-    where
-        docstatus = 0 and posa_is_printed = 0 and posa_pos_opening_shift = %s
-    """,
+		select
+		    name
+		from
+		    `tab{doctype}`
+		where
+		    docstatus = 0 and posa_is_printed = 0 and posa_pos_opening_shift = %s
+		""",
                 (self.pos_opening_shift),
                 as_dict=1,
             )
@@ -625,7 +628,7 @@ def make_closing_shift_from_opening(opening_shift):
         closing_shift.net_total = 0
         closing_shift.total_quantity = 0
 
-        # Initialize JSON fields to prevent validation errors
+        # Initialize JSON fields to prevent validation errors (will be populated after payment processing)
         closing_shift.expected_amounts = "{}"
         closing_shift.actual_amounts = "{}"
         closing_shift.difference_amounts = "{}"
@@ -654,8 +657,12 @@ def make_closing_shift_from_opening(opening_shift):
 
             # Use client data if available, otherwise use opening amount as expected
             client_data = client_payment_map.get(mode, {})
-            expected_amt = client_data.get("expected_amount", opening_amt)
-            closing_amt = client_data.get("closing_amount", expected_amt)  # Default to expected if no closing amount
+            expected_amt = flt(client_data.get("expected_amount", opening_amt))
+            closing_amt = flt(client_data.get("closing_amount", expected_amt))  # Default to expected if no closing amount
+
+            # Ensure closing_amount is never null/empty - required field
+            if closing_amt is None or closing_amt == "":
+                closing_amt = expected_amt if expected_amt > 0 else 0
 
             payments.append(
                 frappe._dict(
@@ -803,6 +810,10 @@ def make_closing_shift_from_opening(opening_shift):
 
         # Save the closing shift document to generate name (skip validation during creation)
         log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 107: MAKE_CLOSING_SHIFT_SAVE - Saving closing shift document")
+        closing_shift.set("pos_payments", pos_payments_table)
+
+        # Save the closing shift document to generate name (skip validation during creation)
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 107: MAKE_CLOSING_SHIFT_SAVE - Saving closing shift document")
         closing_shift.flags.ignore_validate = True  # Skip validation during creation to avoid validating with closing_amount=0
         log.info(f"[SHIFT_CLOSE_WORKFLOW] TRACING_CLOSING_AMOUNT - Skipping validation during document creation (closing_amount would be 0)")
         closing_shift.insert(ignore_permissions=True)
@@ -812,164 +823,9 @@ def make_closing_shift_from_opening(opening_shift):
         return closing_shift
 
     except Exception as e:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: MAKE_CLOSING_SHIFT_ERROR - Failed: {str(e)}")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: MAKE_CLOSING_SHIFT_FAILED - Failed to create closing shift: {str(e)}")
+        frappe.log_error(f"Error in make_closing_shift_from_opening: {str(e)}", "POS Closing Shift Creation Error")
         raise
-
-
-@frappe.whitelist()
-def submit_closing_shift(closing_shift):
-    log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 110: SUBMIT_CLOSING_SHIFT_START - Starting closing shift submission - User: {frappe.session.user}")
-
-    try:
-        # Parse input data
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 111: SUBMIT_CLOSING_SHIFT_PARSE - Parsing closing shift JSON data")
-        closing_shift_data = json.loads(closing_shift)
-
-        closing_shift_name = closing_shift_data.get("name")
-        opening_shift = closing_shift_data.get("pos_opening_shift")
-        user = closing_shift_data.get("user")
-
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 112: SUBMIT_CLOSING_SHIFT_DATA - Closing shift: {closing_shift_name}, Opening shift: {opening_shift}, User: {user}")
-
-        # Get closing shift document
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 113: SUBMIT_CLOSING_SHIFT_LOAD_DOC - Loading closing shift document {closing_shift_name}")
-        closing_shift_doc = frappe.get_doc(closing_shift_data)
-        closing_shift_doc.flags.ignore_permissions = True
-
-        # Save the document (this will trigger validation and on_submit)
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 114: SUBMIT_CLOSING_SHIFT_SAVE - Saving closing shift document (triggers validation & on_submit)")
-        closing_shift_doc.save()
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 115: SUBMIT_CLOSING_SHIFT_SAVE_COMPLETED - Document saved")
-
-        # Submit the document
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 116: SUBMIT_CLOSING_SHIFT_SUBMIT - Submitting closing shift document")
-        closing_shift_doc.submit()
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 117: SUBMIT_CLOSING_SHIFT_SUBMIT_COMPLETED - Document submitted")
-
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 118: SUBMIT_CLOSING_SHIFT_COMPLETED - Closing shift {closing_shift_name} submitted successfully")
-
-        # Return success response with logout and refresh signals
-        # Use stored values instead of accessing document object to avoid serialization issues
-        return {
-            "success": True,
-            "message": _("POS Closing Shift submitted successfully"),
-            "data": {
-                "name": closing_shift_name,
-                "docstatus": 1,  # Submitted status
-                "requires_logout": True,  # Signal to frontend to logout user
-                "requires_ui_refresh": True  # Signal to frontend to refresh UI
-            }
-        }
-
-    except frappe.ValidationError as ve:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: SUBMIT_CLOSING_SHIFT_VALIDATION_ERROR - Validation error: {str(ve)}")
-        raise
-    except Exception as e:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: SUBMIT_CLOSING_SHIFT_ERROR - Unexpected error: {str(e)}")
-        return {
-            "success": False,
-            "message": _("An unexpected error occurred while submitting closing shift: {0}").format(str(e))
-        }
-
-
-def submit_printed_invoices(pos_opening_shift, doctype):
-    log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 119: SUBMIT_PRINTED_INVOICES_START - Opening shift: {pos_opening_shift}, Doctype: {doctype}")
-
-    invoices_list = frappe.get_all(
-        doctype,
-        filters={
-            "posa_pos_opening_shift": pos_opening_shift,
-            "docstatus": 0,
-            "posa_is_printed": 1,
-        },
-    )
-
-    log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 120: SUBMIT_PRINTED_INVOICES_FOUND - Found {len(invoices_list)} printed invoices to submit")
-
-    submitted_count = 0
-    failed_count = 0
-
-    for invoice in invoices_list:
-        try:
-            invoice_doc = frappe.get_doc(doctype, invoice.name)
-            invoice_doc.submit()
-            submitted_count += 1
-            log.debug(f"[SHIFT_CLOSE_WORKFLOW] Step 121: SUBMIT_PRINTED_INVOICES_SUBMITTED - Submitted invoice {invoice.name}")
-        except Exception as e:
-            failed_count += 1
-            log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: SUBMIT_PRINTED_INVOICES_FAILED - Failed to submit invoice {invoice.name}: {str(e)}")
-
-    log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 122: SUBMIT_PRINTED_INVOICES_COMPLETED - Submitted: {submitted_count}, Failed: {failed_count}")
-
-
-def validate_shift_can_be_closed(opening_shift_name):
-    """
-    Validate if a shift can be closed based on business rules
-
-    Args:
-        opening_shift_name (str): Name of the POS Opening Shift
-
-    Returns:
-        dict: Validation result with 'can_close' boolean and 'message' string
-    """
-    try:
-        log.info(f"[SHIFT_CLOSE_VALIDATION] Step 123: VALIDATE_SHIFT_CAN_CLOSE_START - Checking if shift {opening_shift_name} can be closed")
-
-        # Check 1: Opening shift exists and is open
-        if not frappe.db.exists("POS Opening Shift", opening_shift_name):
-            return {
-                "can_close": False,
-                "message": _("POS Opening Shift '{0}' does not exist").format(opening_shift_name)
-            }
-
-        opening_shift = frappe.get_doc("POS Opening Shift", opening_shift_name)
-        if opening_shift.status != "Open":
-            log.warning(f"[SHIFT_CLOSE_VALIDATION] WARNING: SHIFT_NOT_OPEN - Opening shift {opening_shift_name} status: {opening_shift.status}")
-            return {
-                "can_close": False,
-                "message": _("Cannot close shift. POS Opening Shift '{0}' is not open (current status: {1})").format(opening_shift_name, opening_shift.status)
-            }
-
-        # Check 2: If shift report exists, ensure it's not closed (optional check)
-        shift_report_name = frappe.db.get_value("POS Shift Report", {"pos_opening_shift": opening_shift_name}, "name")
-        if shift_report_name:
-            shift_report = frappe.get_doc("POS Shift Report", shift_report_name)
-            if shift_report.status == "Closed":
-                log.warning(f"[SHIFT_CLOSE_VALIDATION] WARNING: SHIFT_ALREADY_CLOSED - Shift report {shift_report_name} is already closed")
-                return {
-                    "can_close": False,
-                    "message": _("Cannot close shift. Shift Report '{0}' is already closed").format(shift_report_name)
-                }
-            log.info(f"[SHIFT_CLOSE_VALIDATION] Step 124: SHIFT_REPORT_EXISTS - Shift report {shift_report_name} exists and is not closed")
-        else:
-            log.info(f"[SHIFT_CLOSE_VALIDATION] INFO: NO_SHIFT_REPORT - No shift report found for opening shift {opening_shift_name}, but allowing close anyway")
-
-        # Check 3: No existing submitted closing shift
-        existing_closing = frappe.db.exists("POS Closing Shift", {
-            "pos_opening_shift": opening_shift_name,
-            "docstatus": 1  # Submitted
-        })
-
-        if existing_closing:
-            log.warning(f"[SHIFT_CLOSE_VALIDATION] WARNING: CLOSING_SHIFT_EXISTS - Submitted closing shift already exists: {existing_closing}")
-            return {
-                "can_close": False,
-                "message": _("Cannot close shift. A submitted closing shift already exists for POS Opening Shift '{0}'").format(opening_shift_name)
-            }
-
-        log.info(f"[SHIFT_CLOSE_VALIDATION] Step 125: VALIDATE_SHIFT_CAN_CLOSE_SUCCESS - Shift {opening_shift_name} can be closed")
-        return {
-            "can_close": True,
-            "message": _("Shift can be closed"),
-            "shift_report": shift_report_name
-        }
-
-    except Exception as e:
-        log.error(f"[SHIFT_CLOSE_VALIDATION] ERROR: VALIDATE_SHIFT_CAN_CLOSE_ERROR - Error validating shift {opening_shift_name}: {str(e)}")
-        return {
-            "can_close": False,
-            "message": _("Error validating shift: {0}").format(str(e))
-        }
 
 
 @frappe.whitelist()
@@ -1015,223 +871,50 @@ def submit_closing_shift_v2(closing_shift):
             # Check if opening_shift is actually a POS Shift Report ID
             actual_opening_shift = opening_shift
             if opening_shift and frappe.db.exists("POS Shift Report", opening_shift):
-                log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 133: SHIFT_REPORT_FOUND - '{opening_shift}' is a POS Shift Report, getting opening shift")
-                actual_opening_shift = frappe.db.get_value("POS Shift Report", opening_shift, "pos_opening_shift")
-                log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 134: OPENING_SHIFT_FOUND - Found opening shift: {actual_opening_shift}")
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 133: SHIFT_REPORT_FOUND - '{opening_shift}' is a POS Shift Report, finding associated opening shift")
+                # Find the associated opening shift
+                shift_report_doc = frappe.get_doc("POS Shift Report", opening_shift)
+                if shift_report_doc.pos_opening_shift:
+                    actual_opening_shift = shift_report_doc.pos_opening_shift
+                    log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 134: FOUND_OPENING_SHIFT - Found opening shift: {actual_opening_shift}")
+                else:
+                    log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: NO_OPENING_SHIFT - Shift report {opening_shift} has no associated opening shift")
+                    frappe.throw(_("Shift report has no associated opening shift"))
 
-            if not actual_opening_shift:
-                raise frappe.ValidationError(_("Could not find valid POS Opening Shift for: {0}").format(opening_shift))
-
-            # Prepare opening shift data for creation
-            opening_shift_data = {
-                "name": actual_opening_shift,
-                "pos_profile": closing_shift_data.get("pos_profile"),
-                "user": user,
-                "company": closing_shift_data.get("company", "Default Company"),
-                "period_start_date": closing_shift_data.get("period_start_date"),
-                "period_start_time": closing_shift_data.get("period_start_time"),
-                "balance_details": closing_shift_data.get("balance_details", [])
-            }
-
-            # Create the document using make_closing_shift_from_opening
-            closing_shift_doc = make_closing_shift_from_opening(json.dumps(opening_shift_data))
+            # Create the closing shift document
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 135: CREATE_CLOSING_SHIFT - Creating closing shift for opening shift: {actual_opening_shift}")
+            closing_shift_doc = make_closing_shift_from_opening(json.dumps({"name": actual_opening_shift}))
             closing_shift_name = closing_shift_doc.name
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 136: CREATED_CLOSING_SHIFT - Created closing shift: {closing_shift_name}")
 
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 135: CREATED - Created closing shift: {closing_shift_name}")
-        else:
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 136: LOAD_DOC - Loading existing document: {closing_shift_name}")
-            closing_shift_doc = frappe.get_doc("POS Closing Shift", closing_shift_name)
-
-            # Update opening_shift if it was passed as a POS Shift Report ID
-            if opening_shift and frappe.db.exists("POS Shift Report", opening_shift):
-                actual_opening_shift = frappe.db.get_value("POS Shift Report", opening_shift, "pos_opening_shift")
-                if actual_opening_shift and actual_opening_shift != closing_shift_doc.pos_opening_shift:
-                    closing_shift_doc.pos_opening_shift = actual_opening_shift
-                    log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 137: UPDATED_OPENING_SHIFT - Updated opening shift to: {actual_opening_shift}")
-
-        # STEP 2: Validate document is in draft state
-        current_docstatus = frappe.db.get_value("POS Closing Shift", closing_shift_name, "docstatus")
-        if current_docstatus != 0:
-            raise frappe.ValidationError(_("POS Closing Shift '{0}' is not in draft state (current status: {1})").format(closing_shift_name, current_docstatus))
-
-        # STEP 2: Update child tables FIRST (before validation)
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 138: UPDATE_CHILD_TABLES - Updating child tables first")
-
-        # Update payment reconciliation
-        if closing_shift_data.get("payment_reconciliation"):
-            # Clear existing payment reconciliation
-            frappe.db.delete("POS Closing Shift Detail", {"parent": closing_shift_name})
-
-            # Insert new payment reconciliation
-            for i, payment in enumerate(closing_shift_data["payment_reconciliation"]):
-                # Allow closing_amount to be empty (will default to 0) or any valid number including negative
-                closing_amount = payment.get("closing_amount")
-                if closing_amount is None or closing_amount == "":
-                    closing_amount = 0.0  # Default to 0 if not provided
-                else:
-                    try:
-                        closing_amount = float(closing_amount)
-                        # Allow any numeric value including 0 and negative numbers
-                    except (ValueError, TypeError):
-                        raise frappe.ValidationError(_("Row #{0}: Closing Amount must be a valid number for {1}").format(
-                            i + 1, payment.get("mode_of_payment", "Unknown Payment Method")
-                        ))
-
-                mode_of_payment = payment.get("mode_of_payment")
-                log.info(f"[SHIFT_CLOSE_WORKFLOW] TRACING_CLOSING_AMOUNT - Inserting child record: {mode_of_payment} -> closing_amount={closing_amount} (processed value)")
-
-                child_doc = frappe.get_doc({
-                    "doctype": "POS Closing Shift Detail",
-                    "parent": closing_shift_name,
-                    "parenttype": "POS Closing Shift",
-                    "parentfield": "payment_reconciliation",
-                    "mode_of_payment": mode_of_payment,
-                    "opening_amount": payment.get("opening_amount", 0),
-                    "expected_amount": payment.get("expected_amount", 0),
-                    "closing_amount": closing_amount,
-                    "difference": payment.get("difference", 0),
-                    "company": closing_shift_data.get("company", "Default Company")
-                })
-                child_doc.insert(ignore_permissions=True)
-                log.info(f"[SHIFT_CLOSE_WORKFLOW] TRACING_CLOSING_AMOUNT - Child record inserted successfully: {mode_of_payment} -> closing_amount={child_doc.closing_amount}")
-
-        # Update POS transactions
-        if closing_shift_data.get("pos_transactions"):
-            # Clear existing transactions
-            frappe.db.delete("POS Closing Shift Transaction", {"parent": closing_shift_name})
-
-            # Insert new transactions
-            for transaction in closing_shift_data["pos_transactions"]:
-                frappe.get_doc({
-                    "doctype": "POS Closing Shift Transaction",
-                    "parent": closing_shift_name,
-                    "parenttype": "POS Closing Shift",
-                    "parentfield": "pos_transactions",
-                    "sales_invoice": transaction.get("sales_invoice"),
-                    "pos_invoice": transaction.get("pos_invoice"),
-                    "posting_date": transaction.get("posting_date"),
-                    "grand_total": transaction.get("grand_total", 0),
-                    "customer": transaction.get("customer"),
-                    "company": closing_shift_data.get("company", "Default Company")
-                }).insert(ignore_permissions=True)
-
-        # STEP 3: Update closing shift data directly in database
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 139: UPDATE_DATA - Updating closing shift data in database")
-
-        # Get shift report verification details if shift_report exists
-        shift_report_fields = {}
-        if closing_shift_data.get("shift_report"):
-            try:
-                shift_report_doc = frappe.get_doc("POS Shift Report", closing_shift_data.get("shift_report"))
-                shift_report_fields = {
-                    "shift_report_id": shift_report_doc.shift_report_id,
-                    "verification_date": shift_report_doc.verification_date,
-                    "verified_by": shift_report_doc.verified_by,
-                    "confirmation_date": shift_report_doc.confirmation_date,
-                    "confirmed_by": shift_report_doc.confirmed_by
-                }
-                log.info(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_CLOSING_SHIFT_V2_SHIFT_REPORT_DATA - Retrieved verification data: {shift_report_fields}")
-            except Exception as e:
-                log.warning(f"[SHIFT_CLOSE_WORKFLOW] SUBMIT_CLOSING_SHIFT_V2_SHIFT_REPORT_ERROR - Could not get shift report data: {str(e)}")
-
-        # Update main fields
-        update_fields = {
-            "period_end_date": closing_shift_data.get("period_end_date", frappe.utils.now()),
-            "user": user,
-            "grand_total": closing_shift_data.get("grand_total", 0),
-            "net_total": closing_shift_data.get("net_total", 0),
-            "total_quantity": closing_shift_data.get("total_quantity", 0),
-            "expected_amounts": closing_shift_data.get("expected_amounts", "{}"),
-            "actual_amounts": closing_shift_data.get("actual_amounts", "{}"),
-            "difference_amounts": closing_shift_data.get("difference_amounts", "{}"),
-            "verification_status": closing_shift_data.get("verification_status", "Pending"),
-            **shift_report_fields  # Include shift report verification fields
-        }
-
-        frappe.db.set_value("POS Closing Shift", closing_shift_name, update_fields, update_modified=False)
-
-        # Update payment reconciliation
-        if closing_shift_data.get("payment_reconciliation"):
-            # Clear existing payment reconciliation
-            frappe.db.delete("POS Closing Shift Detail", {"parent": closing_shift_name})
-
-            # Insert new payment reconciliation
-            for i, payment in enumerate(closing_shift_data["payment_reconciliation"]):
-                # Allow closing_amount to be empty (will default to 0) or any valid number including negative
-                closing_amount = payment.get("closing_amount")
-                if closing_amount is None or closing_amount == "":
-                    closing_amount = 0.0  # Default to 0 if not provided
-                else:
-                    try:
-                        closing_amount = float(closing_amount)
-                        # Allow any numeric value including 0 and negative numbers
-                    except (ValueError, TypeError):
-                        raise frappe.ValidationError(_("Row #{0}: Closing Amount must be a valid number for {1}").format(
-                            i + 1, payment.get("mode_of_payment", "Unknown Payment Method")
-                        ))
-
-                frappe.get_doc({
-                    "doctype": "POS Closing Shift Detail",
-                    "parent": closing_shift_name,
-                    "parenttype": "POS Closing Shift",
-                    "parentfield": "payment_reconciliation",
-                    "mode_of_payment": payment.get("mode_of_payment"),
-                    "opening_amount": payment.get("opening_amount", 0),
-                    "expected_amount": payment.get("expected_amount", 0),
-                    "closing_amount": closing_amount,
-                    "difference": payment.get("difference", 0)
-                }).insert(ignore_permissions=True)
-
-        # Update POS transactions
-        if closing_shift_data.get("pos_transactions"):
-            # Clear existing transactions
-            frappe.db.delete("POS Closing Shift Transaction", {"parent": closing_shift_name})
-
-            # Insert new transactions
-            for transaction in closing_shift_data["pos_transactions"]:
-                frappe.get_doc({
-                    "doctype": "POS Closing Shift Transaction",
-                    "parent": closing_shift_name,
-                    "parenttype": "POS Closing Shift",
-                    "parentfield": "pos_transactions",
-                    "sales_invoice": transaction.get("sales_invoice"),
-                    "pos_invoice": transaction.get("pos_invoice"),
-                    "posting_date": transaction.get("posting_date"),
-                    "grand_total": transaction.get("grand_total", 0),
-                    "customer": transaction.get("customer")
-                }).insert(ignore_permissions=True)
-
-        # STEP 4: Get document and run validation/submit
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 140: LOAD_DOC - Loading document for validation and submit")
+        # STEP 2: Load and update the closing shift document
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 137: LOAD_CLOSING_SHIFT - Loading closing shift document: {closing_shift_name}")
         closing_shift_doc = frappe.get_doc("POS Closing Shift", closing_shift_name)
-        closing_shift_doc.flags.ignore_permissions = True
 
-        # Log closing_amount values from loaded document
-        for payment in closing_shift_doc.payment_reconciliation:
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] TRACING_CLOSING_AMOUNT - After loading document: {payment.mode_of_payment} -> closing_amount={payment.closing_amount} (from loaded doc)")
+        # Update payment reconciliation with user-entered closing amounts
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 138: UPDATE_PAYMENT_RECONCILIATION - Updating payment reconciliation")
+        for payment_data in payment_reconciliation:
+            mode = payment_data.get("mode_of_payment")
+            closing_amount = flt(payment_data.get("closing_amount", 0))
 
-        # Skip full validation since we updated child tables with correct data first
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 141: VALIDATE - Skipping document validation (child tables already updated with correct closing_amount)")
+            # Find matching payment reconciliation record
+            for pr in closing_shift_doc.payment_reconciliation:
+                if pr.mode_of_payment == mode:
+                    pr.closing_amount = closing_amount
+                    log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 139: UPDATED_CLOSING_AMOUNT - {mode}: {closing_amount}")
+                    break
 
-        # Instead, run minimal validation checks
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 141: MINIMAL_VALIDATION - Running minimal validation checks")
+        # Save the updated document
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 140: SAVE_CLOSING_SHIFT - Saving updated closing shift")
+        closing_shift_doc.save(ignore_permissions=True)
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 141: SAVED_CLOSING_SHIFT - Closing shift saved successfully")
 
-        # Check that payment reconciliation has valid closing amounts
-        for payment in closing_shift_doc.payment_reconciliation:
-            if payment.closing_amount is None or payment.closing_amount == "":
-                log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: MINIMAL_VALIDATION - {payment.mode_of_payment} has invalid closing_amount: {payment.closing_amount}")
-                raise frappe.ValidationError(f"Closing amount is required for {payment.mode_of_payment}")
-            log.info(f"[SHIFT_CLOSE_WORKFLOW] TRACING_CLOSING_AMOUNT - Minimal validation passed: {payment.mode_of_payment} -> closing_amount={payment.closing_amount}")
-
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 141: MINIMAL_VALIDATION_COMPLETED - Minimal validation passed")
-
-        # Submit the document (this will trigger our custom on_submit method)
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 142: SUBMIT - Submitting closing shift document")
+        # STEP 3: Submit the closing shift
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 142: SUBMIT_CLOSING_SHIFT - Submitting closing shift")
         closing_shift_doc.submit()
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 143: SUBMITTED_CLOSING_SHIFT - Closing shift submitted successfully")
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 143: COMPLETED - Closing shift {closing_shift_name} submitted successfully")
-
-        # Return success response - avoid accessing document object
+        # Return success response
         return {
             "success": True,
             "message": _("POS Closing Shift submitted successfully"),
@@ -1244,10 +927,10 @@ def submit_closing_shift_v2(closing_shift):
         }
 
     except frappe.ValidationError as ve:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: SUBMIT_CLOSING_SHIFT_V2_VALIDATION_ERROR - Validation error: {str(ve)}")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: SUBMIT_CLOSING_SHIFT_V2_VALIDATION - Validation error: {str(ve)}")
         raise
     except Exception as e:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: SUBMIT_CLOSING_SHIFT_V2_ERROR - Unexpected error: {str(e)}")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: SUBMIT_CLOSING_SHIFT_V2_FAILED - Unexpected error: {str(e)}")
         frappe.log_error(f"Unexpected error in submit_closing_shift_v2: {str(e)}", "POS Closing Shift Submit Error V2")
 
         return {
