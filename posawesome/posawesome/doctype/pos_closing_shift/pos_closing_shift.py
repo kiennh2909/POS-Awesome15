@@ -625,6 +625,11 @@ def make_closing_shift_from_opening(opening_shift):
         closing_shift.net_total = 0
         closing_shift.total_quantity = 0
 
+        # Initialize JSON fields to prevent validation errors
+        closing_shift.expected_amounts = "{}"
+        closing_shift.actual_amounts = "{}"
+        closing_shift.difference_amounts = "{}"
+
         # Get invoices data
         log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 95: MAKE_CLOSING_SHIFT_GET_INVOICES - Getting {doctype} for opening shift {opening_shift_name}")
         invoices = get_pos_invoices(opening_shift_name, doctype)
@@ -638,16 +643,33 @@ def make_closing_shift_from_opening(opening_shift):
         # Process balance details from opening shift
         log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 97: MAKE_CLOSING_SHIFT_PROCESS_BALANCE - Processing balance details")
         balance_details = opening_shift_data.get("balance_details", [])
+
+        # Get payment reconciliation data from client if available (for proper closing_amount)
+        client_payment_reconciliation = opening_shift_data.get("payment_reconciliation", [])
+        client_payment_map = {p.get("mode_of_payment"): p for p in client_payment_reconciliation}
+
         for detail in balance_details:
+            mode = detail.get("mode_of_payment")
+            opening_amt = detail.get("amount") or 0
+
+            # Use client data if available, otherwise use opening amount as expected
+            client_data = client_payment_map.get(mode, {})
+            expected_amt = client_data.get("expected_amount", opening_amt)
+            closing_amt = client_data.get("closing_amount", expected_amt)  # Default to expected if no closing amount
+
             payments.append(
                 frappe._dict(
                     {
-                        "mode_of_payment": detail.get("mode_of_payment"),
-                        "opening_amount": detail.get("amount") or 0,
-                        "expected_amount": detail.get("amount") or 0,
+                        "mode_of_payment": mode,
+                        "opening_amount": opening_amt,
+                        "expected_amount": expected_amt,
+                        "closing_amount": closing_amt,  # Set proper closing amount
+                        "difference": client_data.get("difference", 0)
                     }
                 )
             )
+            log.info(f"[SHIFT_CLOSE_WORKFLOW] TRACING_CLOSING_AMOUNT - Setting in make_closing_shift: {mode} -> closing_amount={closing_amt}")
+
         log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 98: MAKE_CLOSING_SHIFT_BALANCE_PROCESSED - Processed {len(balance_details)} balance details")
 
         invoice_field = "pos_invoice" if doctype == "POS Invoice" else "sales_invoice"
