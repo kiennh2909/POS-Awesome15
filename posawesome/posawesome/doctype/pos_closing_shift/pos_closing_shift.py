@@ -584,6 +584,53 @@ def get_payments_entries(pos_opening_shift):
     )
 
 
+def validate_shift_can_be_closed(opening_shift_name):
+    """
+    Validate if a shift can be closed
+    Returns: dict with 'can_close' boolean and 'message' string
+    """
+    try:
+        # Check if opening shift exists and is open
+        if not frappe.db.exists("POS Opening Shift", opening_shift_name):
+            return {
+                "can_close": False,
+                "message": _("Opening shift not found")
+            }
+
+        opening_shift = frappe.get_doc("POS Opening Shift", opening_shift_name)
+        if opening_shift.status != "Open":
+            return {
+                "can_close": False,
+                "message": _("Opening shift is not open")
+            }
+
+        # Check if there's already a submitted closing shift for this opening shift
+        existing_closing = frappe.get_all("POS Closing Shift",
+            filters={
+                "pos_opening_shift": opening_shift_name,
+                "docstatus": 1
+            },
+            limit=1
+        )
+
+        if existing_closing:
+            return {
+                "can_close": False,
+                "message": _("Closing shift already exists for this opening shift")
+            }
+
+        return {
+            "can_close": True,
+            "message": _("Shift can be closed")
+        }
+
+    except Exception as e:
+        return {
+            "can_close": False,
+            "message": _("Error validating shift: {0}").format(str(e))
+        }
+
+
 @frappe.whitelist()
 def make_closing_shift_from_opening(opening_shift):
     log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 86: MAKE_CLOSING_SHIFT_START - Creating closing shift from opening shift data - User: {frappe.session.user}")
