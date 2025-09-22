@@ -19,11 +19,13 @@
 
 				<v-divider class="header-divider"></v-divider>
 
-				<v-card-text class="pa-0 white-background">
+				<v-card-text class="white-background">
 					<v-container class="pa-6">
 						<!-- Shift Information Section -->
 						<v-row class="mb-6">
 							<v-col cols="12">
+								<!-- Debug: Log when shift info section renders -->
+								{{ console.log('[CLOSING_DIALOG] Rendering shift info section with data:', dialog_data) }}
 								<v-card variant="outlined" class="shift-info-card pa-4">
 									<h5 class="text-h6 text-primary mb-4 d-flex align-center">
 										<v-icon class="me-2">mdi-information-outline</v-icon>
@@ -299,9 +301,11 @@ export default {
 	},
 
 	created: function () {
+		console.log("[CLOSING_DIALOG] Component created, waiting for open_ClosingDialog event");
 		this.eventBus.on("open_ClosingDialog", (data) => {
 			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - Received data:", data);
 			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - Data keys:", Object.keys(data || {}));
+			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - Data is empty?", !data || Object.keys(data).length === 0);
 			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - pos_opening_shift:", data?.pos_opening_shift);
 			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - shift_report:", data?.shift_report);
 			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - verification_status:", data?.verification_status);
@@ -310,6 +314,8 @@ export default {
 
 			this.closingDialog = true;
 			this.dialog_data = data;
+			console.log("[CLOSING_DIALOG] Dialog data set:", this.dialog_data);
+			console.log("[CLOSING_DIALOG] Dialog data keys after set:", Object.keys(this.dialog_data || {}));
 			this.initializeClosingAmounts();
 		});
 		this.eventBus.on("register_pos_profile", (data) => {
