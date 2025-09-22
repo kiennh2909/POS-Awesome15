@@ -1,6 +1,10 @@
 <template>
 	<div class="pos-main-container dynamic-container" :style="responsiveStyles">
-		<ClosingDialog></ClosingDialog>
+		<ClosingShiftNew
+			v-model="showClosingShiftDialog"
+			:shift-report-id="pos_shift_report || pos_opening_shift"
+			:pos-profile="pos_profile"
+		></ClosingShiftNew>
 		<Drafts></Drafts>
 		<SalesOrders></SalesOrders>
 		<Returns></Returns>
@@ -52,7 +56,7 @@ import PosOffers from "./PosOffers.vue";
 import PosCoupons from "./PosCoupons.vue";
 import Drafts from "./Drafts.vue";
 import SalesOrders from "./SalesOrders.vue";
-import ClosingDialog from "./ClosingDialog.vue";
+import ClosingShiftNew from "./ClosingShiftNew.vue";
 import NewAddress from "./NewAddress.vue";
 import Variants from "./Variants.vue";
 import Returns from "./Returns.vue";
@@ -86,6 +90,7 @@ export default {
 			offers: false,
 			coupons: false,
 			showListInvoicesDialog: false,
+			showClosingShiftDialog: false,
 			// Loading states
 			loading: false,
 			submitting_closing: false,
@@ -100,7 +105,7 @@ export default {
 		OpeningDialog,
 		Payments,
 		Drafts,
-		ClosingDialog,
+		ClosingShiftNew,
 
 		Returns,
 		PosOffers,
@@ -218,215 +223,6 @@ export default {
 		},
 		create_opening_voucher() {
 			this.dialog = true;
-		},
-		get_closing_data() {
-			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Get Closing Data Start
-			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_START - Opening shift: ${this.pos_opening_shift}, User: ${frappe.session.user}`);
-
-			// Validate opening shift exists
-			if (!this.pos_opening_shift) {
-				console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_ERROR - No active opening shift found`);
-				this.eventBus.emit("show_message", {
-					title: __("No active opening shift found"),
-					color: "error",
-				});
-				return;
-			}
-
-			// Set loading state
-			this.loading = true;
-
-			// Show loading message
-			this.eventBus.emit("show_message", {
-				title: __("Loading closing shift data..."),
-				color: "blue",
-			});
-
-			const startTime = Date.now();
-
-			return new Promise((resolve, reject) => {
-				frappe.call({
-					method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.make_closing_shift_from_opening",
-					args: {
-						opening_shift: this.pos_opening_shift,
-					},
-					callback: (r) => {
-						const processingTime = Date.now() - startTime;
-
-						if (r.message) {
-							console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_SUCCESS - Closing shift data loaded successfully - Processing time: ${processingTime}ms`);
-							this.eventBus.emit("open_ClosingDialog", r.message);
-							this.eventBus.emit("show_message", {
-								title: __("Closing shift data loaded"),
-								color: "success",
-							});
-							resolve(r);
-						} else {
-							console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_WARNING - No closing shift data received - Processing time: ${processingTime}ms`);
-							this.eventBus.emit("show_message", {
-								title: __("No closing shift data received"),
-								color: "warning",
-							});
-							resolve(r);
-						}
-					},
-					error: (error) => {
-						const processingTime = Date.now() - startTime;
-						const error_message = error.message || __("Failed to load closing shift data");
-
-						console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_GET_CLOSING_DATA_ERROR - Failed to load closing shift data - Processing time: ${processingTime}ms - Error:`, error);
-
-						this.eventBus.emit("show_message", {
-							title: error_message,
-							color: "error",
-						});
-						reject(error);
-					},
-					always: () => {
-						this.loading = false;
-					}
-				});
-			});
-		},
-		submit_closing_pos(data) {
-			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Submit Closing POS Start
-			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_START - Opening shift: ${data?.pos_opening_shift}, User: ${frappe.session.user}`);
-			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_DATA - Full data:`, data);
-			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_SHIFT_REPORT - Shift report: ${data?.shift_report}, Shift report ID: ${data?.shift_report_id}`);
-
-			// Validate input data
-			if (!data || !data.pos_opening_shift) {
-				console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_ERROR - Invalid closing shift data`);
-				this.eventBus.emit("show_message", {
-					title: __("Invalid closing shift data"),
-					color: "error",
-				});
-				return;
-			}
-
-			// Set loading state
-			this.submitting_closing = true;
-			this.last_error = null;
-
-			// Show loading message
-			this.eventBus.emit("show_message", {
-				title: __("Submitting closing shift..."),
-				color: "blue",
-			});
-
-			const startTime = Date.now();
-
-			frappe.call({
-				method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift_v2",
-				args: {
-					closing_shift: JSON.stringify(data),
-				},
-				callback: (r) => {
-					const processingTime = Date.now() - startTime;
-
-					if (r.message && r.message.success) {
-						console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_SUCCESS - POS Shift closed successfully - Processing time: ${processingTime}ms - Request ID: ${r.message.request_id}`);
-
-						// Success handling
-						this.last_error = null;
-
-						// Clear the cached opening shift data
-						this.pos_opening_shift = null;
-						this.pos_profile = null;
-						this.pos_shift_report = null;
-						this.shift_report_data = {};
-
-						// Clear from local storage
-						clearOpeningStorage();
-
-						this.eventBus.emit("show_message", {
-							title: __("POS Shift Closed Successfully"),
-							color: "success",
-						});
-
-						// Emit success event for UI refresh and cache clearing
-						this.eventBus.emit("shift_closed_success");
-
-						// Handle post-submit cleanup from backend response
-						console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP_START - Processing backend response data:`, r.message.data);
-
-						if (r.message.data) {
-							const responseData = r.message.data;
-							console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP_DATA - Response data keys:`, Object.keys(responseData));
-
-							// Check if backend requires logout
-							if (responseData.requires_logout) {
-								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - ✅ Backend requires logout: ${responseData.requires_logout}`);
-								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - 🔄 Starting browser cache clearing...`);
-
-								// Clear browser cache/storage
-								this.clearBrowserCache();
-
-								// Logout user after a short delay
-								setTimeout(() => {
-									console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - 🚪 Performing logout after 1.5s delay`);
-									this.performLogout();
-								}, 1500);
-							} else {
-								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - ❌ Backend does NOT require logout: ${responseData.requires_logout}`);
-							}
-
-							// Check if backend requires UI refresh
-							if (responseData.requires_ui_refresh) {
-								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - ✅ Backend requires UI refresh: ${responseData.requires_ui_refresh}`);
-
-								// Refresh page after logout delay
-								setTimeout(() => {
-									console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - 🔄 Refreshing page after 2s delay`);
-									window.location.reload();
-								}, 2000);
-							} else {
-								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP - ❌ Backend does NOT require UI refresh: ${responseData.requires_ui_refresh}`);
-							}
-
-							console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP_COMPLETED - Post-submit cleanup flags processed`);
-
-						} else {
-							console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP_NO_DATA - No response data received, using fallback`);
-							// Fallback: Reload opening entry after a short delay
-							setTimeout(() => {
-								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_POST_SUBMIT_CLEANUP_FALLBACK - Reloading opening entry after 1s delay`);
-								this.check_opening_entry();
-							}, 1000);
-						}
-
-					} else {
-						// Handle API error response
-						const error_message = r.message?.message || __("Failed to close POS shift");
-						this.last_error = error_message;
-
-						console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_ERROR - API returned unsuccessful response - Processing time: ${processingTime}ms - Error:`, r.message);
-
-						this.eventBus.emit("show_message", {
-							title: error_message,
-							color: "error",
-						});
-					}
-				},
-				error: (error) => {
-					const processingTime = Date.now() - startTime;
-
-					// Handle network/other errors
-					const error_message = error.message || __("Network error while closing shift");
-					this.last_error = error_message;
-
-					console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_CLOSING_POS_ERROR - Network error while closing shift - Processing time: ${processingTime}ms - Error:`, error);
-
-					this.eventBus.emit("show_message", {
-						title: error_message,
-						color: "error",
-					});
-				},
-				always: () => {
-					// Always clear loading state
-					this.submitting_closing = false;
-				}
-			});
 		},
 
 		clearBrowserCache() {
@@ -630,13 +426,25 @@ export default {
 				this.payment = false ? data === "true" : false;
 			});
 			this.eventBus.on("open_closing_dialog", () => {
-				this.get_closing_data();
-			});
-			this.eventBus.on("submit_closing_pos", (data) => {
-				this.submit_closing_pos(data);
+				this.showClosingShiftDialog = true;
 			});
 			this.eventBus.on("open_list_invoices", () => {
 				this.showListInvoicesDialog = true;
+			});
+			this.eventBus.on("shift_closed_success", () => {
+				// Clear the cached opening shift data
+				this.pos_opening_shift = null;
+				this.pos_profile = null;
+				this.pos_shift_report = null;
+				this.shift_report_data = {};
+
+				// Clear from local storage
+				clearOpeningStorage();
+
+				this.eventBus.emit("show_message", {
+					title: __("POS Shift Closed Successfully"),
+					color: "success",
+				});
 			});
 		});
 	},
@@ -648,8 +456,8 @@ export default {
 		this.eventBus.off("show_offers");
 		this.eventBus.off("show_coupons");
 		this.eventBus.off("open_closing_dialog");
-		this.eventBus.off("submit_closing_pos");
 		this.eventBus.off("open_list_invoices");
+		this.eventBus.off("shift_closed_success");
 	},
 	// In the created() or mounted() lifecycle hook
 	created() {
