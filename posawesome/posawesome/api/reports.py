@@ -767,7 +767,7 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 			"POS Closing Shift",
 			filters=shift_filters,
 			fields=[
-				"name", "user", "pos_profile", "company", "currency",
+				"name", "user", "pos_profile", "company",
 				"period_start_date", "period_start_time",
 				"period_end_date", "period_end_time",
 				"cash_to_deposit", "cash_counted",
@@ -888,6 +888,21 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 				names_map[u] = fn or u
 
 		for s in shifts:
+			# Get currency from pos_profile or fallback to company currency
+			shift_currency = "VND"  # Default fallback
+			if s.pos_profile:
+				profile_currency = frappe.db.get_value("POS Profile", s.pos_profile, "currency")
+				if profile_currency:
+					shift_currency = profile_currency
+				else:
+					log.warning(f"[SHIFT_LIST_REPORT] No currency found for POS Profile {s.pos_profile}, using default VND")
+			else:
+				company_currency = frappe.db.get_value("Company", s.company, "default_currency")
+				if company_currency:
+					shift_currency = company_currency
+				else:
+					log.warning(f"[SHIFT_LIST_REPORT] No currency found for Company {s.company}, using default VND")
+
 			row = {
 				"name": s.name,
 				"shift_id": s.name,
@@ -895,7 +910,7 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 				"user_fullname": names_map.get(s.user, s.user),
 				"date": s.period_end_date,  # hiển thị theo ngày kết sổ
 				"status": s.workflow_state or "Closed",
-				"currency": s.currency,
+				"currency": shift_currency,
 				"sale_invoice_count": 0, "return_invoice_count": 0,
 				"sale_amount": 0.0, "return_amount": 0.0, "net_amount": 0.0,
 				"cash_amount": 0.0, "bank_amount": 0.0, "qrpay_amount": 0.0, "card_amount": 0.0, "other_amount": 0.0,
