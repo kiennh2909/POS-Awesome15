@@ -153,11 +153,18 @@ class POSClosingShift(Document):
             frappe.clear_cache()
             log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 24: POST_SUBMIT_CLEANUP_CACHE_CLEARED - Cache cleared successfully")
 
-            # STEP 2: Logout user (invalidate session)
-            if hasattr(frappe, 'local') and hasattr(frappe.local, 'session'):
-                # Clear session data to force logout
-                frappe.local.session = None
-                log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 25: POST_SUBMIT_CLEANUP_SESSION_CLEARED - User session cleared (logout)")
+            # STEP 2: Schedule logout after response is sent (don't clear session immediately)
+            # frappe.enqueue will run after the current request completes
+            try:
+                frappe.enqueue(
+                    'posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.perform_user_logout',
+                    user=self.user,
+                    queue='short',
+                    timeout=30
+                )
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 25: POST_SUBMIT_CLEANUP_LOGOUT_SCHEDULED - User logout scheduled for: {self.user}")
+            except Exception as enqueue_error:
+                log.warning(f"[SHIFT_CLOSE_WORKFLOW] WARNING: POST_SUBMIT_CLEANUP_ENQUEUE_FAILED - Could not schedule logout: {str(enqueue_error)}")
 
             # STEP 3: Log completion
             log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 26: POST_SUBMIT_CLEANUP_COMPLETED - Post-submit cleanup completed successfully")
@@ -1018,7 +1025,8 @@ def submit_closing_shift_v2(closing_shift):
         closing_shift_doc.submit()
         log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 143: SUBMITTED_CLOSING_SHIFT - Closing shift submitted successfully")
 
-        # Return success response
+        # Return success response - avoid accessing document object after submit
+        # as post-submit cleanup may have modified it
         return {
             "success": True,
             "message": _("POS Closing Shift submitted successfully"),
@@ -1041,3 +1049,30 @@ def submit_closing_shift_v2(closing_shift):
             "success": False,
             "message": _("An unexpected error occurred while submitting closing shift: {0}").format(str(e))
         }
+
+
+@frappe.whitelist()
+def perform_user_logout(user):
+    """
+    Perform user logout after closing shift submission
+    This is called via frappe.enqueue to avoid interfering with the response
+    """
+    try:
+        log.info(f"[USER_LOGOUT] START - Performing logout for user: {user}")
+
+        # Only logout if this is the same user who submitted the closing shift
+        current_user = frappe.session.user
+        if current_user == user:
+            # Clear session data to force logout
+            if hasattr(frappe, 'local') and hasattr(frappe.local, 'session'):
+                frappe.local.session = None
+                log.info(f"[USER_LOGOUT] SUCCESS - User session cleared for: {user}")
+            else:
+                log.warning(f"[USER_LOGOUT] WARNING - Could not clear session for user: {user}")
+        else:
+            log.info(f"[USER_LOGOUT] SKIP - Current user {current_user} differs from target user {user}")
+
+        log.info(f"[USER_LOGOUT] COMPLETED - Logout process completed for user: {user}")
+
+    except Exception as e:
+        log.error(f"[USER_LOGOUT] ERROR - Failed to logout user {user}: {str(e)}")
