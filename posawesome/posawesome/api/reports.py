@@ -768,12 +768,11 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 			filters=shift_filters,
 			fields=[
 				"name", "user", "pos_profile", "company",
-				"period_start_date", "period_start_time",
-				"period_end_date", "period_end_time",
-				"cash_to_deposit", "cash_counted",
-				"workflow_state"
+				"period_start_date", "period_end_date",
+				"cash_to_deposit",
+				"verification_status"
 			],
-			order_by="period_end_date asc, period_end_time asc"
+			order_by="period_end_date asc"
 		)
 
 		log.info(f"[SHIFT_LIST_REPORT] Found {len(shifts)} shifts matching filters")
@@ -790,9 +789,11 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 		# --- 2) Build time windows per shift
 		shift_windows = {}
 		for s in shifts:
-			start_dt = frappe.utils.to_datetime(f"{s.period_start_date} {s.period_start_time or '00:00:00'}")
-			end_dt   = frappe.utils.to_datetime(f"{s.period_end_date} {s.period_end_time or '23:59:59'}")
+			# period_start_date and period_end_date are already datetime fields
+			start_dt = frappe.utils.to_datetime(s.period_start_date)
+			end_dt   = frappe.utils.to_datetime(s.period_end_date)
 			shift_windows[s.name] = (start_dt, end_dt)
+			log.debug(f"[SHIFT_LIST_REPORT] Shift {s.name}: window {start_dt} to {end_dt}")
 
 		# --- 3) Fetch all invoices in the overall range once
 		inv_filters = {
@@ -909,12 +910,12 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 				"user": s.user,
 				"user_fullname": names_map.get(s.user, s.user),
 				"date": s.period_end_date,  # hiển thị theo ngày kết sổ
-				"status": s.workflow_state or "Closed",
+				"status": s.verification_status or "Pending",
 				"currency": shift_currency,
 				"sale_invoice_count": 0, "return_invoice_count": 0,
 				"sale_amount": 0.0, "return_amount": 0.0, "net_amount": 0.0,
 				"cash_amount": 0.0, "bank_amount": 0.0, "qrpay_amount": 0.0, "card_amount": 0.0, "other_amount": 0.0,
-				"cash_submitted": float(s.cash_to_deposit or s.cash_counted or 0.0),
+				"cash_submitted": float(s.cash_to_deposit or 0.0),
 				"difference": 0.0,
 			}
 
