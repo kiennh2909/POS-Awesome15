@@ -5,7 +5,6 @@
 from __future__ import unicode_literals
 import frappe
 import json
-import time
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
@@ -563,24 +562,22 @@ def get_payments_entries(pos_opening_shift):
 
 @frappe.whitelist()
 def make_closing_shift_from_opening(opening_shift):
-    request_id = f"make_req_{int(time.time() * 1000)}_{frappe.session.user}"
-
-    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🏗️ MAKE_CLOSING_SHIFT_START - Request ID: {request_id} - Creating closing shift from opening shift data - User: {frappe.session.user}")
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🏗️ MAKE_CLOSING_SHIFT_START - Creating closing shift from opening shift data - User: {frappe.session.user}")
 
     try:
         opening_shift_data = json.loads(opening_shift)
         opening_shift_name = opening_shift_data.get("name")
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 MAKE_CLOSING_SHIFT_DATA - Request ID: {request_id} - Opening shift: {opening_shift_name}, User: {opening_shift_data.get('user')}")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 MAKE_CLOSING_SHIFT_DATA - Opening shift: {opening_shift_name}, User: {opening_shift_data.get('user')}")
 
         # VALIDATION: Check if shift can be closed
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 MAKE_CLOSING_SHIFT_VALIDATION - Request ID: {request_id} - Checking if shift can be closed")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🔍 MAKE_CLOSING_SHIFT_VALIDATION - Checking if shift can be closed")
         validation_result = validate_shift_can_be_closed(opening_shift_name)
 
         if not validation_result.get("can_close"):
-            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ MAKE_CLOSING_SHIFT_BLOCKED - Request ID: {request_id} - Validation failed: {validation_result.get('message')}")
+            log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ MAKE_CLOSING_SHIFT_BLOCKED - Validation failed: {validation_result.get('message')}")
             frappe.throw(validation_result.get("message"))
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_VALIDATION_PASSED - Request ID: {request_id} - Validation passed")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_VALIDATION_PASSED - Validation passed")
 
         # Default to Sales Invoice (POS Invoice logic removed)
         doctype = "Sales Invoice"
@@ -595,7 +592,10 @@ def make_closing_shift_from_opening(opening_shift):
         closing_shift = frappe.new_doc("POS Closing Shift")
         closing_shift.pos_opening_shift = opening_shift_name
         closing_shift.period_start_date = opening_shift_data.get("period_start_date")
+        closing_shift.period_start_time = opening_shift_data.get("period_start_time")
         closing_shift.period_end_date = frappe.utils.get_datetime()
+
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] MAKE_CLOSING_SHIFT_DATA - period_start_date: {closing_shift.period_start_date}, period_start_time: {closing_shift.period_start_time}")
         closing_shift.pos_profile = opening_shift_data.get("pos_profile")
         closing_shift.user = opening_shift_data.get("user")
         closing_shift.company = opening_shift_data.get("company")
@@ -749,47 +749,45 @@ def make_closing_shift_from_opening(opening_shift):
         closing_shift.set("taxes", taxes)
         closing_shift.set("pos_payments", pos_payments_table)
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_COMPLETED - Request ID: {request_id} - Closing shift created successfully. Transactions: {len(pos_transactions)}, Payments: {len(payments)}")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ MAKE_CLOSING_SHIFT_COMPLETED - Closing shift created successfully. Transactions: {len(pos_transactions)}, Payments: {len(payments)}")
         return closing_shift
 
     except Exception as e:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ MAKE_CLOSING_SHIFT_ERROR - Request ID: {request_id} - Failed: {str(e)}")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ MAKE_CLOSING_SHIFT_ERROR - Failed: {str(e)}")
         raise
 
 
 @frappe.whitelist()
 def submit_closing_shift(closing_shift):
-    request_id = f"req_{int(time.time() * 1000)}_{frappe.session.user}"
-
-    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚀 SUBMIT_CLOSING_SHIFT_START - Request ID: {request_id} - Starting closing shift submission - User: {frappe.session.user}")
+    log.info(f"[SHIFT_CLOSE_WORKFLOW] 🚀 SUBMIT_CLOSING_SHIFT_START - Starting closing shift submission - User: {frappe.session.user}")
 
     try:
         # Parse input data
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_PARSE - Request ID: {request_id} - Parsing closing shift JSON data")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_PARSE - Parsing closing shift JSON data")
         closing_shift_data = json.loads(closing_shift)
 
         closing_shift_name = closing_shift_data.get("name")
         opening_shift = closing_shift_data.get("pos_opening_shift")
         user = closing_shift_data.get("user")
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_DATA - Request ID: {request_id} - Closing shift: {closing_shift_name}, Opening shift: {opening_shift}, User: {user}")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📋 SUBMIT_CLOSING_SHIFT_DATA - Closing shift: {closing_shift_name}, Opening shift: {opening_shift}, User: {user}")
 
         # Get closing shift document
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 SUBMIT_CLOSING_SHIFT_LOAD_DOC - Request ID: {request_id} - Loading closing shift document {closing_shift_name}")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 📝 SUBMIT_CLOSING_SHIFT_LOAD_DOC - Loading closing shift document {closing_shift_name}")
         closing_shift_doc = frappe.get_doc(closing_shift_data)
         closing_shift_doc.flags.ignore_permissions = True
 
         # Save the document (this will trigger validation and on_submit)
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 💾 SUBMIT_CLOSING_SHIFT_SAVE - Request ID: {request_id} - Saving closing shift document (triggers validation & on_submit)")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 💾 SUBMIT_CLOSING_SHIFT_SAVE - Saving closing shift document (triggers validation & on_submit)")
         closing_shift_doc.save()
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_SAVE_COMPLETED - Request ID: {request_id} - Document saved")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_SAVE_COMPLETED - Document saved")
 
         # Submit the document
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_SUBMIT - Request ID: {request_id} - Submitting closing shift document")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] ✅ SUBMIT_CLOSING_SHIFT_SUBMIT - Submitting closing shift document")
         closing_shift_doc.submit()
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎉 SUBMIT_CLOSING_SHIFT_SUBMIT_COMPLETED - Request ID: {request_id} - Document submitted")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎉 SUBMIT_CLOSING_SHIFT_SUBMIT_COMPLETED - Document submitted")
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎉 SUBMIT_CLOSING_SHIFT_COMPLETED - Request ID: {request_id} - Closing shift {closing_shift_doc.name} submitted successfully")
+        log.info(f"[SHIFT_CLOSE_WORKFLOW] 🎉 SUBMIT_CLOSING_SHIFT_COMPLETED - Closing shift {closing_shift_doc.name} submitted successfully")
 
         # Return success response with logout and refresh signals
         return {
@@ -805,16 +803,15 @@ def submit_closing_shift(closing_shift):
         }
 
     except frappe.ValidationError as ve:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT_VALIDATION_ERROR - Request ID: {request_id} - Validation error: {str(ve)}")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT_VALIDATION_ERROR - Validation error: {str(ve)}")
         raise
     except Exception as e:
-        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT_ERROR - Request ID: {request_id} - Unexpected error: {str(e)}")
+        log.error(f"[SHIFT_CLOSE_WORKFLOW] ❌ SUBMIT_CLOSING_SHIFT_ERROR - Unexpected error: {str(e)}")
         frappe.log_error(f"Unexpected error in submit_closing_shift: {str(e)}", "POS Closing Shift Submit Error")
 
         return {
             "success": False,
-            "message": _("An unexpected error occurred while submitting closing shift: {0}").format(str(e)),
-            "request_id": request_id
+            "message": _("An unexpected error occurred while submitting closing shift: {0}").format(str(e))
         }
 
 

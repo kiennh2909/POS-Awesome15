@@ -285,6 +285,14 @@ export default {
 
 	created: function () {
 		this.eventBus.on("open_ClosingDialog", (data) => {
+			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - Received data:", data);
+			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - Data keys:", Object.keys(data || {}));
+			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - pos_opening_shift:", data?.pos_opening_shift);
+			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - shift_report:", data?.shift_report);
+			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - verification_status:", data?.verification_status);
+			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - period_start_date:", data?.period_start_date);
+			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - period_start_time:", data?.period_start_time);
+
 			this.closingDialog = true;
 			this.dialog_data = data;
 			this.initializeClosingAmounts();

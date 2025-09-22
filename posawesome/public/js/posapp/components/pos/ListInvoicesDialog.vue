@@ -1460,6 +1460,21 @@ export default {
 			return icons[status] || 'mdi-help-circle';
 		},
 
+		getVerificationStatusText(status) {
+			// Handle case where status might be an object or undefined
+			if (typeof status === 'object' && status !== null) {
+				// If status is an object, try to extract the status value
+				status = status.verification_status || status.status || 'Pending';
+			}
+
+			const statusTexts = {
+				'Pending': 'Chưa xác minh',
+				'Verified': 'Đã xác minh',
+				'Confirmed': 'Đã xác nhận'
+			};
+			return statusTexts[status] || status || 'Chưa xác minh';
+		},
+
 		async verifyShiftReport() {
 			if (this.isVerifiedOrConfirmed) {
 				return;
