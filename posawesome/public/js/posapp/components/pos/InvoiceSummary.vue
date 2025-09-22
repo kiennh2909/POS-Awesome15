@@ -204,6 +204,20 @@
 							{{ __("CANCEL") }}
 						</v-btn>
 					</v-col>
+					<v-col cols="3" class="button-col pa-1">
+						<v-btn
+							block
+							color="info"
+							theme="dark"
+							size="small"
+							prepend-icon="mdi-view-list"
+							@click="$emit('list-shifts')"
+							class="summary-btn list-shifts-btn"
+							title="Ctrl+<u>S</u> - List Shifts"
+						>
+							{{ __("LIST SHIFTS") }}
+						</v-btn>
+					</v-col>
 					<v-col cols="3" class="button-col pa-1" v-if="false">
 						<v-btn
 							block
@@ -390,6 +404,7 @@ export default {
 		"show-payment",
 		"add-customer",
 		"list-invoices",
+		"list-shifts",
 	],
 	computed: {
 		isDarkTheme() {
@@ -684,6 +699,16 @@ export default {
 
 /* LIST INVOICES button */
 .list-invoices-btn {
+	min-height: 60px !important;
+	font-size: 1.1rem !important;
+	font-weight: 600 !important;
+	margin: 1px;
+	border-radius: 6px;
+	padding: 6px 8px !important;
+}
+
+/* LIST SHIFTS button */
+.list-shifts-btn {
 	min-height: 60px !important;
 	font-size: 1.1rem !important;
 	font-weight: 600 !important;

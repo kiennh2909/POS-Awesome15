@@ -17,6 +17,10 @@
 			:shift-report-id="pos_shift_report || pos_opening_shift"
 			:pos-profile="pos_profile"
 		></ListInvoicesDialog>
+		<ListShiftsDialog
+			v-model="showListShiftsDialog"
+			:pos-profile="pos_profile"
+		></ListShiftsDialog>
 		<OpeningDialog v-if="dialog" :dialog="dialog"></OpeningDialog>
 		<v-row v-show="!dialog" dense class="ma-0 dynamic-main-row">
 			<v-col
@@ -63,6 +67,7 @@ import Returns from "./Returns.vue";
 import MpesaPayments from "./Mpesa-Payments.vue";
 import TaxRollDialog from "./TaxRollDialog.vue";
 import ListInvoicesDialog from "./ListInvoicesDialog.vue";
+import ListShiftsDialog from "./ListShiftsDialog.vue";
 import {
 	getCachedOffers,
 	saveOffers,
@@ -90,6 +95,7 @@ export default {
 			offers: false,
 			coupons: false,
 			showListInvoicesDialog: false,
+			showListShiftsDialog: false,
 			showClosingShiftDialog: false,
 			// Loading states
 			loading: false,
@@ -116,6 +122,7 @@ export default {
 		SalesOrders,
 		TaxRollDialog,
 		ListInvoicesDialog,
+		ListShiftsDialog,
 	},
 
 	methods: {
@@ -431,6 +438,9 @@ export default {
 			this.eventBus.on("open_list_invoices", () => {
 				this.showListInvoicesDialog = true;
 			});
+			this.eventBus.on("open_list_shifts", () => {
+				this.showListShiftsDialog = true;
+			});
 			this.eventBus.on("shift_closed_success", () => {
 				// Clear the cached opening shift data
 				this.pos_opening_shift = null;
@@ -457,6 +467,7 @@ export default {
 		this.eventBus.off("show_coupons");
 		this.eventBus.off("open_closing_dialog");
 		this.eventBus.off("open_list_invoices");
+		this.eventBus.off("open_list_shifts");
 		this.eventBus.off("shift_closed_success");
 	},
 	// In the created() or mounted() lifecycle hook

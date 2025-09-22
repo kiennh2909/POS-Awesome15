@@ -421,6 +421,167 @@ def populate_shift_report_invoices(shift_report_name):
 		}
 
 @frappe.whitelist()
+def get_shift_list(date=None, pos_profile=None, user_role=None, user=None, limit_page_length=50, limit_start=0):
+	"""
+	Get list of POS Shift Reports filtered by date, POS profile, and user permissions
+
+	Args:
+		date (str): Date filter (YYYY-MM-DD)
+		pos_profile (str): POS Profile name
+		user_role (str): User role ('Sales Person' or 'Sales Manager')
+		user (str): User email (for Sales Person filtering)
+		limit_page_length (int): Number of records per page
+		limit_start (int): Starting record index
+
+	Returns:
+		dict: List of shift reports with summary data
+	"""
+	try:
+		log.info(f"[GET_SHIFT_LIST] 🚀 START - Date: {date}, POS Profile: {pos_profile}, User Role: {user_role}, User: {user}")
+
+		# Build filters
+		filters = {"docstatus": ["!=", 2]}  # Exclude cancelled
+
+		# Date filter
+		if date:
+			filters["opening_date"] = date
+
+		# POS Profile filter - get from opening shift
+		if pos_profile:
+			# Find opening shifts for this POS profile
+			opening_shifts = frappe.get_all("POS Opening Shift",
+				filters={"pos_profile": pos_profile, "docstatus": 1},
+				fields=["name"]
+			)
+			if opening_shifts:
+				pos_opening_shift_names = [shift.name for shift in opening_shifts]
+				filters["pos_opening_shift"] = ["in", pos_opening_shift_names]
+			else:
+				# No opening shifts found for this POS profile
+				return {
+					"success": True,
+					"data": [],
+					"message": "No shifts found for the selected POS profile"
+				}
+
+		# User permission filter
+		if user_role == "Sales Person" and user:
+			# For Sales Person, only show their own shifts
+			opening_shifts_user = frappe.get_all("POS Opening Shift",
+				filters={"user": user, "docstatus": 1},
+				fields=["name"]
+			)
+			if opening_shifts_user:
+				user_opening_shift_names = [shift.name for shift in opening_shifts_user]
+				if "pos_opening_shift" in filters:
+					# Intersect with existing POS profile filter
+					filters["pos_opening_shift"] = ["in", list(set(pos_opening_shift_names) & set(user_opening_shift_names))]
+				else:
+					filters["pos_opening_shift"] = ["in", user_opening_shift_names]
+			else:
+				# No opening shifts found for this user
+				return {
+					"success": True,
+					"data": [],
+					"message": "No shifts found for the current user"
+				}
+		# For Sales Manager, no additional user filter needed (already filtered by POS profile)
+
+		log.info(f"[GET_SHIFT_LIST] 🔍 Final filters: {filters}")
+
+		# Get shift reports with required fields
+		shift_reports = frappe.get_all(
+			"POS Shift Report",
+			filters=filters,
+			fields=[
+				"name", "shift_report_id", "pos_opening_shift",
+				"opening_date", "opening_time", "opened_by",
+				"closing_date", "closing_time", "closed_by",
+				"status", "verification_status", "invoice_count",
+				"total_sales", "total_returns", "total_opening_amount",
+				"total_expected_closing", "total_actual_closing", "difference"
+			],
+			order_by="opening_date desc, opening_time desc",
+			limit_page_length=limit_page_length,
+			limit_start=limit_start
+		)
+
+		log.info(f"[GET_SHIFT_LIST] 📊 Found {len(shift_reports)} shift reports")
+
+		# Enrich data with additional information
+		enriched_shifts = []
+		for shift in shift_reports:
+			try:
+				# Get user full name
+				user_fullname = ""
+				if shift.opened_by:
+					user_fullname = frappe.db.get_value("User", shift.opened_by, "full_name") or ""
+
+				# Prepare enriched shift data using schema fields directly
+				enriched_shift = {
+					"name": shift.name,
+					"shift_id": shift.shift_report_id,
+					"opening_date": shift.opening_date,
+					"opening_time": shift.opening_time,
+					"user": shift.opened_by,
+					"user_fullname": user_fullname,
+					"total_invoices": shift.invoice_count or 0,
+					"total_sales": shift.total_sales or 0,
+					"total_returns": shift.total_returns or 0,
+					"total_opening": shift.total_opening_amount or 0,  # Use schema field directly
+					"expected_closing_amount": shift.total_expected_closing or 0,
+					"actual_closing_amount": shift.total_actual_closing or 0,
+					"closing_date": shift.closing_date,
+					"closing_time": shift.closing_time,
+					"status": shift.status or "Open",
+					"verification_status": shift.verification_status or "Pending"
+				}
+
+				enriched_shifts.append(enriched_shift)
+
+			except Exception as e:
+				log.error(f"[GET_SHIFT_LIST] Error enriching shift {shift.name}: {str(e)}")
+				# Still include basic data even if enrichment fails
+				enriched_shifts.append({
+					"name": shift.name,
+					"shift_id": shift.shift_report_id,
+					"opening_date": shift.opening_date,
+					"opening_time": shift.opening_time,
+					"user": shift.opened_by,
+					"user_fullname": "",
+					"total_invoices": shift.invoice_count or 0,
+					"total_sales": shift.total_sales or 0,
+					"total_returns": shift.total_returns or 0,
+					"total_opening": shift.total_opening_amount or 0,  # Use schema field directly
+					"expected_closing_amount": shift.total_expected_closing or 0,
+					"actual_closing_amount": shift.total_actual_closing or 0,
+					"closing_date": shift.closing_date,
+					"closing_time": shift.closing_time,
+					"status": shift.status or "Open",
+					"verification_status": shift.verification_status or "Pending"
+				})
+
+		# Get total count for pagination
+		total_count = frappe.db.count("POS Shift Report", filters=filters)
+
+		log.info(f"[GET_SHIFT_LIST] 🎉 COMPLETED - Returned {len(enriched_shifts)} enriched shifts")
+
+		return {
+			"success": True,
+			"data": enriched_shifts,
+			"total_count": total_count,
+			"message": f"Successfully retrieved {len(enriched_shifts)} shifts"
+		}
+
+	except Exception as e:
+		log.error(f"[GET_SHIFT_LIST] 💥 FAILED - Error: {str(e)}")
+		frappe.log_error(str(e), "Get Shift List Error")
+		return {
+			"success": False,
+			"message": _("Error getting shift list: {0}").format(str(e))
+		}
+
+@frappe.whitelist()
 def migrate_pos_opening_shift_references():
 	"""
 	Migrate existing POS Opening Shift records to include shift_report references

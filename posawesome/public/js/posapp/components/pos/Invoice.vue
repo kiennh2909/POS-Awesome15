@@ -234,6 +234,7 @@
 			@print-draft="print_draft_invoice"
 			@show-payment="show_payment"
 			@list-invoices="handleListInvoices"
+			@list-shifts="handleListShifts"
 		>
 			<!-- Add Print and Tax Print Buttons here -->
 			<template #actions>
@@ -1126,6 +1127,11 @@ export default {
 		handleListInvoices() {
 			// Emit event to open list invoices dialog
 			this.eventBus.emit("open_list_invoices");
+		},
+
+		handleListShifts() {
+			// Emit event to open list shifts dialog
+			this.eventBus.emit("open_list_shifts");
 		},
 
 		// Update shift verification status
