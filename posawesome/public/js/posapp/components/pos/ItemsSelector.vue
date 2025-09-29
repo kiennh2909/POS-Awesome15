@@ -1580,7 +1580,7 @@ export default {
 				this.processScannedItem(scannedCode);
 			});
 		},
-		processScannedItem(scannedCode) {
+		async processScannedItem(scannedCode) {
 			try {
 				// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
 				let normalizedCode = scannedCode.trim().replace(/[-\s]/g, '');
