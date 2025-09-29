@@ -458,6 +458,12 @@ export default {
 		processing_scan: false,
 		// Prevent multiple simultaneous search processing
 		processing_search: false,
+		// Queue for sequential search processing
+		search_queue: [],
+		// Current search operation ID
+		current_search_id: 0,
+		// Abort controller for current search
+		current_search_controller: null,
 	}),
 
 	watch: {
@@ -542,8 +548,8 @@ export default {
 		},
 		// Automatically search and add item whenever the query changes
 		first_search: _.debounce(function (val) {
-			// Call without arguments so search_onchange treats it like an Enter key
-			this.search_onchange();
+			// Use queue system to eliminate race conditions
+			this.queueSearch(val, this.search_from_scanner);
 		}, 300), // Increased debounce time to match search debounce
 
 		// Refresh item prices whenever the user changes currency
@@ -847,8 +853,15 @@ export default {
 						pos_profile: JSON.stringify(this.pos_profile),
 						price_list: this.active_price_list,
 						customer: this.customer
-					}
+					},
+					// Support for abort controller if available
+					signal: this.current_search_controller ? this.current_search_controller.signal : undefined
 				});
+
+				// Check if search was cancelled after API call
+				if (this.current_search_controller && this.current_search_controller.signal.aborted) {
+					throw new Error('Search cancelled');
+				}
 
 				if (response.message) {
 					const item = response.message;
@@ -860,6 +873,11 @@ export default {
 						item.uom = barcodeData.posa_uom;
 					}
 
+					// Check cancellation before adding item
+					if (this.current_search_controller && this.current_search_controller.signal.aborted) {
+						throw new Error('Search cancelled');
+					}
+
 					// Add item to invoice
 					await this.add_item(item);
 
@@ -869,13 +887,8 @@ export default {
 						indicator: 'green'
 					}, 3);
 
-					// Clear search and refocus
-					this.clearSearch();
-					setTimeout(() => {
-						if (this.$refs.debounce_search) {
-							this.$refs.debounce_search.focus();
-						}
-					}, 150);
+					// Clear search state
+					this.clearSearchState();
 
 					return true; // Match found and added
 				} else {
@@ -883,6 +896,9 @@ export default {
 					return false; // No match found
 				}
 			} catch (error) {
+				if (error.name === 'AbortError' || error.message === 'Search cancelled') {
+					throw error; // Re-throw cancellation errors
+				}
 				console.error('[ItemsSelector] Error fetching exact barcode:', error);
 				// Don't show error alert here - let caller handle
 				return false;
@@ -1464,114 +1480,9 @@ export default {
 		search_onchange: _.debounce(async function (newSearchTerm) {
 			const vm = this;
 
-			// Prevent multiple concurrent search processing
-			if (vm.processing_search) {
-				console.info('[ItemsSelector] Search already in progress, skipping...');
-				return;
-			}
-
-			// Determine the actual query string and trim whitespace
+			// Use queue system to eliminate race conditions completely
 			const query = typeof newSearchTerm === "string" ? newSearchTerm : vm.first_search;
-
-			vm.search = (query || "").trim();
-
-			if (!vm.search) {
-				vm.search_from_scanner = false;
-				return;
-			}
-
-			const fromScanner = vm.search_from_scanner;
-
-			// Set processing flag to prevent concurrent searches
-			vm.processing_search = true;
-
-			try {
-				// ƯU TIÊN: Nếu search term là barcode hợp lệ, thử exact match trước
-				if (vm.search && vm.isValidBarcode(vm.search)) {
-					console.info('[ItemsSelector] 🔍 Search term is valid barcode, trying exact match first:', vm.search);
-
-					// Thử tìm exact match trong local items trước
-					let exactItem = vm.items.find((item) =>
-						item.item_barcode && item.item_barcode.some((bc) => bc.barcode === vm.search)
-					);
-
-					if (exactItem) {
-						console.info('[ItemsSelector] ✅ Found exact barcode match in local items:', exactItem.item_code);
-
-						// Highlight item ngay lập tức để tối ưu trải nghiệm
-						setTimeout(() => {
-							console.log('[ItemsSelector] 🎯 Highlighting exact match from search:', exactItem.item_code);
-							vm.eventBus.emit("highlight_invoice_item", {
-								itemRowId: exactItem.item_code,
-								scanMode: vm.scan_add_mode,
-								duration: 1000, // 1 second highlight
-								enlargeFont: true
-							});
-							vm.eventBus.emit("highlight_scanned_item", exactItem.item_code);
-							console.log('[ItemsSelector] ✅ Highlight event emitted for exact match');
-						}, 100);
-
-						// Set UOM theo posa_uom của barcode
-						let barcodeData = exactItem.item_barcode.find((bc) => bc.barcode === vm.search);
-						if (barcodeData && barcodeData.posa_uom) {
-							exactItem.uom = barcodeData.posa_uom;
-						}
-
-						// Add item and clear search state for consistent UX
-						await vm.add_item(exactItem);
-						vm.clearSearchState();
-
-						return; // Đã xử lý xong
-					}
-
-					// Nếu không tìm thấy trong local, thử exact API
-					vm.fetchExactBarcodeAndAdd(vm.search).then((exactMatch) => {
-						if (exactMatch) {
-							console.info('[ItemsSelector] ✅ Exact barcode API found and added item from search');
-							return; // Đã xử lý xong, không cần tìm tiếp
-						}
-						console.info('[ItemsSelector] ❌ Exact barcode API not found, continuing with normal search');
-						// Tiếp tục với logic search bình thường - chỉ khi không có exact match
-						vm.continueWithNormalSearch(fromScanner);
-					}).catch((error) => {
-						console.error('[ItemsSelector] Error in exact barcode API from search:', error);
-						// Fallback to normal search nếu API lỗi
-						vm.continueWithNormalSearch(fromScanner);
-					});
-					return; // Dừng xử lý để chờ API response
-				}
-
-				// Nếu không phải barcode, thực hiện search bình thường
-				if (vm.pos_profile.pose_use_limit_search) {
-					// Only trigger search when query length meets minimum threshold
-					if (vm.search && vm.search.length >= 3) {
-						vm.get_items();
-					}
-				} else {
-					// Save the current filtered items before search to maintain quantity data
-					const current_items = [...vm.filtered_items];
-					if (vm.search && vm.search.length >= 3) {
-						vm.enter_event();
-					}
-
-					// After search, update quantities for newly filtered items
-					if (vm.filtered_items && vm.filtered_items.length > 0) {
-						setTimeout(() => {
-							vm.update_items_details(vm.filtered_items);
-						}, 300);
-					}
-				}
-
-				// Clear the input only when triggered via scanner
-				if (fromScanner) {
-					vm.clearSearchState();
-				}
-			} finally {
-				// Always clear processing flag
-				setTimeout(() => {
-					vm.processing_search = false;
-				}, 100);
-			}
+			vm.queueSearch(query, vm.search_from_scanner);
 		}, 300),
 		
 		get_item_qty(first_search) {
@@ -1882,27 +1793,9 @@ export default {
 			}
 		},
 		trigger_onscan(sCode) {
-			// indicate this search came from a scanner
+			// Use queue system for scanner input to eliminate race conditions
 			this.search_from_scanner = true;
-			// apply scanned code as search term
-			this.first_search = sCode;
-			this.search = sCode;
-
-			this.$nextTick(() => {
-				if (this.filtered_items.length == 0) {
-					this.eventBus.emit("show_message", {
-						title: `No Item has this barcode "${sCode}"`,
-						color: "error",
-					});
-					frappe.utils.play_sound("error");
-				} else {
-					this.enter_event();
-				}
-
-				// clear search field for next scan and refocus input
-				this.clearSearch();
-				this.$refs.debounce_search && this.$refs.debounce_search.focus();
-			});
+			this.queueSearch(sCode, true);
 		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
@@ -1948,6 +1841,154 @@ export default {
 			}, 150);
 		},
 
+		// Queue-based search processing to eliminate race conditions
+		queueSearch(searchTerm, fromScanner = false) {
+			const searchId = ++this.current_search_id;
+
+			// Cancel any ongoing search
+			this.cancelCurrentSearch();
+
+			// Add to queue (but since we cancel previous, queue will only have latest)
+			this.search_queue = [{ searchTerm, fromScanner, searchId }];
+
+			// Process immediately if not currently processing
+			if (!this.processing_search) {
+				this.processSearchQueue();
+			}
+		},
+
+		// Process search queue sequentially
+		async processSearchQueue() {
+			if (this.search_queue.length === 0 || this.processing_search) {
+				return;
+			}
+
+			const { searchTerm, fromScanner, searchId } = this.search_queue.shift();
+			this.processing_search = true;
+
+			try {
+				// Create new abort controller for this search
+				this.current_search_controller = new AbortController();
+				this.current_search_id = searchId;
+
+				await this.executeSearch(searchTerm, fromScanner, searchId);
+			} catch (error) {
+				if (error.name !== 'AbortError') {
+					console.error('[ItemsSelector] Search error:', error);
+				}
+			} finally {
+				this.processing_search = false;
+				this.current_search_controller = null;
+
+				// Process next item in queue if any
+				if (this.search_queue.length > 0) {
+					setTimeout(() => this.processSearchQueue(), 50);
+				}
+			}
+		},
+
+		// Cancel current search operation
+		cancelCurrentSearch() {
+			if (this.current_search_controller) {
+				this.current_search_controller.abort();
+				this.current_search_controller = null;
+			}
+			this.processing_search = false;
+		},
+
+		// Execute the actual search logic
+		async executeSearch(searchTerm, fromScanner, searchId) {
+			// Check if this search was cancelled
+			if (this.current_search_id !== searchId) {
+				throw new Error('Search cancelled');
+			}
+
+			const query = (searchTerm || "").trim();
+
+			if (!query) {
+				this.search_from_scanner = false;
+				return;
+			}
+
+			this.search = query;
+
+			// Check cancellation again
+			if (this.current_search_id !== searchId) {
+				throw new Error('Search cancelled');
+			}
+
+			// Priority: If search term is valid barcode, try exact match first
+			if (this.isValidBarcode(query)) {
+				console.info(`[ItemsSelector] 🔍 Processing barcode search: ${query} (ID: ${searchId})`);
+
+				// Try local exact match first
+				const exactItem = this.items.find((item) =>
+					item.item_barcode && item.item_barcode.some((bc) => bc.barcode === query)
+				);
+
+				if (exactItem) {
+					console.info(`[ItemsSelector] ✅ Found exact barcode match: ${exactItem.item_code}`);
+
+					// Set UOM from barcode data
+					const barcodeData = exactItem.item_barcode.find((bc) => bc.barcode === query);
+					if (barcodeData && barcodeData.posa_uom) {
+						exactItem.uom = barcodeData.posa_uom;
+					}
+
+					// Check cancellation before adding item
+					if (this.current_search_id !== searchId) {
+						throw new Error('Search cancelled');
+					}
+
+					await this.add_item(exactItem);
+					this.clearSearchState();
+					return;
+				}
+
+				// Try API exact match
+				try {
+					const exactMatch = await this.fetchExactBarcodeAndAdd(query);
+					if (exactMatch) {
+						console.info(`[ItemsSelector] ✅ Exact barcode API match found`);
+						return;
+					}
+				} catch (apiError) {
+					if (apiError.name === 'AbortError') {
+						throw apiError; // Re-throw abort errors
+					}
+					console.warn(`[ItemsSelector] API search failed:`, apiError);
+				}
+
+				// Fallback to normal search if no exact match
+				console.info(`[ItemsSelector] ❌ No exact match, falling back to normal search`);
+			}
+
+			// Normal search logic
+			if (this.pos_profile.pose_use_limit_search) {
+				if (query.length >= 3) {
+					this.get_items();
+				}
+			} else {
+				if (query.length >= 3) {
+					this.enter_event();
+				}
+
+				// Update item details after search
+				if (this.filtered_items && this.filtered_items.length > 0) {
+					setTimeout(() => {
+						if (this.current_search_id === searchId) { // Check if still valid
+							this.update_items_details(this.filtered_items);
+						}
+					}, 300);
+				}
+			}
+
+			// Clear search state for scanner inputs
+			if (fromScanner) {
+				this.clearSearchState();
+			}
+		},
+
 		restoreSearch() {
 			if (this.first_search === "") {
 				this.first_search = this.search_backup;
@@ -1974,22 +2015,9 @@ export default {
 		onBarcodeScanned(scannedCode) {
 			console.info("Barcode scanned:", scannedCode);
 
-			// Prevent multiple simultaneous scans
-			if (this.processing_scan) {
-				return;
-			}
-			this.processing_scan = true;
-
-			// mark this search as coming from a scanner
+			// Use queue system for camera scanner to eliminate race conditions
 			this.search_from_scanner = true;
-
-			// Clear any previous search
-			this.search = "";
-			this.first_search = "";
-
-			// Set the scanned code as search term
-			this.first_search = scannedCode;
-			this.search = scannedCode;
+			this.queueSearch(scannedCode, true);
 
 			// Show scanning feedback
 			frappe.show_alert(
@@ -1999,11 +2027,6 @@ export default {
 				},
 				2,
 			);
-
-			// Process the scanned item immediately without timeout
-			this.$nextTick(() => {
-				this.processScannedItem(scannedCode);
-			});
 		},
 		processScannedItem(scannedCode) {
 			try {
@@ -2639,6 +2662,12 @@ export default {
 	},
 
 	beforeUnmount() {
+		// Cancel any ongoing search operations
+		this.cancelCurrentSearch();
+
+		// Clear search queue
+		this.search_queue = [];
+
 		// Clear interval when component is destroyed
 		if (this.refresh_interval) {
 			clearInterval(this.refresh_interval);
