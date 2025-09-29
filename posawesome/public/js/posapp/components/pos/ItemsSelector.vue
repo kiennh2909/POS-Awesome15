@@ -1404,7 +1404,14 @@ export default {
 				return;
 			}
 
-			// Always get qty from get_item_qty() method, don't use this.qty
+			// If multiple items match, show selection dialog instead of auto-adding
+			if (this.filtered_items.length > 1) {
+				console.info('[ItemsSelector] Multiple items found, showing selection dialog');
+				this.showMultipleItemsDialog(this.filtered_items, this.first_search);
+				return;
+			}
+
+			// Single item match - proceed with adding
 			const qty = this.get_item_qty(this.first_search);
 			const new_item = { ...this.filtered_items[0] };
 			new_item.qty = flt(qty); // This should always be 1 now
@@ -1448,7 +1455,7 @@ export default {
 				new_item.to_set_batch_no = this.flags.batch_no;
 			}
 
-			// Always add the item if found in filtered_items
+			// Add the single matched item
 			await this.add_item(new_item);
 
 			// Clear all flags and reset state
