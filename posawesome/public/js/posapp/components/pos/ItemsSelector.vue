@@ -1458,16 +1458,48 @@ export default {
 
 			const fromScanner = vm.search_from_scanner;
 
-			// ƯU TIÊN: Nếu search term trông như barcode, thử exact API trước
+			// ƯU TIÊN: Nếu search term trông như barcode, thử exact match trước
 			if (vm.search && vm.looksLikeBarcode(vm.search)) {
-				console.info('[ItemsSelector] 🔍 Search term looks like barcode, trying exact API first:', vm.search);
+				console.info('[ItemsSelector] 🔍 Search term looks like barcode, trying exact match first:', vm.search);
+
+				// Thử tìm exact match trong local items trước
+				let exactItem = vm.items.find((item) =>
+					item.item_barcode && item.item_barcode.some((bc) => bc.barcode === vm.search)
+				);
+
+				if (exactItem) {
+					console.info('[ItemsSelector] ✅ Found exact barcode match in local items:', exactItem.item_code);
+
+					// Highlight item ngay lập tức để tối ưu trải nghiệm
+					setTimeout(() => {
+						console.log('[ItemsSelector] 🎯 Highlighting exact match from search:', exactItem.item_code);
+						vm.eventBus.emit("highlight_invoice_item", {
+							itemRowId: exactItem.item_code,
+							scanMode: vm.scan_add_mode,
+							duration: 1000, // 1 second highlight
+							enlargeFont: true
+						});
+						vm.eventBus.emit("highlight_scanned_item", exactItem.item_code);
+						console.log('[ItemsSelector] ✅ Highlight event emitted for exact match');
+					}, 100);
+
+					// Set UOM theo posa_uom của barcode
+					let barcodeData = exactItem.item_barcode.find((bc) => bc.barcode === vm.search);
+					if (barcodeData && barcodeData.posa_uom) {
+						exactItem.uom = barcodeData.posa_uom;
+					}
+					vm.add_item(exactItem);
+					return; // Đã xử lý xong
+				}
+
+				// Nếu không tìm thấy trong local, thử exact API
 				vm.fetchExactBarcodeAndAdd(vm.search).then((exactMatch) => {
 					if (exactMatch) {
 						console.info('[ItemsSelector] ✅ Exact barcode API found and added item from search');
 						return; // Đã xử lý xong, không cần tìm tiếp
 					}
 					console.info('[ItemsSelector] ❌ Exact barcode API not found, continuing with normal search');
-					// Tiếp tục với logic search bình thường
+					// Tiếp tục với logic search bình thường - chỉ khi không có exact match
 					vm.continueWithNormalSearch(fromScanner);
 				}).catch((error) => {
 					console.error('[ItemsSelector] Error in exact barcode API from search:', error);
