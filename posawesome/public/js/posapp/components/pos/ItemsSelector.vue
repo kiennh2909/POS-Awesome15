@@ -1607,7 +1607,9 @@ export default {
 			let searchKey = normalizedCode;
 			let isScale = false;
 
+			// Debug: có thể dùng frappe.show_alert thay vì console.log nếu cần
 			console.log(`[ItemsSelector] 🔍 Processing scan: type=${isScale ? "scale" : "regular"}, key=${searchKey}, qty=${qty}, code=${scannedCode}`);
+			// frappe.show_alert(`Processing scan: ${searchKey}`, 1); // Uncomment để debug
 
 			// 1) BE exact (ưu tiên tuyệt đối) - gọi cho tất cả barcode trừ scale
 			// Scale barcode đã được xử lý riêng trong normalizeScanInput
@@ -1656,30 +1658,7 @@ export default {
 				console.log(`[ItemsSelector] ⏭️ Skipping BE exact for scale barcode: ${searchKey}`);
 			}
 
-			// 2) Local exact barcode
-			console.log(`[ItemsSelector] 🔍 Checking local exact barcode for: ${searchKey}`);
-			let localHit = null;
-			let barcodeData = null;
-
-			for (const item of this.items || []) {
-				const bcMatch = (item.item_barcode || []).find(b => b.barcode === searchKey);
-				if (bcMatch) {
-					localHit = item;
-					barcodeData = bcMatch;
-					break;
-				}
-			}
-
-			if (localHit) {
-			console.log(`[ItemsSelector] ✅ Local exact hit: ${localHit.item_code} - ${localHit.item_name}`);
-			if (barcodeData?.posa_uom) localHit.uom = barcodeData.posa_uom;
-			if (qty !== 1) localHit.qty = qty;
-			await this.addScannedItemToInvoice(localHit, scannedCode);
-			console.log("[ItemsSelector] local_exact hit");
-			return;
-			} else {
-				console.log(`[ItemsSelector] ❌ Local exact not found for: ${searchKey}`);
-			}
+			// Bỏ phần tìm kiếm local - chỉ dùng BE API và fuzzy search
 
 			// 3) Exact item_code (kể cả variant)
 			console.log(`[ItemsSelector] 🔍 Checking exact item code for: ${searchKey}`);
