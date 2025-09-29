@@ -1623,49 +1623,76 @@ export default {
 				// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
 				let normalizedCode = scannedCode.trim().replace(/[-\s]/g, '');
 
-				// Kiểm tra scale barcode
-				let qty = 1;
-				let searchKey = normalizedCode;
-				let isScaleBarcode = false;
-				if (normalizedCode.startsWith(this.pos_profile.posa_scale_barcode_start)) {
-					let prefix = normalizedCode.substr(0, 7);
-					let weightStr = normalizedCode.substr(7, 5);
-					if (weightStr) {
-						let weight = this.parseScaleWeight(weightStr);
-						if (weight > 0) {
-							qty = weight;
-							searchKey = prefix;
-							isScaleBarcode = true;
-						}
-					}
-				}
+				// // Kiểm tra scale barcode
+				// let qty = 1;
+				// let searchKey = normalizedCode;
+				// let isScaleBarcode = false;
+				// if (normalizedCode.startsWith(this.pos_profile.posa_scale_barcode_start)) {
+				// 	let prefix = normalizedCode.substr(0, 7);
+				// 	let weightStr = normalizedCode.substr(7, 5);
+				// 	if (weightStr) {
+				// 		let weight = this.parseScaleWeight(weightStr);
+				// 		if (weight > 0) {
+				// 			qty = weight;
+				// 			searchKey = prefix;
+				// 			isScaleBarcode = true;
+				// 		}
+				// 	}
+				// }
 
 				// Ưu tiên tuyệt đối: Gọi BE exact (trừ scale barcode)
-				if (!isScaleBarcode) {
-					try {
-						const exactItem = await frappe.call({
-							method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
-							args: {
-								barcode: searchKey,
-								pos_profile: JSON.stringify(this.pos_profile),
-								price_list: this.active_price_list,
-								customer: this.customer
-							}
-						});
+				// if (!isScaleBarcode) {
+				// 	try {
+				// 		const exactItem = await frappe.call({
+				// 			method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
+				// 			args: {
+				// 				barcode: searchKey,
+				// 				pos_profile: JSON.stringify(this.pos_profile),
+				// 				price_list: this.active_price_list,
+				// 				customer: this.customer
+				// 			}
+				// 		});
 
-						if (exactItem.message) {
-							console.log("Found item by BE exact barcode:", exactItem.message);
-							let item = exactItem.message;
-							if (qty !== 1) {
-								item.qty = qty;
-							}
-							this.addScannedItemToInvoice(item, scannedCode);
-							return;
+				// 		if (exactItem.message) {
+				// 			console.log("Found item by BE exact barcode:", exactItem.message);
+				// 			let item = exactItem.message;
+				// 			if (qty !== 1) {
+				// 				item.qty = qty;
+				// 			}
+				// 			this.addScannedItemToInvoice(item, scannedCode);
+				// 			return;
+				// 		}
+				// 	} catch (error) {
+				// 		console.warn("BE exact barcode failed:", error);
+				// 		// Continue to local search
+				// 	}
+				// }
+
+
+				try {
+					console.warn("Callo to BE exact barcode:", scannedCode);
+					const exactItem = await frappe.call({
+						method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
+						args: {
+							barcode: searchKey,
+							pos_profile: JSON.stringify(this.pos_profile),
+							price_list: this.active_price_list,
+							customer: this.customer
 						}
-					} catch (error) {
-						console.warn("BE exact barcode failed:", error);
-						// Continue to local search
+					});
+
+					if (exactItem.message) {
+						console.log("Found item by BE exact barcode:", exactItem.message);
+						let item = exactItem.message;
+						if (qty !== 1) {
+							item.qty = qty;
+						}
+						this.addScannedItemToInvoice(item, scannedCode);
+						return;
 					}
+				} catch (error) {
+					console.warn("BE exact barcode failed:", error);
+					// Continue to local search
 				}
 
 				// Local exact barcode
