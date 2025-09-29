@@ -570,6 +570,30 @@ export default {
 			const rows = Math.max(1, Math.floor(containerHeight / cardHeight));
 			this.itemsPerPage = columns * rows;
 		},
+		parseScaleWeight(weightStr) {
+			// Parse scale weight string (format: 00000 -> 0.000, 0000x -> 0.00x, etc.)
+			if (!weightStr || weightStr.length !== 5) return 1;
+
+			let weight = 0;
+			if (weightStr.startsWith("0000")) {
+				// 0000x -> 0.00x
+				weight = parseFloat("0.00" + weightStr.substr(4));
+			} else if (weightStr.startsWith("000")) {
+				// 000xx -> 0.0xx
+				weight = parseFloat("0.0" + weightStr.substr(3));
+			} else if (weightStr.startsWith("00")) {
+				// 00xxx -> 0.xxx
+				weight = parseFloat("0." + weightStr.substr(2));
+			} else if (weightStr.startsWith("0")) {
+				// 0xxxx -> x.xxx
+				weight = parseFloat(weightStr.substr(1, 1) + "." + weightStr.substr(2));
+			} else {
+				// xxxxx -> xx.xxx
+				weight = parseFloat(weightStr.substr(0, 2) + "." + weightStr.substr(2));
+			}
+
+			return weight > 0 ? weight : 1;
+		},
 		refreshPricesForVisibleItems() {
 			const vm = this;
 			if (!vm.filtered_items || vm.filtered_items.length === 0) return;
@@ -1564,26 +1588,63 @@ export default {
 				// Kiểm tra scale barcode
 				let qty = 1;
 				let searchKey = normalizedCode;
+				let isScale = false;
 				if (normalizedCode.startsWith(this.pos_profile.posa_scale_barcode_start)) {
+					isScale = true;
 					let prefix = normalizedCode.substr(0, 7);
 					let weightStr = normalizedCode.substr(7, 5);
 					if (weightStr) {
-						// Parse weight (format: 00000 -> 0.000, 0000x -> 0.00x, etc.)
-						let weight = this.parseScaleWeight(weightStr);
-						if (weight > 0) {
-							qty = weight;
-							searchKey = prefix;
-						}
+						qty = this.parseScaleWeight(weightStr);
+						searchKey = prefix;
 					}
 				}
 
-				// 1. Exact Barcode (ưu tiên tuyệt đối)
+				// Telemetry: log scan type
+				console.log(`[ItemsSelector] Scan type: ${isScale ? 'scale' : 'regular'}, searchKey: ${searchKey}, qty: ${qty}`);
+
+				// 1. BE Exact Barcode (ưu tiên tuyệt đối) - chỉ khi không phải scale & searchKey là số ≥6 ký tự
+				if (!isScale && /^\d{6,}$/.test(searchKey)) {
+					try {
+						const beResult = await frappe.call({
+							method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
+							args: {
+								barcode: searchKey,
+								pos_profile: JSON.stringify(this.pos_profile),
+								price_list: this.active_price_list,
+								customer: this.customer
+							},
+							freeze: false
+						});
+
+						if (beResult.message) {
+							console.log("[ItemsSelector] Found item by BE exact barcode:", beResult.message);
+							let foundItem = beResult.message;
+							// Set UOM theo posa_uom của barcode khớp
+							let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
+							if (barcodeData && barcodeData.posa_uom) {
+								foundItem.uom = barcodeData.posa_uom;
+							}
+							// Set QTY theo scale nếu có
+							if (qty !== 1) {
+								foundItem.qty = qty;
+							}
+							this.addScannedItemToInvoice(foundItem, scannedCode);
+							console.log("[ItemsSelector] Telemetry: be_exact hit");
+							return;
+						}
+					} catch (error) {
+						console.warn("[ItemsSelector] BE exact barcode failed:", error);
+						// Continue to local search
+					}
+				}
+
+				// 2. Local Exact Barcode
 				let foundItem = this.items.find((item) =>
 					item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey)
 				);
 
 				if (foundItem) {
-					console.log("Found item by exact barcode:", foundItem);
+					console.log("[ItemsSelector] Found item by local exact barcode:", foundItem);
 					// Set UOM theo posa_uom của barcode
 					let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
 					if (barcodeData && barcodeData.posa_uom) {
@@ -1594,24 +1655,43 @@ export default {
 						foundItem.qty = qty;
 					}
 					this.addScannedItemToInvoice(foundItem, scannedCode);
+					console.log("[ItemsSelector] Telemetry: local_exact hit");
 					return;
 				}
 
-				// 2. Mở rộng tìm (Item Code / Item Name / Item Variant Code / barcode "na ná") - chỉ khi không có exact barcode
+				// 3. Exact Item Code (kể cả variant)
+				foundItem = this.items.find((item) =>
+					item.item_code.toLowerCase() === searchKey.toLowerCase()
+				);
+
+				if (foundItem) {
+					console.log("[ItemsSelector] Found item by exact item code:", foundItem);
+					if (qty !== 1) {
+						foundItem.qty = qty;
+					}
+					this.addScannedItemToInvoice(foundItem, scannedCode);
+					console.log("[ItemsSelector] Telemetry: code hit");
+					return;
+				}
+
+				// 4. Fuzzy search (fallback)
 				const searchResults = this.searchItemsByCode(searchKey);
 
 				if (searchResults.length === 1) {
-					console.log("Found item by fuzzy search:", searchResults[0]);
+					console.log("[ItemsSelector] Found item by fuzzy search:", searchResults[0]);
 					if (qty !== 1) {
 						searchResults[0].qty = qty;
 					}
 					this.addScannedItemToInvoice(searchResults[0], scannedCode);
+					console.log("[ItemsSelector] Telemetry: fuzzy hit");
 				} else if (searchResults.length > 1) {
 					// Multiple matches - show selection dialog
 					this.showMultipleItemsDialog(searchResults, scannedCode);
+					console.log("[ItemsSelector] Telemetry: multiple matches");
 				} else {
 					// No matches found
 					this.handleItemNotFound(scannedCode);
+					console.log("[ItemsSelector] Telemetry: not found");
 				}
 			} catch (error) {
 				console.error("Error processing scanned item:", error);

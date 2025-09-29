@@ -1162,3 +1162,103 @@ def get_price_for_uom(item_code, price_list, uom):
         "price_list_rate",
     )
     return price
+
+
+@frappe.whitelist()
+def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=None):
+    """
+    Tìm Item theo exact barcode match.
+    Input: barcode (đã chuẩn hoá), pos_profile, price_list, customer.
+    Output: Item hoàn chỉnh với rate và item_barcode[], hoặc null nếu không tìm thấy.
+    """
+    if not barcode:
+        return None
+
+    pos_profile = json.loads(pos_profile) if isinstance(pos_profile, str) else pos_profile
+    warehouse = pos_profile.get("warehouse")
+    company = pos_profile.get("company")
+
+    # Tìm exact barcode
+    barcode_data = frappe.db.get_value(
+        "Item Barcode",
+        {"barcode": barcode},
+        ["parent as item_code", "barcode", "posa_uom"],
+        as_dict=True
+    )
+
+    if not barcode_data:
+        return None
+
+    item_code = barcode_data.item_code
+
+    # Lấy Item data
+    item_data = frappe.get_all(
+        "Item",
+        filters={"name": item_code, "disabled": 0, "is_sales_item": 1},
+        fields=[
+            "name as item_code", "item_name", "description", "stock_uom", "image",
+            "is_stock_item", "has_variants", "variant_of", "item_group",
+            "has_batch_no", "has_serial_no", "max_discount", "brand"
+        ]
+    )
+
+    if not item_data:
+        return None
+
+    item = item_data[0]
+
+    # Lấy price
+    selling_price_list = price_list or pos_profile.get("selling_price_list")
+    today = nowdate()
+
+    price_data = frappe.get_all(
+        "Item Price",
+        fields=["price_list_rate", "currency", "uom"],
+        filters={
+            "price_list": selling_price_list,
+            "item_code": item_code,
+            "selling": 1,
+            "valid_from": ["<=", today],
+            "customer": ["in", ["", None, customer]]
+        },
+        or_filters=[["valid_upto", ">=", today], ["valid_upto", "is", "not set"]],
+        order_by="valid_from ASC, valid_upto DESC",
+        limit=1
+    )
+
+    if price_data:
+        item["rate"] = price_data[0].get("price_list_rate", 0)
+        item["currency"] = price_data[0].get("currency") or pos_profile.get("currency")
+    else:
+        item["rate"] = 0
+        item["currency"] = pos_profile.get("currency")
+
+    # Lấy tất cả barcodes của item
+    all_barcodes = frappe.get_all(
+        "Item Barcode",
+        filters={"parent": item_code},
+        fields=["barcode", "posa_uom"]
+    )
+    item["item_barcode"] = all_barcodes or []
+
+    # Lấy UOMs
+    uoms = frappe.get_all(
+        "UOM Conversion Detail",
+        filters={"parent": item_code},
+        fields=["uom", "conversion_factor"]
+    )
+    if item["stock_uom"] and not any(u["uom"] == item["stock_uom"] for u in uoms):
+        uoms.append({"uom": item["stock_uom"], "conversion_factor": 1.0})
+    item["item_uoms"] = uoms or []
+
+    # Lấy stock
+    if warehouse:
+        item["actual_qty"] = get_stock_from_bin(item_code, warehouse)
+
+    # Các trường khác
+    item["serial_no_data"] = []
+    item["batch_no_data"] = []
+    item["attributes"] = ""
+    item["item_attributes"] = ""
+
+    return item
