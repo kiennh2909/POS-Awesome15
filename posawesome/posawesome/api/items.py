@@ -1164,282 +1164,123 @@ def get_price_for_uom(item_code, price_list, uom):
     return price
 
 
-# @frappe.whitelist()
-# def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=None):
-#     """
-#     Tìm Item theo exact barcode match.
-#     Input: barcode (đã chuẩn hoá), pos_profile, price_list, customer.
-#     Output: Item hoàn chỉnh với rate và item_barcode[], hoặc null nếu không tìm thấy.
-#     """
-#     if not barcode:
-#         return None
-
-#     pos_profile = json.loads(pos_profile) if isinstance(pos_profile, str) else pos_profile
-#     warehouse = pos_profile.get("warehouse")
-#     company = pos_profile.get("company")
-
-#     # Tìm exact barcode
-#     barcode_data = frappe.db.get_value(
-#         "Item Barcode",
-#         {"barcode": barcode},
-#         ["parent as item_code", "barcode", "posa_uom"],
-#         as_dict=True
-#     )
-
-#     if not barcode_data:
-#         return None
-
-#     item_code = barcode_data.item_code
-
-#     # Lấy Item data
-#     item_data = frappe.get_all(
-#         "Item",
-#         filters={"name": item_code, "disabled": 0, "is_sales_item": 1},
-#         fields=[
-#             "name as item_code", "item_name", "description", "stock_uom", "image",
-#             "is_stock_item", "has_variants", "variant_of", "item_group",
-#             "has_batch_no", "has_serial_no", "max_discount", "brand"
-#         ]
-#     )
-
-#     if not item_data:
-#         return None
-
-#     item = item_data[0]
-
-#     # Lấy price
-#     selling_price_list = price_list or pos_profile.get("selling_price_list")
-#     today = nowdate()
-
-#     price_data = frappe.get_all(
-#         "Item Price",
-#         fields=["price_list_rate", "currency", "uom"],
-#         filters={
-#             "price_list": selling_price_list,
-#             "item_code": item_code,
-#             "selling": 1,
-#             "valid_from": ["<=", today],
-#             "customer": ["in", ["", None, customer]]
-#         },
-#         or_filters=[["valid_upto", ">=", today], ["valid_upto", "is", "not set"]],
-#         order_by="valid_from ASC, valid_upto DESC",
-#         limit=1
-#     )
-
-#     if price_data:
-#         item["rate"] = price_data[0].get("price_list_rate", 0)
-#         item["currency"] = price_data[0].get("currency") or pos_profile.get("currency")
-#     else:
-#         item["rate"] = 0
-#         item["currency"] = pos_profile.get("currency")
-
-#     # Lấy tất cả barcodes của item
-#     all_barcodes = frappe.get_all(
-#         "Item Barcode",
-#         filters={"parent": item_code},
-#         fields=["barcode", "posa_uom"]
-#     )
-#     item["item_barcode"] = all_barcodes or []
-
-#     # Lấy UOMs
-#     uoms = frappe.get_all(
-#         "UOM Conversion Detail",
-#         filters={"parent": item_code},
-#         fields=["uom", "conversion_factor"]
-#     )
-#     if item["stock_uom"] and not any(u["uom"] == item["stock_uom"] for u in uoms):
-#         uoms.append({"uom": item["stock_uom"], "conversion_factor": 1.0})
-#     item["item_uoms"] = uoms or []
-
-#     # Lấy stock
-#     if warehouse:
-#         item["actual_qty"] = get_stock_from_bin(item_code, warehouse)
-
-#     # Các trường khác
-#     item["serial_no_data"] = []
-#     item["batch_no_data"] = []
-#     item["attributes"] = ""
-#     item["item_attributes"] = ""
-
-#     return item
-
-
-@frappe.whitelist(allow_guest=False)
-def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=None):
+@frappe.whitelist()
+def get_item_by_barcode_exact(barcode, pos_profile=None, price_list=None, customer=None):
     """
-    Exact-match barcode → trả về item đầy đủ (giá, UOMs, barcodes, tồn),
-    hoặc None nếu không tìm thấy.
-    Ưu tiên:
-      1) Barcode exact
-      2) Giá theo customer (nếu có) rồi fallback generic
-    Ghi chú:
-      - Tự normalize barcode ở BE để an toàn.
-      - Có cache ngắn hạn để giảm truy vấn khi scan lặp.
+    API exact barcode match - trả về đúng 1 item nếu tìm thấy barcode chính xác.
+    Ưu tiên tuyệt đối cho exact match trước khi fallback fuzzy.
     """
-    import json
-    from frappe.utils import nowdate
-    from frappe import _
-    from frappe.utils.logger import get_logger
-
-    log = get_logger("scanitem")
-
     if not barcode:
-        log.debug("Empty barcode provided")
         return None
 
-    # --- Normalize input (an toàn ngay cả khi FE đã normalize) ---
-    barcode = (barcode or "").strip().replace("-", "").replace(" ", "")
-    if not barcode:
-        log.debug("Barcode became empty after normalization")
+    # Tìm exact barcode match
+    barcode_data = frappe.db.get_value(
+        "Item Barcode",
+        {"barcode": barcode},  # Exact match với barcode
+        ["parent as item_code", "barcode", "posa_uom"],
+        as_dict=True
+    )
+
+    if not barcode_data:
         return None
 
-    log.info(f"🔍 Processing exact barcode lookup: {barcode}")
+    item_code = barcode_data.item_code
 
-    # Parse pos_profile
-    pos_profile = json.loads(pos_profile) if isinstance(pos_profile, str) else (pos_profile or {})
-    warehouse = pos_profile.get("warehouse")
-    company = pos_profile.get("company")
-    selling_price_list = price_list or pos_profile.get("selling_price_list")
+    # Validate user context (POS Profile, company, warehouse)
+    pos_profile_data = None
+    if pos_profile:
+        try:
+            pos_profile_data = json.loads(pos_profile)
+        except:
+            pos_profile_data = frappe.get_cached_doc("POS Profile", pos_profile)
+
+    warehouse = pos_profile_data.get("warehouse") if pos_profile_data else None
+    company = pos_profile_data.get("company") if pos_profile_data else None
+
+    # Lấy item data cơ bản
+    item_doc = frappe.get_cached_doc("Item", item_code)
+    if item_doc.disabled or not item_doc.is_sales_item or item_doc.is_fixed_asset:
+        return None
+
+    # Validate item group từ POS Profile
+    if pos_profile_data:
+        item_groups = get_item_groups(pos_profile_data.get("name"))
+        if item_groups and item_doc.item_group not in item_groups:
+            return None
+
+    # Validate stock (nếu POS Profile yêu cầu chỉ hiển thị item có stock)
+    if pos_profile_data and pos_profile_data.get("posa_display_items_in_stock"):
+        actual_qty = get_stock_from_bin(item_code, warehouse)
+        if actual_qty <= 0:
+            return None
+
+    # Lấy thông tin giá
+    selling_price_list = price_list or (pos_profile_data.get("selling_price_list") if pos_profile_data else None)
     today = nowdate()
 
-    log.debug(f"📋 Context: warehouse={warehouse}, company={company}, price_list={selling_price_list}, customer={customer}")
-
-    # --- Cache key (giảm round-trip khi quét lặp) ---
-    cache = frappe.cache()
-    ck = f"pos:barcode-exact:{barcode}:{selling_price_list}:{customer or ''}:{company or ''}"
-    cached = cache.get_value(ck)
-    if cached:
-        log.debug(f"✅ Cache hit for barcode: {barcode}")
-        # trả lại object đã cache
-        return frappe.parse_json(cached)
-
-    log.debug(f"🔎 Cache miss, querying database for barcode: {barcode}")
-
-    # --- 1) Exact barcode → lấy item_code ---
-    barcode_row = frappe.db.get_value(
-        "Item Barcode",
-        {"barcode": barcode},
-        ["parent as item_code", "barcode", "posa_uom"],
-        as_dict=True,
-    )
-    if not barcode_row:
-        log.info(f"❌ No barcode found in database: {barcode}")
-        return None
-
-    item_code = barcode_row.item_code
-    log.info(f"✅ Found barcode: {barcode} -> item_code: {item_code}, uom: {barcode_row.posa_uom}")
-
-    # --- 2) Lấy Item (filter hợp lệ bán) ---
-    item_list = frappe.get_all(
-        "Item",
-        filters={"name": item_code, "disabled": 0, "is_sales_item": 1},
-        fields=[
-            "name as item_code", "item_name", "description", "stock_uom", "image",
-            "is_stock_item", "has_variants", "variant_of", "item_group",
-            "has_batch_no", "has_serial_no", "max_discount", "brand"
-        ],
-        limit_page_length=1,
-    )
-    if not item_list:
-        log.warning(f"⚠️ Item found in barcode but not in Item table: {item_code}")
-        return None
-
-    item = item_list[0]
-    log.debug(f"📦 Retrieved item: {item_code} - {item.item_name}")
-
-    # --- 3) Tìm giá: Ưu tiên theo customer trước, sau đó fallback generic ---
-    def pick_price(_customer):
-        filters = {
-            "price_list": selling_price_list,
+    item_price_data = frappe.get_all(
+        "Item Price",
+        fields=["price_list_rate", "currency", "uom"],
+        filters={
             "item_code": item_code,
+            "price_list": selling_price_list,
             "selling": 1,
             "valid_from": ["<=", today],
-        }
-        or_filters = [
-            ["valid_upto", ">=", today],
-            ["valid_upto", "is", "not set"],
-        ]
-        if _customer is not None:
-            filters["customer"] = _customer
+            "customer": ["in", ["", None, customer]]
+        },
+        or_filters=[["valid_upto", ">=", today], ["valid_upto", "is", "not set"]],
+        order_by="valid_from DESC",
+        limit=1
+    )
 
-        rows = frappe.get_all(
-            "Item Price",
-            fields=["price_list_rate", "currency", "uom", "valid_from", "valid_upto", "customer"],
-            filters=filters,
-            or_filters=or_filters,
-            order_by="valid_from DESC, modified DESC",
-            limit=1,
-        )
-        return rows[0] if rows else None
+    item_price = item_price_data[0] if item_price_data else {}
 
-    price_row = None
-    if customer:
-        price_row = pick_price(customer)      # ưu tiên theo customer
-        log.debug(f"💰 Customer-specific price for {customer}: {price_row.get('price_list_rate') if price_row else 'None'}")
-    if not price_row:
-        # fallback generic (customer null hoặc rỗng)
-        price_row = pick_price(None)
-        if not price_row:
-            # một số DB có bản ghi customer="" → thử thêm lần nữa
-            price_row = pick_price("")  # không sao, nếu không có sẽ trả None
-        log.debug(f"💰 Generic price: {price_row.get('price_list_rate') if price_row else 'None'}")
-
-    if price_row:
-        item["rate"] = price_row.get("price_list_rate", 0) or 0
-        item["price_list_rate"] = item["rate"]
-        item["currency"] = price_row.get("currency") or pos_profile.get("currency")
-        # để FE multi-currency xử lý chuẩn:
-        item["original_rate"] = item["rate"]
-        item["original_currency"] = item["currency"]
-    else:
-        item["rate"] = 0
-        item["price_list_rate"] = 0
-        item["currency"] = pos_profile.get("currency")
-        item["original_rate"] = 0
-        item["original_currency"] = item["currency"]
-        log.debug("⚠️ No price found for item")
-
-    # --- 4) Toàn bộ barcodes của item ---
-    item["item_barcode"] = frappe.get_all(
+    # Lấy tất cả barcodes của item (bao gồm cái đang tìm)
+    item_barcodes = frappe.get_all(
         "Item Barcode",
         filters={"parent": item_code},
-        fields=["barcode", "posa_uom"],
-    ) or []
-    log.debug(f"🏷️ Found {len(item['item_barcode'])} barcodes for item")
+        fields=["barcode", "posa_uom"]
+    )
 
-    # --- 5) UOM conversion (bổ sung stock_uom nếu thiếu) ---
+    # Lấy UOMs
     uoms = frappe.get_all(
         "UOM Conversion Detail",
         filters={"parent": item_code},
-        fields=["uom", "conversion_factor"],
-    ) or []
-    if item.get("stock_uom") and not any(u.get("uom") == item["stock_uom"] for u in uoms):
-        uoms.append({"uom": item["stock_uom"], "conversion_factor": 1.0})
-    item["item_uoms"] = uoms
-    log.debug(f"📏 Found {len(uoms)} UOMs for item")
+        fields=["uom", "conversion_factor"]
+    )
 
-    # --- 6) Tồn kho theo warehouse (nếu có) ---
-    if warehouse:
-        try:
-            item["actual_qty"] = get_stock_from_bin(item_code, warehouse)
-            log.debug(f"📦 Stock quantity: {item['actual_qty']}")
-        except Exception as e:
-            # tránh làm fail toàn hàm nếu có sự cố đọc tồn
-            item["actual_qty"] = 0
-            log.error(f"❌ Error getting stock for {item_code}: {str(e)}")
-    else:
-        item["actual_qty"] = 0
-        log.debug("No warehouse specified, stock set to 0")
+    # Thêm stock UOM nếu chưa có
+    stock_uom = item_doc.stock_uom
+    if stock_uom and not any(u.get("uom") == stock_uom for u in uoms):
+        uoms.append({"uom": stock_uom, "conversion_factor": 1.0})
 
-    # --- 7) Trường thêm cho FE ---
-    item["serial_no_data"] = []
-    item["batch_no_data"] = []
-    item["attributes"] = ""
-    item["item_attributes"] = ""
+    # Lấy stock quantity
+    actual_qty = get_stock_from_bin(item_code, warehouse) if warehouse else 0
 
-    # --- Cache ngắn hạn (ví dụ 10s) để đỡ đập DB khi scan cùng mã lặp lại ---
-    cache.set_value(ck, frappe.as_json(item), expires_in_sec=10)
-    log.debug(f"💾 Cached result for 10 seconds")
+    # Build result tương tự như get_items API
+    result = {
+        "item_code": item_doc.name,
+        "item_name": item_doc.item_name,
+        "description": item_doc.description,
+        "stock_uom": item_doc.stock_uom,
+        "image": item_doc.image,
+        "is_stock_item": item_doc.is_stock_item,
+        "has_variants": item_doc.has_variants,
+        "variant_of": item_doc.variant_of,
+        "item_group": item_doc.item_group,
+        "has_batch_no": item_doc.has_batch_no,
+        "has_serial_no": item_doc.has_serial_no,
+        "max_discount": item_doc.max_discount,
+        "brand": item_doc.brand,
+        "rate": item_price.get("price_list_rate", 0),
+        "currency": item_price.get("currency") or (pos_profile_data.get("currency") if pos_profile_data else "VND"),
+        "item_barcode": item_barcodes,
+        "actual_qty": actual_qty,
+        "item_uoms": uoms,
+        "serial_no_data": [],  # Để tương thích, sẽ load khi cần
+        "batch_no_data": [],   # Để tương thích, sẽ load khi cần
+        "attributes": "",
+        "item_attributes": "",
+    }
 
-    log.info(f"🎯 SUCCESS: Returning item {item_code} - {item.item_name} (rate: {item.rate}, qty: {item.actual_qty})")
-    return item
+    return result
