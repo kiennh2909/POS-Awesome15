@@ -1511,19 +1511,8 @@ export default {
 						}
 					});
 
-					await this.add_item(item);
-
-					frappe.show_alert({
-						message: `Added: ${item.item_name}`,
-						indicator: "green",
-					}, 3);
-
-					this.clearSearch();
-					setTimeout(() => {
-						if (this.$refs.debounce_search) {
-							this.$refs.debounce_search.focus();
-						}
-					}, 150);
+					// Use addScannedItemToInvoice for proper scan handling (highlight, mode, etc.)
+					await this.addScannedItemToInvoice(item, rawCode);
 
 					return true;
 				}
