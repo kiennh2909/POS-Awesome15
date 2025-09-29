@@ -1098,7 +1098,7 @@ export default {
 				this.$refs.debounce_search.focus();
 			}
 		},
-		search_onchange: _.debounce(async function (newSearchTerm) {
+		search_onchange: _.debounce(function (newSearchTerm) {
 			const vm = this;
 
 			// Determine the actual query string and trim whitespace
@@ -1113,51 +1113,6 @@ export default {
 
 			const fromScanner = vm.search_from_scanner;
 
-			// If looks like barcode, try exact match first
-			if (vm.looksLikeBarcode(vm.search)) {
-				try {
-					const result = await frappe.call({
-						method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
-						args: {
-							barcode: vm.search,
-							pos_profile: JSON.stringify(vm.pos_profile),
-							price_list: vm.active_price_list,
-							customer: vm.customer
-						}
-					});
-
-					if (result.message) {
-						const item = result.message;
-
-						// Ensure item is in local items list for filtered_items display
-						if (!vm.items.find(i => i.item_code === item.item_code)) {
-							vm.items.push(item);
-						}
-
-						// Set UOM if barcode has posa_uom matching the scanned code
-						item.item_barcode.forEach((element) => {
-							if (element.barcode === vm.search && element.posa_uom) {
-								item.uom = element.posa_uom;
-							}
-						});
-
-						// Use add_item for manual search (no highlight needed)
-						await vm.add_item(item);
-
-						// Clear the input after successful exact match
-						if (fromScanner) {
-							vm.clearSearch();
-							vm.$refs.debounce_search && vm.$refs.debounce_search.focus();
-							vm.search_from_scanner = false;
-						}
-						return;
-					}
-				} catch (error) {
-					console.error("Error fetching exact barcode:", error);
-				}
-			}
-
-			// Proceed with existing search logic
 			if (vm.pos_profile.pose_use_limit_search) {
 				// Only trigger search when query length meets minimum threshold
 				if (vm.search && vm.search.length >= 3) {
@@ -1601,48 +1556,9 @@ export default {
 				this.processScannedItem(scannedCode);
 			});
 		},
-		async processScannedItem(scannedCode) {
+		processScannedItem(scannedCode) {
 			try {
-				// Set search to update filtered_items display
-				this.search = scannedCode;
-				this.first_search = scannedCode;
-
-				// First, try exact barcode match via API (prioritizes backend exact match)
-				try {
-					const result = await frappe.call({
-						method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
-						args: {
-							barcode: scannedCode,
-							pos_profile: JSON.stringify(this.pos_profile),
-							price_list: this.active_price_list,
-							customer: this.customer
-						}
-					});
-
-					if (result.message) {
-						const item = result.message;
-
-						// Ensure item is in local items list for filtered_items display
-						if (!this.items.find(i => i.item_code === item.item_code)) {
-							this.items.push(item);
-						}
-
-						// Set UOM if barcode has posa_uom matching the scanned code
-						item.item_barcode.forEach((element) => {
-							if (element.barcode === scannedCode && element.posa_uom) {
-								item.uom = element.posa_uom;
-							}
-						});
-
-						// Use addScannedItemToInvoice for proper scan handling (highlight, mode, etc.)
-						await this.addScannedItemToInvoice(item, scannedCode);
-						return;
-					}
-				} catch (error) {
-					console.error("Error fetching exact barcode:", error);
-				}
-
-				// If no exact match from API, try in-memory exact match
+				// First try to find exact match by barcode
 				let foundItem = this.items.find(
 					(item) =>
 						item.barcode === scannedCode ||
@@ -1651,16 +1567,16 @@ export default {
 				);
 
 				if (foundItem) {
-					console.log("Found item by in-memory exact match:", foundItem);
+					console.log("Found item by exact match:", foundItem);
 					this.addScannedItemToInvoice(foundItem, scannedCode);
 					return;
 				}
 
-				// If no exact match, try partial search (fuzzy)
+				// If no exact match, try partial search
 				const searchResults = this.searchItemsByCode(scannedCode);
 
 				if (searchResults.length === 1) {
-					console.log("Found item by fuzzy search:", searchResults[0]);
+					console.log("Found item by search:", searchResults[0]);
 					this.addScannedItemToInvoice(searchResults[0], scannedCode);
 				} else if (searchResults.length > 1) {
 					// Multiple matches - show selection dialog
@@ -1681,28 +1597,16 @@ export default {
 			}
 		},
 		searchItemsByCode(code) {
-			// First, try exact barcode match only
-			let results = this.items.filter((item) => {
+			return this.items.filter((item) => {
+				const searchTerm = code.toLowerCase();
 				return (
-					(item.barcode && item.barcode === code) ||
-					(item.barcodes && item.barcodes.some((bc) => bc.barcode === code))
+					item.item_code.toLowerCase().includes(searchTerm) ||
+					item.item_name.toLowerCase().includes(searchTerm) ||
+					(item.barcode && item.barcode.toLowerCase().includes(searchTerm)) ||
+					(item.barcodes &&
+						item.barcodes.some((bc) => bc.barcode.toLowerCase().includes(searchTerm)))
 				);
 			});
-
-			// If no exact barcode match, fallback to fuzzy search on item_code, item_name, and exact barcode
-			if (results.length === 0) {
-				const searchTerm = code.toLowerCase();
-				results = this.items.filter((item) => {
-					return (
-						item.item_code.toLowerCase().includes(searchTerm) ||
-						item.item_name.toLowerCase().includes(searchTerm) ||
-						(item.barcode && item.barcode === code) ||
-						(item.barcodes && item.barcodes.some((bc) => bc.barcode === code))
-					);
-				});
-			}
-
-			return results;
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
 			console.log("[ItemsSelector] 🔄 Processing scanned item:", item.item_code, "with code:", scannedCode);
@@ -2028,8 +1932,7 @@ export default {
 						item.item_barcode.some((b) => b.barcode === this.search),
 					);
 
-					// If no exact barcode match and not from scanner, fallback to fuzzy matches
-					if (filtred_list.length === 0 && !this.search_from_scanner) {
+					if (filtred_list.length === 0) {
 						// Match by code or name containing the term
 						filtred_list = filtred_group_list.filter(
 							(item) =>
@@ -2038,7 +1941,7 @@ export default {
 						);
 					}
 
-					if (filtred_list.length === 0 && !this.search_from_scanner) {
+					if (filtred_list.length === 0) {
 						// Fallback to partial fuzzy match on name
 						const search_combinations = this.generateWordCombinations(this.search);
 						filtred_list = filtred_group_list.filter((item) => {
