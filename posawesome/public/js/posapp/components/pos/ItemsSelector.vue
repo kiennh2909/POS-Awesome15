@@ -1721,15 +1721,17 @@ export default {
 		try {
 			const { searchKey, qty, isScale } = this.normalizeScanInput(scannedCode);
 			if (!searchKey) {
+			console.log(`[ItemsSelector] ❌ Invalid scan input: ${scannedCode}`);
 			this.handleItemNotFound(scannedCode);
 			return;
 			}
 
-			console.log(`[ItemsSelector] scan=${isScale ? "scale" : "regular"} key=${searchKey} qty=${qty}`);
+			console.log(`[ItemsSelector] 🔍 Processing scan: type=${isScale ? "scale" : "regular"}, key=${searchKey}, qty=${qty}, code=${scannedCode}`);
 
 			// 1) BE exact (ưu tiên tuyệt đối) – chỉ khi KHÔNG phải scale
 			//    (mặc định nhận số >=6; nếu bạn có barcode alpha-numeric, nới regex tại đây)
 			if (!isScale && /^\d{6,}$/.test(searchKey)) {
+			console.log(`[ItemsSelector] 🔄 Calling BE exact barcode API for: ${searchKey}`);
 			try {
 				// hủy call trước đó (nếu có)
 				if (this.scanAbortController) this.scanAbortController.abort();
@@ -1750,6 +1752,7 @@ export default {
 
 				if (beResult?.message) {
 				const item = beResult.message;
+				console.log(`[ItemsSelector] ✅ BE exact hit: ${item.item_code} - ${item.item_name}`);
 
 				// UOM theo barcode match (nếu có)
 				const matched = (item.item_barcode || []).find(b => b.barcode === searchKey);
@@ -1759,6 +1762,8 @@ export default {
 				await this.addScannedItemToInvoice(item, scannedCode);
 				console.log("[ItemsSelector] be_exact hit");
 				return;
+				} else {
+					console.log(`[ItemsSelector] ❌ BE exact returned null for: ${searchKey}`);
 				}
 			} catch (e) {
 				if (e?.name !== "AbortError") console.warn("[ItemsSelector] be_exact failed:", e);
@@ -1766,31 +1771,42 @@ export default {
 			} finally {
 				this.scanAbortController = null;
 			}
+			} else {
+				console.log(`[ItemsSelector] ⏭️ Skipping BE exact: scale=${isScale}, numeric=${/^\d{6,}$/.test(searchKey)}`);
 			}
 
 			// 2) Local exact barcode (O(1) với index)
+			console.log(`[ItemsSelector] 🔍 Checking local exact barcode for: ${searchKey}`);
 			const localHit = this.lookupExactBarcodeLocal(searchKey);
 			if (localHit) {
 			const { item, barcodeData } = localHit;
+			console.log(`[ItemsSelector] ✅ Local exact hit: ${item.item_code} - ${item.item_name}`);
 			if (barcodeData?.posa_uom) item.uom = barcodeData.posa_uom;
 			if (qty !== 1) item.qty = qty;
 			await this.addScannedItemToInvoice(item, scannedCode);
 			console.log("[ItemsSelector] local_exact hit");
 			return;
+			} else {
+				console.log(`[ItemsSelector] ❌ Local exact not found for: ${searchKey}`);
 			}
 
 			// 3) Exact item_code (kể cả variant)
+			console.log(`[ItemsSelector] 🔍 Checking exact item code for: ${searchKey}`);
 			const exactCode = (this.items || []).find(it =>
 			String(it.item_code || "").toLowerCase() === searchKey.toLowerCase()
 			);
 			if (exactCode) {
+			console.log(`[ItemsSelector] ✅ Exact item code hit: ${exactCode.item_code} - ${exactCode.item_name}`);
 			if (qty !== 1) exactCode.qty = qty;
 			await this.addScannedItemToInvoice(exactCode, scannedCode);
 			console.log("[ItemsSelector] code hit");
 			return;
+			} else {
+				console.log(`[ItemsSelector] ❌ Exact item code not found for: ${searchKey}`);
 			}
 
 			// 4) Fuzzy fallback (tối đa 10 gợi ý)
+			console.log(`[ItemsSelector] 🔍 Starting fuzzy search for: ${searchKey}`);
 			const term = searchKey.toLowerCase();
 			const results = (this.items || []).filter(it => {
 			const codeOk = String(it.item_code || "").toLowerCase().includes(term);
@@ -1800,19 +1816,24 @@ export default {
 			return codeOk || nameOk || variantOk || bcLike;
 			}).slice(0, 10);
 
+			console.log(`[ItemsSelector] 📊 Fuzzy search found ${results.length} matches`);
+
 			if (results.length === 1) {
+			console.log(`[ItemsSelector] ✅ Fuzzy single hit: ${results[0].item_code} - ${results[0].item_name}`);
 			if (qty !== 1) results[0].qty = qty;
 			await this.addScannedItemToInvoice(results[0], scannedCode);
 			console.log("[ItemsSelector] fuzzy hit");
 			return;
 			}
 			if (results.length > 1) {
+			console.log(`[ItemsSelector] ⚠️ Multiple fuzzy matches (${results.length}), showing dialog`);
 			this.showMultipleItemsDialog(results, scannedCode);
 			console.log("[ItemsSelector] multiple matches");
 			return;
 			}
 
 			// 5) Không tìm thấy
+			console.log(`[ItemsSelector] ❌ No matches found for: ${searchKey}`);
 			this.handleItemNotFound(scannedCode);
 			console.log("[ItemsSelector] not found");
 		} catch (err) {

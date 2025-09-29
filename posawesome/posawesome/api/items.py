@@ -1279,14 +1279,21 @@ def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=No
     import json
     from frappe.utils import nowdate
     from frappe import _
+    from frappe.utils.logger import get_logger
+
+    log = get_logger("scanitem")
 
     if not barcode:
+        log.debug("Empty barcode provided")
         return None
 
     # --- Normalize input (an toàn ngay cả khi FE đã normalize) ---
     barcode = (barcode or "").strip().replace("-", "").replace(" ", "")
     if not barcode:
+        log.debug("Barcode became empty after normalization")
         return None
+
+    log.info(f"🔍 Processing exact barcode lookup: {barcode}")
 
     # Parse pos_profile
     pos_profile = json.loads(pos_profile) if isinstance(pos_profile, str) else (pos_profile or {})
@@ -1295,13 +1302,18 @@ def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=No
     selling_price_list = price_list or pos_profile.get("selling_price_list")
     today = nowdate()
 
+    log.debug(f"📋 Context: warehouse={warehouse}, company={company}, price_list={selling_price_list}, customer={customer}")
+
     # --- Cache key (giảm round-trip khi quét lặp) ---
     cache = frappe.cache()
     ck = f"pos:barcode-exact:{barcode}:{selling_price_list}:{customer or ''}:{company or ''}"
     cached = cache.get_value(ck)
     if cached:
+        log.debug(f"✅ Cache hit for barcode: {barcode}")
         # trả lại object đã cache
         return frappe.parse_json(cached)
+
+    log.debug(f"🔎 Cache miss, querying database for barcode: {barcode}")
 
     # --- 1) Exact barcode → lấy item_code ---
     barcode_row = frappe.db.get_value(
@@ -1311,9 +1323,11 @@ def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=No
         as_dict=True,
     )
     if not barcode_row:
+        log.info(f"❌ No barcode found in database: {barcode}")
         return None
 
     item_code = barcode_row.item_code
+    log.info(f"✅ Found barcode: {barcode} -> item_code: {item_code}, uom: {barcode_row.posa_uom}")
 
     # --- 2) Lấy Item (filter hợp lệ bán) ---
     item_list = frappe.get_all(
@@ -1327,8 +1341,11 @@ def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=No
         limit_page_length=1,
     )
     if not item_list:
+        log.warning(f"⚠️ Item found in barcode but not in Item table: {item_code}")
         return None
+
     item = item_list[0]
+    log.debug(f"📦 Retrieved item: {item_code} - {item.item_name}")
 
     # --- 3) Tìm giá: Ưu tiên theo customer trước, sau đó fallback generic ---
     def pick_price(_customer):
@@ -1358,12 +1375,14 @@ def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=No
     price_row = None
     if customer:
         price_row = pick_price(customer)      # ưu tiên theo customer
+        log.debug(f"💰 Customer-specific price for {customer}: {price_row.get('price_list_rate') if price_row else 'None'}")
     if not price_row:
         # fallback generic (customer null hoặc rỗng)
         price_row = pick_price(None)
         if not price_row:
             # một số DB có bản ghi customer="" → thử thêm lần nữa
             price_row = pick_price("")  # không sao, nếu không có sẽ trả None
+        log.debug(f"💰 Generic price: {price_row.get('price_list_rate') if price_row else 'None'}")
 
     if price_row:
         item["rate"] = price_row.get("price_list_rate", 0) or 0
@@ -1378,6 +1397,7 @@ def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=No
         item["currency"] = pos_profile.get("currency")
         item["original_rate"] = 0
         item["original_currency"] = item["currency"]
+        log.debug("⚠️ No price found for item")
 
     # --- 4) Toàn bộ barcodes của item ---
     item["item_barcode"] = frappe.get_all(
@@ -1385,6 +1405,7 @@ def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=No
         filters={"parent": item_code},
         fields=["barcode", "posa_uom"],
     ) or []
+    log.debug(f"🏷️ Found {len(item['item_barcode'])} barcodes for item")
 
     # --- 5) UOM conversion (bổ sung stock_uom nếu thiếu) ---
     uoms = frappe.get_all(
@@ -1395,16 +1416,20 @@ def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=No
     if item.get("stock_uom") and not any(u.get("uom") == item["stock_uom"] for u in uoms):
         uoms.append({"uom": item["stock_uom"], "conversion_factor": 1.0})
     item["item_uoms"] = uoms
+    log.debug(f"📏 Found {len(uoms)} UOMs for item")
 
     # --- 6) Tồn kho theo warehouse (nếu có) ---
     if warehouse:
         try:
             item["actual_qty"] = get_stock_from_bin(item_code, warehouse)
-        except Exception:
+            log.debug(f"📦 Stock quantity: {item['actual_qty']}")
+        except Exception as e:
             # tránh làm fail toàn hàm nếu có sự cố đọc tồn
             item["actual_qty"] = 0
+            log.error(f"❌ Error getting stock for {item_code}: {str(e)}")
     else:
         item["actual_qty"] = 0
+        log.debug("No warehouse specified, stock set to 0")
 
     # --- 7) Trường thêm cho FE ---
     item["serial_no_data"] = []
@@ -1414,5 +1439,7 @@ def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=No
 
     # --- Cache ngắn hạn (ví dụ 10s) để đỡ đập DB khi scan cùng mã lặp lại ---
     cache.set_value(ck, frappe.as_json(item), expires_in_sec=10)
+    log.debug(f"💾 Cached result for 10 seconds")
 
+    log.info(f"🎯 SUCCESS: Returning item {item_code} - {item.item_name} (rate: {item.rate}, qty: {item.actual_qty})")
     return item
