@@ -1597,15 +1597,24 @@ export default {
 			}
 		},
 		searchItemsByCode(code) {
+			const isNumericCode = /^\d+$/.test(code);
 			return this.items.filter((item) => {
-				const searchTerm = code.toLowerCase();
-				return (
-					item.item_code.toLowerCase().includes(searchTerm) ||
-					item.item_name.toLowerCase().includes(searchTerm) ||
-					(item.barcode && item.barcode === code) ||
-					(item.barcodes &&
-						item.barcodes.some((bc) => bc.barcode === code))
-				);
+				// If code is numeric (likely barcode), only search exact barcode match
+				if (isNumericCode) {
+					return (
+						(item.barcode && item.barcode === code) ||
+						(item.barcodes && item.barcodes.some((bc) => bc.barcode === code))
+					);
+				} else {
+					// For non-numeric codes, search in item_code, item_name, and barcode
+					const searchTerm = code.toLowerCase();
+					return (
+						item.item_code.toLowerCase().includes(searchTerm) ||
+						item.item_name.toLowerCase().includes(searchTerm) ||
+						(item.barcode && item.barcode === code) ||
+						(item.barcodes && item.barcodes.some((bc) => bc.barcode === code))
+					);
+				}
 			});
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
