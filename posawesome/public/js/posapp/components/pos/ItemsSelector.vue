@@ -1115,15 +1115,45 @@ export default {
 
 			// If looks like barcode, try exact match first
 			if (vm.looksLikeBarcode(vm.search)) {
-				const exactMatch = await vm.fetchExactBarcodeAndAdd(vm.search);
-				if (exactMatch) {
-					// Clear the input after successful exact match
-					if (fromScanner) {
-						vm.clearSearch();
-						vm.$refs.debounce_search && vm.$refs.debounce_search.focus();
-						vm.search_from_scanner = false;
+				try {
+					const result = await frappe.call({
+						method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
+						args: {
+							barcode: vm.search,
+							pos_profile: JSON.stringify(vm.pos_profile),
+							price_list: vm.active_price_list,
+							customer: vm.customer
+						}
+					});
+
+					if (result.message) {
+						const item = result.message;
+
+						// Ensure item is in local items list for filtered_items display
+						if (!vm.items.find(i => i.item_code === item.item_code)) {
+							vm.items.push(item);
+						}
+
+						// Set UOM if barcode has posa_uom matching the scanned code
+						item.item_barcode.forEach((element) => {
+							if (element.barcode === vm.search && element.posa_uom) {
+								item.uom = element.posa_uom;
+							}
+						});
+
+						// Use add_item for manual search (no highlight needed)
+						await vm.add_item(item);
+
+						// Clear the input after successful exact match
+						if (fromScanner) {
+							vm.clearSearch();
+							vm.$refs.debounce_search && vm.$refs.debounce_search.focus();
+							vm.search_from_scanner = false;
+						}
+						return;
 					}
-					return;
+				} catch (error) {
+					console.error("Error fetching exact barcode:", error);
 				}
 			}
 
@@ -1485,48 +1515,6 @@ export default {
 				this.$refs.debounce_search && this.$refs.debounce_search.focus();
 			});
 		},
-		looksLikeBarcode(code) {
-			// Consider as barcode if it's numeric and at least 6 characters (typical for UPC/EAN)
-			return code && code.length >= 6 && /^\d+$/.test(code);
-		},
-		async fetchExactBarcodeAndAdd(rawCode) {
-			try {
-				const result = await frappe.call({
-					method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
-					args: {
-						barcode: rawCode,
-						pos_profile: JSON.stringify(this.pos_profile),
-						price_list: this.active_price_list,
-						customer: this.customer
-					}
-				});
-
-				if (result.message) {
-					const item = result.message;
-
-					// Ensure item is in local items list for filtered_items display
-					if (!this.items.find(i => i.item_code === item.item_code)) {
-						this.items.push(item);
-					}
-
-					// Set UOM if barcode has posa_uom matching the scanned code
-					item.item_barcode.forEach((element) => {
-						if (element.barcode === rawCode && element.posa_uom) {
-							item.uom = element.posa_uom;
-						}
-					});
-
-					// Use addScannedItemToInvoice for proper scan handling (highlight, mode, etc.)
-					await this.addScannedItemToInvoice(item, rawCode);
-
-					return true;
-				}
-			} catch (error) {
-				console.error("Error fetching exact barcode:", error);
-			}
-
-			return false;
-		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
 			const wordCount = words.length;
@@ -1620,9 +1608,38 @@ export default {
 				this.first_search = scannedCode;
 
 				// First, try exact barcode match via API (prioritizes backend exact match)
-				const exactMatch = await this.fetchExactBarcodeAndAdd(scannedCode);
-				if (exactMatch) {
-					return;
+				try {
+					const result = await frappe.call({
+						method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
+						args: {
+							barcode: scannedCode,
+							pos_profile: JSON.stringify(this.pos_profile),
+							price_list: this.active_price_list,
+							customer: this.customer
+						}
+					});
+
+					if (result.message) {
+						const item = result.message;
+
+						// Ensure item is in local items list for filtered_items display
+						if (!this.items.find(i => i.item_code === item.item_code)) {
+							this.items.push(item);
+						}
+
+						// Set UOM if barcode has posa_uom matching the scanned code
+						item.item_barcode.forEach((element) => {
+							if (element.barcode === scannedCode && element.posa_uom) {
+								item.uom = element.posa_uom;
+							}
+						});
+
+						// Use addScannedItemToInvoice for proper scan handling (highlight, mode, etc.)
+						await this.addScannedItemToInvoice(item, scannedCode);
+						return;
+					}
+				} catch (error) {
+					console.error("Error fetching exact barcode:", error);
 				}
 
 				// If no exact match from API, try in-memory exact match
