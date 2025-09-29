@@ -1504,6 +1504,11 @@ export default {
 				if (result.message) {
 					const item = result.message;
 
+					// Ensure item is in local items list for filtered_items display
+					if (!this.items.find(i => i.item_code === item.item_code)) {
+						this.items.push(item);
+					}
+
 					// Set UOM if barcode has posa_uom matching the scanned code
 					item.item_barcode.forEach((element) => {
 						if (element.barcode === rawCode && element.posa_uom) {
