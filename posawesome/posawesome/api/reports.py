@@ -769,13 +769,14 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 			fields=[
 				"name", "user", "pos_profile", "company",
 				"period_start_date", "period_end_date",
-				"cash_to_deposit",
 				"verification_status"
 			],
 			order_by="period_end_date asc"
 		)
 
 		log.info(f"[SHIFT_LIST_REPORT] Found {len(shifts)} shifts matching filters")
+		if shifts:
+			log.warning("[SHIFT_LIST_REPORT] cash_to_deposit field not found in POS Closing Shift table, using 0 for cash_submitted")
 
 		if not shifts:
 			log.info("[SHIFT_LIST_REPORT] No shifts found, returning empty result")
@@ -915,7 +916,7 @@ def get_shift_list_report(company=None, pos_profile=None, from_date=None, to_dat
 				"sale_invoice_count": 0, "return_invoice_count": 0,
 				"sale_amount": 0.0, "return_amount": 0.0, "net_amount": 0.0,
 				"cash_amount": 0.0, "bank_amount": 0.0, "qrpay_amount": 0.0, "card_amount": 0.0, "other_amount": 0.0,
-				"cash_submitted": float(s.cash_to_deposit or 0.0),
+				"cash_submitted": 0.0,  # TODO: Extract from actual_amounts JSON field
 				"difference": 0.0,
 			}
 
@@ -1003,7 +1004,7 @@ def export_shift_list_report(company=None, pos_profile=None, from_date=None, to_
 
 		# Data
 		content += "CHI TIẾT CA LÀM VIỆC\n"
-		content += "Mã SHIFT\tNhân viên\tNgày\tTrạng thái\tHóa đơn bán\tHóa đơn hoàn\tTổng doanh số\tSố tiền hoàn\tSố tiền NET\tCASH\tBANK\tQRPAY\tCARD\tOTHER\tNộp cuối ca\tChênh lệch\tTiền tệ\n"
+		content += "Mã SHIFT\tNhân viên\tNgày\tTrạng thái\tHóa đơn bán\tHóa đơn hoàn\tTổng doanh số\tSố tiền hoàn\tSố tiền NET\tCASH\tBANK\tQRPAY\tCARD\tOTHER\tNộp cuối ca (N/A)\tChênh lệch\tTiền tệ\n"
 
 		for row in report_data["data"]:
 			content += f"{row.get('shift_id', '')}\t"

@@ -1602,9 +1602,9 @@ export default {
 				return (
 					item.item_code.toLowerCase().includes(searchTerm) ||
 					item.item_name.toLowerCase().includes(searchTerm) ||
-					(item.barcode && item.barcode.toLowerCase().includes(searchTerm)) ||
+					(item.barcode && item.barcode === code) ||
 					(item.barcodes &&
-						item.barcodes.some((bc) => bc.barcode.toLowerCase().includes(searchTerm)))
+						item.barcodes.some((bc) => bc.barcode === code))
 				);
 			});
 		},
@@ -1932,7 +1932,10 @@ export default {
 						item.item_barcode.some((b) => b.barcode === this.search),
 					);
 
-					if (filtred_list.length === 0) {
+					// If search is numeric (likely barcode), don't fallback to fuzzy matches
+					const isNumericSearch = /^\d+$/.test(this.search);
+
+					if (filtred_list.length === 0 && !isNumericSearch) {
 						// Match by code or name containing the term
 						filtred_list = filtred_group_list.filter(
 							(item) =>
@@ -1941,7 +1944,7 @@ export default {
 						);
 					}
 
-					if (filtred_list.length === 0) {
+					if (filtred_list.length === 0 && !isNumericSearch) {
 						// Fallback to partial fuzzy match on name
 						const search_combinations = this.generateWordCombinations(this.search);
 						filtred_list = filtred_group_list.filter((item) => {
