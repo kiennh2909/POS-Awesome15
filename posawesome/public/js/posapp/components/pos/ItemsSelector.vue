@@ -771,7 +771,7 @@ export default {
 			);
 
 			if (foundItem) {
-				console.log("Found item by exact barcode (local):", foundItem);
+				console.info("Found item by exact barcode (local):", foundItem);
 				// Set UOM theo posa_uom của barcode
 				let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
 				if (barcodeData && barcodeData.posa_uom) {
@@ -791,7 +791,7 @@ export default {
 			);
 
 			if (foundItem) {
-				console.log("Found item by exact item code:", foundItem);
+				console.info("Found item by exact item code:", foundItem);
 				if (qty !== 1) {
 					foundItem.qty = qty;
 				}
@@ -803,7 +803,7 @@ export default {
 			const searchResults = this.searchItemsByCode(searchKey);
 
 			if (searchResults.length === 1) {
-				console.log("Found item by fuzzy search:", searchResults[0]);
+				console.info("Found item by fuzzy search:", searchResults[0]);
 				if (qty !== 1) {
 					searchResults[0].qty = qty;
 				}
@@ -820,7 +820,7 @@ export default {
 		// Method gọi API exact barcode và add item nếu tìm thấy
 		async fetchExactBarcodeAndAdd(rawCode) {
 			try {
-				console.log('[ItemsSelector] 🔍 Checking exact barcode match for:', rawCode);
+				console.info('[ItemsSelector] 🔍 Checking exact barcode match for:', rawCode);
 
 				const response = await frappe.call({
 					method: 'posawesome.posawesome.api.items.get_item_by_barcode_exact',
@@ -834,7 +834,7 @@ export default {
 
 				if (response.message) {
 					const item = response.message;
-					console.log('[ItemsSelector] ✅ Exact barcode match found:', item.item_code);
+					console.info('[ItemsSelector] ✅ Exact barcode match found:', item.item_code);
 
 					// Set UOM theo posa_uom của barcode nếu match
 					let barcodeData = item.item_barcode.find(bc => bc.barcode === rawCode);
@@ -861,7 +861,7 @@ export default {
 
 					return true; // Match found and added
 				} else {
-					console.log('[ItemsSelector] ❌ No exact barcode match for:', rawCode);
+					console.info('[ItemsSelector] ❌ No exact barcode match for:', rawCode);
 					return false; // No match found
 				}
 			} catch (error) {
@@ -1111,7 +1111,7 @@ export default {
 					});
 
 					const text = await res.text();
-					// console.log(text)
+					// console.info(text)
 					this.itemWorker.onmessage = async (ev) => {
 						if (this.items_request_token !== request_token) return;
 						if (ev.data.type === "parsed") {
@@ -1307,7 +1307,7 @@ export default {
 					title: __("This is an item template. Please choose a variant."),
 					color: "warning",
 				});
-				console.log("sending profile", this.pos_profile);
+				console.info("sending profile", this.pos_profile);
 				this.eventBus.emit("open_variants_model", item, variants, this.pos_profile);
 			} else {
 				if (item.actual_qty === 0 && this.pos_profile.posa_display_items_in_stock) {
@@ -1423,13 +1423,13 @@ export default {
 
 			// ƯU TIÊN: Nếu search term trông như barcode, thử exact API trước
 			if (vm.search && vm.looksLikeBarcode(vm.search)) {
-				console.log('[ItemsSelector] 🔍 Search term looks like barcode, trying exact API first:', vm.search);
+				console.info('[ItemsSelector] 🔍 Search term looks like barcode, trying exact API first:', vm.search);
 				vm.fetchExactBarcodeAndAdd(vm.search).then((exactMatch) => {
 					if (exactMatch) {
-						console.log('[ItemsSelector] ✅ Exact barcode API found and added item from search');
+						console.info('[ItemsSelector] ✅ Exact barcode API found and added item from search');
 						return; // Đã xử lý xong, không cần tìm tiếp
 					}
-					console.log('[ItemsSelector] ❌ Exact barcode API not found, continuing with normal search');
+					console.info('[ItemsSelector] ❌ Exact barcode API not found, continuing with normal search');
 					// Tiếp tục với logic search bình thường
 					vm.continueWithNormalSearch(fromScanner);
 				}).catch((error) => {
@@ -1466,7 +1466,8 @@ export default {
 				vm.$refs.debounce_search && vm.$refs.debounce_search.focus();
 				vm.search_from_scanner = false;
 			}
-		}, 300),
+		}, 200),
+		
 		get_item_qty(first_search) {
 			const qtyVal = this.qty != null ? this.qty : 1;
 			let scal_qty = Math.abs(qtyVal);
@@ -1850,7 +1851,7 @@ export default {
 			}
 		},
 		onBarcodeScanned(scannedCode) {
-			console.log("Barcode scanned:", scannedCode);
+			console.info("Barcode scanned:", scannedCode);
 
 			// Prevent multiple simultaneous scans
 			if (this.processing_scan) {
@@ -1906,13 +1907,13 @@ export default {
 
 				// ƯU TIÊN 1: Gọi API exact barcode từ server trước
 				if (this.looksLikeBarcode(searchKey)) {
-					console.log('[ItemsSelector] 🔍 Trying exact barcode API first for:', searchKey);
+					console.info('[ItemsSelector] 🔍 Trying exact barcode API first for:', searchKey);
 					this.fetchExactBarcodeAndAdd(searchKey).then((exactMatch) => {
 						if (exactMatch) {
-							console.log('[ItemsSelector] ✅ Exact barcode API found and added item');
+							console.info('[ItemsSelector] ✅ Exact barcode API found and added item');
 							return; // Đã xử lý xong, không cần tìm tiếp
 						}
-						console.log('[ItemsSelector] ❌ Exact barcode API not found, falling back to local search');
+						console.info('[ItemsSelector] ❌ Exact barcode API not found, falling back to local search');
 						// Tiếp tục với logic local search
 						this.continueWithLocalSearch(searchKey, qty);
 					}).catch((error) => {
@@ -1929,7 +1930,7 @@ export default {
 				);
 
 				if (foundItem) {
-					console.log("Found item by exact barcode (local):", foundItem);
+					console.info("Found item by exact barcode (local):", foundItem);
 					// Set UOM theo posa_uom của barcode
 					let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
 					if (barcodeData && barcodeData.posa_uom) {
@@ -1949,7 +1950,7 @@ export default {
 				);
 
 				if (foundItem) {
-					console.log("Found item by exact item code:", foundItem);
+					console.info("Found item by exact item code:", foundItem);
 					if (qty !== 1) {
 						foundItem.qty = qty;
 					}
@@ -1961,7 +1962,7 @@ export default {
 				const searchResults = this.searchItemsByCode(searchKey);
 
 				if (searchResults.length === 1) {
-					console.log("Found item by fuzzy search:", searchResults[0]);
+					console.info("Found item by fuzzy search:", searchResults[0]);
 					if (qty !== 1) {
 						searchResults[0].qty = qty;
 					}
@@ -1997,13 +1998,13 @@ export default {
 			});
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
-			console.log("[ItemsSelector] 🔄 Processing scanned item:", item.item_code, "with code:", scannedCode);
-			console.log("[ItemsSelector] Current scan mode:", this.scan_add_mode ? "Add" : "Remove");
+			console.info("[ItemsSelector] 🔄 Processing scanned item:", item.item_code, "with code:", scannedCode);
+			console.info("[ItemsSelector] Current scan mode:", this.scan_add_mode ? "Add" : "Remove");
 
 			try {
 				if (this.scan_add_mode) {
 					// Add mode - use existing add_item method
-					console.log("[ItemsSelector] ➕ Add mode: Adding item to invoice");
+					console.info("[ItemsSelector] ➕ Add mode: Adding item to invoice");
 					await this.add_item(item);
 
 					// Show success message
@@ -2017,9 +2018,9 @@ export default {
 
 					// Emit highlight AFTER item is added to invoice with a longer delay
 					setTimeout(() => {
-						console.log("[ItemsSelector] 🎯 Emitting highlight event for:", item.item_code);
-						console.log("[ItemsSelector] Scan mode:", this.scan_add_mode);
-						console.log("[ItemsSelector] Event data:", {
+						console.info("[ItemsSelector] 🎯 Emitting highlight event for:", item.item_code);
+						console.info("[ItemsSelector] Scan mode:", this.scan_add_mode);
+						console.info("[ItemsSelector] Event data:", {
 							itemRowId: item.item_code,
 							scanMode: this.scan_add_mode,
 							duration: 2000,
@@ -2033,11 +2034,11 @@ export default {
 							enlargeFont: true
 						});
 
-						console.log("[ItemsSelector] ✅ Highlight event emitted successfully");
+						console.info("[ItemsSelector] ✅ Highlight event emitted successfully");
 					}, 1000);
 				} else {
 					// Remove mode - emit event to remove item from invoice with scan mode
-					console.log("[ItemsSelector] ➖ Remove mode: Emitting remove_item_by_code for:", item.item_code);
+					console.info("[ItemsSelector] ➖ Remove mode: Emitting remove_item_by_code for:", item.item_code);
 					this.eventBus.emit("remove_item_by_code", item.item_code, this.scan_add_mode);
 
 					// Show success message
@@ -2166,14 +2167,14 @@ export default {
 		},
 
 		setScanMode(isAddMode) {
-			console.log(`[ItemsSelector] User clicked ${isAddMode ? 'Add Mode' : 'Remove Mode'} button`);
-			console.log(`[ItemsSelector] Previous mode: ${this.scan_add_mode ? 'Add Mode' : 'Remove Mode'}`);
-			console.log(`[ItemsSelector] New mode: ${isAddMode ? 'Add Mode' : 'Remove Mode'}`);
+			console.info(`[ItemsSelector] User clicked ${isAddMode ? 'Add Mode' : 'Remove Mode'} button`);
+			console.info(`[ItemsSelector] Previous mode: ${this.scan_add_mode ? 'Add Mode' : 'Remove Mode'}`);
+			console.info(`[ItemsSelector] New mode: ${isAddMode ? 'Add Mode' : 'Remove Mode'}`);
 
 			this.scan_add_mode = isAddMode;
 
 			const mode = this.scan_add_mode ? "Add Mode" : "Remove Mode";
-			console.log(`[ItemsSelector] Mode switched to: ${mode}`);
+			console.info(`[ItemsSelector] Mode switched to: ${mode}`);
 
 			frappe.show_alert(
 				{
@@ -2183,7 +2184,7 @@ export default {
 				2,
 			);
 
-			console.log(`[ItemsSelector] Scan mode change completed`);
+			console.info(`[ItemsSelector] Scan mode change completed`);
 		},
 
 
@@ -2458,7 +2459,7 @@ export default {
 					console.error("Filename:", event.filename);
 					console.error("Line number:", event.lineno);
 				};
-				console.log("Created worker nowwwwww");
+				console.info("Created worker nowwwwww");
 			} catch (e) {
 				console.error("Failed to start item worker", e);
 				this.itemWorker = null;
