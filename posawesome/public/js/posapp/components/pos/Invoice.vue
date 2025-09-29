@@ -340,8 +340,6 @@ export default {
 			invoiceHeight: null,
 			tax_print_loading: false, // Loading state for tax print button
 			shiftVerificationStatus: null, // Verification status of current shift report
-			// Dual screen management
-			dualScreenEnabled: false,
 		};
 	},
 
@@ -1135,48 +1133,6 @@ export default {
 			this.eventBus.emit("open_list_shifts");
 		},
 
-		// Dual Screen Management
-		syncInvoiceToDualScreen() {
-			// Emit event to ItemsSelector to sync invoice data
-			this.eventBus.emit("invoice-updated", {
-				items: this.items,
-				subtotal: this.subtotal,
-				total_tax: this.total_tax,
-				grandTotal: this.grandTotal
-			});
-		},
-
-		syncPaymentToDualScreen(amount) {
-			// Send payment start event to dual screen
-			const syncData = {
-				type: 'PAYMENT_START',
-				amount: amount
-			};
-
-			// Send via BroadcastChannel for better compatibility
-			try {
-				const channel = new BroadcastChannel('pos-dual-screen');
-				channel.postMessage(syncData);
-			} catch (e) {
-				console.warn('BroadcastChannel not supported:', e);
-			}
-		},
-
-		syncPaymentCompleteToDualScreen() {
-			// Send payment complete event to dual screen
-			const syncData = {
-				type: 'PAYMENT_COMPLETE'
-			};
-
-			// Send via BroadcastChannel for better compatibility
-			try {
-				const channel = new BroadcastChannel('pos-dual-screen');
-				channel.postMessage(syncData);
-			} catch (e) {
-				console.warn('BroadcastChannel not supported:', e);
-			}
-		},
-
 		// Update shift verification status
 		updateShiftVerificationStatus() {
 			if (this.pos_shift_report) {
@@ -1413,21 +1369,6 @@ export default {
         this.eventBus.on("shift_verification_changed", (status) => {
         	this.shiftVerificationStatus = status;
         });
-
-        // Listen for dual screen toggle
-        this.eventBus.on("toggle-dual-screen", () => {
-        	this.dualScreenEnabled = !this.dualScreenEnabled;
-        	if (this.dualScreenEnabled) {
-        		this.syncInvoiceToDualScreen();
-        	}
-        });
-
-        // Listen for payment start sync
-        this.eventBus.on("sync_payment_start", () => {
-        	if (this.dualScreenEnabled) {
-        		this.syncPaymentToDualScreen(this.grandTotal);
-        	}
-        });
 	},
 	// Cleanup event listeners before component is destroyed
 	beforeUnmount() {
@@ -1445,10 +1386,6 @@ export default {
 		this.eventBus.off("remove_item_by_code");
 		// Cleanup shift verification event listener
 		this.eventBus.off("shift_verification_changed");
-		// Cleanup dual screen event listener
-		this.eventBus.off("toggle-dual-screen");
-		// Cleanup payment sync event listener
-		this.eventBus.off("sync_payment_start");
 	},
 	// Register global keyboard shortcuts when component is created
 	created() {

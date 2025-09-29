@@ -464,9 +464,6 @@ export default {
 		current_search_id: 0,
 		// Abort controller for current search
 		current_search_controller: null,
-		// Dual screen management
-		dualScreenWindow: null,
-		dualScreenEnabled: false,
 	}),
 
 	watch: {
@@ -570,25 +567,6 @@ export default {
 		windowHeight(val) {
 			this.adjustItemsPerPage(this.windowWidth, val);
 		},
-	},
-
-	mounted() {
-		// Listen for dual screen toggle events
-		this.eventBus.on('toggle-dual-screen', this.toggleDualScreen);
-
-		// Listen for invoice updates to sync with dual screen
-		this.eventBus.on('invoice-updated', this.syncInvoiceToDualScreen);
-	},
-
-	beforeUnmount() {
-		// Clean up event listeners
-		this.eventBus.off('toggle-dual-screen', this.toggleDualScreen);
-		this.eventBus.off('invoice-updated', this.syncInvoiceToDualScreen);
-
-		// Close dual screen window if open
-		if (this.dualScreenWindow && !this.dualScreenWindow.closed) {
-			this.dualScreenWindow.close();
-		}
 	},
 
 	computed: {
@@ -1399,11 +1377,6 @@ export default {
 				}
 				this.eventBus.emit("add_item", item, this.scan_add_mode);
 				this.qty = 1;
-
-				// Sync to dual screen
-				setTimeout(() => {
-					this.syncInvoiceToDualScreen();
-				}, 500);
 
 				// Highlight item in invoice table - chuyển màu xanh, font tăng 1.5 lần
 				setTimeout(() => {
@@ -2311,102 +2284,6 @@ export default {
 			);
 
 			console.info(`[ItemsSelector] Scan mode change completed`);
-		},
-
-		// Dual Screen Management
-		toggleDualScreen() {
-			if (this.dualScreenEnabled && this.dualScreenWindow && !this.dualScreenWindow.closed) {
-				this.closeDualScreen();
-			} else {
-				this.openDualScreen();
-			}
-		},
-
-		openDualScreen() {
-			try {
-				this.dualScreenWindow = window.open(
-					'/assets/posawesome/dual-screen-display.html',
-					'dualScreen',
-					'width=800,height=600,scrollbars=no,resizable=yes,status=no,menubar=no,toolbar=no,location=no'
-				);
-
-				this.dualScreenEnabled = true;
-
-				// Send initial data after window opens
-				setTimeout(() => {
-					this.syncInvoiceToDualScreen();
-				}, 1000);
-
-				frappe.show_alert({
-					message: 'Dual screen opened successfully',
-					indicator: 'green'
-				}, 2);
-
-			} catch (error) {
-				console.error('Failed to open dual screen:', error);
-				frappe.show_alert({
-					message: 'Failed to open dual screen',
-					indicator: 'red'
-				}, 3);
-			}
-		},
-
-		closeDualScreen() {
-			if (this.dualScreenWindow && !this.dualScreenWindow.closed) {
-				this.dualScreenWindow.close();
-			}
-			this.dualScreenWindow = null;
-			this.dualScreenEnabled = false;
-
-			frappe.show_alert({
-				message: 'Dual screen closed',
-				indicator: 'blue'
-			}, 2);
-		},
-
-		syncInvoiceToDualScreen() {
-			if (!this.dualScreenEnabled || !this.dualScreenWindow || this.dualScreenWindow.closed) {
-				return;
-			}
-
-			// Get current invoice data from parent component
-			const invoiceData = this.getCurrentInvoiceData();
-
-			const syncData = {
-				type: 'UPDATE_ITEMS',
-				items: invoiceData.items || [],
-				totals: {
-					subtotal: invoiceData.subtotal || 0,
-					tax: invoiceData.total_tax || 0,
-					total: invoiceData.grandTotal || 0
-				}
-			};
-
-			// Send via postMessage
-			try {
-				this.dualScreenWindow.postMessage(syncData, '*');
-			} catch (e) {
-				console.warn('Failed to send to dual screen via postMessage:', e);
-			}
-
-			// Also send via BroadcastChannel for better compatibility
-			try {
-				const channel = new BroadcastChannel('pos-dual-screen');
-				channel.postMessage(syncData);
-			} catch (e) {
-				console.warn('BroadcastChannel not supported:', e);
-			}
-		},
-
-		getCurrentInvoiceData() {
-			// This will be called from the parent component or through event bus
-			// For now, return empty data - will be enhanced when integrating with invoice
-			return {
-				items: [],
-				subtotal: 0,
-				total_tax: 0,
-				grandTotal: 0
-			};
 		},
 
 
