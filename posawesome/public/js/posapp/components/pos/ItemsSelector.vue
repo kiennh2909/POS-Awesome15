@@ -1363,7 +1363,7 @@ export default {
 					this.eventBus.emit("highlight_invoice_item", {
 						itemRowId: item.item_code,
 						scanMode: this.scan_add_mode,
-						duration: 2000,
+						duration: 1000, // Changed from 2000 to 1000 ms
 						enlargeFont: true
 					});
 
@@ -1420,6 +1420,24 @@ export default {
 			this.flags.serial_no = null;
 			this.flags.batch_no = null;
 			this.qty = 1;
+
+			// Highlight item in invoice table for Enter/search flow
+			setTimeout(() => {
+				console.log('[ItemsSelector] 🎯 Highlighting item from Enter/search:', new_item.item_code);
+
+				// Emit to both event names for compatibility
+				this.eventBus.emit("highlight_invoice_item", {
+					itemRowId: new_item.item_code,
+					scanMode: this.scan_add_mode,
+					duration: 1000, // 1 second highlight
+					enlargeFont: true
+				});
+
+				// Also emit the old event name for backward compatibility
+				this.eventBus.emit("highlight_scanned_item", new_item.item_code);
+
+				console.log('[ItemsSelector] ✅ Highlight event emitted for Enter/search successfully');
+			}, 1000);
 
 			// Clear search field after successfully adding an item
 			this.clearSearch();
