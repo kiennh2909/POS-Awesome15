@@ -788,7 +788,7 @@ export default {
 		},
 
 		// Helper method để tiếp tục với local search logic
-		continueWithLocalSearch(searchKey, qty) {
+		continueWithLocalSearch(searchKey) {
 			// ƯU TIÊN 2: Exact Barcode trong local items (fallback nếu API fail)
 			let foundItem = this.items.find((item) =>
 				item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey)
@@ -801,10 +801,6 @@ export default {
 				if (barcodeData && barcodeData.posa_uom) {
 					foundItem.uom = barcodeData.posa_uom;
 				}
-				// Set QTY theo scale
-				if (qty !== 1) {
-					foundItem.qty = qty;
-				}
 				this.addScannedItemToInvoice(foundItem, searchKey);
 				return;
 			}
@@ -816,9 +812,6 @@ export default {
 
 			if (foundItem) {
 				console.info("Found item by exact item code:", foundItem);
-				if (qty !== 1) {
-					foundItem.qty = qty;
-				}
 				this.addScannedItemToInvoice(foundItem, searchKey);
 				return;
 			}
@@ -828,9 +821,6 @@ export default {
 
 			if (searchResults.length === 1) {
 				console.info("Found item by fuzzy search:", searchResults[0]);
-				if (qty !== 1) {
-					searchResults[0].qty = qty;
-				}
 				this.addScannedItemToInvoice(searchResults[0], searchKey);
 			} else if (searchResults.length > 1) {
 				// Multiple matches - show selection dialog
@@ -1413,15 +1403,20 @@ export default {
 			if (!this.filtered_items.length || !this.first_search) {
 				return;
 			}
+
+			// Always get qty from get_item_qty() method, don't use this.qty
 			const qty = this.get_item_qty(this.first_search);
 			const new_item = { ...this.filtered_items[0] };
-			new_item.qty = flt(qty);
+			new_item.qty = flt(qty); // This should always be 1 now
+
+			// Handle barcode, serial, batch matching
 			new_item.item_barcode.forEach((element) => {
 				if (this.search == element.barcode) {
 					new_item.uom = element.posa_uom;
 					match = true;
 				}
 			});
+
 			if (
 				!new_item.to_set_serial_no &&
 				new_item.has_serial_no &&
@@ -1434,9 +1429,11 @@ export default {
 					}
 				});
 			}
+
 			if (this.flags.serial_no) {
 				new_item.to_set_serial_no = this.flags.serial_no;
 			}
+
 			if (!new_item.to_set_batch_no && new_item.has_batch_no && this.pos_profile.posa_search_batch_no) {
 				new_item.batch_no_data.forEach((element) => {
 					if (this.search && element.batch_no == this.search) {
@@ -1446,14 +1443,18 @@ export default {
 					}
 				});
 			}
+
 			if (this.flags.batch_no) {
 				new_item.to_set_batch_no = this.flags.batch_no;
 			}
+
 			// Always add the item if found in filtered_items
 			await this.add_item(new_item);
+
+			// Clear all flags and reset state
 			this.flags.serial_no = null;
 			this.flags.batch_no = null;
-			this.qty = 1;
+			this.qty = 1; // Ensure qty is reset
 
 			// Highlight item in invoice table for Enter/search flow
 			setTimeout(() => {
@@ -1486,37 +1487,18 @@ export default {
 		}, 300),
 		
 		get_item_qty(first_search) {
-			const qtyVal = this.qty != null ? this.qty : 1;
-			let scal_qty = Math.abs(qtyVal);
-			if (first_search && first_search.startsWith(this.pos_profile.posa_scale_barcode_start)) {
-				let pesokg1 = first_search.substr(7, 5);
-				let pesokg;
-				if (pesokg1.startsWith("0000")) {
-					pesokg = "0.00" + pesokg1.substr(4);
-				} else if (pesokg1.startsWith("000")) {
-					pesokg = "0.0" + pesokg1.substr(3);
-				} else if (pesokg1.startsWith("00")) {
-					pesokg = "0." + pesokg1.substr(2);
-				} else if (pesokg1.startsWith("0")) {
-					pesokg = pesokg1.substr(1, 1) + "." + pesokg1.substr(2, pesokg1.length);
-				} else if (!pesokg1.startsWith("0")) {
-					pesokg = pesokg1.substr(0, 2) + "." + pesokg1.substr(2, pesokg1.length);
-				}
-				scal_qty = pesokg;
-			}
+			// Simplified: Always return 1 for regular items, no scale weight parsing
+			// This prevents decimal quantities from appearing when scanning invalid barcodes
+			let qty = 1;
+
 			if (this.hide_qty_decimals) {
-				scal_qty = Math.trunc(scal_qty);
+				qty = Math.trunc(qty);
 			}
-			return scal_qty;
+			return qty;
 		},
 		get_search(first_search) {
-			let search_term = "";
-			if (first_search && first_search.startsWith(this.pos_profile.posa_scale_barcode_start)) {
-				search_term = first_search.substr(0, 7);
-			} else {
-				search_term = first_search;
-			}
-			return search_term;
+			// Simplified: Always return the search term as-is, no scale barcode parsing
+			return first_search || "";
 		},
 		esc_event() {
 			this.search = null;
@@ -1831,7 +1813,17 @@ export default {
 			this.clearSearch();
 			this.search_from_scanner = false;
 			this.processing_search = false;
-			this.qty = 1; // Reset quantity to default
+			this.qty = 1; // Always reset quantity to 1
+
+			// Clear all flags that might affect qty calculation
+			this.flags.serial_no = null;
+			this.flags.batch_no = null;
+
+			// Clear any pending operations
+			if (this.current_search_controller) {
+				this.current_search_controller.abort();
+				this.current_search_controller = null;
+			}
 
 			// Refocus input after clearing
 			setTimeout(() => {
@@ -1963,12 +1955,14 @@ export default {
 				console.info(`[ItemsSelector] ❌ No exact match, falling back to normal search`);
 			}
 
-			// Normal search logic
+			// Normal search logic - simplified to prevent decimal qty issues
 			if (this.pos_profile.pose_use_limit_search) {
 				if (query.length >= 3) {
 					this.get_items();
 				}
 			} else {
+				// Ensure qty is reset before enter_event to prevent decimal issues
+				this.qty = 1;
 				if (query.length >= 3) {
 					this.enter_event();
 				}
@@ -2033,21 +2027,8 @@ export default {
 				// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
 				let normalizedCode = scannedCode.trim().replace(/[-\s]/g, '');
 
-				// Kiểm tra scale barcode
-				let qty = 1;
+				// Simplified: Always use qty = 1, no scale weight parsing
 				let searchKey = normalizedCode;
-				if (normalizedCode.startsWith(this.pos_profile.posa_scale_barcode_start)) {
-					let prefix = normalizedCode.substr(0, 7);
-					let weightStr = normalizedCode.substr(7, 5);
-					if (weightStr) {
-						// Parse weight (format: 00000 -> 0.000, 0000x -> 0.00x, etc.)
-						let weight = this.parseScaleWeight(weightStr);
-						if (weight > 0) {
-							qty = weight;
-							searchKey = prefix;
-						}
-					}
-				}
 
 				// ƯU TIÊN 1: Gọi API exact barcode từ server trước
 				if (this.looksLikeBarcode(searchKey)) {
@@ -2063,7 +2044,7 @@ export default {
 					}).catch((error) => {
 						console.error('[ItemsSelector] Error in exact barcode API:', error);
 						// Fallback to local search nếu API lỗi
-						this.continueWithLocalSearch(searchKey, qty);
+						this.continueWithLocalSearch(searchKey);
 					});
 					return; // Dừng xử lý để chờ API response
 				}
@@ -2080,10 +2061,6 @@ export default {
 					if (barcodeData && barcodeData.posa_uom) {
 						foundItem.uom = barcodeData.posa_uom;
 					}
-					// Set QTY theo scale
-					if (qty !== 1) {
-						foundItem.qty = qty;
-					}
 					this.addScannedItemToInvoice(foundItem, scannedCode);
 					return;
 				}
@@ -2095,9 +2072,6 @@ export default {
 
 				if (foundItem) {
 					console.info("Found item by exact item code:", foundItem);
-					if (qty !== 1) {
-						foundItem.qty = qty;
-					}
 					this.addScannedItemToInvoice(foundItem, scannedCode);
 					return;
 				}
@@ -2107,9 +2081,6 @@ export default {
 
 				if (searchResults.length === 1) {
 					console.info("Found item by fuzzy search:", searchResults[0]);
-					if (qty !== 1) {
-						searchResults[0].qty = qty;
-					}
 					this.addScannedItemToInvoice(searchResults[0], scannedCode);
 				} else if (searchResults.length > 1) {
 					// Multiple matches - show selection dialog
