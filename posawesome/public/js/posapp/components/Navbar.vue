@@ -61,6 +61,7 @@
 					@show-about="showAboutDialog = true"
 					@toggle-theme="toggleTheme"
 					@toggle-fullscreen="toggleFullscreen"
+					@toggle-dual-screen="$emit('toggle-dual-screen')"
 					@logout="logOut"
 				/>
 			</template>
@@ -750,6 +751,7 @@ export default {
 		"sync-invoices",
 		"toggle-offline",
 		"toggle-theme",
+		"toggle-dual-screen",
 		"logout",
 		"refresh-cache-usage",
 		"update-after-delete",

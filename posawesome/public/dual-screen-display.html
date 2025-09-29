@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Display - POS Awesome</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .store-name {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+
+        .items-container {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 30px;
+        }
+
+        .item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .item-image {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            object-fit: cover;
+            margin-right: 15px;
+            background: #ccc;
+        }
+
+        .item-details {
+            flex: 1;
+        }
+
+        .item-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .item-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.1rem;
+        }
+
+        .item-qty {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .item-price {
+            color: #FFC107;
+            font-weight: bold;
+        }
+
+        .totals {
+            border-top: 2px solid rgba(255, 255, 255, 0.3);
+            padding-top: 20px;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.4rem;
+            margin-bottom: 10px;
+        }
+
+        .grand-total {
+            display: flex;
+            justify-content: space-between;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #FFC107;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .payment-mode {
+            display: none;
+        }
+
+        .payment-mode.active {
+            display: block;
+        }
+
+        .payment-screen {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .payment-amount {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #4CAF50;
+            margin: 20px 0;
+        }
+
+        .payment-status {
+            font-size: 1.5rem;
+            margin-top: 20px;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            opacity: 0.7;
+        }
+
+        .empty-state h3 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="store-name">POS Awesome</div>
+            <div class="status" id="status">Waiting for items...</div>
+        </div>
+
+        <div class="items-container" id="itemsContainer">
+            <div class="empty-state" id="emptyState">
+                <h3>Welcome!</h3>
+                <p>Items will appear here when added to the cart</p>
+            </div>
+        </div>
+
+        <div class="totals" id="totals" style="display: none;">
+            <div class="total-row">
+                <span>Subtotal:</span>
+                <span id="subtotal">$0.00</span>
+            </div>
+            <div class="total-row">
+                <span>Tax:</span>
+                <span id="tax">$0.00</span>
+            </div>
+            <div class="grand-total">
+                <span>TOTAL:</span>
+                <span id="grandTotal">$0.00</span>
+            </div>
+        </div>
+
+        <div class="payment-mode" id="paymentMode">
+            <div class="payment-screen">
+                <h2>Payment Due</h2>
+                <div class="payment-amount" id="paymentAmount">$0.00</div>
+                <div class="payment-status" id="paymentStatus">Processing payment...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let currentItems = [];
+        let currentTotals = { subtotal: 0, tax: 0, total: 0 };
+        let isPaymentMode = false;
+
+        // DOM elements
+        const itemsContainer = document.getElementById('itemsContainer');
+        const emptyState = document.getElementById('emptyState');
+        const totalsDiv = document.getElementById('totals');
+        const paymentMode = document.getElementById('paymentMode');
+        const statusDiv = document.getElementById('status');
+
+        // Listen for messages from main POS window
+        window.addEventListener('message', function(event) {
+            // Basic origin check (adjust for your domain)
+            if (event.origin !== window.location.origin) return;
+
+            const data = event.data;
+
+            switch(data.type) {
+                case 'UPDATE_ITEMS':
+                    updateItems(data.items);
+                    updateTotals(data.totals);
+                    break;
+
+                case 'PAYMENT_START':
+                    showPaymentMode(data.amount);
+                    break;
+
+                case 'PAYMENT_COMPLETE':
+                    showPaymentComplete();
+                    break;
+
+                case 'CLEAR_INVOICE':
+                    clearInvoice();
+                    break;
+
+                case 'UPDATE_STATUS':
+                    updateStatus(data.status);
+                    break;
+            }
+        });
+
+        // Also listen via BroadcastChannel for better compatibility
+        try {
+            const channel = new BroadcastChannel('pos-dual-screen');
+            channel.onmessage = function(event) {
+                const data = event.data;
+                handleMessage(data);
+            };
+        } catch(e) {
+            console.log('BroadcastChannel not supported');
+        }
+
+        function handleMessage(data) {
+            switch(data.type) {
+                case 'UPDATE_ITEMS':
+                    updateItems(data.items);
+                    updateTotals(data.totals);
+                    break;
+
+                case 'PAYMENT_START':
+                    showPaymentMode(data.amount);
+                    break;
+
+                case 'PAYMENT_COMPLETE':
+                    showPaymentComplete();
+                    break;
+
+                case 'CLEAR_INVOICE':
+                    clearInvoice();
+                    break;
+
+                case 'UPDATE_STATUS':
+                    updateStatus(data.status);
+                    break;
+            }
+        }
+
+        function updateItems(items) {
+            currentItems = items || [];
+
+            if (currentItems.length === 0) {
+                itemsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <h3>Welcome!</h3>
+                        <p>Items will appear here when added to the cart</p>
+                    </div>
+                `;
+                totalsDiv.style.display = 'none';
+                return;
+            }
+
+            // Clear empty state
+            if (emptyState) emptyState.remove();
+
+            // Render items
+            itemsContainer.innerHTML = currentItems.map(item => `
+                <div class="item">
+                    <img src="${item.image || '/assets/posawesome/images/placeholder.png'}"
+                         alt="${item.item_name}"
+                         class="item-image"
+                         onerror="this.src='/assets/posawesome/images/placeholder.png'">
+                    <div class="item-details">
+                        <div class="item-name">${item.item_name}</div>
+                        <div class="item-meta">
+                            <span class="item-qty">x${item.qty}</span>
+                            <span class="item-price">${formatCurrency(item.amount)}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            totalsDiv.style.display = 'block';
+        }
+
+        function updateTotals(totals) {
+            currentTotals = totals || { subtotal: 0, tax: 0, total: 0 };
+
+            document.getElementById('subtotal').textContent = formatCurrency(currentTotals.subtotal);
+            document.getElementById('tax').textContent = formatCurrency(currentTotals.tax);
+            document.getElementById('grandTotal').textContent = formatCurrency(currentTotals.total);
+        }
+
+        function showPaymentMode(amount) {
+            isPaymentMode = true;
+            paymentMode.classList.add('active');
+            document.getElementById('paymentAmount').textContent = formatCurrency(amount);
+            document.getElementById('paymentStatus').textContent = 'Processing payment...';
+
+            // Hide items during payment
+            itemsContainer.style.display = 'none';
+            totalsDiv.style.display = 'none';
+        }
+
+        function showPaymentComplete() {
+            document.getElementById('paymentStatus').textContent = 'Payment Successful! Thank you!';
+            setTimeout(() => {
+                clearInvoice();
+            }, 3000);
+        }
+
+        function clearInvoice() {
+            isPaymentMode = false;
+            paymentMode.classList.remove('active');
+            itemsContainer.style.display = 'block';
+            updateItems([]);
+            updateTotals({ subtotal: 0, tax: 0, total: 0 });
+            updateStatus('Waiting for items...');
+        }
+
+        function updateStatus(status) {
+            statusDiv.textContent = status;
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(amount || 0);
+        }
+
+        // Auto-refresh status
+        setInterval(() => {
+            if (!isPaymentMode) {
+                updateStatus(currentItems.length > 0 ?
+                    `${currentItems.length} item${currentItems.length > 1 ? 's' : ''} in cart` :
+                    'Waiting for items...');
+            }
+        }, 5000);
+
+        // Handle page unload
+        window.addEventListener('beforeunload', function() {
+            // Notify main window that dual screen was closed
+            try {
+                window.opener.postMessage({ type: 'DUAL_SCREEN_CLOSED' }, '*');
+            } catch(e) {}
+        });
+
+        // Initial status
+        updateStatus('Connected to POS system');
+    </script>
+</body>
+</html>

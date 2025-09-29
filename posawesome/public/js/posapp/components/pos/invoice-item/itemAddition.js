@@ -156,6 +156,11 @@ export default {
 		if (target_item) {
 			this.applyItemHighlight(target_item.posa_row_id, scanMode);
 		}
+
+		// Sync to dual screen if enabled
+		if (this.dualScreenEnabled) {
+			this.syncInvoiceToDualScreen();
+		}
 	},
 
 	// Apply highlight effect with green background and enlarged font for quantity and amount

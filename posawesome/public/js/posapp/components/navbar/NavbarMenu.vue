@@ -132,6 +132,23 @@
 					</div>
 				</v-list-item>
 
+				<!-- Dual Screen toggle -->
+				<v-list-item @click="$emit('toggle-dual-screen')" class="menu-item-compact success-action">
+					<template v-slot:prepend>
+						<div class="menu-icon-wrapper-compact success-icon">
+							<v-icon color="white" size="16">mdi-monitor-multiple</v-icon>
+						</div>
+					</template>
+					<div class="menu-content-compact">
+						<v-list-item-title class="menu-item-title-compact">{{
+							__("Dual Screen")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="menu-item-subtitle-compact">{{
+							__("Open customer display")
+						}}</v-list-item-subtitle>
+					</div>
+				</v-list-item>
+
 				<v-list-item
 					@click="$emit('clear-cache')"
 					:disabled="manualOffline || !networkOnline || !serverOnline"
@@ -233,6 +250,7 @@ export default {
 		"show-about",
 		"toggle-theme",
 		"toggle-fullscreen",
+		"toggle-dual-screen",
 		"logout",
 	],
 	methods: {
@@ -400,6 +418,11 @@ export default {
 	box-shadow: 0 2px 6px rgba(255, 152, 0, 0.2);
 }
 
+.success-icon {
+	background: linear-gradient(135deg, #4caf50 0%, #81c784 100%);
+	box-shadow: 0 2px 6px rgba(76, 175, 80, 0.2);
+}
+
 /* Compact Text Styling */
 .menu-item-title-compact {
 	font-weight: 600;
@@ -460,6 +483,15 @@ export default {
 
 .warning-action:hover::before {
 	background: linear-gradient(135deg, rgba(255, 152, 0, 0.05) 0%, rgba(255, 193, 7, 0.08) 100%) !important;
+}
+
+.success-action:hover .success-icon {
+	transform: scale(1.1) rotate(5deg);
+	box-shadow: 0 3px 8px rgba(76, 175, 80, 0.25);
+}
+
+.success-action:hover::before {
+	background: linear-gradient(135deg, rgba(76, 175, 80, 0.05) 0%, rgba(129, 199, 132, 0.08) 100%) !important;
 }
 
 /* Compact Responsive Design */
@@ -641,5 +673,11 @@ export default {
 :deep(.v-theme--dark) .warning-icon {
 	background: linear-gradient(135deg, #ffb74d 0%, #ffc107 100%);
 	box-shadow: 0 2px 6px rgba(255, 183, 77, 0.3);
+}
+
+:deep(.dark-theme) .success-icon,
+:deep(.v-theme--dark) .success-icon {
+	background: linear-gradient(135deg, #81c784 0%, #4caf50 100%);
+	box-shadow: 0 2px 6px rgba(129, 199, 132, 0.3);
 }
 </style>

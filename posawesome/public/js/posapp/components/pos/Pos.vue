@@ -421,6 +421,11 @@ export default {
 				this.payment = true ? data === "true" : false;
 				this.offers = false ? data === "true" : false;
 				this.coupons = false ? data === "true" : false;
+
+				// Sync payment start to dual screen
+				if (this.payment) {
+					this.eventBus.emit("sync_payment_start");
+				}
 			});
 			this.eventBus.on("show_offers", (data) => {
 				this.offers = true ? data === "true" : false;
