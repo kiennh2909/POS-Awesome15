@@ -1406,6 +1406,13 @@ export default {
 </script>
 
 <style scoped>
+/* Page content adjustments */
+.page-content[data-v-528f966a] {
+    flex: 1;
+    overflow-y: auto;
+    padding-top: 1px;
+}
+
 /* Card background adjustments */
 .cards {
 	background-color: var(--surface-secondary) !important;
