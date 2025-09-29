@@ -1578,13 +1578,15 @@ export default {
 			}
 		},
 		onBarcodeScanned(scannedCode) {
-			console.log("Barcode scanned:", scannedCode);
+			console.debug("[ItemsSelector] 📷 Barcode scanned:", scannedCode);
 
 			// Prevent multiple simultaneous scans
 			if (this.processing_scan) {
+				console.debug("[ItemsSelector] ⏳ Scan already in progress, ignoring:", scannedCode);
 				return;
 			}
 			this.processing_scan = true;
+			console.debug("[ItemsSelector] 🔒 Processing lock set for:", scannedCode);
 
 			// mark this search as coming from a scanner
 			this.search_from_scanner = true;
@@ -1596,6 +1598,7 @@ export default {
 			// Set the scanned code as search term
 			this.first_search = scannedCode;
 			this.search = scannedCode;
+			console.debug("[ItemsSelector] 🔍 Search terms set:", { first_search: scannedCode, search: scannedCode });
 
 			// Show scanning feedback
 			frappe.show_alert(
@@ -1608,69 +1611,32 @@ export default {
 
 			// Process the scanned item immediately without timeout
 			this.$nextTick(() => {
+				console.debug("[ItemsSelector] 🚀 Starting processScannedItem for:", scannedCode);
 				this.processScannedItem(scannedCode);
 			});
 		},
 		async processScannedItem(scannedCode) {
+			console.debug("[ItemsSelector] 🎯 processScannedItem started for:", scannedCode);
 			try {
 				// Prevent double processing
 				if (this.processing_scan) {
-					console.log("Scan already in progress, ignoring:", scannedCode);
+					console.debug("[ItemsSelector] ⏳ Double processing prevented for:", scannedCode);
 					return;
 				}
 				this.processing_scan = true;
+				console.debug("[ItemsSelector] 🔒 Lock acquired for:", scannedCode);
 
 				// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
 				let normalizedCode = scannedCode.trim().replace(/[-\s]/g, '');
+				console.debug("[ItemsSelector] 🧹 Normalized code:", normalizedCode);
 
-				// // Kiểm tra scale barcode
-				// let qty = 1;
-				// let searchKey = normalizedCode;
-				// let isScaleBarcode = false;
-				// if (normalizedCode.startsWith(this.pos_profile.posa_scale_barcode_start)) {
-				// 	let prefix = normalizedCode.substr(0, 7);
-				// 	let weightStr = normalizedCode.substr(7, 5);
-				// 	if (weightStr) {
-				// 		let weight = this.parseScaleWeight(weightStr);
-				// 		if (weight > 0) {
-				// 			qty = weight;
-				// 			searchKey = prefix;
-				// 			isScaleBarcode = true;
-				// 		}
-				// 	}
-				// }
+				let qty = 1;
+				let searchKey = normalizedCode;
+				console.debug("[ItemsSelector] 🔑 Search key set to:", searchKey, "qty:", qty);
 
-				// Ưu tiên tuyệt đối: Gọi BE exact (trừ scale barcode)
-				// if (!isScaleBarcode) {
-				// 	try {
-				// 		const exactItem = await frappe.call({
-				// 			method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
-				// 			args: {
-				// 				barcode: searchKey,
-				// 				pos_profile: JSON.stringify(this.pos_profile),
-				// 				price_list: this.active_price_list,
-				// 				customer: this.customer
-				// 			}
-				// 		});
-
-				// 		if (exactItem.message) {
-				// 			console.log("Found item by BE exact barcode:", exactItem.message);
-				// 			let item = exactItem.message;
-				// 			if (qty !== 1) {
-				// 				item.qty = qty;
-				// 			}
-				// 			this.addScannedItemToInvoice(item, scannedCode);
-				// 			return;
-				// 		}
-				// 	} catch (error) {
-				// 		console.warn("BE exact barcode failed:", error);
-				// 		// Continue to local search
-				// 	}
-				// }
-
-
+				// Ưu tiên tuyệt đối: Gọi BE exact
+				console.debug("[ItemsSelector] 🌐 Calling BE exact barcode API for:", searchKey);
 				try {
-					console.warn("Callo to BE exact barcode:", scannedCode);
 					const exactItem = await frappe.call({
 						method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
 						args: {
@@ -1682,26 +1648,29 @@ export default {
 					});
 
 					if (exactItem.message) {
-						console.log("Found item by BE exact barcode:", exactItem.message);
+						console.debug("[ItemsSelector] ✅ Found item by BE exact barcode:", exactItem.message.item_code);
 						let item = exactItem.message;
 						if (qty !== 1) {
 							item.qty = qty;
 						}
 						this.addScannedItemToInvoice(item, scannedCode);
 						return;
+					} else {
+						console.debug("[ItemsSelector] ❌ BE exact barcode returned no result");
 					}
 				} catch (error) {
-					console.warn("BE exact barcode failed:", error);
+					console.debug("[ItemsSelector] ⚠️ BE exact barcode failed:", error.message);
 					// Continue to local search
 				}
 
 				// Local exact barcode
+				console.debug("[ItemsSelector] 🔍 Searching local exact barcode for:", searchKey);
 				let foundItem = this.items.find((item) =>
 					item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey)
 				);
 
 				if (foundItem) {
-					console.log("Found item by local exact barcode:", foundItem);
+					console.debug("[ItemsSelector] ✅ Found item by local exact barcode:", foundItem.item_code);
 					// Set UOM theo posa_uom của barcode
 					let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
 					if (barcodeData && barcodeData.posa_uom) {
@@ -1712,35 +1681,44 @@ export default {
 					}
 					this.addScannedItemToInvoice(foundItem, scannedCode);
 					return;
+				} else {
+					console.debug("[ItemsSelector] ❌ No local exact barcode match");
 				}
 
 				// Exact Item Code (case-insensitive)
+				console.debug("[ItemsSelector] 🔍 Searching exact item code for:", searchKey);
 				foundItem = this.items.find((item) =>
 					item.item_code.toLowerCase() === searchKey.toLowerCase()
 				);
 
 				if (foundItem) {
-					console.log("Found item by exact item code:", foundItem);
+					console.debug("[ItemsSelector] ✅ Found item by exact item code:", foundItem.item_code);
 					if (qty !== 1) {
 						foundItem.qty = qty;
 					}
 					this.addScannedItemToInvoice(foundItem, scannedCode);
 					return;
+				} else {
+					console.debug("[ItemsSelector] ❌ No exact item code match");
 				}
 
 				// Fuzzy search - chỉ khi không có exact match
+				console.debug("[ItemsSelector] 🔍 Starting fuzzy search for:", searchKey);
 				const searchResults = this.searchItemsByCode(searchKey);
+				console.debug("[ItemsSelector] 📊 Fuzzy search results count:", searchResults.length);
 
 				if (searchResults.length === 1) {
-					console.log("Found item by fuzzy search:", searchResults[0]);
+					console.debug("[ItemsSelector] ✅ Single fuzzy match:", searchResults[0].item_code);
 					if (qty !== 1) {
 						searchResults[0].qty = qty;
 					}
 					this.addScannedItemToInvoice(searchResults[0], scannedCode);
 				} else if (searchResults.length > 1) {
+					console.debug("[ItemsSelector] ⚠️ Multiple fuzzy matches, showing dialog");
 					// Multiple matches - show selection dialog
 					this.showMultipleItemsDialog(searchResults, scannedCode);
 				} else {
+					console.debug("[ItemsSelector] ❌ No matches found");
 					// No matches found
 					this.handleItemNotFound(scannedCode);
 				}
