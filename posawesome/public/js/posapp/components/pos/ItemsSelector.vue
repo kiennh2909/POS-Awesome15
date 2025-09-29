@@ -1357,12 +1357,20 @@ export default {
 				// Highlight item in invoice table - chuyển màu xanh, font tăng 1.5 lần
 				setTimeout(() => {
 					console.log('[ItemsSelector] 🎯 Highlighting added item:', item.item_code);
+					console.log('[ItemsSelector] Scan mode:', this.scan_add_mode);
+
+					// Emit to both event names for compatibility
 					this.eventBus.emit("highlight_invoice_item", {
 						itemRowId: item.item_code,
 						scanMode: this.scan_add_mode,
 						duration: 2000,
 						enlargeFont: true
 					});
+
+					// Also emit the old event name for backward compatibility
+					this.eventBus.emit("highlight_scanned_item", item.item_code);
+
+					console.log('[ItemsSelector] ✅ Highlight event emitted successfully');
 				}, 1000);
 			}
 		},
