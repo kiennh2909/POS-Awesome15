@@ -1500,9 +1500,6 @@ export default {
 						}, 150);
 					});
 
-					// Continue with normal search to filter the items list
-					// This ensures the matched item appears in the filtered list
-					vm.continueWithNormalSearch(fromScanner);
 					return; // Đã xử lý xong
 				}
 
