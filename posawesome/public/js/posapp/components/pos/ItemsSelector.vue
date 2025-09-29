@@ -1470,6 +1470,57 @@ export default {
 				this.$refs.debounce_search && this.$refs.debounce_search.focus();
 			});
 		},
+		parseScaleWeight(weightStr) {
+			// Parse scale weight string (e.g., "00000" -> 0.000, "01234" -> 1.234)
+			try {
+				let weight = parseFloat(weightStr) / 1000; // Assume format is grams * 1000
+				return weight > 0 ? weight : 0;
+			} catch (e) {
+				return 0;
+			}
+		},
+		getCommonPrefixLength(str1, str2) {
+			let len = 0;
+			const minLen = Math.min(str1.length, str2.length);
+			for (let i = 0; i < minLen; i++) {
+				if (str1[i] === str2[i]) {
+					len++;
+				} else {
+					break;
+				}
+			}
+			return len;
+		},
+		getEditDistance(str1, str2) {
+			// Simple Levenshtein distance for edit distance = 1 check
+			if (Math.abs(str1.length - str2.length) > 1) return 2; // More than 1
+
+			if (str1.length === str2.length) {
+				// Substitution
+				let diff = 0;
+				for (let i = 0; i < str1.length; i++) {
+					if (str1[i] !== str2[i]) diff++;
+					if (diff > 1) return 2;
+				}
+				return diff;
+			} else {
+				// Insertion or deletion
+				const longer = str1.length > str2.length ? str1 : str2;
+				const shorter = str1.length > str2.length ? str2 : str1;
+				let i = 0, j = 0, diff = 0;
+				while (i < longer.length && j < shorter.length) {
+					if (longer[i] === shorter[j]) {
+						i++;
+						j++;
+					} else {
+						i++;
+						diff++;
+						if (diff > 1) return 2;
+					}
+				}
+				return diff;
+			}
+		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
 			const wordCount = words.length;
@@ -1558,25 +1609,67 @@ export default {
 		},
 		processScannedItem(scannedCode) {
 			try {
-				// First try to find exact match by barcode
-				let foundItem = this.items.find(
-					(item) =>
-						item.barcode === scannedCode ||
-						item.item_code === scannedCode ||
-						(item.barcodes && item.barcodes.some((bc) => bc.barcode === scannedCode)),
+				// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
+				let normalizedCode = scannedCode.trim().replace(/[-\s]/g, '');
+
+				// Kiểm tra scale barcode
+				let qty = 1;
+				let searchKey = normalizedCode;
+				if (normalizedCode.startsWith(this.pos_profile.posa_scale_barcode_start)) {
+					let prefix = normalizedCode.substr(0, 7);
+					let weightStr = normalizedCode.substr(7, 5);
+					if (weightStr) {
+						// Parse weight (format: 00000 -> 0.000, 0000x -> 0.00x, etc.)
+						let weight = this.parseScaleWeight(weightStr);
+						if (weight > 0) {
+							qty = weight;
+							searchKey = prefix;
+						}
+					}
+				}
+
+				// 1. Exact Barcode (ưu tiên tuyệt đối)
+				let foundItem = this.items.find((item) =>
+					item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey)
 				);
 
 				if (foundItem) {
-					console.log("Found item by exact match:", foundItem);
+					console.log("Found item by exact barcode:", foundItem);
+					// Set UOM theo posa_uom của barcode
+					let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
+					if (barcodeData && barcodeData.posa_uom) {
+						foundItem.uom = barcodeData.posa_uom;
+					}
+					// Set QTY theo scale
+					if (qty !== 1) {
+						foundItem.qty = qty;
+					}
 					this.addScannedItemToInvoice(foundItem, scannedCode);
 					return;
 				}
 
-				// If no exact match, try partial search
-				const searchResults = this.searchItemsByCode(scannedCode);
+				// 2. Exact Item Code (case-insensitive)
+				foundItem = this.items.find((item) =>
+					item.item_code.toLowerCase() === searchKey.toLowerCase()
+				);
+
+				if (foundItem) {
+					console.log("Found item by exact item code:", foundItem);
+					if (qty !== 1) {
+						foundItem.qty = qty;
+					}
+					this.addScannedItemToInvoice(foundItem, scannedCode);
+					return;
+				}
+
+				// 3. Mở rộng / Gợi ý (fuzzy) - chỉ khi không có exact match
+				const searchResults = this.searchItemsByCode(searchKey);
 
 				if (searchResults.length === 1) {
-					console.log("Found item by search:", searchResults[0]);
+					console.log("Found item by fuzzy search:", searchResults[0]);
+					if (qty !== 1) {
+						searchResults[0].qty = qty;
+					}
 					this.addScannedItemToInvoice(searchResults[0], scannedCode);
 				} else if (searchResults.length > 1) {
 					// Multiple matches - show selection dialog
@@ -1597,16 +1690,46 @@ export default {
 			}
 		},
 		searchItemsByCode(code) {
-			return this.items.filter((item) => {
-				const searchTerm = code.toLowerCase();
-				return (
-					item.item_code.toLowerCase().includes(searchTerm) ||
-					item.item_name.toLowerCase().includes(searchTerm) ||
-					(item.barcode && item.barcode.toLowerCase().includes(searchTerm)) ||
-					(item.barcodes &&
-						item.barcodes.some((bc) => bc.barcode.toLowerCase().includes(searchTerm)))
-				);
+			const searchTerm = code.toLowerCase();
+			const results = [];
+
+			// 1. Exact item_code match
+			const exactItemCode = this.items.filter((item) =>
+				item.item_code.toLowerCase() === searchTerm
+			);
+			results.push(...exactItemCode);
+
+			// 2. Item variant codes (also item_code of variants)
+			const variantMatches = this.items.filter((item) =>
+				item.variant_of && item.item_code.toLowerCase().includes(searchTerm)
+			);
+			results.push(...variantMatches);
+
+			// 3. Item name contains
+			const nameMatches = this.items.filter((item) =>
+				item.item_name.toLowerCase().includes(searchTerm) &&
+				!results.some((r) => r.item_code === item.item_code)
+			);
+			results.push(...nameMatches);
+
+			// 4. Barcode similar (prefix match >= 8-10 chars or edit distance = 1)
+			const barcodeMatches = this.items.filter((item) => {
+				if (results.some((r) => r.item_code === item.item_code)) return false;
+
+				return item.item_barcode && item.item_barcode.some((bc) => {
+					const bcLower = bc.barcode.toLowerCase();
+					// Prefix match (longest common prefix >= 8 chars)
+					const prefixLen = this.getCommonPrefixLength(searchTerm, bcLower);
+					if (prefixLen >= 8) return true;
+
+					// Edit distance = 1
+					return this.getEditDistance(searchTerm, bcLower) === 1;
+				});
 			});
+			results.push(...barcodeMatches);
+
+			// Limit to max 10 results
+			return results.slice(0, 10);
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
 			console.log("[ItemsSelector] 🔄 Processing scanned item:", item.item_code, "with code:", scannedCode);
@@ -1927,13 +2050,15 @@ export default {
 					return filtered;
 				} else if (this.search) {
 					const term = this.search.toLowerCase();
+					const isNumericSearch = /^\d+$/.test(this.search);
+
 					// Match barcode directly
 					filtred_list = filtred_group_list.filter((item) =>
 						item.item_barcode.some((b) => b.barcode === this.search),
 					);
 
-					if (filtred_list.length === 0) {
-						// Match by code or name containing the term
+					if (filtred_list.length === 0 && !isNumericSearch) {
+						// Only fallback to name/code search if not a numeric (barcode) search
 						filtred_list = filtred_group_list.filter(
 							(item) =>
 								item.item_code.toLowerCase().includes(term) ||
