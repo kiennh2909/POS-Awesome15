@@ -325,16 +325,31 @@ def _get_items_optimized(
     # --- BƯỚC 3: XỬ LÝ TÌM KIẾM ---
     or_filters = []
     if search_value:
-        search_data = search_serial_or_batch_or_barcode_number(search_value, pos_profile.get("posa_search_serial_no"))
-        item_code_from_search = search_data.get("item_code", search_value)
+        is_numeric_search = search_value.isdigit()
 
-        if search_data.get("item_code"):  # Tìm thấy chính xác
-            item_filters["name"] = item_code_from_search
-        else:  # Tìm kiếm tương đối
-            or_filters = [
-                ["name", "like", f"%{item_code_from_search}%"],
-                ["item_name", "like", f"%{item_code_from_search}%"]
-            ]
+        if is_numeric_search:
+            # Ưu tiên dùng get_item_by_barcode_exact cho barcode numeric
+            exact_item = get_item_by_barcode_exact(
+                search_value,
+                json.dumps(pos_profile),
+                price_list,
+                customer
+            )
+            if exact_item:
+                item_filters["name"] = exact_item["item_code"]
+            # Nếu không có exact match, không tìm gì cả (không fallback LIKE)
+        else:
+            # Text search: dùng logic cũ với LIKE
+            search_data = search_serial_or_batch_or_barcode_number(search_value, pos_profile.get("posa_search_serial_no"))
+            item_code_from_search = search_data.get("item_code", search_value)
+
+            if search_data.get("item_code"):  # Tìm thấy chính xác
+                item_filters["name"] = item_code_from_search
+            else:  # Tìm kiếm tương đối
+                or_filters = [
+                    ["name", "like", f"%{item_code_from_search}%"],
+                    ["item_name", "like", f"%{item_code_from_search}%"]
+                ]
 
     # --- BƯỚC 4: TRUY VẤN LẤY DANH SÁCH ITEM CHÍNH ---
     limit_page_length = _to_positive_int(limit)
