@@ -1353,6 +1353,17 @@ export default {
 				}
 				this.eventBus.emit("add_item", item, this.scan_add_mode);
 				this.qty = 1;
+
+				// Highlight item in invoice table - chuyển màu xanh, font tăng 1.5 lần
+				setTimeout(() => {
+					console.log('[ItemsSelector] 🎯 Highlighting added item:', item.item_code);
+					this.eventBus.emit("highlight_invoice_item", {
+						itemRowId: item.item_code,
+						scanMode: this.scan_add_mode,
+						duration: 2000,
+						enlargeFont: true
+					});
+				}, 1000);
 			}
 		},
 		async enter_event() {
@@ -1396,27 +1407,15 @@ export default {
 			if (this.flags.batch_no) {
 				new_item.to_set_batch_no = this.flags.batch_no;
 			}
-			if (match) {
-				await this.add_item(new_item);
-				this.flags.serial_no = null;
-				this.flags.batch_no = null;
-				this.qty = 1;
+			// Always add the item if found in filtered_items
+			await this.add_item(new_item);
+			this.flags.serial_no = null;
+			this.flags.batch_no = null;
+			this.qty = 1;
 
-				// Highlight item in invoice table - chuyển màu xanh, font tăng 1.5 lần
-				setTimeout(() => {
-					console.log('[ItemsSelector] 🎯 Highlighting searched item:', new_item.item_code);
-					this.eventBus.emit("highlight_invoice_item", {
-						itemRowId: new_item.item_code,
-						scanMode: this.scan_add_mode,
-						duration: 2000,
-						enlargeFont: true
-					});
-				}, 1000);
-
-				// Clear search field after successfully adding an item
-				this.clearSearch();
-				this.$refs.debounce_search.focus();
-			}
+			// Clear search field after successfully adding an item
+			this.clearSearch();
+			this.$refs.debounce_search.focus();
 		},
 		search_onchange: _.debounce(async function (newSearchTerm) {
 			const vm = this;
@@ -2027,27 +2026,6 @@ export default {
 						},
 						3,
 					);
-
-					// Emit highlight AFTER item is added to invoice with a longer delay
-					setTimeout(() => {
-						console.info("[ItemsSelector] 🎯 Emitting highlight event for:", item.item_code);
-						console.info("[ItemsSelector] Scan mode:", this.scan_add_mode);
-						console.info("[ItemsSelector] Event data:", {
-							itemRowId: item.item_code,
-							scanMode: this.scan_add_mode,
-							duration: 2000,
-							enlargeFont: true
-						});
-
-						this.eventBus.emit("highlight_invoice_item", {
-							itemRowId: item.item_code,
-							scanMode: this.scan_add_mode,
-							duration: 2000,
-							enlargeFont: true
-						});
-
-						console.info("[ItemsSelector] ✅ Highlight event emitted successfully");
-					}, 1000);
 				} else {
 					// Remove mode - emit event to remove item from invoice with scan mode
 					console.info("[ItemsSelector] ➖ Remove mode: Emitting remove_item_by_code for:", item.item_code);
