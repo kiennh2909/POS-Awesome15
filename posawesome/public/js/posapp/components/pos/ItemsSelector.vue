@@ -1401,6 +1401,18 @@ export default {
 				this.flags.serial_no = null;
 				this.flags.batch_no = null;
 				this.qty = 1;
+
+				// Highlight item in invoice table - chuyển màu xanh, font tăng 1.5 lần
+				setTimeout(() => {
+					console.log('[ItemsSelector] 🎯 Highlighting searched item:', new_item.item_code);
+					this.eventBus.emit("highlight_invoice_item", {
+						itemRowId: new_item.item_code,
+						scanMode: this.scan_add_mode,
+						duration: 2000,
+						enlargeFont: true
+					});
+				}, 1000);
+
 				// Clear search field after successfully adding an item
 				this.clearSearch();
 				this.$refs.debounce_search.focus();
