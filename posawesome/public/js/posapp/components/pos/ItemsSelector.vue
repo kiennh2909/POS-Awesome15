@@ -1594,17 +1594,23 @@ export default {
 		this.processing_scan = true;
 
 		try {
-			const { searchKey, qty, isScale } = this.normalizeScanInput(scannedCode);
-			if (!searchKey) {
-			console.log(`[ItemsSelector] ❌ Invalid scan input: ${scannedCode}`);
-			this.handleItemNotFound(scannedCode);
-			return;
+			// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
+			let normalizedCode = scannedCode.trim().replace(/[-\s]/g, '');
+			if (!normalizedCode) {
+				console.log(`[ItemsSelector] ❌ Invalid scan input: ${scannedCode}`);
+				this.handleItemNotFound(scannedCode);
+				return;
 			}
+
+			// Tạm thời bỏ xử lý scale barcode - hiện tại không dùng tới
+			let qty = 1;
+			let searchKey = normalizedCode;
+			let isScale = false;
 
 			console.log(`[ItemsSelector] 🔍 Processing scan: type=${isScale ? "scale" : "regular"}, key=${searchKey}, qty=${qty}, code=${scannedCode}`);
 
-			// 1) BE exact (ưu tiên tuyệt đối) – chỉ khi KHÔNG phải scale
-			//    (mặc định nhận số >=6; nếu bạn có barcode alpha-numeric, nới regex tại đây)
+			// 1) BE exact (ưu tiên tuyệt đối) - gọi cho tất cả barcode trừ scale
+			// Scale barcode đã được xử lý riêng trong normalizeScanInput
 			if (!isScale) {
 			console.log(`[ItemsSelector] 🔄 Calling BE exact barcode API for: ${searchKey}`);
 			try {
@@ -1647,18 +1653,28 @@ export default {
 				this.scanAbortController = null;
 			}
 			} else {
-				console.log(`[ItemsSelector] ⏭️ Skipping BE exact: scale=${isScale}, numeric=${/^\d{6,}$/.test(searchKey)}`);
+				console.log(`[ItemsSelector] ⏭️ Skipping BE exact for scale barcode: ${searchKey}`);
 			}
 
-			// 2) Local exact barcode (O(1) với index)
+			// 2) Local exact barcode
 			console.log(`[ItemsSelector] 🔍 Checking local exact barcode for: ${searchKey}`);
-			const localHit = this.lookupExactBarcodeLocal(searchKey);
+			let localHit = null;
+			let barcodeData = null;
+
+			for (const item of this.items || []) {
+				const bcMatch = (item.item_barcode || []).find(b => b.barcode === searchKey);
+				if (bcMatch) {
+					localHit = item;
+					barcodeData = bcMatch;
+					break;
+				}
+			}
+
 			if (localHit) {
-			const { item, barcodeData } = localHit;
-			console.log(`[ItemsSelector] ✅ Local exact hit: ${item.item_code} - ${item.item_name}`);
-			if (barcodeData?.posa_uom) item.uom = barcodeData.posa_uom;
-			if (qty !== 1) item.qty = qty;
-			await this.addScannedItemToInvoice(item, scannedCode);
+			console.log(`[ItemsSelector] ✅ Local exact hit: ${localHit.item_code} - ${localHit.item_name}`);
+			if (barcodeData?.posa_uom) localHit.uom = barcodeData.posa_uom;
+			if (qty !== 1) localHit.qty = qty;
+			await this.addScannedItemToInvoice(localHit, scannedCode);
 			console.log("[ItemsSelector] local_exact hit");
 			return;
 			} else {
