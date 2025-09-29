@@ -1404,10 +1404,10 @@ export default {
 				return;
 			}
 
-			// If multiple items match, show selection dialog instead of auto-adding
+			// If multiple items match, keep the list visible for user selection
 			if (this.filtered_items.length > 1) {
-				console.info('[ItemsSelector] Multiple items found, showing selection dialog');
-				this.showMultipleItemsDialog(this.filtered_items, this.first_search);
+				console.info('[ItemsSelector] Multiple items found, keeping list visible for user selection');
+				// Don't auto-add, let user click on the desired item from the visible list
 				return;
 			}
 
@@ -1998,10 +1998,8 @@ export default {
 			}
 		},
 		handleItemSearchFocus() {
-			this.first_search = "";
-			this.search = "";
-			// Optionally, you might want to also clear search_backup if the behaviour should be a full reset on focus
-			// this.search_backup = "";
+			// Don't clear search on focus to allow typing long search terms
+			// The search will be cleared after successful operations via clearSearchState()
 		},
 
 		clearQty() {
