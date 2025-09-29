@@ -1580,130 +1580,253 @@ export default {
 				this.processScannedItem(scannedCode);
 			});
 		},
-		async processScannedItem(scannedCode) {
-			try {
-				// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
-				let normalizedCode = scannedCode.trim().replace(/[-\s]/g, '');
 
-				// Kiểm tra scale barcode
-				let qty = 1;
-				let searchKey = normalizedCode;
-				let isScale = false;
-				if (normalizedCode.startsWith(this.pos_profile.posa_scale_barcode_start)) {
-					isScale = true;
-					let prefix = normalizedCode.substr(0, 7);
-					let weightStr = normalizedCode.substr(7, 5);
-					if (weightStr) {
-						qty = this.parseScaleWeight(weightStr);
-						searchKey = prefix;
-					}
-				}
 
-				// Telemetry: log scan type
-				console.log(`[ItemsSelector] Scan type: ${isScale ? 'scale' : 'regular'}, searchKey: ${searchKey}, qty: ${qty}`);
+		
+		// async processScannedItem(scannedCode) {
+		// 	try {
+		// 		// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
+		// 		let normalizedCode = scannedCode.trim().replace(/[-\s]/g, '');
 
-				// 1. BE Exact Barcode (ưu tiên tuyệt đối) - chỉ khi không phải scale & searchKey là số ≥6 ký tự
-				if (!isScale && /^\d{6,}$/.test(searchKey)) {
-					try {
-						const beResult = await frappe.call({
-							method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
-							args: {
-								barcode: searchKey,
-								pos_profile: JSON.stringify(this.pos_profile),
-								price_list: this.active_price_list,
-								customer: this.customer
-							},
-							freeze: false
-						});
+		// 		// Kiểm tra scale barcode
+		// 		let qty = 1;
+		// 		let searchKey = normalizedCode;
+		// 		let isScale = false;
+		// 		if (normalizedCode.startsWith(this.pos_profile.posa_scale_barcode_start)) {
+		// 			isScale = true;
+		// 			let prefix = normalizedCode.substr(0, 7);
+		// 			let weightStr = normalizedCode.substr(7, 5);
+		// 			if (weightStr) {
+		// 				qty = this.parseScaleWeight(weightStr);
+		// 				searchKey = prefix;
+		// 			}
+		// 		}
 
-						if (beResult.message) {
-							console.log("[ItemsSelector] Found item by BE exact barcode:", beResult.message);
-							let foundItem = beResult.message;
-							// Set UOM theo posa_uom của barcode khớp
-							let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
-							if (barcodeData && barcodeData.posa_uom) {
-								foundItem.uom = barcodeData.posa_uom;
-							}
-							// Set QTY theo scale nếu có
-							if (qty !== 1) {
-								foundItem.qty = qty;
-							}
-							this.addScannedItemToInvoice(foundItem, scannedCode);
-							console.log("[ItemsSelector] Telemetry: be_exact hit");
-							return;
-						}
-					} catch (error) {
-						console.warn("[ItemsSelector] BE exact barcode failed:", error);
-						// Continue to local search
-					}
-				}
+		// 		// Telemetry: log scan type
+		// 		console.log(`[ItemsSelector] Scan type: ${isScale ? 'scale' : 'regular'}, searchKey: ${searchKey}, qty: ${qty}`);
 
-				// 2. Local Exact Barcode
-				let foundItem = this.items.find((item) =>
-					item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey)
-				);
+		// 		// 1. BE Exact Barcode (ưu tiên tuyệt đối) - chỉ khi không phải scale & searchKey là số ≥6 ký tự
+		// 		if (!isScale && /^\d{6,}$/.test(searchKey)) {
+		// 			try {
+		// 				const beResult = await frappe.call({
+		// 					method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
+		// 					args: {
+		// 						barcode: searchKey,
+		// 						pos_profile: JSON.stringify(this.pos_profile),
+		// 						price_list: this.active_price_list,
+		// 						customer: this.customer
+		// 					},
+		// 					freeze: false
+		// 				});
 
-				if (foundItem) {
-					console.log("[ItemsSelector] Found item by local exact barcode:", foundItem);
-					// Set UOM theo posa_uom của barcode
-					let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
-					if (barcodeData && barcodeData.posa_uom) {
-						foundItem.uom = barcodeData.posa_uom;
-					}
-					// Set QTY theo scale
-					if (qty !== 1) {
-						foundItem.qty = qty;
-					}
-					this.addScannedItemToInvoice(foundItem, scannedCode);
-					console.log("[ItemsSelector] Telemetry: local_exact hit");
-					return;
-				}
+		// 				if (beResult.message) {
+		// 					console.log("[ItemsSelector] Found item by BE exact barcode:", beResult.message);
+		// 					let foundItem = beResult.message;
+		// 					// Set UOM theo posa_uom của barcode khớp
+		// 					let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
+		// 					if (barcodeData && barcodeData.posa_uom) {
+		// 						foundItem.uom = barcodeData.posa_uom;
+		// 					}
+		// 					// Set QTY theo scale nếu có
+		// 					if (qty !== 1) {
+		// 						foundItem.qty = qty;
+		// 					}
+		// 					this.addScannedItemToInvoice(foundItem, scannedCode);
+		// 					console.log("[ItemsSelector] Telemetry: be_exact hit");
+		// 					return;
+		// 				}
+		// 			} catch (error) {
+		// 				console.warn("[ItemsSelector] BE exact barcode failed:", error);
+		// 				// Continue to local search
+		// 			}
+		// 		}
 
-				// 3. Exact Item Code (kể cả variant)
-				foundItem = this.items.find((item) =>
-					item.item_code.toLowerCase() === searchKey.toLowerCase()
-				);
+		// 		// 2. Local Exact Barcode
+		// 		let foundItem = this.items.find((item) =>
+		// 			item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey)
+		// 		);
 
-				if (foundItem) {
-					console.log("[ItemsSelector] Found item by exact item code:", foundItem);
-					if (qty !== 1) {
-						foundItem.qty = qty;
-					}
-					this.addScannedItemToInvoice(foundItem, scannedCode);
-					console.log("[ItemsSelector] Telemetry: code hit");
-					return;
-				}
+		// 		if (foundItem) {
+		// 			console.log("[ItemsSelector] Found item by local exact barcode:", foundItem);
+		// 			// Set UOM theo posa_uom của barcode
+		// 			let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
+		// 			if (barcodeData && barcodeData.posa_uom) {
+		// 				foundItem.uom = barcodeData.posa_uom;
+		// 			}
+		// 			// Set QTY theo scale
+		// 			if (qty !== 1) {
+		// 				foundItem.qty = qty;
+		// 			}
+		// 			this.addScannedItemToInvoice(foundItem, scannedCode);
+		// 			console.log("[ItemsSelector] Telemetry: local_exact hit");
+		// 			return;
+		// 		}
 
-				// 4. Fuzzy search (fallback)
-				const searchResults = this.searchItemsByCode(searchKey);
+		// 		// 3. Exact Item Code (kể cả variant)
+		// 		foundItem = this.items.find((item) =>
+		// 			item.item_code.toLowerCase() === searchKey.toLowerCase()
+		// 		);
 
-				if (searchResults.length === 1) {
-					console.log("[ItemsSelector] Found item by fuzzy search:", searchResults[0]);
-					if (qty !== 1) {
-						searchResults[0].qty = qty;
-					}
-					this.addScannedItemToInvoice(searchResults[0], scannedCode);
-					console.log("[ItemsSelector] Telemetry: fuzzy hit");
-				} else if (searchResults.length > 1) {
-					// Multiple matches - show selection dialog
-					this.showMultipleItemsDialog(searchResults, scannedCode);
-					console.log("[ItemsSelector] Telemetry: multiple matches");
-				} else {
-					// No matches found
-					this.handleItemNotFound(scannedCode);
-					console.log("[ItemsSelector] Telemetry: not found");
-				}
-			} catch (error) {
-				console.error("Error processing scanned item:", error);
-				this.handleItemNotFound(scannedCode);
-			} finally {
-				// Always release the processing lock
-				setTimeout(() => {
-					this.processing_scan = false;
-					this.search_from_scanner = false;
-				}, 500);
+		// 		if (foundItem) {
+		// 			console.log("[ItemsSelector] Found item by exact item code:", foundItem);
+		// 			if (qty !== 1) {
+		// 				foundItem.qty = qty;
+		// 			}
+		// 			this.addScannedItemToInvoice(foundItem, scannedCode);
+		// 			console.log("[ItemsSelector] Telemetry: code hit");
+		// 			return;
+		// 		}
+
+		// 		// 4. Fuzzy search (fallback)
+		// 		const searchResults = this.searchItemsByCode(searchKey);
+
+		// 		if (searchResults.length === 1) {
+		// 			console.log("[ItemsSelector] Found item by fuzzy search:", searchResults[0]);
+		// 			if (qty !== 1) {
+		// 				searchResults[0].qty = qty;
+		// 			}
+		// 			this.addScannedItemToInvoice(searchResults[0], scannedCode);
+		// 			console.log("[ItemsSelector] Telemetry: fuzzy hit");
+		// 		} else if (searchResults.length > 1) {
+		// 			// Multiple matches - show selection dialog
+		// 			this.showMultipleItemsDialog(searchResults, scannedCode);
+		// 			console.log("[ItemsSelector] Telemetry: multiple matches");
+		// 		} else {
+		// 			// No matches found
+		// 			this.handleItemNotFound(scannedCode);
+		// 			console.log("[ItemsSelector] Telemetry: not found");
+		// 		}
+		// 	} catch (error) {
+		// 		console.error("Error processing scanned item:", error);
+		// 		this.handleItemNotFound(scannedCode);
+		// 	} finally {
+		// 		// Always release the processing lock
+		// 		setTimeout(() => {
+		// 			this.processing_scan = false;
+		// 			this.search_from_scanner = false;
+		// 		}, 500);
+		// 	}
+		// },
+
+	async processScannedItem(scannedCode) {
+  	// chống double-scan trong ~300ms
+		const now = Date.now();
+		if (this.processing_scan) return;
+		if (this._lastScanCode === scannedCode && now - (this._lastScanAt || 0) < 300) return;
+		this._lastScanCode = scannedCode;
+		this._lastScanAt = now;
+
+		this.processing_scan = true;
+
+		try {
+			const { searchKey, qty, isScale } = this.normalizeScanInput(scannedCode);
+			if (!searchKey) {
+			this.handleItemNotFound(scannedCode);
+			return;
 			}
+
+			console.log(`[ItemsSelector] scan=${isScale ? "scale" : "regular"} key=${searchKey} qty=${qty}`);
+
+			// 1) BE exact (ưu tiên tuyệt đối) – chỉ khi KHÔNG phải scale
+			//    (mặc định nhận số >=6; nếu bạn có barcode alpha-numeric, nới regex tại đây)
+			if (!isScale && /^\d{6,}$/.test(searchKey)) {
+			try {
+				// hủy call trước đó (nếu có)
+				if (this.scanAbortController) this.scanAbortController.abort();
+				const ctrl = new AbortController();
+				this.scanAbortController = ctrl;
+
+				const beResult = await frappe.call({
+				method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
+				args: {
+					barcode: searchKey,
+					pos_profile: JSON.stringify(this.pos_profile),
+					price_list: this.active_price_list,
+					customer: this.customer
+				},
+				freeze: false,
+				signal: ctrl.signal
+				});
+
+				if (beResult?.message) {
+				const item = beResult.message;
+
+				// UOM theo barcode match (nếu có)
+				const matched = (item.item_barcode || []).find(b => b.barcode === searchKey);
+				if (matched?.posa_uom) item.uom = matched.posa_uom;
+
+				if (qty !== 1) item.qty = qty;
+				await this.addScannedItemToInvoice(item, scannedCode);
+				console.log("[ItemsSelector] be_exact hit");
+				return;
+				}
+			} catch (e) {
+				if (e?.name !== "AbortError") console.warn("[ItemsSelector] be_exact failed:", e);
+				// tiếp tục local
+			} finally {
+				this.scanAbortController = null;
+			}
+			}
+
+			// 2) Local exact barcode (O(1) với index)
+			const localHit = this.lookupExactBarcodeLocal(searchKey);
+			if (localHit) {
+			const { item, barcodeData } = localHit;
+			if (barcodeData?.posa_uom) item.uom = barcodeData.posa_uom;
+			if (qty !== 1) item.qty = qty;
+			await this.addScannedItemToInvoice(item, scannedCode);
+			console.log("[ItemsSelector] local_exact hit");
+			return;
+			}
+
+			// 3) Exact item_code (kể cả variant)
+			const exactCode = (this.items || []).find(it =>
+			String(it.item_code || "").toLowerCase() === searchKey.toLowerCase()
+			);
+			if (exactCode) {
+			if (qty !== 1) exactCode.qty = qty;
+			await this.addScannedItemToInvoice(exactCode, scannedCode);
+			console.log("[ItemsSelector] code hit");
+			return;
+			}
+
+			// 4) Fuzzy fallback (tối đa 10 gợi ý)
+			const term = searchKey.toLowerCase();
+			const results = (this.items || []).filter(it => {
+			const codeOk = String(it.item_code || "").toLowerCase().includes(term);
+			const nameOk = String(it.item_name || "").toLowerCase().includes(term);
+			const variantOk = it.variant_of && String(it.variant_of).toLowerCase().includes(term);
+			const bcLike = (it.item_barcode || []).some(b => String(b.barcode || "").toLowerCase().includes(term));
+			return codeOk || nameOk || variantOk || bcLike;
+			}).slice(0, 10);
+
+			if (results.length === 1) {
+			if (qty !== 1) results[0].qty = qty;
+			await this.addScannedItemToInvoice(results[0], scannedCode);
+			console.log("[ItemsSelector] fuzzy hit");
+			return;
+			}
+			if (results.length > 1) {
+			this.showMultipleItemsDialog(results, scannedCode);
+			console.log("[ItemsSelector] multiple matches");
+			return;
+			}
+
+			// 5) Không tìm thấy
+			this.handleItemNotFound(scannedCode);
+			console.log("[ItemsSelector] not found");
+		} catch (err) {
+			console.error("[ItemsSelector] process error:", err);
+			this.handleItemNotFound(scannedCode);
+		} finally {
+			// release lock nhanh để nhận scan kế tiếp
+			setTimeout(() => {
+			this.processing_scan = false;
+			this.search_from_scanner = false;
+			}, 250);
+		}
 		},
+
 		searchItemsByCode(code) {
 			return this.items.filter((item) => {
 				const searchTerm = code.toLowerCase();
