@@ -1162,3 +1162,94 @@ def get_price_for_uom(item_code, price_list, uom):
         "price_list_rate",
     )
     return price
+
+
+@frappe.whitelist()
+def get_item_by_barcode_exact(barcode, pos_profile, price_list=None, customer=None):
+    """
+    Lấy đúng 1 item theo barcode chính xác.
+    Nếu trùng barcode (nhiều dòng): log cảnh báo + throw error.
+    Trả về đủ data để FE add ngay.
+    """
+    pos_profile = json.loads(pos_profile)
+    warehouse = pos_profile.get("warehouse")
+    company = pos_profile.get("company")
+
+    # Tìm barcode chính xác
+    barcode_data = frappe.db.get_all(
+        "Item Barcode",
+        filters={"barcode": barcode},
+        fields=["parent as item_code", "barcode", "posa_uom"]
+    )
+
+    if not barcode_data:
+        return None
+
+    if len(barcode_data) > 1:
+        # Log cảnh báo nếu trùng barcode
+        frappe.log_error(
+            f"Duplicate barcode found: {barcode} - Items: {[b['item_code'] for b in barcode_data]}",
+            "POS Barcode Duplicate"
+        )
+        frappe.throw(f"Barcode '{barcode}' is assigned to multiple items. Please contact administrator.")
+
+    barcode_info = barcode_data[0]
+    item_code = barcode_info["item_code"]
+
+    # Lấy thông tin item
+    item = frappe.get_all(
+        "Item",
+        filters={"name": item_code, "disabled": 0, "is_sales_item": 1},
+        fields=[
+            "name as item_code", "item_name", "description", "stock_uom", "image",
+            "is_stock_item", "has_variants", "variant_of", "item_group",
+            "has_batch_no", "has_serial_no", "max_discount", "brand"
+        ]
+    )
+
+    if not item:
+        return None
+
+    item = item[0]
+
+    # Lấy giá
+    today = nowdate()
+    selling_price_list = price_list or pos_profile.get("selling_price_list")
+    item_price = frappe.get_all(
+        "Item Price",
+        fields=["price_list_rate", "currency", "uom"],
+        filters={
+            "price_list": selling_price_list, "item_code": item_code,
+            "selling": 1, "valid_from": ["<=", today],
+            "customer": ["in", ["", None, customer]]
+        },
+        or_filters=[["valid_upto", ">=", today], ["valid_upto", "is", "not set"]],
+        limit=1
+    )
+
+    if item_price:
+        item["rate"] = item_price[0]["price_list_rate"]
+        item["currency"] = item_price[0]["currency"] or pos_profile.get("currency")
+    else:
+        item["rate"] = 0
+        item["currency"] = pos_profile.get("currency")
+
+    # Lấy tồn kho
+    if item.get("is_stock_item"):
+        item["actual_qty"] = get_stock_from_bin(item_code, warehouse)
+
+    # Lấy barcode và UOM
+    item["item_barcode"] = [{"barcode": barcode_info["barcode"], "posa_uom": barcode_info["posa_uom"]}]
+    item["uom"] = barcode_info["posa_uom"] or item["stock_uom"]
+
+    # Lấy UOMs
+    uom_data = frappe.get_all("UOM Conversion Detail", fields=["uom", "conversion_factor"], filters={"parent": item_code})
+    item["item_uoms"] = uom_data
+
+    # Các trường khác
+    item["serial_no_data"] = []
+    item["batch_no_data"] = []
+    item["attributes"] = ""
+    item["item_attributes"] = ""
+
+    return item
