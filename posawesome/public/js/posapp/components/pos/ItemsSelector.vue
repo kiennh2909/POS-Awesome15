@@ -733,6 +733,90 @@ export default {
 			return cleanCode.length >= 6 && /^\d{6,}$/.test(cleanCode.replace(/[-\s]/g, ''));
 		},
 
+		// Helper method để tiếp tục với normal search logic (không phải barcode)
+		continueWithNormalSearch(fromScanner) {
+			if (this.pos_profile.pose_use_limit_search) {
+				// Only trigger search when query length meets minimum threshold
+				if (this.search && this.search.length >= 3) {
+					this.get_items();
+				}
+			} else {
+				// Save the current filtered items before search to maintain quantity data
+				const current_items = [...this.filtered_items];
+				if (this.search && this.search.length >= 3) {
+					this.enter_event();
+				}
+
+				// After search, update quantities for newly filtered items
+				if (this.filtered_items && this.filtered_items.length > 0) {
+					setTimeout(() => {
+						this.update_items_details(this.filtered_items);
+					}, 300);
+				}
+			}
+
+			// Clear the input only when triggered via scanner
+			if (fromScanner) {
+				this.clearSearch();
+				this.$refs.debounce_search && this.$refs.debounce_search.focus();
+				this.search_from_scanner = false;
+			}
+		},
+
+		// Helper method để tiếp tục với local search logic
+		continueWithLocalSearch(searchKey, qty) {
+			// ƯU TIÊN 2: Exact Barcode trong local items (fallback nếu API fail)
+			let foundItem = this.items.find((item) =>
+				item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey)
+			);
+
+			if (foundItem) {
+				console.log("Found item by exact barcode (local):", foundItem);
+				// Set UOM theo posa_uom của barcode
+				let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
+				if (barcodeData && barcodeData.posa_uom) {
+					foundItem.uom = barcodeData.posa_uom;
+				}
+				// Set QTY theo scale
+				if (qty !== 1) {
+					foundItem.qty = qty;
+				}
+				this.addScannedItemToInvoice(foundItem, searchKey);
+				return;
+			}
+
+			// ƯU TIÊN 3: Exact Item Code (case-insensitive)
+			foundItem = this.items.find((item) =>
+				item.item_code.toLowerCase() === searchKey.toLowerCase()
+			);
+
+			if (foundItem) {
+				console.log("Found item by exact item code:", foundItem);
+				if (qty !== 1) {
+					foundItem.qty = qty;
+				}
+				this.addScannedItemToInvoice(foundItem, searchKey);
+				return;
+			}
+
+			// ƯU TIÊN 4: Mở rộng / Gợi ý (fuzzy) - chỉ khi không có exact match
+			const searchResults = this.searchItemsByCode(searchKey);
+
+			if (searchResults.length === 1) {
+				console.log("Found item by fuzzy search:", searchResults[0]);
+				if (qty !== 1) {
+					searchResults[0].qty = qty;
+				}
+				this.addScannedItemToInvoice(searchResults[0], searchKey);
+			} else if (searchResults.length > 1) {
+				// Multiple matches - show selection dialog
+				this.showMultipleItemsDialog(searchResults, searchKey);
+			} else {
+				// No matches found
+				this.handleItemNotFound(searchKey);
+			}
+		},
+
 		// Method gọi API exact barcode và add item nếu tìm thấy
 		async fetchExactBarcodeAndAdd(rawCode) {
 			try {
@@ -1340,12 +1424,20 @@ export default {
 			// ƯU TIÊN: Nếu search term trông như barcode, thử exact API trước
 			if (vm.search && vm.looksLikeBarcode(vm.search)) {
 				console.log('[ItemsSelector] 🔍 Search term looks like barcode, trying exact API first:', vm.search);
-				const exactMatch = await vm.fetchExactBarcodeAndAdd(vm.search);
-				if (exactMatch) {
-					console.log('[ItemsSelector] ✅ Exact barcode API found and added item from search');
-					return; // Đã xử lý xong, không cần tìm tiếp
-				}
-				console.log('[ItemsSelector] ❌ Exact barcode API not found, continuing with normal search');
+				vm.fetchExactBarcodeAndAdd(vm.search).then((exactMatch) => {
+					if (exactMatch) {
+						console.log('[ItemsSelector] ✅ Exact barcode API found and added item from search');
+						return; // Đã xử lý xong, không cần tìm tiếp
+					}
+					console.log('[ItemsSelector] ❌ Exact barcode API not found, continuing with normal search');
+					// Tiếp tục với logic search bình thường
+					vm.continueWithNormalSearch(fromScanner);
+				}).catch((error) => {
+					console.error('[ItemsSelector] Error in exact barcode API from search:', error);
+					// Fallback to normal search nếu API lỗi
+					vm.continueWithNormalSearch(fromScanner);
+				});
+				return; // Dừng xử lý để chờ API response
 			}
 
 			if (vm.pos_profile.pose_use_limit_search) {
@@ -1815,12 +1907,20 @@ export default {
 				// ƯU TIÊN 1: Gọi API exact barcode từ server trước
 				if (this.looksLikeBarcode(searchKey)) {
 					console.log('[ItemsSelector] 🔍 Trying exact barcode API first for:', searchKey);
-					const exactMatch = await this.fetchExactBarcodeAndAdd(searchKey);
-					if (exactMatch) {
-						console.log('[ItemsSelector] ✅ Exact barcode API found and added item');
-						return; // Đã xử lý xong, không cần tìm tiếp
-					}
-					console.log('[ItemsSelector] ❌ Exact barcode API not found, falling back to local search');
+					this.fetchExactBarcodeAndAdd(searchKey).then((exactMatch) => {
+						if (exactMatch) {
+							console.log('[ItemsSelector] ✅ Exact barcode API found and added item');
+							return; // Đã xử lý xong, không cần tìm tiếp
+						}
+						console.log('[ItemsSelector] ❌ Exact barcode API not found, falling back to local search');
+						// Tiếp tục với logic local search
+						this.continueWithLocalSearch(searchKey, qty);
+					}).catch((error) => {
+						console.error('[ItemsSelector] Error in exact barcode API:', error);
+						// Fallback to local search nếu API lỗi
+						this.continueWithLocalSearch(searchKey, qty);
+					});
+					return; // Dừng xử lý để chờ API response
 				}
 
 				// ƯU TIÊN 2: Exact Barcode trong local items (fallback nếu API fail)
