@@ -673,9 +673,15 @@ export default {
 			return true;
 		},
 
-		// Add created hook for event listeners
-		created() {
+		// Add mounted hook for event listeners (moved from created to ensure eventBus is available)
+		mounted() {
 			console.log("[ItemsTable] Setting up event listeners");
+
+			// Ensure eventBus is available before setting up listeners
+			if (!this.eventBus) {
+				console.warn("[ItemsTable] EventBus not available, skipping event listener setup");
+				return;
+			}
 
 			// Listen for highlight invoice item event
 			this.eventBus.on("highlight_invoice_item", (data) => {
@@ -696,8 +702,10 @@ export default {
 		// Add beforeUnmount for cleanup
 		beforeUnmount() {
 			// Cleanup event listeners
-			this.eventBus.off("highlight_invoice_item");
-			this.eventBus.off("highlight_scanned_item");
+			if (this.eventBus) {
+				this.eventBus.off("highlight_invoice_item");
+				this.eventBus.off("highlight_scanned_item");
+			}
 		},
 	},
 };
