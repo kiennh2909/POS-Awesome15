@@ -456,6 +456,8 @@ export default {
 		scan_add_mode: true,
 		// Prevent multiple simultaneous scan processing
 		processing_scan: false,
+		// Prevent multiple simultaneous search processing
+		processing_search: false,
 	}),
 
 	watch: {
@@ -542,7 +544,7 @@ export default {
 		first_search: _.debounce(function (val) {
 			// Call without arguments so search_onchange treats it like an Enter key
 			this.search_onchange();
-		}, 300),
+		}, 300), // Increased debounce time to match search debounce
 
 		// Refresh item prices whenever the user changes currency
 		selected_currency() {
@@ -697,7 +699,7 @@ export default {
 			},
 			set: _.debounce(function (newValue) {
 				this.first_search = (newValue || "").trim();
-			}, 200),
+			}, 300), // Increased debounce time to prevent rapid consecutive inputs
 		},
 		debounce_qty: {
 			get() {
@@ -714,7 +716,7 @@ export default {
 					parsed = Math.trunc(parsed);
 				}
 				this.qty = parsed;
-			}, 200),
+			}, 300), // Increased debounce time to match search debounce
 		},
 		isDarkTheme() {
 			return this.$theme.current === "dark";
@@ -731,6 +733,22 @@ export default {
 			const cleanCode = code.trim();
 			// Barcode thường ≥6 ký tự, chứa số, có thể có ký tự đặc biệt
 			return cleanCode.length >= 6 && /^\d{6,}$/.test(cleanCode.replace(/[-\s]/g, ''));
+		},
+
+		// Enhanced barcode validation to prevent malformed barcodes
+		isValidBarcode(code) {
+			if (!this.looksLikeBarcode(code)) return false;
+
+			// Additional validation: check for scale barcode format
+			if (this.pos_profile.posa_scale_barcode_start && code.startsWith(this.pos_profile.posa_scale_barcode_start)) {
+				// Scale barcode must have at least prefix + 5 digits for weight
+				return code.length >= this.pos_profile.posa_scale_barcode_start.length + 5;
+			}
+
+			// Standard barcode validation
+			const cleanCode = code.replace(/[-\s]/g, '');
+			// Must be numeric and reasonable length (6-18 digits for standard barcodes)
+			return /^\d{6,18}$/.test(cleanCode);
 		},
 
 		// Helper method để tiếp tục với normal search logic (không phải barcode)
@@ -1446,6 +1464,12 @@ export default {
 		search_onchange: _.debounce(async function (newSearchTerm) {
 			const vm = this;
 
+			// Prevent multiple concurrent search processing
+			if (vm.processing_search) {
+				console.info('[ItemsSelector] Search already in progress, skipping...');
+				return;
+			}
+
 			// Determine the actual query string and trim whitespace
 			const query = typeof newSearchTerm === "string" ? newSearchTerm : vm.first_search;
 
@@ -1458,95 +1482,97 @@ export default {
 
 			const fromScanner = vm.search_from_scanner;
 
-			// ƯU TIÊN: Nếu search term trông như barcode, thử exact match trước
-			if (vm.search && vm.looksLikeBarcode(vm.search)) {
-				console.info('[ItemsSelector] 🔍 Search term looks like barcode, trying exact match first:', vm.search);
+			// Set processing flag to prevent concurrent searches
+			vm.processing_search = true;
 
-				// Thử tìm exact match trong local items trước
-				let exactItem = vm.items.find((item) =>
-					item.item_barcode && item.item_barcode.some((bc) => bc.barcode === vm.search)
-				);
+			try {
+				// ƯU TIÊN: Nếu search term là barcode hợp lệ, thử exact match trước
+				if (vm.search && vm.isValidBarcode(vm.search)) {
+					console.info('[ItemsSelector] 🔍 Search term is valid barcode, trying exact match first:', vm.search);
 
-				if (exactItem) {
-					console.info('[ItemsSelector] ✅ Found exact barcode match in local items:', exactItem.item_code);
+					// Thử tìm exact match trong local items trước
+					let exactItem = vm.items.find((item) =>
+						item.item_barcode && item.item_barcode.some((bc) => bc.barcode === vm.search)
+					);
 
-					// Highlight item ngay lập tức để tối ưu trải nghiệm
-					setTimeout(() => {
-						console.log('[ItemsSelector] 🎯 Highlighting exact match from search:', exactItem.item_code);
-						vm.eventBus.emit("highlight_invoice_item", {
-							itemRowId: exactItem.item_code,
-							scanMode: vm.scan_add_mode,
-							duration: 1000, // 1 second highlight
-							enlargeFont: true
-						});
-						vm.eventBus.emit("highlight_scanned_item", exactItem.item_code);
-						console.log('[ItemsSelector] ✅ Highlight event emitted for exact match');
-					}, 100);
+					if (exactItem) {
+						console.info('[ItemsSelector] ✅ Found exact barcode match in local items:', exactItem.item_code);
 
-					// Set UOM theo posa_uom của barcode
-					let barcodeData = exactItem.item_barcode.find((bc) => bc.barcode === vm.search);
-					if (barcodeData && barcodeData.posa_uom) {
-						exactItem.uom = barcodeData.posa_uom;
-					}
-
-					// Add item and clear search box for consistent UX
-					vm.add_item(exactItem).then(() => {
-						// Clear search field after successfully adding an item
-						vm.clearSearch();
+						// Highlight item ngay lập tức để tối ưu trải nghiệm
 						setTimeout(() => {
-							if (vm.$refs.debounce_search) {
-								vm.$refs.debounce_search.focus();
-							}
-						}, 150);
-					});
+							console.log('[ItemsSelector] 🎯 Highlighting exact match from search:', exactItem.item_code);
+							vm.eventBus.emit("highlight_invoice_item", {
+								itemRowId: exactItem.item_code,
+								scanMode: vm.scan_add_mode,
+								duration: 1000, // 1 second highlight
+								enlargeFont: true
+							});
+							vm.eventBus.emit("highlight_scanned_item", exactItem.item_code);
+							console.log('[ItemsSelector] ✅ Highlight event emitted for exact match');
+						}, 100);
 
-					return; // Đã xử lý xong
-				}
+						// Set UOM theo posa_uom của barcode
+						let barcodeData = exactItem.item_barcode.find((bc) => bc.barcode === vm.search);
+						if (barcodeData && barcodeData.posa_uom) {
+							exactItem.uom = barcodeData.posa_uom;
+						}
 
-				// Nếu không tìm thấy trong local, thử exact API
-				vm.fetchExactBarcodeAndAdd(vm.search).then((exactMatch) => {
-					if (exactMatch) {
-						console.info('[ItemsSelector] ✅ Exact barcode API found and added item from search');
-						return; // Đã xử lý xong, không cần tìm tiếp
+						// Add item and clear search state for consistent UX
+						await vm.add_item(exactItem);
+						vm.clearSearchState();
+
+						return; // Đã xử lý xong
 					}
-					console.info('[ItemsSelector] ❌ Exact barcode API not found, continuing with normal search');
-					// Tiếp tục với logic search bình thường - chỉ khi không có exact match
-					vm.continueWithNormalSearch(fromScanner);
-				}).catch((error) => {
-					console.error('[ItemsSelector] Error in exact barcode API from search:', error);
-					// Fallback to normal search nếu API lỗi
-					vm.continueWithNormalSearch(fromScanner);
-				});
-				return; // Dừng xử lý để chờ API response
-			}
 
-			if (vm.pos_profile.pose_use_limit_search) {
-				// Only trigger search when query length meets minimum threshold
-				if (vm.search && vm.search.length >= 3) {
-					vm.get_items();
-				}
-			} else {
-				// Save the current filtered items before search to maintain quantity data
-				const current_items = [...vm.filtered_items];
-				if (vm.search && vm.search.length >= 3) {
-					vm.enter_event();
+					// Nếu không tìm thấy trong local, thử exact API
+					vm.fetchExactBarcodeAndAdd(vm.search).then((exactMatch) => {
+						if (exactMatch) {
+							console.info('[ItemsSelector] ✅ Exact barcode API found and added item from search');
+							return; // Đã xử lý xong, không cần tìm tiếp
+						}
+						console.info('[ItemsSelector] ❌ Exact barcode API not found, continuing with normal search');
+						// Tiếp tục với logic search bình thường - chỉ khi không có exact match
+						vm.continueWithNormalSearch(fromScanner);
+					}).catch((error) => {
+						console.error('[ItemsSelector] Error in exact barcode API from search:', error);
+						// Fallback to normal search nếu API lỗi
+						vm.continueWithNormalSearch(fromScanner);
+					});
+					return; // Dừng xử lý để chờ API response
 				}
 
-				// After search, update quantities for newly filtered items
-				if (vm.filtered_items && vm.filtered_items.length > 0) {
-					setTimeout(() => {
-						vm.update_items_details(vm.filtered_items);
-					}, 300);
-				}
-			}
+				// Nếu không phải barcode, thực hiện search bình thường
+				if (vm.pos_profile.pose_use_limit_search) {
+					// Only trigger search when query length meets minimum threshold
+					if (vm.search && vm.search.length >= 3) {
+						vm.get_items();
+					}
+				} else {
+					// Save the current filtered items before search to maintain quantity data
+					const current_items = [...vm.filtered_items];
+					if (vm.search && vm.search.length >= 3) {
+						vm.enter_event();
+					}
 
-			// Clear the input only when triggered via scanner
-			if (fromScanner) {
-				vm.clearSearch();
-				vm.$refs.debounce_search && vm.$refs.debounce_search.focus();
-				vm.search_from_scanner = false;
+					// After search, update quantities for newly filtered items
+					if (vm.filtered_items && vm.filtered_items.length > 0) {
+						setTimeout(() => {
+							vm.update_items_details(vm.filtered_items);
+						}, 300);
+					}
+				}
+
+				// Clear the input only when triggered via scanner
+				if (fromScanner) {
+					vm.clearSearchState();
+				}
+			} finally {
+				// Always clear processing flag
+				setTimeout(() => {
+					vm.processing_search = false;
+				}, 100);
 			}
-		}, 200),
+		}, 300),
 		
 		get_item_qty(first_search) {
 			const qtyVal = this.qty != null ? this.qty : 1;
@@ -1905,6 +1931,21 @@ export default {
 			this.first_search = "";
 			this.search = "";
 			// No need to call get_items() again
+		},
+
+		// Enhanced search state clearing after successful processing
+		clearSearchState() {
+			this.clearSearch();
+			this.search_from_scanner = false;
+			this.processing_search = false;
+			this.qty = 1; // Reset quantity to default
+
+			// Refocus input after clearing
+			setTimeout(() => {
+				if (this.$refs.debounce_search) {
+					this.$refs.debounce_search.focus();
+				}
+			}, 150);
 		},
 
 		restoreSearch() {
