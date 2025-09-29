@@ -1470,61 +1470,6 @@ export default {
 				this.$refs.debounce_search && this.$refs.debounce_search.focus();
 			});
 		},
-		parseScaleWeight(weightStr) {
-			// Parse scale weight string (e.g., "00000" -> 0.000, "01234" -> 1.234)
-			// Format: 5 digits, last 3 are decimals
-			try {
-				if (weightStr.length !== 5) return 0;
-				let intPart = parseInt(weightStr.substr(0, 2));
-				let decPart = parseInt(weightStr.substr(2, 3));
-				let weight = intPart + decPart / 1000;
-				return weight > 0 ? weight : 0;
-			} catch (e) {
-				return 0;
-			}
-		},
-		getCommonPrefixLength(str1, str2) {
-			let len = 0;
-			const minLen = Math.min(str1.length, str2.length);
-			for (let i = 0; i < minLen; i++) {
-				if (str1[i] === str2[i]) {
-					len++;
-				} else {
-					break;
-				}
-			}
-			return len;
-		},
-		getEditDistance(str1, str2) {
-			// Simple Levenshtein distance for edit distance = 1 check
-			if (Math.abs(str1.length - str2.length) > 1) return 2; // More than 1
-
-			if (str1.length === str2.length) {
-				// Substitution
-				let diff = 0;
-				for (let i = 0; i < str1.length; i++) {
-					if (str1[i] !== str2[i]) diff++;
-					if (diff > 1) return 2;
-				}
-				return diff;
-			} else {
-				// Insertion or deletion
-				const longer = str1.length > str2.length ? str1 : str2;
-				const shorter = str1.length > str2.length ? str2 : str1;
-				let i = 0, j = 0, diff = 0;
-				while (i < longer.length && j < shorter.length) {
-					if (longer[i] === shorter[j]) {
-						i++;
-						j++;
-					} else {
-						i++;
-						diff++;
-						if (diff > 1) return 2;
-					}
-				}
-				return diff;
-			}
-		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
 			const wordCount = words.length;
@@ -1578,15 +1523,13 @@ export default {
 			}
 		},
 		onBarcodeScanned(scannedCode) {
-			console.debug("[ItemsSelector] 📷 Barcode scanned:", scannedCode);
+			console.log("Barcode scanned:", scannedCode);
 
 			// Prevent multiple simultaneous scans
 			if (this.processing_scan) {
-				console.debug("[ItemsSelector] ⏳ Scan already in progress, ignoring:", scannedCode);
 				return;
 			}
 			this.processing_scan = true;
-			console.debug("[ItemsSelector] 🔒 Processing lock set for:", scannedCode);
 
 			// mark this search as coming from a scanner
 			this.search_from_scanner = true;
@@ -1598,7 +1541,6 @@ export default {
 			// Set the scanned code as search term
 			this.first_search = scannedCode;
 			this.search = scannedCode;
-			console.debug("[ItemsSelector] 🔍 Search terms set:", { first_search: scannedCode, search: scannedCode });
 
 			// Show scanning feedback
 			frappe.show_alert(
@@ -1611,114 +1553,63 @@ export default {
 
 			// Process the scanned item immediately without timeout
 			this.$nextTick(() => {
-				console.debug("[ItemsSelector] 🚀 Starting processScannedItem for:", scannedCode);
 				this.processScannedItem(scannedCode);
 			});
 		},
-		async processScannedItem(scannedCode) {
-			console.debug("[ItemsSelector] 🎯 processScannedItem started for:", scannedCode);
+		processScannedItem(scannedCode) {
 			try {
-				// Prevent double processing
-				if (this.processing_scan) {
-					console.debug("[ItemsSelector] ⏳ Double processing prevented for:", scannedCode);
-					return;
-				}
-				this.processing_scan = true;
-				console.debug("[ItemsSelector] 🔒 Lock acquired for:", scannedCode);
-
 				// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
 				let normalizedCode = scannedCode.trim().replace(/[-\s]/g, '');
-				console.debug("[ItemsSelector] 🧹 Normalized code:", normalizedCode);
 
+				// Kiểm tra scale barcode
 				let qty = 1;
 				let searchKey = normalizedCode;
-				console.debug("[ItemsSelector] 🔑 Search key set to:", searchKey, "qty:", qty);
-
-				// Ưu tiên tuyệt đối: Gọi BE exact
-				console.debug("[ItemsSelector] 🌐 Calling BE exact barcode API for:", searchKey);
-				try {
-					const exactItem = await frappe.call({
-						method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
-						args: {
-							barcode: searchKey,
-							pos_profile: JSON.stringify(this.pos_profile),
-							price_list: this.active_price_list,
-							customer: this.customer
+				if (normalizedCode.startsWith(this.pos_profile.posa_scale_barcode_start)) {
+					let prefix = normalizedCode.substr(0, 7);
+					let weightStr = normalizedCode.substr(7, 5);
+					if (weightStr) {
+						// Parse weight (format: 00000 -> 0.000, 0000x -> 0.00x, etc.)
+						let weight = this.parseScaleWeight(weightStr);
+						if (weight > 0) {
+							qty = weight;
+							searchKey = prefix;
 						}
-					});
-
-					if (exactItem.message) {
-						console.debug("[ItemsSelector] ✅ Found item by BE exact barcode:", exactItem.message.item_code);
-						let item = exactItem.message;
-						if (qty !== 1) {
-							item.qty = qty;
-						}
-						this.addScannedItemToInvoice(item, scannedCode);
-						return;
-					} else {
-						console.debug("[ItemsSelector] ❌ BE exact barcode returned no result");
 					}
-				} catch (error) {
-					console.debug("[ItemsSelector] ⚠️ BE exact barcode failed:", error.message);
-					// Continue to local search
 				}
 
-				// Local exact barcode
-				console.debug("[ItemsSelector] 🔍 Searching local exact barcode for:", searchKey);
+				// 1. Exact Barcode (ưu tiên tuyệt đối)
 				let foundItem = this.items.find((item) =>
 					item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey)
 				);
 
 				if (foundItem) {
-					console.debug("[ItemsSelector] ✅ Found item by local exact barcode:", foundItem.item_code);
+					console.log("Found item by exact barcode:", foundItem);
 					// Set UOM theo posa_uom của barcode
 					let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
 					if (barcodeData && barcodeData.posa_uom) {
 						foundItem.uom = barcodeData.posa_uom;
 					}
+					// Set QTY theo scale
 					if (qty !== 1) {
 						foundItem.qty = qty;
 					}
 					this.addScannedItemToInvoice(foundItem, scannedCode);
 					return;
-				} else {
-					console.debug("[ItemsSelector] ❌ No local exact barcode match");
 				}
 
-				// Exact Item Code (case-insensitive)
-				console.debug("[ItemsSelector] 🔍 Searching exact item code for:", searchKey);
-				foundItem = this.items.find((item) =>
-					item.item_code.toLowerCase() === searchKey.toLowerCase()
-				);
-
-				if (foundItem) {
-					console.debug("[ItemsSelector] ✅ Found item by exact item code:", foundItem.item_code);
-					if (qty !== 1) {
-						foundItem.qty = qty;
-					}
-					this.addScannedItemToInvoice(foundItem, scannedCode);
-					return;
-				} else {
-					console.debug("[ItemsSelector] ❌ No exact item code match");
-				}
-
-				// Fuzzy search - chỉ khi không có exact match
-				console.debug("[ItemsSelector] 🔍 Starting fuzzy search for:", searchKey);
+				// 2. Mở rộng tìm (Item Code / Item Name / Item Variant Code / barcode "na ná") - chỉ khi không có exact barcode
 				const searchResults = this.searchItemsByCode(searchKey);
-				console.debug("[ItemsSelector] 📊 Fuzzy search results count:", searchResults.length);
 
 				if (searchResults.length === 1) {
-					console.debug("[ItemsSelector] ✅ Single fuzzy match:", searchResults[0].item_code);
+					console.log("Found item by fuzzy search:", searchResults[0]);
 					if (qty !== 1) {
 						searchResults[0].qty = qty;
 					}
 					this.addScannedItemToInvoice(searchResults[0], scannedCode);
 				} else if (searchResults.length > 1) {
-					console.debug("[ItemsSelector] ⚠️ Multiple fuzzy matches, showing dialog");
 					// Multiple matches - show selection dialog
 					this.showMultipleItemsDialog(searchResults, scannedCode);
 				} else {
-					console.debug("[ItemsSelector] ❌ No matches found");
 					// No matches found
 					this.handleItemNotFound(scannedCode);
 				}
@@ -1734,46 +1625,17 @@ export default {
 			}
 		},
 		searchItemsByCode(code) {
-			const searchTerm = code.toLowerCase();
-			const results = [];
-
-			// 1. Exact item_code match
-			const exactItemCode = this.items.filter((item) =>
-				item.item_code.toLowerCase() === searchTerm
-			);
-			results.push(...exactItemCode);
-
-			// 2. Item variant codes (also item_code of variants)
-			const variantMatches = this.items.filter((item) =>
-				item.variant_of && item.item_code.toLowerCase().includes(searchTerm)
-			);
-			results.push(...variantMatches);
-
-			// 3. Item name contains
-			const nameMatches = this.items.filter((item) =>
-				item.item_name.toLowerCase().includes(searchTerm) &&
-				!results.some((r) => r.item_code === item.item_code)
-			);
-			results.push(...nameMatches);
-
-			// 4. Barcode similar (prefix match >= 8-10 chars or edit distance = 1)
-			const barcodeMatches = this.items.filter((item) => {
-				if (results.some((r) => r.item_code === item.item_code)) return false;
-
-				return item.item_barcode && item.item_barcode.some((bc) => {
-					const bcLower = bc.barcode.toLowerCase();
-					// Prefix match (longest common prefix >= 8 chars)
-					const prefixLen = this.getCommonPrefixLength(searchTerm, bcLower);
-					if (prefixLen >= 8) return true;
-
-					// Edit distance = 1
-					return this.getEditDistance(searchTerm, bcLower) === 1;
-				});
+			return this.items.filter((item) => {
+				const searchTerm = code.toLowerCase();
+				return (
+					item.item_code.toLowerCase().includes(searchTerm) ||
+					item.item_name.toLowerCase().includes(searchTerm) ||
+					(item.variant_of && item.variant_of.toLowerCase().includes(searchTerm)) ||
+					(item.barcode && item.barcode.toLowerCase().includes(searchTerm)) ||
+					(item.barcodes &&
+						item.barcodes.some((bc) => bc.barcode.toLowerCase().includes(searchTerm)))
+				);
 			});
-			results.push(...barcodeMatches);
-
-			// Limit to max 10 results
-			return results.slice(0, 10);
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
 			console.log("[ItemsSelector] 🔄 Processing scanned item:", item.item_code, "with code:", scannedCode);
@@ -2094,15 +1956,13 @@ export default {
 					return filtered;
 				} else if (this.search) {
 					const term = this.search.toLowerCase();
-					const isNumericSearch = /^\d+$/.test(this.search);
-
 					// Match barcode directly
 					filtred_list = filtred_group_list.filter((item) =>
 						item.item_barcode.some((b) => b.barcode === this.search),
 					);
 
-					if (filtred_list.length === 0 && !isNumericSearch) {
-						// Only fallback to name/code search if not a numeric (barcode) search
+					if (filtred_list.length === 0) {
+						// Match by code or name containing the term
 						filtred_list = filtred_group_list.filter(
 							(item) =>
 								item.item_code.toLowerCase().includes(term) ||
