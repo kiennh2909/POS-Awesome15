@@ -1488,7 +1488,18 @@ export default {
 					if (barcodeData && barcodeData.posa_uom) {
 						exactItem.uom = barcodeData.posa_uom;
 					}
-					vm.add_item(exactItem);
+
+					// Add item and clear search box for consistent UX
+					vm.add_item(exactItem).then(() => {
+						// Clear search field after successfully adding an item
+						vm.clearSearch();
+						setTimeout(() => {
+							if (vm.$refs.debounce_search) {
+								vm.$refs.debounce_search.focus();
+							}
+						}, 150);
+					});
+
 					return; // Đã xử lý xong
 				}
 
