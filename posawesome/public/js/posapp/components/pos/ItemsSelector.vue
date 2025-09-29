@@ -2325,7 +2325,7 @@ export default {
 		openDualScreen() {
 			try {
 				this.dualScreenWindow = window.open(
-					'/dual-screen-display.html',
+					'/assets/posawesome/dual-screen-display.html',
 					'dualScreen',
 					'width=800,height=600,scrollbars=no,resizable=yes,status=no,menubar=no,toolbar=no,location=no'
 				);

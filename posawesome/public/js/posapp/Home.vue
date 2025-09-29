@@ -22,6 +22,7 @@
 				@sync-invoices="handleSyncInvoices"
 				@toggle-offline="handleToggleOffline"
 				@toggle-theme="handleToggleTheme"
+				@toggle-dual-screen="handleToggleDualScreen"
 				@logout="handleLogout"
 				@refresh-cache-usage="handleRefreshCacheUsage"
 				@update-after-delete="handleUpdateAfterDelete"
@@ -629,6 +630,13 @@ export default {
 
 		handleUpdateAfterDelete() {
 			// Handle update after delete
+		},
+
+		handleToggleDualScreen() {
+			// Emit dual screen toggle event to eventBus for ItemsSelector to handle
+			if (this.eventBus) {
+				this.eventBus.emit('toggle-dual-screen');
+			}
 		},
 
 		async handleShiftCloseSuccess() {
