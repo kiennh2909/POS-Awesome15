@@ -1610,6 +1610,10 @@ export default {
 		},
 		async processScannedItem(scannedCode) {
 			try {
+				// Set search to update filtered_items display
+				this.search = scannedCode;
+				this.first_search = scannedCode;
+
 				// First, try exact barcode match via API (prioritizes backend exact match)
 				const exactMatch = await this.fetchExactBarcodeAndAdd(scannedCode);
 				if (exactMatch) {
@@ -2002,8 +2006,8 @@ export default {
 						item.item_barcode.some((b) => b.barcode === this.search),
 					);
 
-					// If no exact barcode match, fallback to fuzzy matches
-					if (filtred_list.length === 0) {
+					// If no exact barcode match and not from scanner, fallback to fuzzy matches
+					if (filtred_list.length === 0 && !this.search_from_scanner) {
 						// Match by code or name containing the term
 						filtred_list = filtred_group_list.filter(
 							(item) =>
@@ -2012,7 +2016,7 @@ export default {
 						);
 					}
 
-					if (filtred_list.length === 0) {
+					if (filtred_list.length === 0 && !this.search_from_scanner) {
 						// Fallback to partial fuzzy match on name
 						const search_combinations = this.generateWordCombinations(this.search);
 						filtred_list = filtred_group_list.filter((item) => {
