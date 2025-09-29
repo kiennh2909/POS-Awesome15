@@ -1597,25 +1597,28 @@ export default {
 			}
 		},
 		searchItemsByCode(code) {
-			const isNumericCode = /^\d+$/.test(code);
-			return this.items.filter((item) => {
-				// If code is numeric (likely barcode), only search exact barcode match
-				if (isNumericCode) {
-					return (
-						(item.barcode && item.barcode === code) ||
-						(item.barcodes && item.barcodes.some((bc) => bc.barcode === code))
-					);
-				} else {
-					// For non-numeric codes, search in item_code, item_name, and barcode
-					const searchTerm = code.toLowerCase();
+			// First, try exact barcode match only
+			let results = this.items.filter((item) => {
+				return (
+					(item.barcode && item.barcode === code) ||
+					(item.barcodes && item.barcodes.some((bc) => bc.barcode === code))
+				);
+			});
+
+			// If no exact barcode match, fallback to fuzzy search on item_code, item_name, and exact barcode
+			if (results.length === 0) {
+				const searchTerm = code.toLowerCase();
+				results = this.items.filter((item) => {
 					return (
 						item.item_code.toLowerCase().includes(searchTerm) ||
 						item.item_name.toLowerCase().includes(searchTerm) ||
 						(item.barcode && item.barcode === code) ||
 						(item.barcodes && item.barcodes.some((bc) => bc.barcode === code))
 					);
-				}
-			});
+				});
+			}
+
+			return results;
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
 			console.log("[ItemsSelector] 🔄 Processing scanned item:", item.item_code, "with code:", scannedCode);
@@ -1941,10 +1944,8 @@ export default {
 						item.item_barcode.some((b) => b.barcode === this.search),
 					);
 
-					// If search is numeric (likely barcode), don't fallback to fuzzy matches
-					const isNumericSearch = /^\d+$/.test(this.search);
-
-					if (filtred_list.length === 0 && !isNumericSearch) {
+					// If no exact barcode match, fallback to fuzzy matches
+					if (filtred_list.length === 0) {
 						// Match by code or name containing the term
 						filtred_list = filtred_group_list.filter(
 							(item) =>
@@ -1953,7 +1954,7 @@ export default {
 						);
 					}
 
-					if (filtred_list.length === 0 && !isNumericSearch) {
+					if (filtred_list.length === 0) {
 						// Fallback to partial fuzzy match on name
 						const search_combinations = this.generateWordCombinations(this.search);
 						filtred_list = filtred_group_list.filter((item) => {
