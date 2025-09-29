@@ -540,6 +540,7 @@ export default {
 		},
 		// Automatically search and add item whenever the query changes
 		first_search: _.debounce(function (val) {
+			console.log(`[ItemsSelector] 📝 first_search watcher triggered: "${val}"`);
 			// Call without arguments so search_onchange treats it like an Enter key
 			this.search_onchange();
 		}, 300),
@@ -1123,34 +1124,48 @@ export default {
 			}
 		},
 		search_onchange: _.debounce(function (newSearchTerm) {
+			console.log(`[ItemsSelector] 🔍 search_onchange called with: "${newSearchTerm}"`);
 			const vm = this;
 
 			// Determine the actual query string and trim whitespace
 			const query = typeof newSearchTerm === "string" ? newSearchTerm : vm.first_search;
+			console.log(`[ItemsSelector] 📝 Using query: "${query}"`);
 
 			vm.search = (query || "").trim();
+			console.log(`[ItemsSelector] 🔄 Set vm.search to: "${vm.search}"`);
 
 			if (!vm.search) {
+				console.log(`[ItemsSelector] 🚫 Empty search, resetting scanner flag`);
 				vm.search_from_scanner = false;
 				return;
 			}
 
 			const fromScanner = vm.search_from_scanner;
+			console.log(`[ItemsSelector] 📱 From scanner: ${fromScanner}`);
 
 			if (vm.pos_profile.pose_use_limit_search) {
+				console.log(`[ItemsSelector] 🌐 Using limit search mode`);
 				// Only trigger search when query length meets minimum threshold
 				if (vm.search && vm.search.length >= 3) {
+					console.log(`[ItemsSelector] 📡 Calling get_items() for server search`);
 					vm.get_items();
+				} else {
+					console.log(`[ItemsSelector] ⏳ Search too short (${vm.search.length} chars), waiting...`);
 				}
 			} else {
+				console.log(`[ItemsSelector] 💻 Using client-side search mode`);
 				// Save the current filtered items before search to maintain quantity data
 				const current_items = [...vm.filtered_items];
 				if (vm.search && vm.search.length >= 3) {
+					console.log(`[ItemsSelector] 🎯 Calling enter_event() for client search`);
 					vm.enter_event();
+				} else {
+					console.log(`[ItemsSelector] ⏳ Search too short (${vm.search.length} chars), waiting...`);
 				}
 
 				// After search, update quantities for newly filtered items
 				if (vm.filtered_items && vm.filtered_items.length > 0) {
+					console.log(`[ItemsSelector] ⏰ Scheduling quantity update in 300ms`);
 					setTimeout(() => {
 						vm.update_items_details(vm.filtered_items);
 					}, 300);
@@ -1159,9 +1174,12 @@ export default {
 
 			// Clear the input only when triggered via scanner
 			if (fromScanner) {
+				console.log(`[ItemsSelector] 🧹 Clearing search (from scanner)`);
 				vm.clearSearch();
 				vm.$refs.debounce_search && vm.$refs.debounce_search.focus();
 				vm.search_from_scanner = false;
+			} else {
+				console.log(`[ItemsSelector] 💬 Keeping search term (manual input)`);
 			}
 		}, 300),
 		get_item_qty(first_search) {
@@ -1198,6 +1216,7 @@ export default {
 			return search_term;
 		},
 		esc_event() {
+			console.log(`[ItemsSelector] ⎋ ESC pressed - clearing all search data`);
 			this.search = null;
 			this.first_search = null;
 			this.search_backup = null;
@@ -1517,6 +1536,7 @@ export default {
 			return combinations;
 		},
 		clearSearch() {
+			console.log(`[ItemsSelector] 🧹 clearSearch called - backing up "${this.first_search}"`);
 			this.search_backup = this.first_search;
 			this.first_search = "";
 			this.search = "";
@@ -1525,12 +1545,16 @@ export default {
 
 		restoreSearch() {
 			if (this.first_search === "") {
+				console.log(`[ItemsSelector] 🔄 restoreSearch - restoring "${this.search_backup}"`);
 				this.first_search = this.search_backup;
 				this.search = this.search_backup;
 				// No need to reload items when focus is lost
+			} else {
+				console.log(`[ItemsSelector] 🚫 restoreSearch - first_search not empty, skipping`);
 			}
 		},
 		handleItemSearchFocus() {
+			console.log(`[ItemsSelector] 🎯 handleItemSearchFocus - clearing search on focus`);
 			this.first_search = "";
 			this.search = "";
 			// Optionally, you might want to also clear search_backup if the behaviour should be a full reset on focus
@@ -1542,8 +1566,11 @@ export default {
 		},
 
 		startCameraScanning() {
+			console.log(`[ItemsSelector] 📷 startCameraScanning called`);
 			if (this.$refs.cameraScanner) {
 				this.$refs.cameraScanner.startScanning();
+			} else {
+				console.warn(`[ItemsSelector] ⚠️ Camera scanner ref not found`);
 			}
 		},
 		onBarcodeScanned(scannedCode) {
@@ -2101,7 +2128,9 @@ export default {
 				return this.first_search;
 			},
 			set: _.debounce(function (newValue) {
+				console.log(`[ItemsSelector] ⌨️ debounce_search setter: "${newValue}"`);
 				this.first_search = (newValue || "").trim();
+				console.log(`[ItemsSelector] 📝 first_search set to: "${this.first_search}"`);
 			}, 200),
 		},
 		debounce_qty: {
