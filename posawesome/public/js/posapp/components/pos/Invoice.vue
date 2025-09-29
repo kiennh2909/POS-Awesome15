@@ -25,9 +25,9 @@
 		>
 			<!-- Dynamic padding wrapper -->
 			<div class="dynamic-padding">
-				<!-- Top Row: Customer Selection and Invoice Type -->
+				<!-- Top Row: Customer Selection, Invoice Type, and Columns Button -->
 				<v-row align="center" class="items px-3 py-2">
-					<v-col :cols="pos_profile.posa_allow_sales_order ? 9 : 12" class="pb-0 pr-0">
+					<v-col :cols="pos_profile.posa_allow_sales_order ? 7 : 9" class="pb-0 pr-0">
 						<!-- Customer selection component with Quick View props -->
 						<Customer
 							:pos_profile="pos_profile"
@@ -41,19 +41,80 @@
 						/>
 					</v-col>
 					<!-- Invoice Type Selection (Only shown if sales orders are allowed) -->
-					<v-col v-if="pos_profile.posa_allow_sales_order" cols="3" class="pb-4">
+					<v-col v-if="pos_profile.posa_allow_sales_order" cols="2" class="pb-4">
 						<v-select
 							density="compact"
 							hide-details
 							variant="solo"
 							color="primary"
 							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
+							class="dark-field sleek-field compact-select"
 							:items="invoiceTypes"
 							:label="frappe._('Type')"
 							v-model="invoiceType"
 							:disabled="invoiceType == 'Return'"
 						></v-select>
+					</v-col>
+					<!-- Columns Button -->
+					<v-col :cols="pos_profile.posa_allow_sales_order ? 3 : 3" class="pb-4 d-flex justify-end">
+						<v-btn
+							density="compact"
+							variant="text"
+							color="primary"
+							prepend-icon="mdi-cog-outline"
+							@click="toggleColumnSelection"
+							class="column-selector-btn compact-btn"
+						>
+							{{ __("Columns") }}
+						</v-btn>
+
+						<v-dialog v-model="show_column_selector" max-width="500px">
+							<v-card>
+								<v-card-title class="text-h6 pa-4 d-flex align-center">
+									<span>{{ __("Select Columns to Display") }}</span>
+									<v-spacer></v-spacer>
+									<v-btn
+										icon="mdi-close"
+										variant="text"
+										density="compact"
+										@click="show_column_selector = false"
+									></v-btn>
+								</v-card-title>
+								<v-divider></v-divider>
+								<v-card-text class="pa-4">
+									<v-row dense>
+										<v-col
+											cols="12"
+											v-for="column in available_columns.filter((col) => !col.required)"
+											:key="column.key"
+										>
+											<v-switch
+												v-model="temp_selected_columns"
+												:label="column.title"
+												:value="column.key"
+												hide-details
+												density="compact"
+												color="primary"
+												class="column-switch mb-1"
+												:disabled="column.required"
+											></v-switch>
+										</v-col>
+									</v-row>
+									<div class="text-caption mt-2">
+										{{ __("Required columns cannot be hidden") }}
+									</div>
+								</v-card-text>
+								<v-card-actions class="pa-4 pt-0">
+									<v-btn color="error" variant="text" @click="cancelColumnSelection">{{
+										__("Cancel")
+									}}</v-btn>
+									<v-spacer></v-spacer>
+									<v-btn color="primary" variant="tonal" @click="updateSelectedColumns">{{
+										__("Apply")
+									}}</v-btn>
+								</v-card-actions>
+							</v-card>
+						</v-dialog>
 					</v-col>
 				</v-row>
 
@@ -108,68 +169,6 @@
 
 				<!-- Items Table Section (Main items list for invoice) -->
 				<div class="items-table-wrapper">
-					<!-- Column selector button moved outside the table -->
-					<div class="column-selector-container">
-						<v-btn
-							density="compact"
-							variant="text"
-							color="primary"
-							prepend-icon="mdi-cog-outline"
-							@click="toggleColumnSelection"
-							class="column-selector-btn"
-						>
-							{{ __("Columns") }}
-						</v-btn>
-
-						<v-dialog v-model="show_column_selector" max-width="500px">
-							<v-card>
-								<v-card-title class="text-h6 pa-4 d-flex align-center">
-									<span>{{ __("Select Columns to Display") }}</span>
-									<v-spacer></v-spacer>
-									<v-btn
-										icon="mdi-close"
-										variant="text"
-										density="compact"
-										@click="show_column_selector = false"
-									></v-btn>
-								</v-card-title>
-								<v-divider></v-divider>
-								<v-card-text class="pa-4">
-									<v-row dense>
-										<v-col
-											cols="12"
-											v-for="column in available_columns.filter((col) => !col.required)"
-											:key="column.key"
-										>
-											<v-switch
-												v-model="temp_selected_columns"
-												:label="column.title"
-												:value="column.key"
-												hide-details
-												density="compact"
-												color="primary"
-												class="column-switch mb-1"
-												:disabled="column.required"
-											></v-switch>
-										</v-col>
-									</v-row>
-									<div class="text-caption mt-2">
-										{{ __("Required columns cannot be hidden") }}
-									</div>
-								</v-card-text>
-								<v-card-actions class="pa-4 pt-0">
-									<v-btn color="error" variant="text" @click="cancelColumnSelection">{{
-										__("Cancel")
-									}}</v-btn>
-									<v-spacer></v-spacer>
-									<v-btn color="primary" variant="tonal" @click="updateSelectedColumns">{{
-										__("Apply")
-									}}</v-btn>
-								</v-card-actions>
-							</v-card>
-						</v-dialog>
-					</div>
-
 					<!-- ItemsTable component with reorder event handler -->
 					<ItemsTable
 						ref="itemsTable"
@@ -1487,6 +1486,27 @@ export default {
 	.dynamic-padding .v-col {
 		padding: 2px 4px;
 	}
+
+	/* Compact buttons for tablets */
+	.compact-btn {
+		font-size: 0.65rem !important;
+		padding: 2px 6px !important;
+		min-height: 28px !important;
+	}
+
+	.compact-btn .v-icon {
+		font-size: 12px !important;
+		margin-right: 2px !important;
+	}
+
+	.compact-select {
+		font-size: 0.75rem !important;
+	}
+
+	.compact-select .v-field__input {
+		font-size: 0.75rem !important;
+		min-height: 36px !important;
+	}
 }
 
 @media (max-width: 480px) {
@@ -1501,32 +1521,53 @@ export default {
 	.dynamic-padding .v-col {
 		padding: 1px 2px;
 	}
+
+	/* Extra compact for mobile */
+	.compact-btn {
+		font-size: 0.6rem !important;
+		padding: 2px 4px !important;
+		min-height: 24px !important;
+	}
+
+	.compact-btn .v-icon {
+		font-size: 10px !important;
+		margin-right: 2px !important;
+	}
+
+	.compact-select {
+		font-size: 0.7rem !important;
+	}
+
+	.compact-select .v-field__input {
+		font-size: 0.7rem !important;
+		min-height: 32px !important;
+	}
 }
 
-.column-selector-container {
-	display: flex;
-	justify-content: flex-end;
-	padding: 8px 16px;
-	background-color: var(--surface-secondary);
-	border-radius: 8px 8px 0 0;
-	position: absolute;
-	top: 0;
-	right: 0;
-	transform: translateY(-100%);
+/* Compact button styles for 14-inch POS screens (80% of original size) */
+.compact-btn {
+	font-size: 0.7rem !important; /* 80% of 0.875rem */
+	padding: 4px 8px !important; /* Reduced padding */
+	min-height: 32px !important; /* Smaller minimum height */
 }
 
-:deep(.dark-theme) .column-selector-container,
-:deep(.v-theme--dark) .column-selector-container {
-	background-color: #1e1e1e;
+.compact-btn .v-icon {
+	font-size: 14px !important; /* Smaller icon */
+	margin-right: 4px !important; /* Reduced margin */
 }
 
-.column-selector-btn {
-	font-size: 0.875rem;
+.compact-select {
+	font-size: 0.8rem !important; /* Slightly smaller for select */
+}
+
+.compact-select .v-field__input {
+	font-size: 0.8rem !important;
+	min-height: 40px !important; /* Reduced height */
 }
 
 .items-table-wrapper {
 	position: relative;
-	margin-top: var(--dynamic-xl);
+	margin-top: 0; /* Remove margin since button is no longer above */
 }
 
 /* New styles for improved column switches */
