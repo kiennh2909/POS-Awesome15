@@ -1146,6 +1146,38 @@ def update_price_list_rate(item_code, price_list, rate, uom=None):
 
 
 @frappe.whitelist()
+def get_item_by_barcode_exact(barcode, pos_profile=None, price_list=None, customer=None):
+    """
+    Get exact item by barcode. Returns full item data if found, None otherwise.
+    Prioritizes exact barcode match to avoid fuzzy search results.
+    """
+    if not barcode:
+        return None
+
+    # Exact barcode lookup
+    barcode_data = frappe.db.get_value(
+        "Item Barcode", {"barcode": barcode}, ["parent as item_code", "barcode"], as_dict=True
+    )
+    if not barcode_data:
+        return None
+
+    # Get full item data using existing optimized function
+    pos_profile_json = pos_profile or "{}"
+    items = _get_items_optimized(
+        pos_profile_json, price_list, "", barcode_data.item_code, customer, None, None
+    )
+
+    if items and len(items) == 1:
+        item = items[0]
+        # Ensure item_barcode is included for UOM handling
+        if not item.get("item_barcode"):
+            item["item_barcode"] = [{"barcode": barcode_data.barcode, "posa_uom": None}]
+        return item
+
+    return None
+
+
+@frappe.whitelist()
 def get_price_for_uom(item_code, price_list, uom):
     """Return Item Price for the given item, price list and UOM if it exists."""
     if not (item_code and price_list and uom):

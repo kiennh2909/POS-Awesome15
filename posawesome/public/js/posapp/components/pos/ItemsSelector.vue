@@ -1098,7 +1098,7 @@ export default {
 				this.$refs.debounce_search.focus();
 			}
 		},
-		search_onchange: _.debounce(function (newSearchTerm) {
+		search_onchange: _.debounce(async function (newSearchTerm) {
 			const vm = this;
 
 			// Determine the actual query string and trim whitespace
@@ -1113,6 +1113,21 @@ export default {
 
 			const fromScanner = vm.search_from_scanner;
 
+			// If looks like barcode, try exact match first
+			if (vm.looksLikeBarcode(vm.search)) {
+				const exactMatch = await vm.fetchExactBarcodeAndAdd(vm.search);
+				if (exactMatch) {
+					// Clear the input after successful exact match
+					if (fromScanner) {
+						vm.clearSearch();
+						vm.$refs.debounce_search && vm.$refs.debounce_search.focus();
+						vm.search_from_scanner = false;
+					}
+					return;
+				}
+			}
+
+			// Proceed with existing search logic
 			if (vm.pos_profile.pose_use_limit_search) {
 				// Only trigger search when query length meets minimum threshold
 				if (vm.search && vm.search.length >= 3) {
@@ -1470,6 +1485,54 @@ export default {
 				this.$refs.debounce_search && this.$refs.debounce_search.focus();
 			});
 		},
+		looksLikeBarcode(code) {
+			// Consider as barcode if it's numeric and at least 6 characters (typical for UPC/EAN)
+			return code && code.length >= 6 && /^\d+$/.test(code);
+		},
+		async fetchExactBarcodeAndAdd(rawCode) {
+			try {
+				const result = await frappe.call({
+					method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
+					args: {
+						barcode: rawCode,
+						pos_profile: JSON.stringify(this.pos_profile),
+						price_list: this.active_price_list,
+						customer: this.customer
+					}
+				});
+
+				if (result.message) {
+					const item = result.message;
+
+					// Set UOM if barcode has posa_uom matching the scanned code
+					item.item_barcode.forEach((element) => {
+						if (element.barcode === rawCode && element.posa_uom) {
+							item.uom = element.posa_uom;
+						}
+					});
+
+					await this.add_item(item);
+
+					frappe.show_alert({
+						message: `Added: ${item.item_name}`,
+						indicator: "green",
+					}, 3);
+
+					this.clearSearch();
+					setTimeout(() => {
+						if (this.$refs.debounce_search) {
+							this.$refs.debounce_search.focus();
+						}
+					}, 150);
+
+					return true;
+				}
+			} catch (error) {
+				console.error("Error fetching exact barcode:", error);
+			}
+
+			return false;
+		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
 			const wordCount = words.length;
@@ -1556,9 +1619,15 @@ export default {
 				this.processScannedItem(scannedCode);
 			});
 		},
-		processScannedItem(scannedCode) {
+		async processScannedItem(scannedCode) {
 			try {
-				// First try to find exact match by barcode
+				// First, try exact barcode match via API (prioritizes backend exact match)
+				const exactMatch = await this.fetchExactBarcodeAndAdd(scannedCode);
+				if (exactMatch) {
+					return;
+				}
+
+				// If no exact match from API, try in-memory exact match
 				let foundItem = this.items.find(
 					(item) =>
 						item.barcode === scannedCode ||
@@ -1567,16 +1636,16 @@ export default {
 				);
 
 				if (foundItem) {
-					console.log("Found item by exact match:", foundItem);
+					console.log("Found item by in-memory exact match:", foundItem);
 					this.addScannedItemToInvoice(foundItem, scannedCode);
 					return;
 				}
 
-				// If no exact match, try partial search
+				// If no exact match, try partial search (fuzzy)
 				const searchResults = this.searchItemsByCode(scannedCode);
 
 				if (searchResults.length === 1) {
-					console.log("Found item by search:", searchResults[0]);
+					console.log("Found item by fuzzy search:", searchResults[0]);
 					this.addScannedItemToInvoice(searchResults[0], scannedCode);
 				} else if (searchResults.length > 1) {
 					// Multiple matches - show selection dialog
