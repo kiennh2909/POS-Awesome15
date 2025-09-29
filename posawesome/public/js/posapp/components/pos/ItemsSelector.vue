@@ -1611,101 +1611,53 @@ export default {
 			console.log(`[ItemsSelector] 🔍 Processing scan: type=${isScale ? "scale" : "regular"}, key=${searchKey}, qty=${qty}, code=${scannedCode}`);
 			// frappe.show_alert(`Processing scan: ${searchKey}`, 1); // Uncomment để debug
 
-			// 1) BE exact (ưu tiên tuyệt đối) - gọi cho tất cả barcode trừ scale
-			// Scale barcode đã được xử lý riêng trong normalizeScanInput
-			if (!isScale) {
+			// 1) Chỉ tìm kiếm chính xác barcode qua BE API
 			console.log(`[ItemsSelector] 🔄 Calling BE exact barcode API for: ${searchKey}`);
 			try {
-				// hủy call trước đó (nếu có)
+				// Hủy call trước đó (nếu có)
 				if (this.scanAbortController) this.scanAbortController.abort();
 				const ctrl = new AbortController();
 				this.scanAbortController = ctrl;
 
 				const beResult = await frappe.call({
-				method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
-				args: {
-					barcode: searchKey,
-					pos_profile: JSON.stringify(this.pos_profile),
-					price_list: this.active_price_list,
-					customer: this.customer
-				},
-				freeze: false,
-				signal: ctrl.signal
+					method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
+					args: {
+						barcode: searchKey,
+						pos_profile: JSON.stringify(this.pos_profile),
+						price_list: this.active_price_list,
+						customer: this.customer
+					},
+					freeze: false,
+					signal: ctrl.signal
 				});
 
 				if (beResult?.message) {
-				const item = beResult.message;
-				console.log(`[ItemsSelector] ✅ BE exact hit: ${item.item_code} - ${item.item_name}`);
+					const item = beResult.message;
+					console.log(`[ItemsSelector] ✅ BE exact barcode hit: ${item.item_code} - ${item.item_name}`);
 
-				// UOM theo barcode match (nếu có)
-				const matched = (item.item_barcode || []).find(b => b.barcode === searchKey);
-				if (matched?.posa_uom) item.uom = matched.posa_uom;
+					// UOM theo barcode match (nếu có)
+					const matched = (item.item_barcode || []).find(b => b.barcode === searchKey);
+					if (matched?.posa_uom) item.uom = matched.posa_uom;
 
-				if (qty !== 1) item.qty = qty;
-				await this.addScannedItemToInvoice(item, scannedCode);
-				console.log("[ItemsSelector] be_exact hit");
-				return;
+					if (qty !== 1) item.qty = qty;
+					await this.addScannedItemToInvoice(item, scannedCode);
+					console.log("[ItemsSelector] exact barcode hit - success");
+					return;
 				} else {
-					console.log(`[ItemsSelector] ❌ BE exact returned null for: ${searchKey}`);
+					console.log(`[ItemsSelector] ❌ BE exact barcode returned null for: ${searchKey}`);
 				}
 			} catch (e) {
-				if (e?.name !== "AbortError") console.warn("[ItemsSelector] be_exact failed:", e);
-				// tiếp tục local
+				if (e?.name !== "AbortError") {
+					console.warn("[ItemsSelector] BE exact barcode failed:", e);
+				}
 			} finally {
 				this.scanAbortController = null;
 			}
-			} else {
-				console.log(`[ItemsSelector] ⏭️ Skipping BE exact for scale barcode: ${searchKey}`);
-			}
 
-			// Bỏ phần tìm kiếm local - chỉ dùng BE API và fuzzy search
-
-			// 3) Exact item_code (kể cả variant)
-			console.log(`[ItemsSelector] 🔍 Checking exact item code for: ${searchKey}`);
-			const exactCode = (this.items || []).find(it =>
-			String(it.item_code || "").toLowerCase() === searchKey.toLowerCase()
-			);
-			if (exactCode) {
-			console.log(`[ItemsSelector] ✅ Exact item code hit: ${exactCode.item_code} - ${exactCode.item_name}`);
-			if (qty !== 1) exactCode.qty = qty;
-			await this.addScannedItemToInvoice(exactCode, scannedCode);
-			console.log("[ItemsSelector] code hit");
-			return;
-			} else {
-				console.log(`[ItemsSelector] ❌ Exact item code not found for: ${searchKey}`);
-			}
-
-			// 4) Fuzzy fallback (tối đa 10 gợi ý)
-			console.log(`[ItemsSelector] 🔍 Starting fuzzy search for: ${searchKey}`);
-			const term = searchKey.toLowerCase();
-			const results = (this.items || []).filter(it => {
-			const codeOk = String(it.item_code || "").toLowerCase().includes(term);
-			const nameOk = String(it.item_name || "").toLowerCase().includes(term);
-			const variantOk = it.variant_of && String(it.variant_of).toLowerCase().includes(term);
-			const bcLike = (it.item_barcode || []).some(b => String(b.barcode || "").toLowerCase().includes(term));
-			return codeOk || nameOk || variantOk || bcLike;
-			}).slice(0, 10);
-
-			console.log(`[ItemsSelector] 📊 Fuzzy search found ${results.length} matches`);
-
-			if (results.length === 1) {
-			console.log(`[ItemsSelector] ✅ Fuzzy single hit: ${results[0].item_code} - ${results[0].item_name}`);
-			if (qty !== 1) results[0].qty = qty;
-			await this.addScannedItemToInvoice(results[0], scannedCode);
-			console.log("[ItemsSelector] fuzzy hit");
-			return;
-			}
-			if (results.length > 1) {
-			console.log(`[ItemsSelector] ⚠️ Multiple fuzzy matches (${results.length}), showing dialog`);
-			this.showMultipleItemsDialog(results, scannedCode);
-			console.log("[ItemsSelector] multiple matches");
-			return;
-			}
-
-			// 5) Không tìm thấy
-			console.log(`[ItemsSelector] ❌ No matches found for: ${searchKey}`);
+			// 2) Không tìm thấy exact barcode
+			console.log(`[ItemsSelector] ❌ No exact barcode match found for: ${searchKey}`);
 			this.handleItemNotFound(scannedCode);
-			console.log("[ItemsSelector] not found");
+			console.log("[ItemsSelector] scan failed - no match");
 		} catch (err) {
 			console.error("[ItemsSelector] process error:", err);
 			this.handleItemNotFound(scannedCode);
