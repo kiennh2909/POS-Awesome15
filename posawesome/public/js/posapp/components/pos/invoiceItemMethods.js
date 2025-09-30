@@ -2726,57 +2726,57 @@ export default {
 		this.$forceUpdate();
 	},
 
-	change_price_list_rate(item) {
-		const vm = this;
+	// change_price_list_rate(item) {
+	// 	const vm = this;
 
-		const d = new frappe.ui.Dialog({
-			title: __("Change Price"),
-			fields: [
-				{
-					fieldname: "new_rate",
-					fieldtype: "Float",
-					label: __("New Price List Rate"),
-					default: item.price_list_rate || item.rate,
-					reqd: 1,
-				},
-			],
-			primary_action_label: __("Update"),
-			primary_action(values) {
-				const rate = flt(values.new_rate);
-				frappe.call({
-					method: "posawesome.posawesome.api.items.update_price_list_rate",
-					args: {
-						item_code: item.item_code,
-						price_list: vm.get_price_list(),
-						rate: rate,
-						uom: item.uom,
-					},
-					callback(r) {
-						if (!r.exc) {
-							item.price_list_rate = rate;
-							item.base_price_list_rate = rate;
-							if (!item._manual_rate_set) {
-								item.rate = rate;
-								item.base_rate = rate;
-							}
-							vm.calc_item_price(item);
-							vm.eventBus.emit("show_message", {
-								title: r.message || __("Item price updated"),
-								color: "success",
-							});
-						}
-					},
-				});
-				d.hide();
-			},
-		});
+	// 	const d = new frappe.ui.Dialog({
+	// 		title: __("Change Price"),
+	// 		fields: [
+	// 			{
+	// 				fieldname: "new_rate",
+	// 				fieldtype: "Float",
+	// 				label: __("New Price List Rate"),
+	// 				default: item.price_list_rate || item.rate,
+	// 				reqd: 1,
+	// 			},
+	// 		],
+	// 		primary_action_label: __("Update"),
+	// 		primary_action(values) {
+	// 			const rate = flt(values.new_rate);
+	// 			frappe.call({
+	// 				method: "posawesome.posawesome.api.items.update_price_list_rate",
+	// 				args: {
+	// 					item_code: item.item_code,
+	// 					price_list: vm.get_price_list(),
+	// 					rate: rate,
+	// 					uom: item.uom,
+	// 				},
+	// 				callback(r) {
+	// 					if (!r.exc) {
+	// 						item.price_list_rate = rate;
+	// 						item.base_price_list_rate = rate;
+	// 						if (!item._manual_rate_set) {
+	// 							item.rate = rate;
+	// 							item.base_rate = rate;
+	// 						}
+	// 						vm.calc_item_price(item);
+	// 						vm.eventBus.emit("show_message", {
+	// 							title: r.message || __("Item price updated"),
+	// 							color: "success",
+	// 						});
+	// 					}
+	// 				},
+	// 			});
+	// 			d.hide();
+	// 		},
+	// 	});
 
-		d.get_field("new_rate").$input.on("keydown", function (e) {
-			if (e.key === "Enter") {
-				d.get_primary_btn().click();
-			}
-		});
+	// 	d.get_field("new_rate").$input.on("keydown", function (e) {
+	// 		if (e.key === "Enter") {
+	// 			d.get_primary_btn().click();
+	// 		}
+	// 	});
 
-		d.show();
-	},
+	// 	d.show();
+	// },
 };
