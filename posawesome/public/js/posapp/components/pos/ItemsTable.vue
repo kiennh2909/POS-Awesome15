@@ -619,7 +619,7 @@ export default {
 					}
 
 					if (item.rate !== expectedPrice && shouldConvert) {
-						console.error("[ItemsTable] ❌ PRICE MISMATCH DETECTED:", {
+						console.error("[ItemsTable] ❌ PRICE MISMATCH DETECTED - AUTO FIXING:", {
 							Item_code: item.item_code,
 							current_price: item.rate,
 							expected_price: expectedPrice,
@@ -628,6 +628,17 @@ export default {
 							uom: item.uom,
 							stock_uom: item.stock_uom,
 							should_convert: shouldConvert
+						});
+
+						// AUTO FIX: Update the rate to expected price
+						item.rate = expectedPrice;
+						item.price_list_rate = item.base_price_list_rate * item.conversion_factor;
+						item.amount = item.qty * item.rate;
+
+						console.log("[ItemsTable] ✅ PRICE FIXED:", {
+							Item_code: item.item_code,
+							new_rate: item.rate,
+							new_amount: item.amount
 						});
 					} else {
 						console.log("[ItemsTable] ✅ Price status:", {

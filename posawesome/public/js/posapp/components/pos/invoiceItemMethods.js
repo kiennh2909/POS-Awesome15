@@ -116,30 +116,39 @@ export default {
                         // First, ensure we have the correct conversion_factor by finding the UOM
                         const uomData = this.find_uom(new_item, new_item.uom);
                         if (uomData) {
-                        	// Use Vue.set to ensure reactivity
-                        	this.$set(new_item, 'conversion_factor', uomData.conversion_factor);
+                        	// Direct assignment since this is not a Vue component context
+                        	new_item.conversion_factor = uomData.conversion_factor;
                         	console.log("UOM data found for immediate conversion", {
                         		Item_code: new_item.item_code,
                         		uom: new_item.uom,
                         		conversion_factor: new_item.conversion_factor
                         	});
-                        }
                    
-                        if (new_item.base_rate && new_item.conversion_factor && new_item.conversion_factor !== 1) {
-                        	const convertedRate = new_item.base_rate * new_item.conversion_factor;
-                        	new_item.rate = convertedRate;
-                        	new_item.price_list_rate = new_item.base_price_list_rate * new_item.conversion_factor;
-                        	console.log("Immediate UOM conversion applied in add_item", {
-                        		Item_code: new_item.item_code,
-                        		base_rate: new_item.base_rate,
-                        		conversion_factor: new_item.conversion_factor,
-                        		converted_rate: convertedRate
-                        	});
+                        	// Ensure base_rate is set before conversion
+                        	if (!new_item.base_rate || new_item.base_rate === 0) {
+                        		new_item.base_rate = new_item.rate || 0;
+                        		console.log("Setting base_rate for immediate conversion", {
+                        			Item_code: new_item.item_code,
+                        			base_rate: new_item.base_rate,
+                        			original_rate: new_item.rate
+                        		});
+                        	}
+                   
+                        	// Apply immediate conversion if needed
+                        	if (new_item.base_rate && new_item.conversion_factor !== 1) {
+                        		const convertedRate = new_item.base_rate * new_item.conversion_factor;
+                        		new_item.rate = convertedRate;
+                        		new_item.price_list_rate = (new_item.base_price_list_rate || new_item.base_rate) * new_item.conversion_factor;
+                        		console.log("Immediate UOM conversion applied in add_item", {
+                        			Item_code: new_item.item_code,
+                        			base_rate: new_item.base_rate,
+                        			conversion_factor: new_item.conversion_factor,
+                        			converted_rate: convertedRate
+                        		});
+                        	}
                         } else {
-                        	console.log("No immediate UOM conversion needed", {
+                        	console.log("No UOM data found for immediate conversion", {
                         		Item_code: new_item.item_code,
-                        		base_rate: new_item.base_rate,
-                        		conversion_factor: new_item.conversion_factor,
                         		uom: new_item.uom,
                         		stock_uom: new_item.stock_uom
                         	});
