@@ -593,6 +593,20 @@ export default {
 			return this.highlightedItemCode === item.item_code ? 'highlighted-item' : '';
 		},
 	},
+	watch: {
+		items: {
+			handler(newItems) {
+				console.log("[ItemsTable] Items updated - checking rates:", newItems.map(item => ({
+					Item_code: item.item_code,
+					Price: item.rate,
+					Uom: item.uom,
+					qty: item.qty,
+					amount: item.qty * item.rate
+				})));
+			},
+			deep: true
+		}
+	},
 	methods: {
 		onDragOverFromSelector(event) {
 			// Check if drag data is from item selector
@@ -676,6 +690,12 @@ export default {
 		// Add mounted hook for event listeners (moved from created to ensure eventBus is available)
 		mounted() {
 			console.log("[ItemsTable] Setting up event listeners");
+			console.log("[ItemsTable] Initial items on mount:", this.items.map(item => ({
+				Item_code: item.item_code,
+				Price: item.rate,
+				Uom: item.uom,
+				qty: item.qty
+			})));
 
 			// Ensure eventBus is available before setting up listeners
 			if (!this.eventBus) {
