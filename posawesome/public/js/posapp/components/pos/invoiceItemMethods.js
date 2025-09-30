@@ -2592,10 +2592,10 @@ export default {
 
 		// Đảm bảo base rates được set đúng theo stock UOM
 		if (!item.base_price_list_rate || item.base_price_list_rate === 0) {
-			item.base_price_list_rate = stockUOMBaseRate;
+			this.$set(item, 'base_price_list_rate', stockUOMBaseRate);
 		}
 		if (!item.base_rate || item.base_rate === 0) {
-			item.base_rate = stockUOMBaseRate;
+			this.$set(item, 'base_rate', stockUOMBaseRate);
 		}
 
 		// Display rates = base_rate × conversion_factor (để hiển thị cho user)
@@ -2617,16 +2617,16 @@ export default {
 				display_rate_before_convert: displayRate,
 				exchange_rate: this.exchange_rate
 			});
-			item.rate = this.flt(displayRate * this.exchange_rate, this.currency_precision);
-			item.price_list_rate = this.flt(displayPriceListRate * this.exchange_rate, this.currency_precision);
+			this.$set(item, 'rate', this.flt(displayRate * this.exchange_rate, this.currency_precision));
+			this.$set(item, 'price_list_rate', this.flt(displayPriceListRate * this.exchange_rate, this.currency_precision));
 		} else {
 			console.log("calc_uom: using base currency for regular item", {
 				item_code: item.item_code,
 				display_rate: displayRate,
 				base_rate: item.base_rate
 			});
-			item.rate = displayRate;
-			item.price_list_rate = displayPriceListRate;
+			this.$set(item, 'rate', displayRate);
+			this.$set(item, 'price_list_rate', displayPriceListRate);
 		}
 
 		console.log("calc_uom: final rates for regular item", {
