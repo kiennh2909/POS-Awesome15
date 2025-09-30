@@ -113,7 +113,18 @@ export default {
                         });
                    
                         // CRITICAL: Apply immediate UOM conversion to ensure rate is correct before ItemsTable renders
-                        if (new_item.base_rate && new_item.conversion_factor) {
+                        // First, ensure we have the correct conversion_factor by finding the UOM
+                        const uomData = this.find_uom(new_item, new_item.uom);
+                        if (uomData) {
+                        	new_item.conversion_factor = uomData.conversion_factor;
+                        	console.log("UOM data found for immediate conversion", {
+                        		Item_code: new_item.item_code,
+                        		uom: new_item.uom,
+                        		conversion_factor: new_item.conversion_factor
+                        	});
+                        }
+                   
+                        if (new_item.base_rate && new_item.conversion_factor && new_item.conversion_factor !== 1) {
                         	const convertedRate = new_item.base_rate * new_item.conversion_factor;
                         	new_item.rate = convertedRate;
                         	new_item.price_list_rate = new_item.base_price_list_rate * new_item.conversion_factor;
@@ -122,6 +133,14 @@ export default {
                         		base_rate: new_item.base_rate,
                         		conversion_factor: new_item.conversion_factor,
                         		converted_rate: convertedRate
+                        	});
+                        } else {
+                        	console.log("No immediate UOM conversion needed", {
+                        		Item_code: new_item.item_code,
+                        		base_rate: new_item.base_rate,
+                        		conversion_factor: new_item.conversion_factor,
+                        		uom: new_item.uom,
+                        		stock_uom: new_item.stock_uom
                         	});
                         }
                    
