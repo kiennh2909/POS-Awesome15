@@ -90,9 +90,21 @@ export default {
                                rate: new_item.rate,
                        });
                        // Apply UOM conversion immediately
-			if (new_item.uom && new_item.uom !== new_item.stock_uom) {
-				this.calc_uom(new_item, new_item.uom);
-			}
+   if (new_item.uom && new_item.uom !== new_item.stock_uom) {
+    this.calc_uom(new_item, new_item.uom);
+   }
+
+   // Ensure stock_qty is calculated correctly after UOM conversion
+   this.calc_stock_qty(new_item, new_item.qty);
+   console.log("Barcode scan - Final quantities after UOM conversion", {
+    Item_code: new_item.item_code,
+    Price: new_item.rate,
+    Uom: new_item.uom,
+    display_qty: new_item.qty,
+    stock_qty: new_item.stock_qty,
+    conversion_factor: new_item.conversion_factor,
+    stock_uom: new_item.stock_uom
+   });
 
 			// Expand new item if it has batch or serial number
 			if ((!this.pos_profile.posa_auto_set_batch && new_item.has_batch_no) || new_item.has_serial_no) {
@@ -2578,11 +2590,15 @@ export default {
 		this.$forceUpdate();
 
 		console.log("calc_uom: completed conversion factor logic", {
-			item_code: item.item_code,
-			final_uom: item.uom,
+			Item_code: item.item_code,
+			Price: item.rate,
+			Uom: item.uom,
+			display_qty: item.qty,
+			stock_qty: item.stock_qty,
+			conversion_factor: item.conversion_factor,
+			stock_uom: item.stock_uom,
 			final_rate: item.rate,
-			final_price_list_rate: item.price_list_rate,
-			conversion_factor: item.conversion_factor
+			final_price_list_rate: item.price_list_rate
 		});
 	},
 
