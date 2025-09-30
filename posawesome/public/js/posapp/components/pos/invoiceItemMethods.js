@@ -2168,28 +2168,18 @@ export default {
 		this.$forceUpdate();
 	},
 
-	// Update UOM (unit of measure) for an item and recalculate prices
-	async calc_uom(item, value) {
-		console.log("calc_uom called", {
-			item_code: item.item_code,
-			current_uom: item.uom,
-			new_uom_value: value,
-			stock_uom: item.stock_uom,
-			has_offer: item.posa_offer_applied,
-			price_list: this.get_price_list()
-		});
-
-		let new_uom = item.item_uoms.find((element) => element.uom == value);
-		const baseCurrency = this.price_list_currency || this.pos_profile.currency;
-
+	// Helper: Find UOM from various sources
+	find_uom(item, value) {
 		console.log("calc_uom: initial UOM search", {
 			item_code: item.item_code,
 			searched_uom: value,
-			found_uom: new_uom ? "YES" : "NO",
 			item_uoms_count: item.item_uoms?.length || 0
 		});
 
-		// try cached uoms when not found on item
+		// Try item UOMs first
+		let new_uom = item.item_uoms?.find((element) => element.uom == value);
+
+		// Try cached UOMs
 		if (!new_uom) {
 			const cached = getItemUOMs(item.item_code);
 			console.log("calc_uom: checking cached UOMs", {
@@ -2208,7 +2198,7 @@ export default {
 			}
 		}
 
-		// fallback to stock uom
+		// Fallback to stock UOM
 		if (!new_uom && item.stock_uom === value) {
 			new_uom = { uom: item.stock_uom, conversion_factor: 1 };
 			if (!item.item_uoms) item.item_uoms = [];
@@ -2230,21 +2220,17 @@ export default {
 				title: __("UOM not found"),
 				color: "error",
 			});
-			return;
+			return null;
 		}
 
-		// Store old conversion factor for ratio calculation
-		const old_conversion_factor = item.conversion_factor || 1;
+		return new_uom;
+	},
 
-		// Update conversion factor
-		item.conversion_factor = new_uom.conversion_factor;
-
-		// Calculate the ratio of new to old conversion factor
-		const conversion_ratio = item.conversion_factor / old_conversion_factor;
-
-		// Try to fetch rate for this UOM from price list
+	// Helper: Find UOM-specific price
+	async find_uom_price(item, new_uom) {
 		const priceList = this.get_price_list();
 		let uomRate = null;
+
 		console.log("calc_uom: searching for UOM-specific price", {
 			item_code: item.item_code,
 			price_list: priceList,
@@ -2252,6 +2238,7 @@ export default {
 			conversion_factor: new_uom.conversion_factor
 		});
 
+		// Check cache first
 		if (priceList) {
 			const cached = getCachedPriceListItems(priceList) || [];
 			console.log("calc_uom: checking cached price list", {
@@ -2271,6 +2258,7 @@ export default {
 			}
 		}
 
+		// Fetch from server if not found in cache and not offline
 		if (!uomRate && !isOffline()) {
 			console.log("calc_uom: fetching UOM price from server", {
 				item_code: item.item_code,
@@ -2309,52 +2297,278 @@ export default {
 			}
 		}
 
-		if (uomRate) {
-			console.log("calc_uom: applying UOM-specific pricing", {
+		return uomRate;
+	},
+
+	// Helper: Apply UOM-specific pricing
+	apply_uom_pricing(item, uomRate, baseCurrency) {
+		console.log("calc_uom: applying UOM-specific pricing", {
+			item_code: item.item_code,
+			uom: item.uom,
+			uom_rate: uomRate,
+			has_offer: item.posa_offer_applied,
+			selected_currency: this.selected_currency,
+			base_currency: baseCurrency
+		});
+
+		item.base_price_list_rate = uomRate;
+		if (!item.posa_offer_applied) {
+			item.base_rate = uomRate;
+		}
+
+		if (this.selected_currency !== baseCurrency) {
+			item.price_list_rate = this.flt(
+				item.base_price_list_rate * this.exchange_rate,
+				this.currency_precision,
+			);
+			item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
+			console.log("calc_uom: converted to selected currency", {
 				item_code: item.item_code,
-				uom: new_uom.uom,
-				uom_rate: uomRate,
-				has_offer: item.posa_offer_applied,
-				selected_currency: this.selected_currency,
-				base_currency: baseCurrency
+				base_price_list_rate: item.base_price_list_rate,
+				price_list_rate: item.price_list_rate,
+				base_rate: item.base_rate,
+				rate: item.rate,
+				exchange_rate: this.exchange_rate
 			});
-
-			item.base_price_list_rate = uomRate;
-			if (!item.posa_offer_applied) {
-				item.base_rate = uomRate;
-			}
-
-			if (this.selected_currency !== baseCurrency) {
-				item.price_list_rate = this.flt(
-					item.base_price_list_rate * this.exchange_rate,
-					this.currency_precision,
-				);
-				item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
-				console.log("calc_uom: converted to selected currency", {
-					item_code: item.item_code,
-					base_price_list_rate: item.base_price_list_rate,
-					price_list_rate: item.price_list_rate,
-					base_rate: item.base_rate,
-					rate: item.rate,
-					exchange_rate: this.exchange_rate
-				});
-			} else {
-				item.price_list_rate = item.base_price_list_rate;
-				item.rate = item.base_rate;
-				console.log("calc_uom: using base currency rates", {
-					item_code: item.item_code,
-					price_list_rate: item.price_list_rate,
-					rate: item.rate
-				});
-			}
-
-			this.calc_stock_qty(item, item.qty);
-			this.$forceUpdate();
-			console.log("calc_uom: completed UOM-specific pricing", {
+		} else {
+			item.price_list_rate = item.base_price_list_rate;
+			item.rate = item.base_rate;
+			console.log("calc_uom: using base currency rates", {
 				item_code: item.item_code,
+				price_list_rate: item.price_list_rate,
+				rate: item.rate
+			});
+		}
+
+		this.calc_stock_qty(item, item.qty);
+		this.$forceUpdate();
+		console.log("calc_uom: completed UOM-specific pricing", {
+			item_code: item.item_code,
+			final_rate: item.rate,
+			final_uom: item.uom
+		});
+	},
+
+	// Helper: Process offer items with UOM conversion
+	process_offer_item_uom(item, new_uom, old_conversion_factor, conversion_ratio, baseCurrency) {
+		console.log("calc_uom: processing offer item", {
+			item_code: item.item_code,
+			uom: new_uom.uom,
+			conversion_factor: item.conversion_factor,
+			posa_offer_applied: item.posa_offer_applied
+		});
+
+		const offer = this.posOffers && Array.isArray(this.posOffers)
+			? this.posOffers.find((o) => {
+					if (!o || !o.items) return false;
+					const items = typeof o.items === "string" ? JSON.parse(o.items) : o.items;
+					return Array.isArray(items) && items.includes(item.posa_row_id);
+				})
+			: null;
+
+		console.log("calc_uom: found offer for item", {
+			item_code: item.item_code,
+			offer_found: offer ? "YES" : "NO",
+			offer_type: offer?.discount_type,
+			offer_rate: offer?.rate,
+			offer_percentage: offer?.discount_percentage
+		});
+
+		if (offer && offer.discount_type === "Rate") {
+			this.apply_rate_offer_uom(item, offer, baseCurrency);
+		} else if (offer && offer.discount_type === "Discount Percentage") {
+			this.apply_percentage_offer_uom(item, offer, conversion_ratio, baseCurrency);
+		}
+	},
+
+	// Helper: Apply rate offer for UOM
+	apply_rate_offer_uom(item, offer, baseCurrency) {
+		console.log("calc_uom: applying rate offer", {
+			item_code: item.item_code,
+			original_offer_rate: offer.rate,
+			conversion_factor: item.conversion_factor
+		});
+
+		const converted_rate = flt(offer.rate * item.conversion_factor);
+		item.base_rate = converted_rate;
+		item.base_price_list_rate = converted_rate;
+
+		if (this.selected_currency !== baseCurrency) {
+			item.rate = this.flt(converted_rate * this.exchange_rate, this.currency_precision);
+			item.price_list_rate = item.rate;
+			console.log("calc_uom: rate offer converted to selected currency", {
+				item_code: item.item_code,
+				converted_rate: converted_rate,
 				final_rate: item.rate,
-				final_uom: item.uom
+				exchange_rate: this.exchange_rate
 			});
+		} else {
+			item.rate = converted_rate;
+			item.price_list_rate = converted_rate;
+			console.log("calc_uom: rate offer in base currency", {
+				item_code: item.item_code,
+				final_rate: item.rate
+			});
+		}
+	},
+
+	// Helper: Apply percentage offer for UOM
+	apply_percentage_offer_uom(item, offer, conversion_ratio, baseCurrency) {
+		console.log("calc_uom: applying percentage discount offer", {
+			item_code: item.item_code,
+			offer_percentage: offer.discount_percentage,
+			original_base_price: item.original_base_price_list_rate,
+			conversion_factor: item.conversion_factor
+		});
+
+		let updated_base_price;
+		if (item.original_base_price_list_rate) {
+			updated_base_price = this.flt(
+				item.original_base_price_list_rate * item.conversion_factor,
+				this.currency_precision,
+			);
+		} else {
+			updated_base_price = this.flt(
+				item.base_price_list_rate * conversion_ratio,
+				this.currency_precision,
+			);
+		}
+
+		console.log("calc_uom: calculated updated base price", {
+			item_code: item.item_code,
+			updated_base_price: updated_base_price,
+			conversion_ratio: conversion_ratio
+		});
+
+		item.base_price_list_rate = updated_base_price;
+
+		const base_discount = this.flt(
+			(updated_base_price * offer.discount_percentage) / 100,
+			this.currency_precision,
+		);
+		item.base_discount_amount = base_discount;
+		item.base_rate = this.flt(updated_base_price - base_discount, this.currency_precision);
+
+		console.log("calc_uom: calculated discount for percentage offer", {
+			item_code: item.item_code,
+			base_discount: base_discount,
+			base_rate_after_discount: item.base_rate
+		});
+
+		if (this.selected_currency !== baseCurrency) {
+			item.price_list_rate = this.flt(
+				updated_base_price * this.exchange_rate,
+				this.currency_precision,
+			);
+			item.discount_amount = this.flt(
+				base_discount * this.exchange_rate,
+				this.currency_precision,
+			);
+			item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
+			console.log("calc_uom: percentage offer converted to selected currency", {
+				item_code: item.item_code,
+				price_list_rate: item.price_list_rate,
+				discount_amount: item.discount_amount,
+				final_rate: item.rate
+			});
+		} else {
+			item.price_list_rate = updated_base_price;
+			item.discount_amount = base_discount;
+			item.rate = item.base_rate;
+			console.log("calc_uom: percentage offer in base currency", {
+				item_code: item.item_code,
+				price_list_rate: item.price_list_rate,
+				discount_amount: item.discount_amount,
+				final_rate: item.rate
+			});
+		}
+	},
+
+	// Helper: Process regular items with UOM conversion
+	process_regular_item_uom(item, old_conversion_factor, baseCurrency) {
+		console.log("calc_uom: processing regular item", {
+			item_code: item.item_code,
+			uom: item.uom,
+			conversion_factor: item.conversion_factor,
+			has_batch_price: !!item.batch_price,
+			has_original_base_rate: !!item.original_base_rate
+		});
+
+		if (item.batch_price) {
+			console.log("calc_uom: using batch price for conversion", {
+				item_code: item.item_code,
+				batch_price: item.batch_price,
+				conversion_factor: item.conversion_factor
+			});
+			item.base_rate = item.batch_price * item.conversion_factor;
+			item.base_price_list_rate = item.base_rate;
+		} else if (item.original_base_rate) {
+			console.log("calc_uom: using original base rate for conversion", {
+				item_code: item.item_code,
+				original_base_rate: item.original_base_rate,
+				conversion_factor: item.conversion_factor
+			});
+			item.base_rate = item.original_base_rate * item.conversion_factor;
+			item.base_price_list_rate = item.original_base_price_list_rate * item.conversion_factor;
+		} else {
+			console.log("calc_uom: no base rate found for conversion", {
+				item_code: item.item_code,
+				batch_price: item.batch_price,
+				original_base_rate: item.original_base_rate
+			});
+		}
+
+		if (this.selected_currency !== baseCurrency) {
+			console.log("calc_uom: converting regular item to selected currency", {
+				item_code: item.item_code,
+				base_rate: item.base_rate,
+				base_price_list_rate: item.base_price_list_rate,
+				exchange_rate: this.exchange_rate
+			});
+			item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
+			item.price_list_rate = this.flt(
+				item.base_price_list_rate * this.exchange_rate,
+				this.currency_precision,
+			);
+		} else {
+			console.log("calc_uom: using base currency for regular item", {
+				item_code: item.item_code,
+				rate: item.rate,
+				price_list_rate: item.price_list_rate
+			});
+			item.rate = item.base_rate;
+			item.price_list_rate = item.base_price_list_rate;
+		}
+	},
+
+	// Update UOM (unit of measure) for an item and recalculate prices
+	async calc_uom(item, value) {
+		console.log("calc_uom called", {
+			item_code: item.item_code,
+			current_uom: item.uom,
+			new_uom_value: value,
+			stock_uom: item.stock_uom,
+			has_offer: item.posa_offer_applied,
+			price_list: this.get_price_list()
+		});
+
+		const baseCurrency = this.price_list_currency || this.pos_profile.currency;
+
+		// Find the UOM
+		const new_uom = this.find_uom(item, value);
+		if (!new_uom) return;
+
+		// Store old conversion factor for ratio calculation
+		const old_conversion_factor = item.conversion_factor || 1;
+		item.conversion_factor = new_uom.conversion_factor;
+		const conversion_ratio = item.conversion_factor / old_conversion_factor;
+
+		// Try to find UOM-specific price
+		const uomRate = await this.find_uom_price(item, new_uom);
+
+		if (uomRate) {
+			// Apply UOM-specific pricing
+			this.apply_uom_pricing(item, uomRate, baseCurrency);
 			return;
 		}
 
@@ -2377,199 +2591,11 @@ export default {
 			item.original_base_price_list_rate = item.base_price_list_rate / old_conversion_factor;
 		}
 
-		// Update rates based on new conversion factor
+		// Process based on item type
 		if (item.posa_offer_applied) {
-			console.log("calc_uom: processing offer item", {
-				item_code: item.item_code,
-				uom: new_uom.uom,
-				conversion_factor: item.conversion_factor,
-				posa_offer_applied: item.posa_offer_applied
-			});
-
-			// For items with offer, recalculate from original offer rate
-			const offer =
-				this.posOffers && Array.isArray(this.posOffers)
-					? this.posOffers.find((o) => {
-							if (!o || !o.items) return false;
-							const items = typeof o.items === "string" ? JSON.parse(o.items) : o.items;
-							return Array.isArray(items) && items.includes(item.posa_row_id);
-						})
-					: null;
-
-			console.log("calc_uom: found offer for item", {
-				item_code: item.item_code,
-				offer_found: offer ? "YES" : "NO",
-				offer_type: offer?.discount_type,
-				offer_rate: offer?.rate,
-				offer_percentage: offer?.discount_percentage
-			});
-
-			if (offer && offer.discount_type === "Rate") {
-				console.log("calc_uom: applying rate offer", {
-					item_code: item.item_code,
-					original_offer_rate: offer.rate,
-					conversion_factor: item.conversion_factor
-				});
-
-				// Apply offer rate with new conversion factor
-				const converted_rate = flt(offer.rate * item.conversion_factor);
-
-				// Set base rates
-				item.base_rate = converted_rate;
-				item.base_price_list_rate = converted_rate;
-
-				// Convert to selected currency
-				if (this.selected_currency !== baseCurrency) {
-					// Convert base currency values using the current exchange rate
-					item.rate = this.flt(converted_rate * this.exchange_rate, this.currency_precision);
-					item.price_list_rate = item.rate;
-					console.log("calc_uom: rate offer converted to selected currency", {
-						item_code: item.item_code,
-						converted_rate: converted_rate,
-						final_rate: item.rate,
-						exchange_rate: this.exchange_rate
-					});
-				} else {
-					item.rate = converted_rate;
-					item.price_list_rate = converted_rate;
-					console.log("calc_uom: rate offer in base currency", {
-						item_code: item.item_code,
-						final_rate: item.rate
-					});
-				}
-			} else if (offer && offer.discount_type === "Discount Percentage") {
-				console.log("calc_uom: applying percentage discount offer", {
-					item_code: item.item_code,
-					offer_percentage: offer.discount_percentage,
-					original_base_price: item.original_base_price_list_rate,
-					conversion_factor: item.conversion_factor
-				});
-
-				// Update the base prices with new conversion factor
-				let updated_base_price;
-				if (item.original_base_price_list_rate) {
-					// Use original price adjusted for new conversion factor
-					updated_base_price = this.flt(
-						item.original_base_price_list_rate * item.conversion_factor,
-						this.currency_precision,
-					);
-				} else {
-					// Fallback if original price not stored
-					updated_base_price = this.flt(
-						item.base_price_list_rate * conversion_ratio,
-						this.currency_precision,
-					);
-				}
-
-				console.log("calc_uom: calculated updated base price", {
-					item_code: item.item_code,
-					updated_base_price: updated_base_price,
-					conversion_ratio: conversion_ratio
-				});
-
-				// Store updated base price
-				item.base_price_list_rate = updated_base_price;
-
-				// Recalculate discount based on percentage
-				const base_discount = this.flt(
-					(updated_base_price * offer.discount_percentage) / 100,
-					this.currency_precision,
-				);
-				item.base_discount_amount = base_discount;
-				item.base_rate = this.flt(updated_base_price - base_discount, this.currency_precision);
-
-				console.log("calc_uom: calculated discount for percentage offer", {
-					item_code: item.item_code,
-					base_discount: base_discount,
-					base_rate_after_discount: item.base_rate
-				});
-
-				// Convert to selected currency if needed
-				if (this.selected_currency !== baseCurrency) {
-					item.price_list_rate = this.flt(
-						updated_base_price * this.exchange_rate,
-						this.currency_precision,
-					);
-					item.discount_amount = this.flt(
-						base_discount * this.exchange_rate,
-						this.currency_precision,
-					);
-					item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
-					console.log("calc_uom: percentage offer converted to selected currency", {
-						item_code: item.item_code,
-						price_list_rate: item.price_list_rate,
-						discount_amount: item.discount_amount,
-						final_rate: item.rate
-					});
-				} else {
-					item.price_list_rate = updated_base_price;
-					item.discount_amount = base_discount;
-					item.rate = item.base_rate;
-					console.log("calc_uom: percentage offer in base currency", {
-						item_code: item.item_code,
-						price_list_rate: item.price_list_rate,
-						discount_amount: item.discount_amount,
-						final_rate: item.rate
-					});
-				}
-			}
+			this.process_offer_item_uom(item, new_uom, old_conversion_factor, conversion_ratio, baseCurrency);
 		} else {
-			console.log("calc_uom: processing regular item", {
-				item_code: item.item_code,
-				uom: new_uom.uom,
-				conversion_factor: item.conversion_factor,
-				has_batch_price: !!item.batch_price,
-				has_original_base_rate: !!item.original_base_rate
-			});
-
-			// For regular items, use standard conversion
-			if (item.batch_price) {
-				console.log("calc_uom: using batch price for conversion", {
-					item_code: item.item_code,
-					batch_price: item.batch_price,
-					conversion_factor: item.conversion_factor
-				});
-				item.base_rate = item.batch_price * item.conversion_factor;
-				item.base_price_list_rate = item.base_rate;
-			} else if (item.original_base_rate) {
-				console.log("calc_uom: using original base rate for conversion", {
-					item_code: item.item_code,
-					original_base_rate: item.original_base_rate,
-					conversion_factor: item.conversion_factor
-				});
-				item.base_rate = item.original_base_rate * item.conversion_factor;
-				item.base_price_list_rate = item.original_base_price_list_rate * item.conversion_factor;
-			} else {
-				console.log("calc_uom: no base rate found for conversion", {
-					item_code: item.item_code,
-					batch_price: item.batch_price,
-					original_base_rate: item.original_base_rate
-				});
-			}
-
-			// Convert to selected currency
-			if (this.selected_currency !== baseCurrency) {
-				console.log("calc_uom: converting regular item to selected currency", {
-					item_code: item.item_code,
-					base_rate: item.base_rate,
-					base_price_list_rate: item.base_price_list_rate,
-					exchange_rate: this.exchange_rate
-				});
-				// Convert base currency values to the selected currency
-				item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
-				item.price_list_rate = this.flt(
-					item.base_price_list_rate * this.exchange_rate,
-					this.currency_precision,
-				);
-			} else {
-				console.log("calc_uom: using base currency for regular item", {
-					item_code: item.item_code,
-					rate: item.rate,
-					price_list_rate: item.price_list_rate
-				});
-				item.rate = item.base_rate;
-				item.price_list_rate = item.base_price_list_rate;
-			}
+			this.process_regular_item_uom(item, old_conversion_factor, baseCurrency);
 		}
 
 		// Update item details
