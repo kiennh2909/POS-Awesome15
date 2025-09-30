@@ -644,6 +644,13 @@ export default {
 			immediate: true
 		}
 	},
+	mounted() {
+		// Listen for force update events
+		this.eventBus.on("force_items_table_update", () => {
+			console.log("[ItemsTable] Force update triggered by event");
+			this.$forceUpdate();
+		});
+	},
 	methods: {
 		onDragOverFromSelector(event) {
 			// Check if drag data is from item selector

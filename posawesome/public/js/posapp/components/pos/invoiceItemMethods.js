@@ -156,6 +156,8 @@ export default {
                         // CRITICAL: Force update after calc_uom to ensure ItemsTable gets the updated rate
                         setTimeout(() => {
                         	this.$forceUpdate();
+                        	// Emit event to force ItemsTable update
+                        	this.eventBus.emit("force_items_table_update");
                         	console.log("Force update after calc_uom completion", {
                         		Item_code: new_item.item_code,
                         		rate_after_force_update: new_item.rate,
