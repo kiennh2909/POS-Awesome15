@@ -197,7 +197,6 @@
 						:subtractOne="subtract_one"
 						:addOne="add_one"
 						:toggleOffer="toggleOffer"
-						:changePriceListRate="change_price_list_rate"
 						@update:expanded="expanded = $event"
 						@reorder-items="handleItemReorder"
 						@add-item-from-drag="handleItemDrop"
