@@ -84,14 +84,48 @@ export default {
                                rate: new_item.rate,
                        });
                        // Force update of item rates when item is first added
+                       console.log("Before update_item_detail - Initial item state", {
+                               Item_code: new_item.item_code,
+                               Price: new_item.rate,
+                               Uom: new_item.uom,
+                               base_rate: new_item.base_rate,
+                               stock_uom: new_item.stock_uom,
+                               conversion_factor: new_item.conversion_factor
+                       });
                        this.update_item_detail(new_item, true);
-                       console.log("update_item_detail called", {
-                               code: new_item.item_code,
-                               rate: new_item.rate,
+                       console.log("After update_item_detail - Item state after server call", {
+                               Item_code: new_item.item_code,
+                               Price: new_item.rate,
+                               Uom: new_item.uom,
+                               base_rate: new_item.base_rate,
+                               base_price_list_rate: new_item.base_price_list_rate,
+                               stock_uom: new_item.stock_uom,
+                               conversion_factor: new_item.conversion_factor
                        });
                        // Apply UOM conversion immediately
    if (new_item.uom && new_item.uom !== new_item.stock_uom) {
+    console.log("Calling calc_uom for barcode scan", {
+     Item_code: new_item.item_code,
+     current_uom: new_item.uom,
+     stock_uom: new_item.stock_uom,
+     base_rate_before: new_item.base_rate,
+     rate_before: new_item.rate
+    });
     this.calc_uom(new_item, new_item.uom);
+    console.log("After calc_uom for barcode scan", {
+     Item_code: new_item.item_code,
+     final_uom: new_item.uom,
+     base_rate_after: new_item.base_rate,
+     rate_after: new_item.rate,
+     conversion_factor: new_item.conversion_factor
+    });
+   } else {
+    console.log("No UOM conversion needed for barcode scan", {
+     Item_code: new_item.item_code,
+     uom: new_item.uom,
+     stock_uom: new_item.stock_uom,
+     rate: new_item.rate
+    });
    }
 
    // Ensure stock_qty is calculated correctly after UOM conversion
@@ -1753,7 +1787,24 @@ export default {
 						exchange_rate: vm.exchange_rate,
 						selected_currency: vm.selected_currency,
 						default_currency: vm.pos_profile.currency,
+						stock_uom: item.stock_uom,
+						conversion_factor: item.conversion_factor,
+						needs_uom_conversion: item.uom !== item.stock_uom
 					});
+
+					// If item has different UOM than stock UOM, ensure UOM conversion is applied
+					if (item.uom && item.uom !== item.stock_uom && !force_update) {
+						console.log("Applying UOM conversion after update_item_detail", {
+							Item_code: item.item_code,
+							uom: item.uom,
+							stock_uom: item.stock_uom,
+							rate_before_conversion: item.rate
+						});
+						// Temporarily call calc_uom to ensure rates are converted
+						setTimeout(() => {
+							vm.calc_uom(item, item.uom);
+						}, 100);
+					}
 
 					// Force update UI immediately
 					vm.$forceUpdate();
@@ -2495,18 +2546,41 @@ export default {
 			uom: item.uom,
 			conversion_factor: item.conversion_factor,
 			has_batch_price: !!item.batch_price,
-			has_original_base_rate: !!item.original_base_rate
+			has_original_base_rate: !!item.original_base_rate,
+			base_price_list_rate_before: item.base_price_list_rate,
+			base_rate_before: item.base_rate
 		});
 
 		// Base rates luôn theo stock UOM (chai) - không phụ thuộc UOM hiển thị
-		const stockUOMBaseRate = item.base_price_list_rate || 12; // 12 là ví dụ
+		const stockUOMBaseRate = item.base_price_list_rate || item.base_rate || 0;
 
-		item.base_price_list_rate = stockUOMBaseRate; // Luôn theo stock UOM
-		item.base_rate = stockUOMBaseRate; // Luôn theo stock UOM
+		console.log("calc_uom: stock UOM base rate calculation", {
+			item_code: item.item_code,
+			base_price_list_rate: item.base_price_list_rate,
+			base_rate: item.base_rate,
+			stockUOMBaseRate: stockUOMBaseRate,
+			conversion_factor: item.conversion_factor
+		});
+
+		// Đảm bảo base rates được set đúng theo stock UOM
+		if (!item.base_price_list_rate || item.base_price_list_rate === 0) {
+			item.base_price_list_rate = stockUOMBaseRate;
+		}
+		if (!item.base_rate || item.base_rate === 0) {
+			item.base_rate = stockUOMBaseRate;
+		}
 
 		// Display rates = base_rate × conversion_factor (để hiển thị cho user)
 		const displayRate = stockUOMBaseRate * item.conversion_factor;
-		const displayPriceListRate = stockUOMBaseRate * item.conversion_factor;
+		const displayPriceListRate = item.base_price_list_rate * item.conversion_factor;
+
+		console.log("calc_uom: calculated display rates", {
+			item_code: item.item_code,
+			stockUOMBaseRate: stockUOMBaseRate,
+			conversion_factor: item.conversion_factor,
+			displayRate: displayRate,
+			displayPriceListRate: displayPriceListRate
+		});
 
 		if (this.selected_currency !== baseCurrency) {
 			console.log("calc_uom: converting regular item to selected currency", {
@@ -2526,6 +2600,15 @@ export default {
 			item.rate = displayRate;
 			item.price_list_rate = displayPriceListRate;
 		}
+
+		console.log("calc_uom: final rates for regular item", {
+			Item_code: item.item_code,
+			Price: item.rate,
+			Uom: item.uom,
+			base_rate: item.base_rate,
+			display_rate: item.rate,
+			conversion_factor: item.conversion_factor
+		});
 	},
 
 	// Update UOM (unit of measure) for an item and recalculate prices
