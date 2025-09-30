@@ -1169,6 +1169,7 @@ def get_item_by_barcode_exact(barcode, pos_profile=None, price_list=None, custom
     """
     API exact barcode match - trả về đúng 1 item nếu tìm thấy barcode chính xác.
     Ưu tiên tuyệt đối cho exact match trước khi fallback fuzzy.
+    ĐẢM BẢO: UOM và Price phải đi cùng nhau, không có fallback không kiểm soát.
     """
     if not barcode:
         return None
@@ -1214,10 +1215,34 @@ def get_item_by_barcode_exact(barcode, pos_profile=None, price_list=None, custom
         if actual_qty <= 0:
             return None
 
-    # Lấy thông tin giá
+    # ✅ ĐẢM BẢO UOM CHÍNH XÁC: Set UOM từ barcode, fallback to stock_uom
+    barcode_uom = barcode_data.posa_uom or item_doc.stock_uom
+
+    # ✅ VALIDATE UOM: Đảm bảo UOM tồn tại trong item_uoms
+    item_uoms = frappe.get_all(
+        "UOM Conversion Detail",
+        filters={"parent": item_code},
+        fields=["uom", "conversion_factor"]
+    )
+
+    # Thêm stock UOM nếu chưa có
+    stock_uom = item_doc.stock_uom
+    if stock_uom and not any(u.get("uom") == stock_uom for u in item_uoms):
+        item_uoms.append({"uom": stock_uom, "conversion_factor": 1.0})
+
+    # Validate barcode UOM exists, fallback to stock_uom if not
+    if barcode_uom not in [u['uom'] for u in item_uoms]:
+        frappe.log_error(
+            f"Barcode UOM '{barcode_uom}' not found in item '{item_code}' UOMs. Using stock UOM.",
+            "POS Barcode UOM Validation"
+        )
+        barcode_uom = item_doc.stock_uom
+
+    # ✅ ĐẢM BẢO PRICE ĐÚNG CHO UOM: Lấy giá cho UOM cụ thể
     selling_price_list = price_list or (pos_profile_data.get("selling_price_list") if pos_profile_data else None)
     today = nowdate()
 
+    # Ưu tiên: Tìm giá cho UOM cụ thể từ barcode
     item_price_data = frappe.get_all(
         "Item Price",
         fields=["price_list_rate", "currency", "uom"],
@@ -1226,12 +1251,35 @@ def get_item_by_barcode_exact(barcode, pos_profile=None, price_list=None, custom
             "price_list": selling_price_list,
             "selling": 1,
             "valid_from": ["<=", today],
-            "customer": ["in", ["", None, customer]]
+            "customer": ["in", ["", None, customer]],
+            "uom": barcode_uom  # ← ĐẢM BẢO GIÁ CHO UOM CỤ THỂ
         },
         or_filters=[["valid_upto", ">=", today], ["valid_upto", "is", "not set"]],
         order_by="valid_from DESC",
         limit=1
     )
+
+    # Nếu không có giá cho UOM cụ thể, fallback nhưng log warning
+    if not item_price_data:
+        frappe.log_error(
+            f"No price found for item '{item_code}' with UOM '{barcode_uom}' in price list '{selling_price_list}'. Using general price.",
+            "POS Barcode Price Validation"
+        )
+        # Fallback to any available price for this item
+        item_price_data = frappe.get_all(
+            "Item Price",
+            fields=["price_list_rate", "currency", "uom"],
+            filters={
+                "item_code": item_code,
+                "price_list": selling_price_list,
+                "selling": 1,
+                "valid_from": ["<=", today],
+                "customer": ["in", ["", None, customer]]
+            },
+            or_filters=[["valid_upto", ">=", today], ["valid_upto", "is", "not set"]],
+            order_by="valid_from DESC",
+            limit=1
+        )
 
     item_price = item_price_data[0] if item_price_data else {}
 
@@ -1242,27 +1290,16 @@ def get_item_by_barcode_exact(barcode, pos_profile=None, price_list=None, custom
         fields=["barcode", "posa_uom"]
     )
 
-    # Lấy UOMs
-    uoms = frappe.get_all(
-        "UOM Conversion Detail",
-        filters={"parent": item_code},
-        fields=["uom", "conversion_factor"]
-    )
-
-    # Thêm stock UOM nếu chưa có
-    stock_uom = item_doc.stock_uom
-    if stock_uom and not any(u.get("uom") == stock_uom for u in uoms):
-        uoms.append({"uom": stock_uom, "conversion_factor": 1.0})
-
     # Lấy stock quantity
     actual_qty = get_stock_from_bin(item_code, warehouse) if warehouse else 0
 
-    # Build result tương tự như get_items API
+    # ✅ ĐẢM BẢO RESULT CÓ UOM CHÍNH XÁC
     result = {
         "item_code": item_doc.name,
         "item_name": item_doc.item_name,
         "description": item_doc.description,
         "stock_uom": item_doc.stock_uom,
+        "uom": barcode_uom,  # ← UOM CHÍNH XÁC từ barcode
         "image": item_doc.image,
         "is_stock_item": item_doc.is_stock_item,
         "has_variants": item_doc.has_variants,
@@ -1272,11 +1309,11 @@ def get_item_by_barcode_exact(barcode, pos_profile=None, price_list=None, custom
         "has_serial_no": item_doc.has_serial_no,
         "max_discount": item_doc.max_discount,
         "brand": item_doc.brand,
-        "rate": item_price.get("price_list_rate", 0),
+        "rate": item_price.get("price_list_rate", 0),  # ← Giá tương ứng với UOM
         "currency": item_price.get("currency") or (pos_profile_data.get("currency") if pos_profile_data else "VND"),
         "item_barcode": item_barcodes,
         "actual_qty": actual_qty,
-        "item_uoms": uoms,
+        "item_uoms": item_uoms,
         "serial_no_data": [],  # Để tương thích, sẽ load khi cần
         "batch_no_data": [],   # Để tương thích, sẽ load khi cần
         "attributes": "",

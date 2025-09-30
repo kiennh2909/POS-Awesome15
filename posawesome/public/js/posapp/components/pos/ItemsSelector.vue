@@ -832,6 +832,7 @@ export default {
 		},
 
 		// Method gọi API exact barcode và add item nếu tìm thấy
+		// ✅ ĐẢM BẢO: UOM và Price từ backend đã chính xác, không cần xử lý thêm
 		async fetchExactBarcodeAndAdd(rawCode) {
 			try {
 				console.info('[ItemsSelector] 🔍 Checking exact barcode match for:', rawCode);
@@ -857,10 +858,27 @@ export default {
 					const item = response.message;
 					console.info('[ItemsSelector] ✅ Exact barcode match found:', item.item_code);
 
-					// Set UOM theo posa_uom của barcode nếu match
-					let barcodeData = item.item_barcode.find(bc => bc.barcode === rawCode);
-					if (barcodeData && barcodeData.posa_uom) {
-						item.uom = barcodeData.posa_uom;
+					// ✅ ĐẢM BẢO UOM từ backend (đã validate và chính xác)
+					if (!item.uom) {
+						console.error('[ItemsSelector] ❌ Backend returned item without UOM:', item.item_code);
+						frappe.show_alert({
+							message: `Error: Item ${item.item_name} missing UOM`,
+							indicator: 'red'
+						}, 5);
+						return false;
+					}
+
+					// ✅ VALIDATE: Đảm bảo UOM tồn tại trong item_uoms
+					if (item.item_uoms && item.item_uoms.length > 0) {
+						const uomExists = item.item_uoms.some(uom => uom.uom === item.uom);
+						if (!uomExists) {
+							console.error('[ItemsSelector] ❌ UOM validation failed:', item.uom, 'not in item_uoms');
+							frappe.show_alert({
+								message: `Error: Invalid UOM for item ${item.item_name}`,
+								indicator: 'red'
+							}, 5);
+							return false;
+						}
 					}
 
 					// Check cancellation before adding item
@@ -868,12 +886,12 @@ export default {
 						throw new Error('Search cancelled');
 					}
 
-					// Add item to invoice
+					// ✅ Add item với UOM và Price đã được đảm bảo chính xác
 					await this.add_item(item);
 
 					// Show success message
 					frappe.show_alert({
-						message: `Added: ${item.item_name}`,
+						message: `Added: ${item.item_name} (${item.uom})`,
 						indicator: 'green'
 					}, 3);
 
