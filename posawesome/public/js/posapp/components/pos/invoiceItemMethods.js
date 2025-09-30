@@ -1700,6 +1700,18 @@ export default {
 						const companyCurrency = vm.pos_profile.currency;
 						const baseCurrency = companyCurrency;
 
+						// Check if rate has been modified by UOM conversion (different from base_rate)
+						const rateModifiedByUOM = item.rate && item.rate !== item.base_rate && item.uom !== item.stock_uom;
+
+						console.log("Rate modification check:", {
+							Item_code: item.item_code,
+							current_rate: item.rate,
+							base_rate: item.base_rate,
+							uom: item.uom,
+							stock_uom: item.stock_uom,
+							rateModifiedByUOM: rateModifiedByUOM
+						});
+
 						if (
 							vm.selected_currency === vm.price_list_currency &&
 							vm.selected_currency !== companyCurrency
@@ -1710,7 +1722,7 @@ export default {
 								vm.currency_precision,
 							);
 
-							if (!item._manual_rate_set) {
+							if (!item._manual_rate_set && !rateModifiedByUOM) {
 								item.rate = vm.flt(item.base_rate / conv, vm.currency_precision);
 							}
 						} else if (vm.selected_currency !== baseCurrency) {
@@ -1720,11 +1732,13 @@ export default {
 								vm.currency_precision,
 							);
 
-							item.rate = vm.flt(item.base_rate * exchange_rate, vm.currency_precision);
+							if (!rateModifiedByUOM) {
+								item.rate = vm.flt(item.base_rate * exchange_rate, vm.currency_precision);
+							}
 						} else {
 							item.price_list_rate = item.base_price_list_rate;
 
-							if (!item._manual_rate_set) {
+							if (!item._manual_rate_set && !rateModifiedByUOM) {
 								item.rate = item.base_rate;
 							}
 						}
@@ -1820,6 +1834,16 @@ export default {
 						stock_uom: item.stock_uom,
 						conversion_factor: item.conversion_factor,
 						needs_uom_conversion: item.uom !== item.stock_uom
+					});
+
+					// CRITICAL: Do NOT override rate if it was already set by UOM conversion
+					// Only update if rate is still the old value
+					const shouldUpdateRate = !item.rate || item.rate === item.base_rate;
+					console.log("Rate update decision:", {
+						Item_code: item.item_code,
+						current_rate: item.rate,
+						base_rate: item.base_rate,
+						shouldUpdateRate: shouldUpdateRate
 					});
 
 					// If item has different UOM than stock UOM, ensure UOM conversion is applied
