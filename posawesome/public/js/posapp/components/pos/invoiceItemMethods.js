@@ -1529,7 +1529,9 @@ export default {
 	// Update details for a single item (fetch from backend)
        update_item_detail(item, force_update = false) {
                console.log("update_item_detail request", {
-                       code: item.item_code,
+                       Item_code: item.item_code,
+                       Price: item.rate,
+                       Uom: item.uom,
                        force_update,
                });
                if (!item.item_code) {
@@ -1729,6 +1731,9 @@ export default {
 
 					// Log updated rates for debugging
 					console.log(`Updated rates for ${item.item_code} on expand:`, {
+						Item_code: item.item_code,
+						Price: item.rate,
+						Uom: item.uom,
 						base_rate: item.base_rate,
 						rate: item.rate,
 						base_price_list_rate: item.base_price_list_rate,
