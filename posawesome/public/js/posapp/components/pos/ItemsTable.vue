@@ -601,10 +601,36 @@ export default {
 					Price: item.rate,
 					Uom: item.uom,
 					qty: item.qty,
-					amount: item.qty * item.rate
+					amount: item.qty * item.rate,
+					base_rate: item.base_rate,
+					conversion_factor: item.conversion_factor,
+					expected_price: item.base_rate * (item.conversion_factor || 1)
 				})));
+
+				// Check if any item has wrong price (should be base_rate * conversion_factor)
+				newItems.forEach(item => {
+					const expectedPrice = item.base_rate * (item.conversion_factor || 1);
+					if (item.rate !== expectedPrice && item.uom !== item.stock_uom) {
+						console.error("[ItemsTable] ❌ PRICE MISMATCH DETECTED:", {
+							Item_code: item.item_code,
+							current_price: item.rate,
+							expected_price: expectedPrice,
+							base_rate: item.base_rate,
+							conversion_factor: item.conversion_factor,
+							uom: item.uom,
+							stock_uom: item.stock_uom
+						});
+					} else {
+						console.log("[ItemsTable] ✅ Price correct:", {
+							Item_code: item.item_code,
+							price: item.rate,
+							expected: expectedPrice
+						});
+					}
+				});
 			},
-			deep: true
+			deep: true,
+			immediate: true
 		}
 	},
 	methods: {

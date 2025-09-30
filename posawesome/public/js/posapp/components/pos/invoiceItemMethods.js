@@ -103,36 +103,60 @@ export default {
                                conversion_factor: new_item.conversion_factor
                        });
                        // Apply UOM conversion immediately
-   if (new_item.uom && new_item.uom !== new_item.stock_uom) {
-    console.log("Calling calc_uom for barcode scan", {
-     Item_code: new_item.item_code,
-     current_uom: new_item.uom,
-     stock_uom: new_item.stock_uom,
-     base_rate_before: new_item.base_rate,
-     rate_before: new_item.rate
-    });
-    this.calc_uom(new_item, new_item.uom);
-    console.log("After calc_uom for barcode scan", {
-     Item_code: new_item.item_code,
-     final_uom: new_item.uom,
-     base_rate_after: new_item.base_rate,
-     rate_after: new_item.rate,
-     conversion_factor: new_item.conversion_factor
-    });
-   } else {
-    console.log("No UOM conversion needed for barcode scan", {
-     Item_code: new_item.item_code,
-     uom: new_item.uom,
-     stock_uom: new_item.stock_uom,
-     rate: new_item.rate
-    });
-   }
+                       if (new_item.uom && new_item.uom !== new_item.stock_uom) {
+                        console.log("Calling calc_uom for barcode scan", {
+                         Item_code: new_item.item_code,
+                         current_uom: new_item.uom,
+                         stock_uom: new_item.stock_uom,
+                         base_rate_before: new_item.base_rate,
+                         rate_before: new_item.rate
+                        });
+                   
+                        // CRITICAL: Apply immediate UOM conversion to ensure rate is correct before ItemsTable renders
+                        if (new_item.base_rate && new_item.conversion_factor) {
+                        	const convertedRate = new_item.base_rate * new_item.conversion_factor;
+                        	new_item.rate = convertedRate;
+                        	new_item.price_list_rate = new_item.base_price_list_rate * new_item.conversion_factor;
+                        	console.log("Immediate UOM conversion applied in add_item", {
+                        		Item_code: new_item.item_code,
+                        		base_rate: new_item.base_rate,
+                        		conversion_factor: new_item.conversion_factor,
+                        		converted_rate: convertedRate
+                        	});
+                        }
+                   
+                        this.calc_uom(new_item, new_item.uom);
+                        console.log("After calc_uom for barcode scan", {
+                         Item_code: new_item.item_code,
+                         final_uom: new_item.uom,
+                         base_rate_after: new_item.base_rate,
+                         rate_after: new_item.rate,
+                         conversion_factor: new_item.conversion_factor
+                        });
+                       } else {
+                        console.log("No UOM conversion needed for barcode scan", {
+                         Item_code: new_item.item_code,
+                         uom: new_item.uom,
+                         stock_uom: new_item.stock_uom,
+                         rate: new_item.rate
+                        });
+                       }
 
    // Ensure stock_qty is calculated correctly after UOM conversion
    this.calc_stock_qty(new_item, new_item.qty);
 
-   // Force Vue reactivity update for ItemsTable
+   // Force Vue reactivity update for ItemsTable - critical for price display
    this.$forceUpdate();
+
+   // Additional force update after a short delay to ensure all async operations complete
+   setTimeout(() => {
+   	this.$forceUpdate();
+   	console.log("Additional force update after barcode scan", {
+   		Item_code: new_item.item_code,
+   		final_rate: new_item.rate,
+   		final_uom: new_item.uom
+   	});
+   }, 200);
 
    console.log("Barcode scan - Final quantities after UOM conversion", {
    	Item_code: new_item.item_code,
@@ -141,7 +165,9 @@ export default {
    	display_qty: new_item.qty,
    	stock_qty: new_item.stock_qty,
    	conversion_factor: new_item.conversion_factor,
-   	stock_uom: new_item.stock_uom
+   	stock_uom: new_item.stock_uom,
+   	base_rate: new_item.base_rate,
+   	expected_display_rate: new_item.base_rate * new_item.conversion_factor
    });
 
 			// Expand new item if it has batch or serial number
@@ -238,6 +264,17 @@ export default {
 			new_item.base_price_list_rate = item.base_price_list_rate || item.rate;
 			new_item.base_rate = item.base_rate || item.rate;
 			new_item.base_discount_amount = 0;
+		}
+
+		// CRITICAL: Ensure base_rate is set correctly for UOM conversion
+		// Base rates MUST always be in stock UOM, not display UOM
+		if (!new_item.base_rate || new_item.base_rate === 0) {
+			new_item.base_rate = item.rate || 0;
+			console.log("Setting base_rate in get_new_item", {
+				Item_code: new_item.item_code,
+				base_rate: new_item.base_rate,
+				original_rate: item.rate
+			});
 		}
 
 		new_item.qty = item.qty;
