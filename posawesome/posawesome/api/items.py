@@ -15,7 +15,7 @@ from erpnext.stock.doctype.batch.batch import (
 )
 from frappe.utils.caching import redis_cache
 from typing import List, Dict
-
+from posawesome.posawesome.utils.logging import get_logger
 
 def get_seearch_items_conditions(item_code, serial_no, batch_no, barcode):
     """Build item search conditions safely."""
@@ -1082,7 +1082,11 @@ def search_serial_or_batch_or_barcode_number(search_value, search_serial_no):
 @frappe.whitelist()
 def update_price_list_rate(item_code, price_list, rate, uom=None):
     """Create or update Item Price for the given item and price list."""
+    log = get_logger("items")
+    log.info(f"[UPDATE_PRICE_LIST_RATE] 🎯 START - Item: {item_code}, Price List: {price_list}, Rate: {rate}, UOM: {uom}")
+
     if not item_code or not price_list:
+        log.error(f"[UPDATE_PRICE_LIST_RATE] ❌ Missing required fields - Item: {item_code}, Price List: {price_list}")
         frappe.throw(_("Item Code and Price List are required"))
 
     rate = flt(rate)
@@ -1092,12 +1096,16 @@ def update_price_list_rate(item_code, price_list, rate, uom=None):
     else:
         filters["uom"] = ["", None]
 
+    log.info(f"[UPDATE_PRICE_LIST_RATE] 🔍 Checking existing Item Price with filters: {filters}")
     name = frappe.db.exists("Item Price", filters)
     if name:
+        log.info(f"[UPDATE_PRICE_LIST_RATE] 📝 Updating existing Item Price: {name}")
         doc = frappe.get_doc("Item Price", name)
         doc.price_list_rate = rate
         doc.save(ignore_permissions=True)
+        log.info(f"[UPDATE_PRICE_LIST_RATE] ✅ Updated Item Price: {name} with rate: {rate}")
     else:
+        log.info(f"[UPDATE_PRICE_LIST_RATE] 🆕 Creating new Item Price")
         doc = frappe.get_doc({
             "doctype": "Item Price",
             "item_code": item_code,
@@ -1107,15 +1115,21 @@ def update_price_list_rate(item_code, price_list, rate, uom=None):
             "selling": 1,
         })
         doc.insert(ignore_permissions=True)
+        log.info(f"[UPDATE_PRICE_LIST_RATE] ✅ Created new Item Price: {doc.name} with rate: {rate}")
 
     frappe.db.commit()
+    log.info(f"[UPDATE_PRICE_LIST_RATE] 🎉 COMPLETED - Item Price updated for {item_code}")
     return _("Item Price has been added or updated")
 
 
 @frappe.whitelist()
 def update_price_list_rate(item_code, price_list, rate, uom=None):
     """Create or update Item Price for the given item and price list."""
+    log = get_logger("items")
+    log.info(f"[UPDATE_PRICE_LIST_RATE] 🎯 START - Item: {item_code}, Price List: {price_list}, Rate: {rate}, UOM: {uom}")
+
     if not item_code or not price_list:
+        log.error(f"[UPDATE_PRICE_LIST_RATE] ❌ Missing required fields - Item: {item_code}, Price List: {price_list}")
         frappe.throw(_("Item Code and Price List are required"))
 
     rate = flt(rate)
@@ -1125,12 +1139,16 @@ def update_price_list_rate(item_code, price_list, rate, uom=None):
     else:
         filters["uom"] = ["", None]
 
+    log.info(f"[UPDATE_PRICE_LIST_RATE] 🔍 Checking existing Item Price with filters: {filters}")
     name = frappe.db.exists("Item Price", filters)
     if name:
+        log.info(f"[UPDATE_PRICE_LIST_RATE] 📝 Updating existing Item Price: {name}")
         doc = frappe.get_doc("Item Price", name)
         doc.price_list_rate = rate
         doc.save(ignore_permissions=True)
+        log.info(f"[UPDATE_PRICE_LIST_RATE] ✅ Updated Item Price: {name} with rate: {rate}")
     else:
+        log.info(f"[UPDATE_PRICE_LIST_RATE] 🆕 Creating new Item Price")
         doc = frappe.get_doc({
             "doctype": "Item Price",
             "item_code": item_code,
@@ -1140,8 +1158,10 @@ def update_price_list_rate(item_code, price_list, rate, uom=None):
             "selling": 1,
         })
         doc.insert(ignore_permissions=True)
+        log.info(f"[UPDATE_PRICE_LIST_RATE] ✅ Created new Item Price: {doc.name} with rate: {rate}")
 
     frappe.db.commit()
+    log.info(f"[UPDATE_PRICE_LIST_RATE] 🎉 COMPLETED - Item Price updated for {item_code}")
     return _("Item Price has been added or updated")
 
 
