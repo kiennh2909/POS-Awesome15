@@ -607,10 +607,18 @@ export default {
 					expected_price: item.base_rate * (item.conversion_factor || 1)
 				})));
 
-				// Check if any item has wrong price (should be base_rate * conversion_factor)
+				// Check if any item has wrong price (should be base_rate * conversion_factor for UOM items)
 				newItems.forEach(item => {
-					const expectedPrice = item.base_rate * (item.conversion_factor || 1);
-					if (item.rate !== expectedPrice && item.uom !== item.stock_uom) {
+					let expectedPrice = item.base_rate;
+					let shouldConvert = false;
+
+					// If UOM is different from stock UOM and conversion_factor > 1, expect converted price
+					if (item.uom && item.uom !== item.stock_uom && item.conversion_factor && item.conversion_factor > 1) {
+						expectedPrice = item.base_rate * item.conversion_factor;
+						shouldConvert = true;
+					}
+
+					if (item.rate !== expectedPrice && shouldConvert) {
 						console.error("[ItemsTable] ❌ PRICE MISMATCH DETECTED:", {
 							Item_code: item.item_code,
 							current_price: item.rate,
@@ -618,13 +626,16 @@ export default {
 							base_rate: item.base_rate,
 							conversion_factor: item.conversion_factor,
 							uom: item.uom,
-							stock_uom: item.stock_uom
+							stock_uom: item.stock_uom,
+							should_convert: shouldConvert
 						});
 					} else {
-						console.log("[ItemsTable] ✅ Price correct:", {
+						console.log("[ItemsTable] ✅ Price status:", {
 							Item_code: item.item_code,
-							price: item.rate,
-							expected: expectedPrice
+							current_price: item.rate,
+							expected_price: expectedPrice,
+							should_convert: shouldConvert,
+							status: item.rate === expectedPrice ? "CORRECT" : "WAITING_FOR_UPDATE"
 						});
 					}
 				});
