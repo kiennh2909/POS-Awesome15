@@ -2311,32 +2311,34 @@ export default {
 			base_currency: baseCurrency
 		});
 
-		item.base_price_list_rate = uomRate;
+		// Base rates luôn theo stock UOM (chai) - không phụ thuộc UOM hiển thị
+		// Lấy giá thực tế theo stock UOM từ item.base_price_list_rate
+		const stockUOMBaseRate = item.base_price_list_rate || item.price_list_rate || 0;
+
+		item.base_price_list_rate = stockUOMBaseRate; // Luôn theo stock UOM
 		if (!item.posa_offer_applied) {
-			item.base_rate = uomRate;
+			item.base_rate = stockUOMBaseRate; // Luôn theo stock UOM
 		}
 
+		// Display rates theo UOM-price (để hiển thị cho user)
 		if (this.selected_currency !== baseCurrency) {
-			item.price_list_rate = this.flt(
-				item.base_price_list_rate * this.exchange_rate,
-				this.currency_precision,
-			);
-			item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
+			item.price_list_rate = this.flt(uomRate * this.exchange_rate, this.currency_precision);
+			item.rate = this.flt(uomRate * this.exchange_rate, this.currency_precision);
 			console.log("calc_uom: converted to selected currency", {
 				item_code: item.item_code,
-				base_price_list_rate: item.base_price_list_rate,
-				price_list_rate: item.price_list_rate,
+				display_price_list_rate: item.price_list_rate,
+				display_rate: item.rate,
 				base_rate: item.base_rate,
-				rate: item.rate,
 				exchange_rate: this.exchange_rate
 			});
 		} else {
-			item.price_list_rate = item.base_price_list_rate;
-			item.rate = item.base_rate;
+			item.price_list_rate = uomRate; // Hiển thị theo UOM-price
+			item.rate = uomRate; // Hiển thị theo UOM-price
 			console.log("calc_uom: using base currency rates", {
 				item_code: item.item_code,
-				price_list_rate: item.price_list_rate,
-				rate: item.rate
+				display_price_list_rate: item.price_list_rate,
+				display_rate: item.rate,
+				base_rate: item.base_rate
 			});
 		}
 
@@ -2344,7 +2346,8 @@ export default {
 		this.$forceUpdate();
 		console.log("calc_uom: completed UOM-specific pricing", {
 			item_code: item.item_code,
-			final_rate: item.rate,
+			display_rate: item.rate,
+			base_rate: item.base_rate,
 			final_uom: item.uom
 		});
 	},
@@ -2389,25 +2392,31 @@ export default {
 			conversion_factor: item.conversion_factor
 		});
 
-		const converted_rate = flt(offer.rate * item.conversion_factor);
-		item.base_rate = converted_rate;
-		item.base_price_list_rate = converted_rate;
+		// Base rates luôn theo stock UOM
+		const stockUOMBaseRate = item.base_price_list_rate || item.price_list_rate || 0;
+		item.base_rate = stockUOMBaseRate;
+		item.base_price_list_rate = stockUOMBaseRate;
+
+		// Display rates theo offer rate trực tiếp (offer rate đã là giá cuối cùng cho UOM)
+		const displayRate = offer.rate; // Không nhân conversion_factor
 
 		if (this.selected_currency !== baseCurrency) {
-			item.rate = this.flt(converted_rate * this.exchange_rate, this.currency_precision);
+			item.rate = this.flt(displayRate * this.exchange_rate, this.currency_precision);
 			item.price_list_rate = item.rate;
 			console.log("calc_uom: rate offer converted to selected currency", {
 				item_code: item.item_code,
-				converted_rate: converted_rate,
+				display_rate: displayRate,
 				final_rate: item.rate,
+				base_rate: item.base_rate,
 				exchange_rate: this.exchange_rate
 			});
 		} else {
-			item.rate = converted_rate;
-			item.price_list_rate = converted_rate;
+			item.rate = displayRate;
+			item.price_list_rate = displayRate;
 			console.log("calc_uom: rate offer in base currency", {
 				item_code: item.item_code,
-				final_rate: item.rate
+				display_rate: displayRate,
+				base_rate: item.base_rate
 			});
 		}
 	},
@@ -2421,65 +2430,48 @@ export default {
 			conversion_factor: item.conversion_factor
 		});
 
-		let updated_base_price;
-		if (item.original_base_price_list_rate) {
-			updated_base_price = this.flt(
-				item.original_base_price_list_rate * item.conversion_factor,
-				this.currency_precision,
-			);
-		} else {
-			updated_base_price = this.flt(
-				item.base_price_list_rate * conversion_ratio,
-				this.currency_precision,
-			);
-		}
-
-		console.log("calc_uom: calculated updated base price", {
-			item_code: item.item_code,
-			updated_base_price: updated_base_price,
-			conversion_ratio: conversion_ratio
-		});
-
-		item.base_price_list_rate = updated_base_price;
-
-		const base_discount = this.flt(
-			(updated_base_price * offer.discount_percentage) / 100,
+		// Base rates luôn theo stock UOM
+		const stockUOMBaseRate = item.base_price_list_rate || 12;
+		const baseDiscount = this.flt(
+			(stockUOMBaseRate * offer.discount_percentage) / 100,
 			this.currency_precision,
 		);
-		item.base_discount_amount = base_discount;
-		item.base_rate = this.flt(updated_base_price - base_discount, this.currency_precision);
+
+		item.base_price_list_rate = stockUOMBaseRate;
+		item.base_discount_amount = baseDiscount;
+		item.base_rate = this.flt(stockUOMBaseRate - baseDiscount, this.currency_precision);
+
+		// Display rates = (base_rate_after_discount) × conversion_factor
+		const displayRate = item.base_rate * item.conversion_factor;
+		const displayPriceListRate = item.base_price_list_rate * item.conversion_factor;
+		const displayDiscountAmount = baseDiscount * item.conversion_factor;
 
 		console.log("calc_uom: calculated discount for percentage offer", {
 			item_code: item.item_code,
-			base_discount: base_discount,
-			base_rate_after_discount: item.base_rate
+			base_discount: baseDiscount,
+			base_rate_after_discount: item.base_rate,
+			display_rate: displayRate
 		});
 
 		if (this.selected_currency !== baseCurrency) {
-			item.price_list_rate = this.flt(
-				updated_base_price * this.exchange_rate,
-				this.currency_precision,
-			);
-			item.discount_amount = this.flt(
-				base_discount * this.exchange_rate,
-				this.currency_precision,
-			);
-			item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
+			item.price_list_rate = this.flt(displayPriceListRate * this.exchange_rate, this.currency_precision);
+			item.discount_amount = this.flt(displayDiscountAmount * this.exchange_rate, this.currency_precision);
+			item.rate = this.flt(displayRate * this.exchange_rate, this.currency_precision);
 			console.log("calc_uom: percentage offer converted to selected currency", {
 				item_code: item.item_code,
-				price_list_rate: item.price_list_rate,
-				discount_amount: item.discount_amount,
-				final_rate: item.rate
+				display_price_list_rate: item.price_list_rate,
+				display_discount_amount: item.discount_amount,
+				display_rate: item.rate
 			});
 		} else {
-			item.price_list_rate = updated_base_price;
-			item.discount_amount = base_discount;
-			item.rate = item.base_rate;
+			item.price_list_rate = displayPriceListRate;
+			item.discount_amount = displayDiscountAmount;
+			item.rate = displayRate;
 			console.log("calc_uom: percentage offer in base currency", {
 				item_code: item.item_code,
-				price_list_rate: item.price_list_rate,
-				discount_amount: item.discount_amount,
-				final_rate: item.rate
+				display_price_list_rate: item.price_list_rate,
+				display_discount_amount: item.discount_amount,
+				display_rate: item.rate
 			});
 		}
 	},
@@ -2494,50 +2486,33 @@ export default {
 			has_original_base_rate: !!item.original_base_rate
 		});
 
-		if (item.batch_price) {
-			console.log("calc_uom: using batch price for conversion", {
-				item_code: item.item_code,
-				batch_price: item.batch_price,
-				conversion_factor: item.conversion_factor
-			});
-			item.base_rate = item.batch_price * item.conversion_factor;
-			item.base_price_list_rate = item.base_rate;
-		} else if (item.original_base_rate) {
-			console.log("calc_uom: using original base rate for conversion", {
-				item_code: item.item_code,
-				original_base_rate: item.original_base_rate,
-				conversion_factor: item.conversion_factor
-			});
-			item.base_rate = item.original_base_rate * item.conversion_factor;
-			item.base_price_list_rate = item.original_base_price_list_rate * item.conversion_factor;
-		} else {
-			console.log("calc_uom: no base rate found for conversion", {
-				item_code: item.item_code,
-				batch_price: item.batch_price,
-				original_base_rate: item.original_base_rate
-			});
-		}
+		// Base rates luôn theo stock UOM (chai) - không phụ thuộc UOM hiển thị
+		const stockUOMBaseRate = item.base_price_list_rate || 12; // 12 là ví dụ
+
+		item.base_price_list_rate = stockUOMBaseRate; // Luôn theo stock UOM
+		item.base_rate = stockUOMBaseRate; // Luôn theo stock UOM
+
+		// Display rates = base_rate × conversion_factor (để hiển thị cho user)
+		const displayRate = stockUOMBaseRate * item.conversion_factor;
+		const displayPriceListRate = stockUOMBaseRate * item.conversion_factor;
 
 		if (this.selected_currency !== baseCurrency) {
 			console.log("calc_uom: converting regular item to selected currency", {
 				item_code: item.item_code,
 				base_rate: item.base_rate,
-				base_price_list_rate: item.base_price_list_rate,
+				display_rate_before_convert: displayRate,
 				exchange_rate: this.exchange_rate
 			});
-			item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
-			item.price_list_rate = this.flt(
-				item.base_price_list_rate * this.exchange_rate,
-				this.currency_precision,
-			);
+			item.rate = this.flt(displayRate * this.exchange_rate, this.currency_precision);
+			item.price_list_rate = this.flt(displayPriceListRate * this.exchange_rate, this.currency_precision);
 		} else {
 			console.log("calc_uom: using base currency for regular item", {
 				item_code: item.item_code,
-				rate: item.rate,
-				price_list_rate: item.price_list_rate
+				display_rate: displayRate,
+				base_rate: item.base_rate
 			});
-			item.rate = item.base_rate;
-			item.price_list_rate = item.base_price_list_rate;
+			item.rate = displayRate;
+			item.price_list_rate = displayPriceListRate;
 		}
 	},
 
