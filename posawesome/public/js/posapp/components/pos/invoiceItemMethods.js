@@ -116,7 +116,8 @@ export default {
                         // First, ensure we have the correct conversion_factor by finding the UOM
                         const uomData = this.find_uom(new_item, new_item.uom);
                         if (uomData) {
-                        	new_item.conversion_factor = uomData.conversion_factor;
+                        	// Use Vue.set to ensure reactivity
+                        	this.$set(new_item, 'conversion_factor', uomData.conversion_factor);
                         	console.log("UOM data found for immediate conversion", {
                         		Item_code: new_item.item_code,
                         		uom: new_item.uom,
