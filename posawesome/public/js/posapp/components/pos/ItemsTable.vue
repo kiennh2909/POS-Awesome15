@@ -612,10 +612,25 @@ export default {
 					let expectedPrice = item.base_rate;
 					let shouldConvert = false;
 
+					// DEBUG: Log conversion factor status
+					console.log("[ItemsTable] DEBUG conversion factor:", {
+						Item_code: item.item_code,
+						uom: item.uom,
+						stock_uom: item.stock_uom,
+						conversion_factor: item.conversion_factor,
+						base_rate: item.base_rate,
+						current_rate: item.rate
+					});
+
 					// If UOM is different from stock UOM and conversion_factor > 1, expect converted price
 					if (item.uom && item.uom !== item.stock_uom && item.conversion_factor && item.conversion_factor > 1) {
 						expectedPrice = item.base_rate * item.conversion_factor;
 						shouldConvert = true;
+						console.log("[ItemsTable] SHOULD CONVERT detected:", {
+							Item_code: item.item_code,
+							expectedPrice: expectedPrice,
+							conversion_factor: item.conversion_factor
+						});
 					}
 
 					if (item.rate !== expectedPrice && shouldConvert) {
