@@ -1652,16 +1652,42 @@ export default {
 					}
 
 					// First save base rates if not exists or when force update is requested
-					// Avoid overriding existing base rates when the selected currency
-					// matches the POS Profile currency. This prevents manual or offer
-					// adjusted rates from being reset whenever an item row is expanded.
+					// BASE RATES MUST ALWAYS BE IN STOCK UOM - NOT UOM SPECIFIC!
+					// Server may return UOM-specific price, but base rates should always be stock UOM
 					if (force_update || !item.base_rate) {
-						// Always store base rates from server in base currency
-						if (data.price_list_rate !== 0 || !item.base_price_list_rate) {
-							item.base_price_list_rate = data.price_list_rate;
+						console.log("update_item_detail: setting base rates", {
+							Item_code: item.item_code,
+							server_price_list_rate: data.price_list_rate,
+							item_uom: item.uom,
+							stock_uom: item.stock_uom,
+							conversion_factor: item.conversion_factor,
+							has_uom_conversion: item.uom !== item.stock_uom
+						});
+
+						// If server returns UOM-specific price but item has different UOM, convert back to stock UOM
+						let stockUOMPrice = data.price_list_rate;
+						if (item.uom && item.uom !== item.stock_uom && item.conversion_factor && item.conversion_factor !== 1) {
+							// Convert UOM price back to stock UOM price
+							stockUOMPrice = data.price_list_rate / item.conversion_factor;
+							console.log("update_item_detail: converted UOM price back to stock UOM", {
+								Item_code: item.item_code,
+								uom_price: data.price_list_rate,
+								conversion_factor: item.conversion_factor,
+								stock_uom_price: stockUOMPrice
+							});
+						}
+
+						// Always store base rates in stock UOM
+						if (stockUOMPrice !== 0 || !item.base_price_list_rate) {
+							item.base_price_list_rate = stockUOMPrice;
 							if (!item.posa_offer_applied) {
-								item.base_rate = data.price_list_rate;
+								item.base_rate = stockUOMPrice;
 							}
+							console.log("update_item_detail: base rates set to stock UOM", {
+								Item_code: item.item_code,
+								base_rate: item.base_rate,
+								base_price_list_rate: item.base_price_list_rate
+							});
 						}
 					}
 
@@ -1793,14 +1819,16 @@ export default {
 					});
 
 					// If item has different UOM than stock UOM, ensure UOM conversion is applied
-					if (item.uom && item.uom !== item.stock_uom && !force_update) {
+					if (item.uom && item.uom !== item.stock_uom) {
 						console.log("Applying UOM conversion after update_item_detail", {
 							Item_code: item.item_code,
 							uom: item.uom,
 							stock_uom: item.stock_uom,
-							rate_before_conversion: item.rate
+							base_rate: item.base_rate,
+							rate_before_conversion: item.rate,
+							force_update: force_update
 						});
-						// Temporarily call calc_uom to ensure rates are converted
+						// Always apply UOM conversion after base rates are set
 						setTimeout(() => {
 							vm.calc_uom(item, item.uom);
 						}, 100);
