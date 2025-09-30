@@ -464,6 +464,9 @@ export default {
 		current_search_id: 0,
 		// Abort controller for current search
 		current_search_controller: null,
+		// Debounce for barcode scanning to prevent duplicate scans
+		lastScanTime: 0,
+		scanDebounceMs: 500,
 	}),
 
 	watch: {
@@ -1800,6 +1803,14 @@ export default {
 			}
 		},
 		trigger_onscan(sCode) {
+			// Debounce to prevent duplicate scans within short time period
+			const now = Date.now();
+			if (now - this.lastScanTime < this.scanDebounceMs) {
+				console.log("Ignoring duplicate hardware scan within debounce period");
+				return;
+			}
+			this.lastScanTime = now;
+
 			// Use queue system for scanner input to eliminate race conditions
 			this.search_from_scanner = true;
 			this.queueSearch(sCode, true);
@@ -2031,6 +2042,14 @@ export default {
 		},
 		onBarcodeScanned(scannedCode) {
 			console.info("Barcode scanned:", scannedCode);
+
+			// Debounce to prevent duplicate scans within short time period
+			const now = Date.now();
+			if (now - this.lastScanTime < this.scanDebounceMs) {
+				console.log("Ignoring duplicate scan within debounce period");
+				return;
+			}
+			this.lastScanTime = now;
 
 			// Use queue system for camera scanner to eliminate race conditions
 			this.search_from_scanner = true;
