@@ -152,6 +152,16 @@ export default {
                          rate_after: new_item.rate,
                          conversion_factor: new_item.conversion_factor
                         });
+                   
+                        // CRITICAL: Force update after calc_uom to ensure ItemsTable gets the updated rate
+                        setTimeout(() => {
+                        	this.$forceUpdate();
+                        	console.log("Force update after calc_uom completion", {
+                        		Item_code: new_item.item_code,
+                        		rate_after_force_update: new_item.rate,
+                        		conversion_factor: new_item.conversion_factor
+                        	});
+                        }, 100);
                        } else {
                         console.log("No UOM conversion needed for barcode scan", {
                          Item_code: new_item.item_code,
