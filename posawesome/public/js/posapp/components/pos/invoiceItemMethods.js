@@ -130,14 +130,18 @@ export default {
 
    // Ensure stock_qty is calculated correctly after UOM conversion
    this.calc_stock_qty(new_item, new_item.qty);
+
+   // Force Vue reactivity update for ItemsTable
+   this.$forceUpdate();
+
    console.log("Barcode scan - Final quantities after UOM conversion", {
-    Item_code: new_item.item_code,
-    Price: new_item.rate,
-    Uom: new_item.uom,
-    display_qty: new_item.qty,
-    stock_qty: new_item.stock_qty,
-    conversion_factor: new_item.conversion_factor,
-    stock_uom: new_item.stock_uom
+   	Item_code: new_item.item_code,
+   	Price: new_item.rate,
+   	Uom: new_item.uom,
+   	display_qty: new_item.qty,
+   	stock_qty: new_item.stock_qty,
+   	conversion_factor: new_item.conversion_factor,
+   	stock_uom: new_item.stock_uom
    });
 
 			// Expand new item if it has batch or serial number
@@ -1831,6 +1835,15 @@ export default {
 						// Always apply UOM conversion after base rates are set
 						setTimeout(() => {
 							vm.calc_uom(item, item.uom);
+							// Force update after UOM conversion to ensure ItemsTable gets updated
+							setTimeout(() => {
+								vm.$forceUpdate();
+								console.log("Force update after UOM conversion", {
+									Item_code: item.item_code,
+									final_rate: item.rate,
+									final_uom: item.uom
+								});
+							}, 50);
 						}, 100);
 					}
 
