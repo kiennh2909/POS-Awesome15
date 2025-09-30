@@ -2591,11 +2591,15 @@ export default {
 		});
 
 		// Đảm bảo base rates được set đúng theo stock UOM
+		const baseRateUpdates = {};
 		if (!item.base_price_list_rate || item.base_price_list_rate === 0) {
-			this.$set(item, 'base_price_list_rate', stockUOMBaseRate);
+			baseRateUpdates.base_price_list_rate = stockUOMBaseRate;
 		}
 		if (!item.base_rate || item.base_rate === 0) {
-			this.$set(item, 'base_rate', stockUOMBaseRate);
+			baseRateUpdates.base_rate = stockUOMBaseRate;
+		}
+		if (Object.keys(baseRateUpdates).length > 0) {
+			Object.assign(item, baseRateUpdates);
 		}
 
 		// Display rates = base_rate × conversion_factor (để hiển thị cho user)
@@ -2617,17 +2621,30 @@ export default {
 				display_rate_before_convert: displayRate,
 				exchange_rate: this.exchange_rate
 			});
-			this.$set(item, 'rate', this.flt(displayRate * this.exchange_rate, this.currency_precision));
-			this.$set(item, 'price_list_rate', this.flt(displayPriceListRate * this.exchange_rate, this.currency_precision));
+			// Vue 3: Use Object.assign to ensure reactivity
+			Object.assign(item, {
+				rate: this.flt(displayRate * this.exchange_rate, this.currency_precision),
+				price_list_rate: this.flt(displayPriceListRate * this.exchange_rate, this.currency_precision)
+			});
 		} else {
 			console.log("calc_uom: using base currency for regular item", {
 				item_code: item.item_code,
 				display_rate: displayRate,
 				base_rate: item.base_rate
 			});
-			this.$set(item, 'rate', displayRate);
-			this.$set(item, 'price_list_rate', displayPriceListRate);
+			// Vue 3: Use Object.assign to ensure reactivity
+			Object.assign(item, {
+				rate: displayRate,
+				price_list_rate: displayPriceListRate
+			});
 		}
+
+		// Emit event to notify parent component about item update
+		this.eventBus.emit('item_rate_updated', {
+			item_code: item.item_code,
+			new_rate: item.rate,
+			new_price_list_rate: item.price_list_rate
+		});
 
 		console.log("calc_uom: final rates for regular item", {
 			Item_code: item.item_code,
