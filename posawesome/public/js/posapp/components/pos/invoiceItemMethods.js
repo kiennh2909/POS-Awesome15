@@ -52,6 +52,24 @@ export default {
 							(!el.batch_no && !item.batch_no)),
 				);
 			}
+
+			// Debug: Log item matching logic
+			console.log("add_item: checking for existing item", {
+				item_code: item.item_code,
+				uom: item.uom,
+				has_batch_no: item.has_batch_no,
+				batch_no: item.batch_no,
+				posa_auto_set_batch: this.pos_profile.posa_auto_set_batch,
+				items_count: this.items.length,
+				found_index: index,
+				items_in_cart: this.items.map(i => ({
+					item_code: i.item_code,
+					uom: i.uom,
+					batch_no: i.batch_no,
+					posa_is_offer: i.posa_is_offer,
+					posa_is_replace: i.posa_is_replace
+				}))
+			});
 		}
 
 		let new_item;

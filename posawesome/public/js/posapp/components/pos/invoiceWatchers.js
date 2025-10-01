@@ -30,7 +30,10 @@ export default {
 		deep: true,
 		handler(items, oldItems) {
 			// Prevent recursive calls when applying offers
-			if (this.isApplyingOffer) return;
+			if (this.isApplyingOffer) {
+				console.log("items watcher: skipping due to isApplyingOffer = true");
+				return;
+			}
 
 			// Check if items array structure changed or qty changed
 			const structureChanged = items.length !== (oldItems?.length || 0);
@@ -46,16 +49,32 @@ export default {
 					if (newItem.posa_row_id === oldItem.posa_row_id) {
 						if (newItem.qty !== oldItem.qty) {
 							qtyChanged = true;
+							console.log("items watcher: qty changed detected", {
+								item_code: newItem.item_code,
+								old_qty: oldItem.qty,
+								new_qty: newItem.qty
+							});
 							break;
 						}
 					}
 				}
 			}
 
+			console.log("items watcher: checking for discount trigger", {
+				structureChanged,
+				qtyChanged,
+				itemsCount: items.length,
+				oldItemsCount: oldItems?.length || 0,
+				willTriggerDiscount: structureChanged || qtyChanged
+			});
+
 			if (structureChanged || qtyChanged) {
 				// Debounce the call to the new API
 				if (this.calculateDiscountsDebounced) {
+					console.log("items watcher: triggering calculateDiscountsDebounced");
 					this.calculateDiscountsDebounced();
+				} else {
+					console.log("items watcher: calculateDiscountsDebounced not available");
 				}
 			}
 			this.$forceUpdate();
