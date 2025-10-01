@@ -14,7 +14,13 @@ export default {
 		return applied;
 	},
 
+	/*
+	DEPRECATED: This logic has been moved to the backend API:
+	posawesome.posawesome.api.discount_calculator.calculate_discounts
+	This code is kept for reference and for the offline fallback mechanism.
+	*/
 	handelOffers() {
+		// This function is now primarily a fallback for offline mode or API failure.
 		const offers = [];
 		this.posOffers.forEach((offer) => {
 			if (offer.apply_on === "Item Code") {

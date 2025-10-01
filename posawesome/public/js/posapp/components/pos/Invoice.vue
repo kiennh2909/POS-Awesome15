@@ -374,6 +374,66 @@ export default {
 	},
 
 	methods: {
+		// Debounce function - simple implementation
+		debounce(func, delay) {
+			let timeout;
+			return function (...args) {
+				const context = this;
+				clearTimeout(timeout);
+				timeout = setTimeout(() => func.apply(context, args), delay);
+			};
+		},
+
+		async calculateDiscountsAPI() {
+			if (!this.items.length) {
+				// Clear offers if cart is empty
+				this.posa_offers = [];
+				return;
+			}
+
+			this.eventBus.emit("show_loading", true);
+
+			try {
+				const invoice_data = {
+					items: this.items,
+					customer: this.customer,
+					pos_profile: this.pos_profile.name,
+					coupons: this.posa_coupons,
+				};
+
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.discount_calculator.calculate_discounts",
+					args: {
+						invoice_data: JSON.stringify(invoice_data),
+					},
+				});
+
+				if (response.message && response.message.status === "success") {
+					// Directly replace items with the processed list from backend
+					this.items = response.message.updated_items;
+					this.posa_offers = response.message.applied_offers;
+				} else {
+					this.eventBus.emit("show_message", {
+						title: __("Error Calculating Discounts"),
+						color: "error",
+						message: response.message.message || "Unknown error",
+					});
+					// Fallback to client-side calculation if API fails
+					this.handelOffers();
+				}
+			} catch (error) {
+				console.error("Failed to call discount calculation API:", error);
+				this.eventBus.emit("show_message", {
+					title: __("API Call Failed"),
+					color: "error",
+					message: "Could not connect to the server for discount calculation.",
+				});
+				// Fallback to client-side calculation if API fails
+				this.handelOffers();
+			} finally {
+				this.eventBus.emit("show_loading", false);
+			}
+		},
 		...shortcutMethods,
 		...itemAddition,
 		...batchSerial,
@@ -1328,6 +1388,7 @@ export default {
 				this.invoice_doc.return_against = data.return_doc.name;
 			} else {
 				console.log("Return without invoice reference");
+		this.calculateDiscountsDebounced = this.debounce(this.calculateDiscountsAPI, 300);
 				// For return without invoice, reset discount values
 				this.discount_amount = 0;
 				this.additional_discount_percentage = 0;

@@ -29,7 +29,10 @@ export default {
 	items: {
 		deep: true,
 		handler(items) {
-			this.handelOffers();
+			// Debounce the call to the new API
+			if (this.calculateDiscountsDebounced) {
+				this.calculateDiscountsDebounced();
+			}
 			this.$forceUpdate();
 		},
 	},
