@@ -34,7 +34,23 @@ export default {
 
 			// Check if items array structure changed or qty changed
 			const structureChanged = items.length !== (oldItems?.length || 0);
-			const qtyChanged = this.hasQtyChanged(items, oldItems);
+			let qtyChanged = false;
+
+			// Check if quantity changed for same items
+			if (!structureChanged && oldItems && items.length === oldItems.length) {
+				for (let i = 0; i < items.length; i++) {
+					const newItem = items[i];
+					const oldItem = oldItems[i];
+
+					// Compare by posa_row_id to ensure same item
+					if (newItem.posa_row_id === oldItem.posa_row_id) {
+						if (newItem.qty !== oldItem.qty) {
+							qtyChanged = true;
+							break;
+						}
+					}
+				}
+			}
 
 			if (structureChanged || qtyChanged) {
 				// Debounce the call to the new API
@@ -115,23 +131,5 @@ export default {
 		if (this.items && this.items.length) {
 			this.update_item_rates();
 		}
-	},
-
-	// Helper method to check if quantity changed between old and new items
-	hasQtyChanged(newItems, oldItems) {
-		if (!oldItems || oldItems.length !== newItems.length) return false;
-
-		for (let i = 0; i < newItems.length; i++) {
-			const newItem = newItems[i];
-			const oldItem = oldItems[i];
-
-			// Compare by posa_row_id to ensure same item
-			if (newItem.posa_row_id === oldItem.posa_row_id) {
-				if (newItem.qty !== oldItem.qty) {
-					return true; // Qty changed
-				}
-			}
-		}
-		return false;
 	},
 };
