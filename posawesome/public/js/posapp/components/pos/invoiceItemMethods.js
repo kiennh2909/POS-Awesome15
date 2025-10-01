@@ -18,6 +18,13 @@ export default {
 		}
 		// Remove from expanded if present
 		this.expanded = this.expanded.filter((id) => id !== item.posa_row_id);
+
+		// Trigger discount calculation after item removal
+		this.$nextTick(() => {
+			setTimeout(() => {
+				this.calculateDiscountsDebounced();
+			}, 10);
+		});
 	},
 
        add_item(item) {
@@ -279,6 +286,13 @@ export default {
 			if (cur_item.uom && cur_item.uom !== cur_item.stock_uom) {
 				this.calc_uom(cur_item, cur_item.uom);
 			}
+
+			// Ensure Vue watcher is triggered after all updates complete
+			this.$nextTick(() => {
+				setTimeout(() => {
+					this.calculateDiscountsDebounced();
+				}, 10);
+			});
 		}
 		this.$forceUpdate();
 
@@ -1979,6 +1993,13 @@ export default {
 
 					// Force update UI immediately
 					vm.$forceUpdate();
+
+					// Trigger discount calculation after item detail update
+					vm.$nextTick(() => {
+						setTimeout(() => {
+							vm.calculateDiscountsDebounced();
+						}, 10);
+					});
 				}
 			},
 		});
@@ -2324,6 +2345,13 @@ export default {
 			// Update stock calculations and force UI update
 			this.calc_stock_qty(item, item.qty);
 			this.$forceUpdate();
+
+			// Trigger discount calculation after price/discount changes
+			this.$nextTick(() => {
+				setTimeout(() => {
+					this.calculateDiscountsDebounced();
+				}, 10);
+			});
 		} catch (error) {
 			console.error("Error calculating prices:", error);
 			this.eventBus.emit("show_message", {
@@ -2843,6 +2871,13 @@ export default {
 		this.calc_stock_qty(item, item.qty);
 		this.$forceUpdate();
 
+		// Trigger discount calculation after UOM changes
+		this.$nextTick(() => {
+			setTimeout(() => {
+				this.calculateDiscountsDebounced();
+			}, 10);
+		});
+
 		console.log("calc_uom: completed conversion factor logic", {
 			Item_code: item.item_code,
 			Price: item.rate,
@@ -2995,6 +3030,13 @@ export default {
 
 		// Force UI update
 		this.$forceUpdate();
+
+		// Trigger discount calculation after batch changes
+		this.$nextTick(() => {
+			setTimeout(() => {
+				this.calculateDiscountsDebounced();
+			}, 10);
+		});
 	},
 
 	// change_price_list_rate(item) {

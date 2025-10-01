@@ -1124,9 +1124,17 @@ export default {
 			item.qty--;
 			if (item.qty == 0) {
 				this.remove_item(item);
+			} else {
+				this.calc_stock_qty(item, item.qty);
+				this.$forceUpdate();
+
+				// Trigger discount calculation after qty change
+				this.$nextTick(() => {
+					setTimeout(() => {
+						this.calculateDiscountsDebounced();
+					}, 10);
+				});
 			}
-			this.calc_stock_qty(item, item.qty);
-			this.$forceUpdate();
 		},
 
 		// Handle item reordering from drag and drop

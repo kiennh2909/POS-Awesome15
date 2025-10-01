@@ -55,8 +55,18 @@ export default {
 					const newItem = items[i];
 					const oldItem = oldItems[i];
 
+					console.log("items watcher: comparing items", {
+						index: i,
+						newItem_row_id: newItem.posa_row_id,
+						oldItem_row_id: oldItem?.posa_row_id,
+						new_qty: newItem.qty,
+						old_qty: oldItem?.qty,
+						row_ids_match: newItem.posa_row_id === oldItem?.posa_row_id,
+						qty_match: newItem.qty === oldItem?.qty
+					});
+
 					// Compare by posa_row_id to ensure same item
-					if (newItem.posa_row_id === oldItem.posa_row_id) {
+					if (newItem.posa_row_id === oldItem?.posa_row_id) {
 						if (newItem.qty !== oldItem.qty) {
 							qtyChanged = true;
 							console.log("items watcher: qty changed detected", {
@@ -70,15 +80,19 @@ export default {
 				}
 			}
 
+			// Special case: First item added to empty cart
+			const isFirstItemAdded = items.length === 1 && (!oldItems || oldItems.length === 0);
+
 			console.log("items watcher: checking for discount trigger", {
 				structureChanged,
 				qtyChanged,
+				isFirstItemAdded,
 				itemsCount: items.length,
 				oldItemsCount: oldItems?.length || 0,
-				willTriggerDiscount: structureChanged || qtyChanged
+				willTriggerDiscount: structureChanged || qtyChanged || isFirstItemAdded
 			});
 
-			if (structureChanged || qtyChanged) {
+			if (structureChanged || qtyChanged || isFirstItemAdded) {
 				// Debounce the call to the new API
 				if (this.calculateDiscountsDebounced) {
 					console.log("items watcher: triggering calculateDiscountsDebounced");
