@@ -207,9 +207,12 @@ class DiscountCalculator:
 
             if offer_type == "Item Price":
                 self._apply_item_price_offer(offer)
-            
+
             elif offer_type == "Give Product":
                 self._apply_give_product_offer(offer)
+
+            elif offer_type == "Quantity Discount Per Item":
+                self._apply_quantity_discount_per_item_offer(offer)
 
             elif offer_type == "Grand Total" and not applied_grand_total:
                 self._apply_grand_total_offer(offer)
@@ -280,6 +283,44 @@ class DiscountCalculator:
         self.items.append(new_item)
         self.applied_offers.append(offer)
         log.info(f"Successfully applied 'Give Product' offer: '{offer.name}', added item '{given_item_code}'.")
+
+    # --- Nghiệp vụ giảm giá theo số lượng mỗi sản phẩm ---
+    def _apply_quantity_discount_per_item_offer(self, offer):
+        log.debug(f"Executing _apply_quantity_discount_per_item_offer for '{offer.name}'.")
+        qty_discount_per_item = offer.get("qty_discount_per_item", 0)
+
+        if qty_discount_per_item <= 0:
+            log.warning(f"Offer '{offer.name}' has invalid qty_discount_per_item: {qty_discount_per_item}")
+            return
+
+        for item_row_id in offer.get("items", []):
+            item = next((i for i in self.items if i.get("posa_row_id") == item_row_id), None)
+            if not item or item.get("posa_offer_applied"):
+                continue
+
+            item["posa_offer_applied"] = 1
+            qty = item.get("qty", 0)
+            original_rate = item.get("price_list_rate", 0)
+
+            # Calculate discount: qty_discount_per_item * quantity
+            discount_amount = qty_discount_per_item * qty
+            new_rate = original_rate - qty_discount_per_item  # Rate sau khi trừ discount per item
+
+            # Ensure discount doesn't exceed original price
+            if discount_amount > original_rate * qty:
+                discount_amount = original_rate * qty
+                new_rate = 0
+
+            item["discount_amount"] = discount_amount
+            item["discount_percentage"] = (discount_amount / (original_rate * qty) * 100) if (original_rate * qty) else 0
+            item["rate"] = new_rate
+            item["amount"] = new_rate * qty
+
+            self._add_offer_to_item_log(item, offer)
+            log.info(f"Applied quantity discount to item {item.get('item_code')}: qty={qty}, discount_per_item={qty_discount_per_item}, total_discount={discount_amount}")
+
+        self.applied_offers.append(offer)
+        log.info(f"Successfully applied 'Quantity Discount Per Item' offer: '{offer.name}'.")
 
     # --- Nghiệp vụ giảm giá trên tổng hóa đơn ---
     def _apply_grand_total_offer(self, offer):

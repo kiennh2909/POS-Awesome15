@@ -915,9 +915,9 @@ export default {
 			}
 		}
 
-		// Add offer details
-		doc.posa_offers = this.posa_offers;
-		doc.posa_coupons = this.posa_coupons;
+		// Add offer details - convert to JSON strings for backend compatibility
+		doc.posa_offers = JSON.stringify(this.posa_offers || []);
+		doc.posa_coupons = JSON.stringify(this.posa_coupons || []);
 		doc.posa_delivery_charges = this.selected_delivery_charge?.name || null;
 		doc.posa_delivery_charges_rate = this.delivery_charges_rate || 0;
 		doc.posting_date = this.formatDateForBackend(this.posting_date_display);
@@ -1053,7 +1053,7 @@ export default {
 				// Fallback to item_code if item_name is not available
 				item_name: item.item_name || item.item_code,
 				posa_row_id: item.posa_row_id,
-				posa_offers: item.posa_offers,
+				posa_offers: item.posa_offers || JSON.stringify([]),
 				posa_offer_applied: item.posa_offer_applied,
 				posa_is_offer: item.posa_is_offer,
 				posa_is_replace: item.posa_is_replace,
