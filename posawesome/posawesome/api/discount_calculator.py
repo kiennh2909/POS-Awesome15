@@ -41,7 +41,35 @@ class DiscountCalculator:
         self.applied_offers = []
         self.totals = {"grand_total": 0, "net_total": 0}
 
+    def _reset_item_prices(self):
+        """Reset all items to their original prices before applying new offers."""
+        log.info("Resetting all items to original prices.")
+        for item in self.items:
+            if not item.get("posa_is_offer"):  # Don't reset gift items
+                # Log current state
+                current_rate = item.get("rate", 0)
+                original_rate = item.get("price_list_rate", 0)
+                log.info(f"Resetting item {item.get('item_code')}: current_rate={current_rate}, original_rate={original_rate}")
+
+                # Reset to original price list rate
+                item["rate"] = original_rate
+                item["amount"] = original_rate * item.get("qty", 0)
+
+                # Reset discount fields
+                item["discount_amount"] = 0
+                item["discount_percentage"] = 0
+                item["posa_offer_applied"] = 0
+
+                # Clear applied offers log
+                item["applied_offers"] = []
+
+                log.info(f"Item {item.get('item_code')} reset: new_rate={item['rate']}, amount={item['amount']}")
+
+        log.info("All items reset to original prices.")
+
     def process(self):
+        # Reset all items to original prices before applying new offers
+        self._reset_item_prices()
         self._get_valid_offers()
         self._find_applicable_offers()
         self._apply_offers()
