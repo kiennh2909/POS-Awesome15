@@ -192,25 +192,25 @@ export default {
 
                         // CRITICAL: Force update ItemsTable after calc_uom completes
                         setTimeout(() => {
-                        	this.$forceUpdate();
-                        	console.log("Force update after calc_uom completion", {
-                        		Item_code: new_item.item_code,
-                        		rate_after_force_update: new_item.rate,
-                        		conversion_factor: new_item.conversion_factor
-                        	});
-                        }, 50);
-                   
-                        // CRITICAL: Force update after calc_uom to ensure ItemsTable gets the updated rate
-                        setTimeout(() => {
-                        	this.$forceUpdate();
-                        	// Emit event to force ItemsTable update
-                        	this.eventBus.emit("force_items_table_update");
-                        	console.log("Force update after calc_uom completion", {
-                        		Item_code: new_item.item_code,
-                        		rate_after_force_update: new_item.rate,
-                        		conversion_factor: new_item.conversion_factor
-                        	});
-                        }, 100);
+                         	this.$forceUpdate();
+                         	console.log("Force update after calc_uom completion", {
+                         		Item_code: new_item.item_code,
+                         		rate_after_force_update: new_item.rate,
+                         		conversion_factor: new_item.conversion_factor
+                         	});
+                         }, 50);
+
+                         // CRITICAL: Force update after calc_uom to ensure ItemsTable gets the updated rate
+                         setTimeout(() => {
+                         	this.$forceUpdate();
+                         	// Emit event to force ItemsTable update
+                         	this.eventBus.emit("force_items_table_update");
+                         	console.log("Force update after calc_uom completion", {
+                         		Item_code: new_item.item_code,
+                         		rate_after_force_update: new_item.rate,
+                         		conversion_factor: new_item.conversion_factor
+                         	});
+                         }, 100);
                        } else {
                         console.log("No UOM conversion needed for barcode scan", {
                          Item_code: new_item.item_code,
@@ -778,17 +778,31 @@ export default {
 		doc.base_total = total * (this.exchange_rate || 1);
 		doc.base_net_total = total * (this.exchange_rate || 1);
 
-		// Apply discounts with correct sign for returns
+		// Apply discounts with correct sign for returns - only use one discount type
 		let discountAmount = flt(this.additional_discount);
-		if (isReturn && discountAmount > 0) discountAmount = -Math.abs(discountAmount);
-
-		doc.discount_amount = discountAmount;
-		doc.base_discount_amount = discountAmount * (this.exchange_rate || 1);
-
 		let discountPercentage = flt(this.additional_discount_percentage);
-		if (isReturn && discountPercentage > 0) discountPercentage = -Math.abs(discountPercentage);
 
-		doc.additional_discount_percentage = discountPercentage;
+		// Choose one discount mechanism: if user entered percentage, use percentage; if amount, use amount
+		if (discountPercentage !== 0) {
+			// User entered percentage, set amount to 0
+			discountAmount = 0;
+			if (isReturn && discountPercentage > 0) discountPercentage = -Math.abs(discountPercentage);
+			doc.additional_discount_percentage = discountPercentage;
+			doc.discount_amount = 0;
+			doc.base_discount_amount = 0;
+		} else if (discountAmount !== 0) {
+			// User entered amount, set percentage to 0
+			discountPercentage = 0;
+			if (isReturn && discountAmount > 0) discountAmount = -Math.abs(discountAmount);
+			doc.discount_amount = discountAmount;
+			doc.base_discount_amount = discountAmount * (this.exchange_rate || 1);
+			doc.additional_discount_percentage = 0;
+		} else {
+			// No discount
+			doc.discount_amount = 0;
+			doc.base_discount_amount = 0;
+			doc.additional_discount_percentage = 0;
+		}
 
 		// Calculate grand total with correct sign for returns
 		let grandTotal = this.subtotal;
@@ -2191,7 +2205,7 @@ export default {
 	},
 
 	// Calculate prices and discounts for an item based on field change
-	calc_prices(item, value, $event) {
+	async calc_prices(item, value, $event) {
 		if (!$event?.target?.id || !item) return;
 
 		const fieldId = $event.target.id;
@@ -2212,12 +2226,9 @@ export default {
 				});
 			}
 
-			// Convert price_list_rate to current currency for calculations
+			// price_list_rate is always in selected currency, base_price_list_rate is always in base currency
 			const baseCurrency = this.price_list_currency || this.pos_profile.currency;
-			const converted_price_list_rate =
-				this.selected_currency !== baseCurrency
-					? this.flt(item.price_list_rate * this.exchange_rate, this.currency_precision)
-					: item.price_list_rate;
+			const converted_price_list_rate = item.price_list_rate; // Already in selected currency
 
 			// Field-wise calculations
 			switch (fieldId) {
@@ -2232,7 +2243,7 @@ export default {
 						this.currency_precision,
 					);
 					item.base_discount_amount = this.flt(
-						item.price_list_rate - item.base_rate,
+						item.base_price_list_rate - item.base_rate,
 						this.currency_precision,
 					);
 
@@ -2273,26 +2284,18 @@ export default {
 					newValue = Math.min(newValue, converted_price_list_rate);
 					console.log("[calc_prices] Input value (newValue after Math.min):", newValue);
 
-					// Store base discount and convert to selected currency
-					item.base_discount_amount = this.flt(
-						newValue * this.exchange_rate,
-						this.currency_precision,
-					);
+					// selected currency
 					item.discount_amount = newValue;
+					item.rate = this.flt(item.price_list_rate - newValue, this.currency_precision);
+
+					// base currency
+					item.base_discount_amount = this.flt(newValue * this.exchange_rate, this.currency_precision);
+					item.base_rate = this.flt(item.base_price_list_rate - item.base_discount_amount, this.currency_precision);
+
 					console.log("[calc_prices] Updated item.discount_amount:", item.discount_amount);
 					console.log(
 						"[calc_prices] Updated item.base_discount_amount:",
 						item.base_discount_amount,
-					);
-
-					// Update rate based on discount
-					item.rate = this.flt(
-						converted_price_list_rate - item.discount_amount,
-						this.currency_precision,
-					);
-					item.base_rate = this.flt(
-						item.price_list_rate - item.base_discount_amount,
-						this.currency_precision,
 					);
 					console.log("[calc_prices] Calculated item.rate:", item.rate);
 					console.log("[calc_prices] Calculated item.base_rate:", item.base_rate);
@@ -2323,7 +2326,7 @@ export default {
 						this.currency_precision,
 					);
 					item.base_discount_amount = this.flt(
-						(item.price_list_rate * item.discount_percentage) / 100,
+						(item.base_price_list_rate * item.discount_percentage) / 100,
 						this.currency_precision,
 					);
 
@@ -2333,7 +2336,7 @@ export default {
 						this.currency_precision,
 					);
 					item.base_rate = this.flt(
-						item.price_list_rate - item.base_discount_amount,
+						item.base_price_list_rate - item.base_discount_amount,
 						this.currency_precision,
 					);
 					break;
@@ -2344,28 +2347,50 @@ export default {
 				item.rate = 0;
 				item.base_rate = 0;
 				item.discount_amount = converted_price_list_rate;
-				item.base_discount_amount = item.price_list_rate;
+				item.base_discount_amount = item.base_price_list_rate;
 				item.discount_percentage = 100;
 			}
 
-			// Update stock calculations and force UI update
+			// Update stock calculations
 			this.calc_stock_qty(item, item.qty);
-			this.$forceUpdate();
 
-			// Trigger discount calculation after price/discount changes (if not already applying)
-			if (!this.isApplyingDiscount) {
-				this.$nextTick(() => {
-					setTimeout(() => {
-						this.calculateDiscountsDebounced();
-					}, 10);
-				});
-			}
+			// Use async flow to avoid race conditions
+			await this.updateItemCalculations(item);
+
 		} catch (error) {
 			console.error("Error calculating prices:", error);
 			this.eventBus.emit("show_message", {
 				title: __("Error calculating prices"),
 				color: "error",
 			});
+		}
+	},
+
+	// Async method to handle item calculations and trigger discount calculation
+	async updateItemCalculations(item) {
+		// Force UI update
+		this.$forceUpdate();
+
+		// Trigger discount calculation after price/discount changes (if not already applying)
+		if (!this.isApplyingDiscount) {
+			// Use nextTick to ensure DOM updates are complete
+			await this.$nextTick();
+			// Trigger debounced discount calculation
+			this.calculateDiscountsDebounced();
+		}
+	},
+
+	// Unified async method to handle all item updates and prevent race conditions
+	async updateItemAfterChanges(item, skipDiscountCalc = false) {
+		// Force UI update
+		this.$forceUpdate();
+
+		// Trigger discount calculation if not skipped and not already applying
+		if (!skipDiscountCalc && !this.isApplyingDiscount) {
+			// Use nextTick to ensure DOM updates are complete
+			await this.$nextTick();
+			// Trigger debounced discount calculation
+			this.calculateDiscountsDebounced();
 		}
 	},
 

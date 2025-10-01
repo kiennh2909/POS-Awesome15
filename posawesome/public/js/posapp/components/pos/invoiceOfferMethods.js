@@ -18,9 +18,16 @@ export default {
 	DEPRECATED: This logic has been moved to the backend API:
 	posawesome.posawesome.api.discount_calculator.calculate_discounts
 	This code is kept for reference and for the offline fallback mechanism.
+	Backend is now the source of truth for offer calculations.
 	*/
 	handelOffers() {
-		// This function is now primarily a fallback for offline mode or API failure.
+		// DISABLED: Frontend offer application disabled to prevent conflicts with backend.
+		// Backend API handles all offer calculations now.
+		console.log("Frontend offer application disabled - using backend as source of truth");
+		return;
+
+		// Legacy code below - kept for reference only
+		/*
 		const offers = [];
 		this.posOffers.forEach((offer) => {
 			if (offer.apply_on === "Item Code") {
@@ -48,6 +55,7 @@ export default {
 
 		this.setItemGiveOffer(offers);
 		this.updatePosOffers(offers);
+		*/
 	},
 
 	setItemGiveOffer(offers) {

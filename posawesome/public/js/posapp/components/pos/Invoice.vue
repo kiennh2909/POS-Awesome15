@@ -452,14 +452,13 @@ export default {
 						offers_count: this.posa_offers.length
 					});
 				} else {
-					console.log("💰 [DISCOUNT_CALC] API returned error status, falling back to client-side");
+					console.log("💰 [DISCOUNT_CALC] API returned error status");
 					this.eventBus.emit("show_message", {
 						title: __("Error Calculating Discounts"),
 						color: "error",
 						message: response.message.message || "Unknown error",
 					});
-					// Fallback to client-side calculation if API fails
-					this.handelOffers();
+					// Disabled: Frontend offer application disabled to prevent conflicts with backend
 				}
 			} catch (error) {
 				console.error("💰 [DISCOUNT_CALC] API call failed:", error);
@@ -468,9 +467,7 @@ export default {
 					color: "error",
 					message: "Could not connect to the server for discount calculation.",
 				});
-				// Fallback to client-side calculation if API fails
-				console.log("💰 [DISCOUNT_CALC] Falling back to client-side calculation");
-				this.handelOffers();
+				// Disabled: Frontend offer application disabled to prevent conflicts with backend
 			} finally {
 				this.eventBus.emit("show_loading", false);
 				// Reset flags after operation completes
@@ -1410,9 +1407,9 @@ export default {
 			this.posa_coupons = data;
 			console.log("🎫 [COUPON_UPDATE] posa_coupons updated:", this.posa_coupons);
 
-			// Trigger discount calculation
-			this.handelOffers();
-			console.log("🎫 [DISCOUNT_TRIGGER] handelOffers() called from coupon update");
+			// Trigger discount calculation using backend API
+			this.calculateDiscountsDebounced();
+			console.log("🎫 [DISCOUNT_TRIGGER] calculateDiscountsDebounced() called from coupon update");
 		});
 		this.eventBus.on("set_all_items", (data) => {
 			this.allItems = data;
@@ -1452,7 +1449,6 @@ export default {
 				this.invoice_doc.return_against = data.return_doc.name;
 			} else {
 				console.log("Return without invoice reference");
-		this.calculateDiscountsDebounced = this.debounce(this.calculateDiscountsAPI, 300);
 				// For return without invoice, reset discount values
 				this.discount_amount = 0;
 				this.additional_discount_percentage = 0;
