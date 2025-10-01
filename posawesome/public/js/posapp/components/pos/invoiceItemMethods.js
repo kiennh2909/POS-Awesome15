@@ -1053,7 +1053,7 @@ export default {
 				// Fallback to item_code if item_name is not available
 				item_name: item.item_name || item.item_code,
 				posa_row_id: item.posa_row_id,
-				posa_offers: item.posa_offers ? (typeof item.posa_offers === 'string' ? JSON.parse(item.posa_offers) : item.posa_offers) : [],
+				posa_offers: item.posa_offers || JSON.stringify([]),
 				posa_offer_applied: item.posa_offer_applied,
 				posa_is_offer: item.posa_is_offer,
 				posa_is_replace: item.posa_is_replace,
