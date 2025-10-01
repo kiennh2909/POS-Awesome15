@@ -456,6 +456,9 @@ export default {
 		scan_add_mode: true,
 		// Prevent multiple simultaneous scan processing
 		processing_scan: false,
+		// Prevent duplicate scans within short time period
+		_lastScanCode: null,
+		_lastScanAt: 0,
 		// Prevent multiple simultaneous search processing
 		processing_search: false,
 		// Queue for sequential search processing
@@ -791,7 +794,7 @@ export default {
 		},
 
 		// Helper method để tiếp tục với local search logic
-		continueWithLocalSearch(searchKey) {
+		async continueWithLocalSearch(searchKey) {
 			// ƯU TIÊN 2: Exact Barcode trong local items (fallback nếu API fail)
 			let foundItem = this.items.find((item) =>
 				item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey)
@@ -804,7 +807,7 @@ export default {
 				if (barcodeData && barcodeData.posa_uom) {
 					foundItem.uom = barcodeData.posa_uom;
 				}
-				this.addScannedItemToInvoice(foundItem, searchKey);
+				await this.addScannedItemToInvoice(foundItem, searchKey);
 				return;
 			}
 
@@ -815,7 +818,7 @@ export default {
 
 			if (foundItem) {
 				console.info("Found item by exact item code:", foundItem);
-				this.addScannedItemToInvoice(foundItem, searchKey);
+				await this.addScannedItemToInvoice(foundItem, searchKey);
 				return;
 			}
 
@@ -824,7 +827,7 @@ export default {
 
 			if (searchResults.length === 1) {
 				console.info("Found item by fuzzy search:", searchResults[0]);
-				this.addScannedItemToInvoice(searchResults[0], searchKey);
+				await this.addScannedItemToInvoice(searchResults[0], searchKey);
 			} else if (searchResults.length > 1) {
 				// Multiple matches - show selection dialog
 				this.showMultipleItemsDialog(searchResults, searchKey);
@@ -1511,7 +1514,8 @@ export default {
 
 			// Use queue system to eliminate race conditions completely
 			const query = typeof newSearchTerm === "string" ? newSearchTerm : vm.first_search;
-			vm.queueSearch(query, vm.search_from_scanner);
+			const fromScanner = vm.search_from_scanner;
+			vm.queueSearch(query, fromScanner);
 		}, 300),
 		
 		get_item_qty(first_search) {
@@ -1783,17 +1787,17 @@ export default {
 				}
 
 				onScan.attachTo(document, {
-					suffixKeyCodes: [],
+					suffixKeyCodes: [13],     // Enter
+					reactToPaste: false,
+					minLength: 6,             // tuỳ chuẩn UPC/EAN
+					timeBeforeScanTest: 20,   // giảm độ trễ phát hiện
+					avgTimeByChar: 15,
 					keyCodeMapper: function (oEvent) {
 						oEvent.stopImmediatePropagation();
 						oEvent.preventDefault();
 						return onScan.decodeKeyEvent(oEvent);
 					},
-					onScan: function (sCode) {
-						setTimeout(() => {
-							vm.trigger_onscan(sCode);
-						}, 300);
-					},
+					onScan: (sCode) => { vm.trigger_onscan(sCode); }, // bỏ delay 300ms
 				});
 
 				// Mark document as having scanner attached
@@ -1811,9 +1815,9 @@ export default {
 			}
 			this.lastScanTime = now;
 
-			// Use queue system for scanner input to eliminate race conditions
-			this.search_from_scanner = true;
-			this.queueSearch(sCode, true);
+			// Thay trigger_onscan để không đụng first_search/search, không gọi enter_event
+			this.search_from_scanner = true;            // chỉ để UI biết nguồn từ scanner
+			this.processScannedItem(sCode);             // pipeline duy nhất
 		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
@@ -1999,7 +2003,8 @@ export default {
 			} else {
 				// Ensure qty is reset before enter_event to prevent decimal issues
 				this.qty = 1;
-				if (query.length >= 3) {
+				// KHÔNG auto-add khi đến từ scanner (đã xử lý trong processScannedItem)
+				if (!fromScanner && query.length >= 3) {
 					this.enter_event();
 				}
 
@@ -2051,9 +2056,9 @@ export default {
 			}
 			this.lastScanTime = now;
 
-			// Use queue system for camera scanner to eliminate race conditions
+			// Use same pipeline as hardware scanner for consistency
 			this.search_from_scanner = true;
-			this.queueSearch(scannedCode, true);
+			this.processScannedItem(scannedCode);
 
 			// Show scanning feedback
 			frappe.show_alert(
@@ -2064,8 +2069,12 @@ export default {
 				2,
 			);
 		},
-		processScannedItem(scannedCode) {
+		async processScannedItem(scannedCode) {
 			try {
+				// CHỐT KHOÁ: chặn double add do các đường gọi trùng
+				if (this.processing_scan) return;
+				this.processing_scan = true;
+
 				// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
 				let normalizedCode = scannedCode.trim().replace(/[-\s]/g, '');
 
@@ -2075,20 +2084,15 @@ export default {
 				// ƯU TIÊN 1: Gọi API exact barcode từ server trước
 				if (this.looksLikeBarcode(searchKey)) {
 					console.info('[ItemsSelector] 🔍 Trying exact barcode API first for:', searchKey);
-					this.fetchExactBarcodeAndAdd(searchKey).then((exactMatch) => {
-						if (exactMatch) {
-							console.info('[ItemsSelector] ✅ Exact barcode API found and added item');
-							return; // Đã xử lý xong, không cần tìm tiếp
-						}
-						console.info('[ItemsSelector] ❌ Exact barcode API not found, falling back to local search');
-						// Tiếp tục với logic local search
-						this.continueWithLocalSearch(searchKey, qty);
-					}).catch((error) => {
-						console.error('[ItemsSelector] Error in exact barcode API:', error);
-						// Fallback to local search nếu API lỗi
-						this.continueWithLocalSearch(searchKey);
-					});
-					return; // Dừng xử lý để chờ API response
+					const exactMatch = await this.fetchExactBarcodeAndAdd(searchKey);
+					if (exactMatch) {
+						console.info('[ItemsSelector] ✅ Exact barcode API found and added item');
+						return; // Đã xử lý xong, không cần tìm tiếp
+					}
+					console.info('[ItemsSelector] ❌ Exact barcode API not found, falling back to local search');
+					// Tiếp tục với logic local search
+					await this.continueWithLocalSearch(searchKey);
+					return;
 				}
 
 				// ƯU TIÊN 2: Exact Barcode trong local items (fallback nếu API fail)
@@ -2103,7 +2107,7 @@ export default {
 					if (barcodeData && barcodeData.posa_uom) {
 						foundItem.uom = barcodeData.posa_uom;
 					}
-					this.addScannedItemToInvoice(foundItem, scannedCode);
+					await this.addScannedItemToInvoice(foundItem, scannedCode);
 					return;
 				}
 
@@ -2114,7 +2118,7 @@ export default {
 
 				if (foundItem) {
 					console.info("Found item by exact item code:", foundItem);
-					this.addScannedItemToInvoice(foundItem, scannedCode);
+					await this.addScannedItemToInvoice(foundItem, scannedCode);
 					return;
 				}
 
@@ -2123,7 +2127,7 @@ export default {
 
 				if (searchResults.length === 1) {
 					console.info("Found item by fuzzy search:", searchResults[0]);
-					this.addScannedItemToInvoice(searchResults[0], scannedCode);
+					await this.addScannedItemToInvoice(searchResults[0], scannedCode);
 				} else if (searchResults.length > 1) {
 					// Multiple matches - show selection dialog
 					this.showMultipleItemsDialog(searchResults, scannedCode);
@@ -2136,10 +2140,8 @@ export default {
 				this.handleItemNotFound(scannedCode);
 			} finally {
 				// Always release the processing lock
-				setTimeout(() => {
-					this.processing_scan = false;
-					this.search_from_scanner = false;
-				}, 500);
+				this.processing_scan = false;
+				this.search_from_scanner = false;
 			}
 		},
 		searchItemsByCode(code) {
@@ -2148,13 +2150,19 @@ export default {
 				return (
 					item.item_code.toLowerCase().includes(searchTerm) ||
 					item.item_name.toLowerCase().includes(searchTerm) ||
-					(item.barcode && item.barcode.toLowerCase().includes(searchTerm)) ||
-					(item.barcodes &&
-						item.barcodes.some((bc) => bc.barcode.toLowerCase().includes(searchTerm)))
+					(item.item_barcode &&
+						item.item_barcode.some((bc) => bc.barcode.toLowerCase().includes(searchTerm)))
 				);
 			});
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
+			const now = Date.now();
+			if (this._lastScanCode === scannedCode && (now - this._lastScanAt) < 400) {
+				console.warn("Duplicate scan suppressed:", scannedCode);
+				return; // chống double-click <400ms
+			}
+			this._lastScanCode = scannedCode; this._lastScanAt = now;
+
 			console.info("[ItemsSelector] 🔄 Processing scanned item:", item.item_code, "with code:", scannedCode);
 			console.info("[ItemsSelector] Current scan mode:", this.scan_add_mode ? "Add" : "Remove");
 
@@ -2207,12 +2215,6 @@ export default {
 					},
 					3,
 				);
-			} finally {
-				// Always clear processing lock
-				setTimeout(() => {
-					this.processing_scan = false;
-					this.search_from_scanner = false;
-				}, 300);
 			}
 		},
 		showMultipleItemsDialog(items, scannedCode) {
@@ -2413,169 +2415,6 @@ export default {
 			} catch (e) {
 				console.error("Failed to load item selector settings:", e);
 			}
-		},
-	},
-
-	computed: {
-		headers() {
-			return this.getItemsHeaders();
-		},
-		filtered_items() {
-			this.search = this.get_search(this.first_search).trim();
-			if (!this.pos_profile.pose_use_limit_search) {
-				let filtred_list = [];
-				let filtred_group_list = this.items;
-				if (!this.search || this.search.length < 3) {
-					let filtered = [];
-					if (
-						this.pos_profile.posa_show_template_items &&
-						this.pos_profile.posa_hide_variants_items
-					) {
-						filtered = filtred_group_list
-							.filter((item) => !item.variant_of)
-							.slice(0, this.itemsPerPage);
-					} else {
-						filtered = filtred_group_list.slice(0, this.itemsPerPage);
-					}
-
-					if (this.hide_zero_rate_items) {
-						filtered = filtered.filter((item) => parseFloat(item.rate) !== 0);
-					}
-
-					// Ensure quantities are defined
-					filtered.forEach((item) => {
-						if (item.actual_qty === undefined) {
-							item.actual_qty = 0;
-						}
-					});
-
-					return filtered;
-				} else if (this.search) {
-					const term = this.search.toLowerCase();
-					// Match barcode directly
-					filtred_list = filtred_group_list.filter((item) =>
-						item.item_barcode.some((b) => b.barcode === this.search),
-					);
-
-					if (filtred_list.length === 0) {
-						// Match by code or name containing the term
-						filtred_list = filtred_group_list.filter(
-							(item) =>
-								item.item_code.toLowerCase().includes(term) ||
-								item.item_name.toLowerCase().includes(term),
-						);
-					}
-
-					if (filtred_list.length === 0) {
-						// Fallback to partial fuzzy match on name
-						const search_combinations = this.generateWordCombinations(this.search);
-						filtred_list = filtred_group_list.filter((item) => {
-							const nameLower = item.item_name.toLowerCase();
-							return search_combinations.some((element) => {
-								element = element.toLowerCase().trim();
-								const element_regex = new RegExp(`.*${element.split("").join(".*")}.*`);
-								return element_regex.test(nameLower);
-							});
-						});
-					}
-
-					if (filtred_list.length === 0 && this.pos_profile.posa_search_serial_no) {
-						filtred_list = filtred_group_list.filter((item) => {
-							for (let element of item.serial_no_data) {
-								if (element.serial_no === this.search) {
-									this.flags.serial_no = this.search;
-									return true;
-								}
-							}
-							return false;
-						});
-					}
-
-					if (filtred_list.length === 0 && this.pos_profile.posa_search_batch_no) {
-						filtred_list = filtred_group_list.filter((item) => {
-							for (let element of item.batch_no_data) {
-								if (element.batch_no === this.search) {
-									this.flags.batch_no = this.search;
-									return true;
-								}
-							}
-							return false;
-						});
-					}
-				}
-
-				let final_filtered_list = [];
-				if (this.pos_profile.posa_show_template_items && this.pos_profile.posa_hide_variants_items) {
-					final_filtered_list = filtred_list
-						.filter((item) => !item.variant_of)
-						.slice(0, this.itemsPerPage);
-				} else {
-					final_filtered_list = filtred_list.slice(0, this.itemsPerPage);
-				}
-
-				if (this.hide_zero_rate_items) {
-					final_filtered_list = final_filtered_list.filter((item) => parseFloat(item.rate) !== 0);
-				}
-
-				// Ensure quantities are defined for each item
-				final_filtered_list.forEach((item) => {
-					if (item.actual_qty === undefined) {
-						item.actual_qty = 0;
-					}
-				});
-
-				// Item details will be refreshed via watchers when the filtered
-				// list length changes. Removing the automatic call here prevents
-				// redundant requests each time this computed property re-evaluates.
-
-				return final_filtered_list;
-			} else {
-				const items_list = this.items.slice(0, this.itemsPerPage);
-
-				// Ensure quantities are defined
-				items_list.forEach((item) => {
-					if (item.actual_qty === undefined) {
-						item.actual_qty = 0;
-					}
-				});
-
-				if (this.hide_zero_rate_items) {
-					return items_list.filter((item) => parseFloat(item.rate) !== 0);
-				}
-
-				return items_list;
-			}
-		},
-		debounce_search: {
-			get() {
-				return this.first_search;
-			},
-			set: _.debounce(function (newValue) {
-				this.first_search = (newValue || "").trim();
-			}, 200),
-		},
-		debounce_qty: {
-			get() {
-				// Display the raw quantity while typing to avoid forced decimal format
-				if (this.qty === null || this.qty === "") return "";
-				return this.hide_qty_decimals ? Math.trunc(this.qty) : this.qty;
-			},
-			set: _.debounce(function (value) {
-				let parsed = parseFloat(String(value).replace(/,/g, ""));
-				if (isNaN(parsed)) {
-					parsed = null;
-				}
-				if (this.hide_qty_decimals && parsed != null) {
-					parsed = Math.trunc(parsed);
-				}
-				this.qty = parsed;
-			}, 200),
-		},
-		isDarkTheme() {
-			return this.$theme.current === "dark";
-		},
-		active_price_list() {
-			return this.customer_price_list || (this.pos_profile && this.pos_profile.selling_price_list);
 		},
 	},
 
