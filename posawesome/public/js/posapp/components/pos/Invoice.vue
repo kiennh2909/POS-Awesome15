@@ -339,6 +339,7 @@ export default {
 			invoiceHeight: null,
 			tax_print_loading: false, // Loading state for tax print button
 			shiftVerificationStatus: null, // Verification status of current shift report
+			isApplyingOffer: false, // Flag to prevent recursive offer application
 		};
 	},
 
@@ -391,6 +392,8 @@ export default {
 				return;
 			}
 
+			// Set flag to prevent recursive watcher calls
+			this.isApplyingOffer = true;
 			this.eventBus.emit("show_loading", true);
 
 			try {
@@ -432,6 +435,8 @@ export default {
 				this.handelOffers();
 			} finally {
 				this.eventBus.emit("show_loading", false);
+				// Reset flag after operation completes
+				this.isApplyingOffer = false;
 			}
 		},
 		...shortcutMethods,

@@ -29,6 +29,9 @@ export default {
 	items: {
 		deep: true,
 		handler(items, oldItems) {
+			// Prevent recursive calls when applying offers
+			if (this.isApplyingOffer) return;
+
 			// Check if items array structure changed or qty changed
 			const structureChanged = items.length !== (oldItems?.length || 0);
 			const qtyChanged = this.hasQtyChanged(items, oldItems);
