@@ -66,7 +66,7 @@ class DiscountCalculator:
                 (pos_profile IS NULL OR pos_profile = '' OR pos_profile = %(pos_profile)s) AND
                 (valid_from IS NULL OR valid_from = '' OR valid_from <= %(date)s) AND
                 (valid_upto IS NULL OR valid_upto = '' OR valid_upto >= %(date)s)
-            ORDER BY priority DESC, creation DESC
+            ORDER BY creation DESC
             """,
             {
                 "company": self.pos_profile.company,

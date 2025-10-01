@@ -307,6 +307,7 @@ export default {
 			posa_coupons: [], // Coupons applied
 			allItems: [], // All items for offer logic
 			discount_percentage_offer_name: null, // Track which offer is applied
+			isApplyingDiscount: false, // Flag to prevent discount calculation loops
 			invoiceTypes: ["Invoice", "Order"], // Types of invoices
 			invoiceType: "Invoice", // Current invoice type
 			itemsPerPage: 1000, // Items per page in table
@@ -401,9 +402,16 @@ export default {
 				return;
 			}
 
+			// Prevent recursive discount calculations
+			if (this.isApplyingDiscount) {
+				console.log("💰 [DISCOUNT_CALC] Skipping recursive discount calculation");
+				return;
+			}
+
 			// Set flag to prevent recursive watcher calls
+			this.isApplyingDiscount = true;
 			this.isApplyingOffer = true;
-			console.log("💰 [DISCOUNT_CALC] isApplyingOffer flag set to true");
+			console.log("💰 [DISCOUNT_CALC] isApplyingDiscount and isApplyingOffer flags set to true");
 
 			this.eventBus.emit("show_loading", true);
 			console.log("💰 [DISCOUNT_CALC] Loading indicator shown");
@@ -465,9 +473,10 @@ export default {
 				this.handelOffers();
 			} finally {
 				this.eventBus.emit("show_loading", false);
-				// Reset flag after operation completes
+				// Reset flags after operation completes
+				this.isApplyingDiscount = false;
 				this.isApplyingOffer = false;
-				console.log("💰 [DISCOUNT_CALC] Loading indicator hidden, isApplyingOffer reset to false");
+				console.log("💰 [DISCOUNT_CALC] Loading indicator hidden, flags reset to false");
 			}
 		},
 		...shortcutMethods,
@@ -1128,12 +1137,14 @@ export default {
 				this.calc_stock_qty(item, item.qty);
 				this.$forceUpdate();
 
-				// Trigger discount calculation after qty change
-				this.$nextTick(() => {
-					setTimeout(() => {
-						this.calculateDiscountsDebounced();
-					}, 10);
-				});
+				// Trigger discount calculation after qty change (if not already applying)
+				if (!this.isApplyingDiscount) {
+					this.$nextTick(() => {
+						setTimeout(() => {
+							this.calculateDiscountsDebounced();
+						}, 10);
+					});
+				}
 			}
 		},
 
