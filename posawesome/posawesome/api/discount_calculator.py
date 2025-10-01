@@ -76,6 +76,12 @@ class DiscountCalculator:
         self._calculate_totals()
 
         log.info(f"Process finished. Applied {len(self.applied_offers)} offers.")
+        log.info(f"Applied offers details: {[f'{o.get('name')} ({o.get('offer')})' for o in self.applied_offers]}")
+
+        # Log final item states
+        for item in self.items:
+            log.info(f"Final item {item.get('item_code')}: qty={item.get('qty')}, rate={item.get('rate')}, amount={item.get('amount')}, discount_amount={item.get('discount_amount')}, posa_offer_applied={item.get('posa_offer_applied')}")
+
         return {
             "status": "success",
             "updated_items": self.items,
@@ -106,26 +112,42 @@ class DiscountCalculator:
         log.info(f"Found {len(self.valid_offers)} valid offers for profile '{self.pos_profile_name}'.")
 
     def _find_applicable_offers(self):
+        log.info(f"Checking {len(self.valid_offers)} valid offers for applicability...")
         for offer in self.valid_offers:
+            log.info(f"Checking offer '{offer.name}' of type '{offer.get('offer')}' with apply_on='{offer.get('apply_on')}'")
             if self._check_offer_conditions(offer):
                 self.applicable_offers.append(offer)
+                log.info(f"✅ Offer '{offer.name}' is applicable")
+            else:
+                log.info(f"❌ Offer '{offer.name}' is NOT applicable")
         log.info(f"Found {len(self.applicable_offers)} applicable offers based on current cart.")
 
     def _check_offer_conditions(self, offer):
         if not self._check_coupon(offer):
+            log.info(f"❌ Coupon check failed for offer '{offer.name}'")
             return False
 
         apply_on = offer.get("apply_on")
-        
+        log.info(f"Checking apply_on='{apply_on}' for offer '{offer.name}'")
+
         if apply_on == "Item Code":
-            return self._check_item_code_offer(offer)
+            result = self._check_item_code_offer(offer)
+            log.info(f"Item Code check result for '{offer.name}': {result}")
+            return result
         elif apply_on == "Item Group":
-            return self._check_item_group_offer(offer)
+            result = self._check_item_group_offer(offer)
+            log.info(f"Item Group check result for '{offer.name}': {result}")
+            return result
         elif apply_on == "Brand":
-            return self._check_brand_offer(offer)
+            result = self._check_brand_offer(offer)
+            log.info(f"Brand check result for '{offer.name}': {result}")
+            return result
         elif apply_on == "Transaction":
-            return self._check_transaction_offer(offer)
-            
+            result = self._check_transaction_offer(offer)
+            log.info(f"Transaction check result for '{offer.name}': {result}")
+            return result
+
+        log.info(f"❌ Unknown apply_on='{apply_on}' for offer '{offer.name}'")
         return False
 
     def _check_coupon(self, offer):
@@ -177,9 +199,16 @@ class DiscountCalculator:
     def _check_transaction_offer(self, offer):
         total_qty = sum(item.get("qty", 0) for item in self.items if not item.get("posa_is_offer"))
         total_amount = sum(item.get("qty", 0) * item.get("price_list_rate", 0) for item in self.items if not item.get("posa_is_offer"))
-        
-        if self._check_qty_amount_conditions(offer, total_qty, total_amount):
+
+        log.info(f"Transaction offer '{offer.name}': total_qty={total_qty}, total_amount={total_amount}")
+        log.info(f"Transaction offer conditions: min_qty={offer.get('min_qty')}, max_qty={offer.get('max_qty')}, min_amt={offer.get('min_amt')}, max_amt={offer.get('max_amt')}")
+
+        condition_result = self._check_qty_amount_conditions(offer, total_qty, total_amount)
+        log.info(f"Transaction offer condition check result: {condition_result}")
+
+        if condition_result:
             offer["items"] = [item.get("posa_row_id") for item in self.items]
+            log.info(f"Transaction offer '{offer.name}' applicable, items: {offer['items']}")
             return True
         return False
 
@@ -200,23 +229,31 @@ class DiscountCalculator:
     def _apply_offers(self):
         # A real implementation should handle offer priorities, stacking rules, etc.
         # This simplified version applies the first applicable offer of each type.
+        log.info(f"Starting to apply {len(self.applicable_offers)} offers...")
         applied_grand_total = False
         for offer in self.applicable_offers:
             offer_type = offer.get("offer")
             log.info(f"Attempting to apply offer '{offer.name}' of type '{offer_type}'.")
+            log.info(f"Offer details: items={offer.get('items', [])}, discount_type={offer.get('discount_type')}")
 
             if offer_type == "Item Price":
+                log.info(f"Applying Item Price offer '{offer.name}'")
                 self._apply_item_price_offer(offer)
 
             elif offer_type == "Give Product":
+                log.info(f"Applying Give Product offer '{offer.name}'")
                 self._apply_give_product_offer(offer)
 
             elif offer_type == "Quantity Discount Per Item":
+                log.info(f"Applying Quantity Discount Per Item offer '{offer.name}'")
                 self._apply_quantity_discount_per_item_offer(offer)
 
             elif offer_type == "Grand Total" and not applied_grand_total:
+                log.info(f"Applying Grand Total offer '{offer.name}'")
                 self._apply_grand_total_offer(offer)
                 applied_grand_total = True # Prevent multiple grand total offers
+            else:
+                log.warning(f"Unknown or already applied offer type '{offer_type}' for '{offer.name}'")
     
     # --- Nghiệp vụ giảm giá theo sản phẩm ---
     def _apply_item_price_offer(self, offer):
@@ -286,28 +323,40 @@ class DiscountCalculator:
 
     # --- Nghiệp vụ giảm giá theo số lượng mỗi sản phẩm ---
     def _apply_quantity_discount_per_item_offer(self, offer):
-        log.debug(f"Executing _apply_quantity_discount_per_item_offer for '{offer.name}'.")
+        log.info(f"Executing _apply_quantity_discount_per_item_offer for '{offer.name}'.")
         qty_discount_per_item = offer.get("qty_discount_per_item", 0)
+        log.info(f"qty_discount_per_item = {qty_discount_per_item}")
 
         if qty_discount_per_item <= 0:
             log.warning(f"Offer '{offer.name}' has invalid qty_discount_per_item: {qty_discount_per_item}")
             return
 
+        log.info(f"Processing {len(offer.get('items', []))} items for offer '{offer.name}'")
         for item_row_id in offer.get("items", []):
+            log.info(f"Processing item_row_id: {item_row_id}")
             item = next((i for i in self.items if i.get("posa_row_id") == item_row_id), None)
-            if not item or item.get("posa_offer_applied"):
+            if not item:
+                log.warning(f"Item with row_id {item_row_id} not found")
+                continue
+            if item.get("posa_offer_applied"):
+                log.info(f"Item {item.get('item_code')} already has offer applied, skipping")
                 continue
 
             item["posa_offer_applied"] = 1
             qty = item.get("qty", 0)
             original_rate = item.get("price_list_rate", 0)
 
+            log.info(f"Item {item.get('item_code')}: qty={qty}, original_rate={original_rate}")
+
             # Calculate discount: qty_discount_per_item * quantity
             discount_amount = qty_discount_per_item * qty
             new_rate = original_rate - qty_discount_per_item  # Rate sau khi trừ discount per item
 
+            log.info(f"Calculated: discount_amount={discount_amount}, new_rate={new_rate}")
+
             # Ensure discount doesn't exceed original price
             if discount_amount > original_rate * qty:
+                log.warning(f"Discount amount {discount_amount} exceeds total price {original_rate * qty}, capping discount")
                 discount_amount = original_rate * qty
                 new_rate = 0
 
@@ -316,8 +365,9 @@ class DiscountCalculator:
             item["rate"] = new_rate
             item["amount"] = new_rate * qty
 
+            log.info(f"Applied to item {item.get('item_code')}: discount_amount={discount_amount}, discount_percentage={item['discount_percentage']}, rate={new_rate}, amount={item['amount']}")
+
             self._add_offer_to_item_log(item, offer)
-            log.info(f"Applied quantity discount to item {item.get('item_code')}: qty={qty}, discount_per_item={qty_discount_per_item}, total_discount={discount_amount}")
 
         self.applied_offers.append(offer)
         log.info(f"Successfully applied 'Quantity Discount Per Item' offer: '{offer.name}'.")
