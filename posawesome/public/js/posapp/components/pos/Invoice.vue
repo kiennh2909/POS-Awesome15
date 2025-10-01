@@ -1231,6 +1231,9 @@ export default {
 	},
 
 	mounted() {
+		// Setup discount calculation debounced function
+		this.calculateDiscountsDebounced = this.debounce(this.calculateDiscountsAPI, 300);
+
 		// Load saved column preferences
 		this.loadColumnPreferences();
 		// Restore saved invoice height

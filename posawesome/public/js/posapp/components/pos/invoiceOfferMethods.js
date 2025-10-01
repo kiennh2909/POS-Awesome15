@@ -280,13 +280,44 @@ export default {
 		this.eventBus.emit("update_pos_offers", offers);
 	},
 
+	/**
+	 * Clear all Item Price offers from items before applying new batch
+	 * This ensures consistency when offer rules/priorities change
+	 */
+	clearAllItemPriceOffers() {
+		console.log("Clearing all Item Price offers for consistency");
+
+		// Find all Item Price offers currently applied
+		const itemPriceOffers = this.posa_offers.filter(offer => offer.offer === "Item Price");
+
+		// Remove each Item Price offer
+		itemPriceOffers.forEach(offer => {
+			this.RemoveOnPrice(offer);
+			const index = this.posa_offers.findIndex(el => el.row_id === offer.row_id);
+			if (index >= 0) {
+				this.posa_offers.splice(index, 1);
+			}
+		});
+
+		// Force UI update after clearing all offers
+		this.$forceUpdate();
+
+		console.log(`Cleared ${itemPriceOffers.length} Item Price offers`);
+	},
+
 	updateInvoiceOffers(offers) {
+		// Clear all existing Item Price offers first for consistency
+		this.clearAllItemPriceOffers();
+
+		// Remove non-Item Price offers that are no longer applicable
 		this.posa_offers.forEach((invoiceOffer) => {
 			const existOffer = offers.find((offer) => invoiceOffer.row_id == offer.row_id);
 			if (!existOffer) {
 				this.removeApplyOffer(invoiceOffer);
 			}
 		});
+
+		// Apply all offers from the new batch
 		offers.forEach((offer) => {
 			const existOffer = this.posa_offers.find((invoiceOffer) => invoiceOffer.row_id == offer.row_id);
 			if (existOffer) {

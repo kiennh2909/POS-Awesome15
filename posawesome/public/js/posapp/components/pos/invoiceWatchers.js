@@ -28,10 +28,16 @@ export default {
 	// Watch for items array changes (deep) and re-handle offers
 	items: {
 		deep: true,
-		handler(items) {
-			// Debounce the call to the new API
-			if (this.calculateDiscountsDebounced) {
-				this.calculateDiscountsDebounced();
+		handler(items, oldItems) {
+			// Check if items array structure changed or qty changed
+			const structureChanged = items.length !== (oldItems?.length || 0);
+			const qtyChanged = this.hasQtyChanged(items, oldItems);
+
+			if (structureChanged || qtyChanged) {
+				// Debounce the call to the new API
+				if (this.calculateDiscountsDebounced) {
+					this.calculateDiscountsDebounced();
+				}
 			}
 			this.$forceUpdate();
 		},
@@ -106,5 +112,23 @@ export default {
 		if (this.items && this.items.length) {
 			this.update_item_rates();
 		}
+	},
+
+	// Helper method to check if quantity changed between old and new items
+	hasQtyChanged(newItems, oldItems) {
+		if (!oldItems || oldItems.length !== newItems.length) return false;
+
+		for (let i = 0; i < newItems.length; i++) {
+			const newItem = newItems[i];
+			const oldItem = oldItems[i];
+
+			// Compare by posa_row_id to ensure same item
+			if (newItem.posa_row_id === oldItem.posa_row_id) {
+				if (newItem.qty !== oldItem.qty) {
+					return true; // Qty changed
+				}
+			}
+		}
+		return false;
 	},
 };
