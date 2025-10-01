@@ -3,11 +3,21 @@ import { clearPriceListCache } from "../../../offline/index.js";
 export default {
 	// Watch for customer change and update related data
 	customer() {
+		console.log("👀 [WATCHER] customer changed", {
+			old: this.customer,
+			new: this.customer,
+			trigger: "customer field modified"
+		});
+
 		this.close_payments();
 		this.eventBus.emit("set_customer", this.customer);
 		this.fetch_customer_details();
 		this.fetch_customer_balance();
 		this.set_delivery_charges();
+
+		// Trigger discount calculation
+		this.calculateDiscountsDebounced();
+		console.log("👀 [DISCOUNT_TRIGGER] calculateDiscountsDebounced() called from customer watcher");
 	},
 	// Watch for customer_info change and emit to edit form
 	customer_info() {

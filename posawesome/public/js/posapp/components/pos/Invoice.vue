@@ -382,19 +382,31 @@ export default {
 				const context = this;
 				clearTimeout(timeout);
 				timeout = setTimeout(() => func.apply(context, args), delay);
+				console.log(`⏱️ [DEBOUNCE] Function debounced for ${delay}ms`);
 			};
 		},
 
 		async calculateDiscountsAPI() {
+			console.log("💰 [DISCOUNT_CALC] Starting discount calculation", {
+				items_count: this.items.length,
+				customer: this.customer,
+				coupons_count: this.posa_coupons?.length || 0,
+				pos_profile: this.pos_profile?.name
+			});
+
 			if (!this.items.length) {
 				// Clear offers if cart is empty
 				this.posa_offers = [];
+				console.log("💰 [DISCOUNT_CALC] Cart is empty, cleared offers");
 				return;
 			}
 
 			// Set flag to prevent recursive watcher calls
 			this.isApplyingOffer = true;
+			console.log("💰 [DISCOUNT_CALC] isApplyingOffer flag set to true");
+
 			this.eventBus.emit("show_loading", true);
+			console.log("💰 [DISCOUNT_CALC] Loading indicator shown");
 
 			try {
 				const invoice_data = {
@@ -403,6 +415,12 @@ export default {
 					pos_profile: this.pos_profile.name,
 					coupons: this.posa_coupons,
 				};
+				console.log("💰 [DISCOUNT_CALC] Prepared invoice data for API", {
+					items_count: invoice_data.items.length,
+					customer: invoice_data.customer,
+					pos_profile: invoice_data.pos_profile,
+					coupons_count: invoice_data.coupons?.length || 0
+				});
 
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.discount_calculator.calculate_discounts",
@@ -410,12 +428,23 @@ export default {
 						invoice_data: JSON.stringify(invoice_data),
 					},
 				});
+				console.log("💰 [DISCOUNT_CALC] API response received", {
+					status: response.message?.status,
+					has_updated_items: !!response.message?.updated_items,
+					applied_offers_count: response.message?.applied_offers?.length || 0
+				});
 
 				if (response.message && response.message.status === "success") {
 					// Directly replace items with the processed list from backend
+					console.log("💰 [DISCOUNT_CALC] API success, updating items and offers");
 					this.items = response.message.updated_items;
 					this.posa_offers = response.message.applied_offers;
+					console.log("💰 [DISCOUNT_CALC] Items and offers updated successfully", {
+						items_count: this.items.length,
+						offers_count: this.posa_offers.length
+					});
 				} else {
+					console.log("💰 [DISCOUNT_CALC] API returned error status, falling back to client-side");
 					this.eventBus.emit("show_message", {
 						title: __("Error Calculating Discounts"),
 						color: "error",
@@ -425,18 +454,20 @@ export default {
 					this.handelOffers();
 				}
 			} catch (error) {
-				console.error("Failed to call discount calculation API:", error);
+				console.error("💰 [DISCOUNT_CALC] API call failed:", error);
 				this.eventBus.emit("show_message", {
 					title: __("API Call Failed"),
 					color: "error",
 					message: "Could not connect to the server for discount calculation.",
 				});
 				// Fallback to client-side calculation if API fails
+				console.log("💰 [DISCOUNT_CALC] Falling back to client-side calculation");
 				this.handelOffers();
 			} finally {
 				this.eventBus.emit("show_loading", false);
 				// Reset flag after operation completes
 				this.isApplyingOffer = false;
+				console.log("💰 [DISCOUNT_CALC] Loading indicator hidden, isApplyingOffer reset to false");
 			}
 		},
 		...shortcutMethods,
@@ -1238,6 +1269,7 @@ export default {
 	mounted() {
 		// Setup discount calculation debounced function
 		this.calculateDiscountsDebounced = this.debounce(this.calculateDiscountsAPI, 300);
+		console.log("⏱️ [DEBOUNCE_SETUP] calculateDiscountsDebounced created with 300ms delay");
 
 		// Load saved column preferences
 		this.loadColumnPreferences();
@@ -1355,8 +1387,13 @@ export default {
 			this.updateInvoiceOffers(data);
 		});
 		this.eventBus.on("update_invoice_coupons", (data) => {
+			console.log("🎫 [EVENT_RECEIVED] update_invoice_coupons received", data);
 			this.posa_coupons = data;
+			console.log("🎫 [COUPON_UPDATE] posa_coupons updated:", this.posa_coupons);
+
+			// Trigger discount calculation
 			this.handelOffers();
+			console.log("🎫 [DISCOUNT_TRIGGER] handelOffers() called from coupon update");
 		});
 		this.eventBus.on("set_all_items", (data) => {
 			this.allItems = data;

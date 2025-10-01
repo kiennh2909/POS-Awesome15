@@ -30,46 +30,46 @@ export default {
                }
 		let index = -1;
 		if (!this.new_line) {
-			// For auto_set_batch enabled, we should check if the item code and UOM match only
-			// For items with batch but auto_set_batch disabled, check if batch numbers match
-			// This will allow quantity to increment for batch items with auto_set_batch enabled
-			if (this.pos_profile.posa_auto_set_batch && item.has_batch_no) {
-				index = this.items.findIndex(
-					(el) =>
-						el.item_code === item.item_code &&
-						el.uom === item.uom &&
-						!el.posa_is_offer &&
-						!el.posa_is_replace,
-				);
-			} else {
-				index = this.items.findIndex(
-					(el) =>
-						el.item_code === item.item_code &&
-						el.uom === item.uom &&
-						!el.posa_is_offer &&
-						!el.posa_is_replace &&
-						((el.batch_no && item.batch_no && el.batch_no === item.batch_no) ||
-							(!el.batch_no && !item.batch_no)),
-				);
-			}
+			// Simplified logic: just check item_code, uom, and basic flags
+			// Ignore complex batch logic that can cause mismatches
+			index = this.items.findIndex(
+				(el) =>
+					el.item_code === item.item_code &&
+					el.uom === item.uom &&
+					!el.posa_is_offer &&
+					!el.posa_is_replace,
+			);
 
 			// Debug: Log item matching logic
 			console.log("add_item: checking for existing item", {
-				item_code: item.item_code,
-				uom: item.uom,
-				has_batch_no: item.has_batch_no,
-				batch_no: item.batch_no,
+				new_item: {
+					item_code: item.item_code,
+					uom: item.uom,
+					has_batch_no: item.has_batch_no,
+					batch_no: item.batch_no,
+					posa_is_offer: item.posa_is_offer,
+					posa_is_replace: item.posa_is_replace
+				},
 				posa_auto_set_batch: this.pos_profile.posa_auto_set_batch,
 				items_count: this.items.length,
-				found_index: index,
-				items_in_cart: this.items.map(i => ({
-					item_code: i.item_code,
-					uom: i.uom,
-					batch_no: i.batch_no,
-					posa_is_offer: i.posa_is_offer,
-					posa_is_replace: i.posa_is_replace
-				}))
+				found_index: index
 			});
+
+			// Log existing items for comparison
+			if (this.items.length > 0) {
+				console.log("add_item: existing items in cart:");
+				this.items.forEach((existing, idx) => {
+					console.log(`  [${idx}]:`, {
+						item_code: existing.item_code,
+						uom: existing.uom,
+						has_batch_no: existing.has_batch_no,
+						batch_no: existing.batch_no,
+						posa_is_offer: existing.posa_is_offer,
+						posa_is_replace: existing.posa_is_replace,
+						posa_row_id: existing.posa_row_id
+					});
+				});
+			}
 		}
 
 		let new_item;
