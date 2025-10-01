@@ -76,7 +76,8 @@ class DiscountCalculator:
         self._calculate_totals()
 
         log.info(f"Process finished. Applied {len(self.applied_offers)} offers.")
-        log.info(f"Applied offers details: {[f'{o.get('name')} ({o.get('offer')})' for o in self.applied_offers]}")
+        applied_offer_names = [f"{o.get('name')} ({o.get('offer')})" for o in self.applied_offers]
+        log.info(f"Applied offers details: {applied_offer_names}")
 
         # Log final item states
         for item in self.items:
