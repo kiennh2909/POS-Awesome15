@@ -160,11 +160,29 @@ class DiscountCalculator:
         return is_valid
 
     def _check_item_code_offer(self, offer):
+        log.info(f"Checking Item Code offer: offer.item='{offer.get('item')}', offer conditions: min_qty={offer.get('min_qty')}, max_qty={offer.get('max_qty')}")
         for item in self.items:
-            if item.get("item_code") == offer.get("item") and not item.get("posa_is_offer"):
-                if self._check_qty_amount_conditions(offer, item.get("qty", 0), item.get("qty", 0) * item.get("price_list_rate", 0)):
+            item_code = item.get("item_code")
+            qty = item.get("qty", 0)
+            price_list_rate = item.get("price_list_rate", 0)
+            amount = qty * price_list_rate
+            is_offer = item.get("posa_is_offer", 0)
+
+            log.info(f"Checking item: code='{item_code}', qty={qty}, price_list_rate={price_list_rate}, amount={amount}, is_offer={is_offer}")
+            log.info(f"Comparing: item_code == offer.item: '{item_code}' == '{offer.get('item')}' -> {item_code == offer.get('item')}")
+            log.info(f"Conditions: not is_offer: {not is_offer}")
+
+            if item_code == offer.get("item") and not is_offer:
+                log.info(f"Item code matches! Checking qty/amount conditions...")
+                condition_result = self._check_qty_amount_conditions(offer, qty, amount)
+                log.info(f"Qty/amount condition result: {condition_result}")
+                if condition_result:
                     offer["items"] = [item.get("posa_row_id")]
+                    log.info(f"✅ Item Code offer applicable, items: {offer['items']}")
                     return True
+            else:
+                log.info(f"❌ Item code does not match or is offer item")
+        log.info(f"❌ No matching items found for Item Code offer")
         return False
 
     def _check_item_group_offer(self, offer):
@@ -214,18 +232,43 @@ class DiscountCalculator:
         return False
 
     def _check_qty_amount_conditions(self, offer, qty, amount):
+        log.info(f"Checking qty/amount conditions: qty={qty}, amount={amount}")
+
         conditions = []
+        results = []
         min_qty = offer.get("min_qty")
         max_qty = offer.get("max_qty")
         min_amt = offer.get("min_amt")
         max_amt = offer.get("max_amt")
 
-        if min_qty is not None: conditions.append(qty >= min_qty)
-        if max_qty is not None and max_qty > 0: conditions.append(qty <= max_qty)
-        if min_amt is not None and min_amt > 0: conditions.append(amount >= min_amt)
-        if max_amt is not None and max_amt > 0: conditions.append(amount <= max_amt)
-        
-        return all(conditions) if conditions else True
+        if min_qty is not None:
+            result = qty >= min_qty
+            conditions.append(result)
+            results.append(f"min_qty: {qty} >= {min_qty} -> {result}")
+            log.info(f"  {results[-1]}")
+
+        if max_qty is not None and max_qty > 0:
+            result = qty <= max_qty
+            conditions.append(result)
+            results.append(f"max_qty: {qty} <= {max_qty} -> {result}")
+            log.info(f"  {results[-1]}")
+
+        if min_amt is not None and min_amt > 0:
+            result = amount >= min_amt
+            conditions.append(result)
+            results.append(f"min_amt: {amount} >= {min_amt} -> {result}")
+            log.info(f"  {results[-1]}")
+
+        if max_amt is not None and max_amt > 0:
+            result = amount <= max_amt
+            conditions.append(result)
+            results.append(f"max_amt: {amount} <= {max_amt} -> {result}")
+            log.info(f"  {results[-1]}")
+
+        final_result = all(conditions) if conditions else True
+        log.info(f"  Final condition result: {final_result} (all conditions must be True)")
+
+        return final_result
 
     def _apply_offers(self):
         # A real implementation should handle offer priorities, stacking rules, etc.
