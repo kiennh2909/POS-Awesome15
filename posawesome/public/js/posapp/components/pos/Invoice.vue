@@ -1115,32 +1115,62 @@ export default {
 
 		// Increase quantity of an item (handles return logic)
 		add_one(item) {
+			console.log("➕ [ADD_ONE] Called for item:", item.item_code, "current qty:", item.qty);
+
 			// Increase quantity, return items remain negative
 			item.qty++;
-			if (item.qty == 0) {
-				this.remove_item(item);
-			}
-			this.calc_stock_qty(item, item.qty);
-			this.$forceUpdate();
-		},
+			console.log("➕ [ADD_ONE] After increment, qty:", item.qty);
 
-		// Decrease quantity of an item (handles return logic)
-		subtract_one(item) {
-			// Decrease quantity, return items remain negative
-			item.qty--;
 			if (item.qty == 0) {
+				console.log("➕ [ADD_ONE] Qty became 0, removing item");
 				this.remove_item(item);
 			} else {
 				this.calc_stock_qty(item, item.qty);
 				this.$forceUpdate();
+				console.log("➕ [ADD_ONE] Stock qty calculated, UI updated");
 
 				// Trigger discount calculation after qty change (if not already applying)
 				if (!this.isApplyingDiscount) {
+					console.log("➕ [ADD_ONE] Triggering discount calculation");
 					this.$nextTick(() => {
 						setTimeout(() => {
 							this.calculateDiscountsDebounced();
+							console.log("➕ [ADD_ONE] calculateDiscountsDebounced() called");
 						}, 10);
 					});
+				} else {
+					console.log("➕ [ADD_ONE] Skipping discount calculation - isApplyingDiscount is true");
+				}
+			}
+		},
+
+		// Decrease quantity of an item (handles return logic)
+		subtract_one(item) {
+			console.log("➖ [SUBTRACT_ONE] Called for item:", item.item_code, "current qty:", item.qty);
+
+			// Decrease quantity, return items remain negative
+			item.qty--;
+			console.log("➖ [SUBTRACT_ONE] After decrement, qty:", item.qty);
+
+			if (item.qty == 0) {
+				console.log("➖ [SUBTRACT_ONE] Qty became 0, removing item");
+				this.remove_item(item);
+			} else {
+				this.calc_stock_qty(item, item.qty);
+				this.$forceUpdate();
+				console.log("➖ [SUBTRACT_ONE] Stock qty calculated, UI updated");
+
+				// Trigger discount calculation after qty change (if not already applying)
+				if (!this.isApplyingDiscount) {
+					console.log("➖ [SUBTRACT_ONE] Triggering discount calculation");
+					this.$nextTick(() => {
+						setTimeout(() => {
+							this.calculateDiscountsDebounced();
+							console.log("➖ [SUBTRACT_ONE] calculateDiscountsDebounced() called");
+						}, 10);
+					});
+				} else {
+					console.log("➖ [SUBTRACT_ONE] Skipping discount calculation - isApplyingDiscount is true");
 				}
 			}
 		},
