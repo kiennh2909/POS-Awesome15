@@ -83,9 +83,18 @@ class DiscountCalculator:
         for item in self.items:
             log.info(f"Final item {item.get('item_code')}: qty={item.get('qty')}, rate={item.get('rate')}, amount={item.get('amount')}, discount_amount={item.get('discount_amount')}, posa_offer_applied={item.get('posa_offer_applied')}")
 
+        # Clean items to remove list fields that could cause serialization issues
+        cleaned_items = []
+        for item in self.items:
+            cleaned_item = {}
+            for key, value in item.items():
+                if not isinstance(value, list):
+                    cleaned_item[key] = value
+            cleaned_items.append(cleaned_item)
+
         return {
             "status": "success",
-            "updated_items": self.items,
+            "updated_items": cleaned_items,
             "applied_offers": self.applied_offers,
             "totals": self.totals
         }
