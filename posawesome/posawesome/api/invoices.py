@@ -181,6 +181,15 @@ def update_invoice(data):
 
 	log.info(f"[UPDATE_INVOICE] ✅ REQUEST LOGGING COMPLETED - Processing invoice: {invoice_name}")
 
+	# Clean up posa_offers before processing (convert lists to JSON strings)
+	if 'posa_offers' in data and data['posa_offers']:
+		log.info(f"[UPDATE_INVOICE] 🧹 Cleaning up posa_offers before processing")
+		for offer in data['posa_offers']:
+			# Convert items list to JSON string if it exists
+			if 'items' in offer and isinstance(offer['items'], list):
+				offer['items'] = json.dumps(offer['items'])
+				log.info(f"[UPDATE_INVOICE] ✅ Converted posa_offers items to JSON string")
+
 	if data.get("name"):
 		log.info(f"[UPDATE_INVOICE] 📝 Loading existing invoice: {invoice_name}")
 		invoice_doc = frappe.get_doc("Sales Invoice", data.get("name"))
@@ -454,6 +463,15 @@ def submit_invoice(invoice, data):
 	log.info(f"[SUBMIT_INVOICE] 📋   - Redeemed Credit: {data.get('redeemed_customer_credit', 0)}")
 	log.info(f"[SUBMIT_INVOICE] 📋   - Is Cashback: {data.get('is_cashback', False)}")
 
+	# Clean up posa_offers before processing (convert lists to JSON strings)
+	if 'posa_offers' in invoice and invoice['posa_offers']:
+		log.info(f"[SUBMIT_INVOICE] 🧹 Cleaning up posa_offers before submit")
+		for offer in invoice['posa_offers']:
+			# Convert items list to JSON string if it exists
+			if 'items' in offer and isinstance(offer['items'], list):
+				offer['items'] = json.dumps(offer['items'])
+				log.info(f"[SUBMIT_INVOICE] ✅ Converted posa_offers items to JSON string for submit")
+
 	if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
 		log.info(f"[SUBMIT_INVOICE] 🆕 Creating new invoice")
 		created = update_invoice(json.dumps(invoice))
@@ -708,6 +726,15 @@ def submit_in_background_job(kwargs):
 	log.info(f"[BACKGROUND_JOB] 📋 Loading invoice document: {invoice}")
 	invoice_doc = frappe.get_doc("Sales Invoice", invoice)
 	log.info(f"[BACKGROUND_JOB] ✅ Invoice loaded: {invoice_doc.name}")
+
+	# Clean up posa_offers in background job (convert lists to JSON strings)
+	if hasattr(invoice_doc, 'posa_offers') and invoice_doc.posa_offers:
+		log.info(f"[BACKGROUND_JOB] 🧹 Cleaning up posa_offers in background job")
+		for offer in invoice_doc.posa_offers:
+			# Convert items list to JSON string if it exists
+			if hasattr(offer, 'items') and isinstance(offer.items, list):
+				offer.items = json.dumps(offer.items)
+				log.info(f"[BACKGROUND_JOB] ✅ Converted posa_offers items to JSON string in background")
 
 	# Calculate stock_qty for background job items
 	log.info(f"[BACKGROUND_JOB] 📦 Calculating stock_qty for {len(invoice_doc.items)} items in background")
