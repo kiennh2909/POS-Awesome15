@@ -374,7 +374,7 @@ export default {
 		new_item.actual_batch_qty = "";
 		new_item.batch_no_expiry_date = item.batch_no_expiry_date || null;
 		new_item.conversion_factor = 1;
-		new_item.posa_offers = JSON.stringify([]);
+		new_item.posa_offers = "[]";
 		new_item.posa_offer_applied = 0;
 		new_item.posa_is_offer = item.posa_is_offer;
 		new_item.posa_is_replace = item.posa_is_replace || null;
@@ -1005,7 +1005,7 @@ export default {
 			if (updatedData) {
 				item.item_code = updatedData.item_code;
 				item.posa_row_id = updatedData.posa_row_id;
-				item.posa_offers = updatedData.posa_offers;
+				item.posa_offers = typeof updatedData.posa_offers === 'string' ? updatedData.posa_offers : JSON.stringify(updatedData.posa_offers || []);
 				item.posa_offer_applied = updatedData.posa_offer_applied;
 				item.posa_is_offer = updatedData.posa_is_offer;
 				item.posa_is_replace = updatedData.posa_is_replace;
