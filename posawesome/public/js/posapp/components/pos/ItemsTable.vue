@@ -633,7 +633,7 @@ export default {
 						});
 					}
 
-					if (item.rate !== expectedPrice && shouldConvert) {
+					if (item.rate !== expectedPrice && shouldConvert && !item.posa_offer_applied) {
 						console.error("[ItemsTable] ❌ PRICE MISMATCH DETECTED - AUTO FIXING:", {
 							Item_code: item.item_code,
 							current_price: item.rate,
@@ -642,7 +642,8 @@ export default {
 							conversion_factor: item.conversion_factor,
 							uom: item.uom,
 							stock_uom: item.stock_uom,
-							should_convert: shouldConvert
+							should_convert: shouldConvert,
+							posa_offer_applied: item.posa_offer_applied
 						});
 
 						// AUTO FIX: Update the rate to expected price
@@ -654,6 +655,13 @@ export default {
 							Item_code: item.item_code,
 							new_rate: item.rate,
 							new_amount: item.amount
+						});
+					} else if (item.posa_offer_applied) {
+						console.log("[ItemsTable] ✅ Skipping auto-fix for offer-applied item:", {
+							Item_code: item.item_code,
+							current_price: item.rate,
+							expected_price: expectedPrice,
+							posa_offer_applied: item.posa_offer_applied
 						});
 					} else {
 						console.log("[ItemsTable] ✅ Price status:", {
