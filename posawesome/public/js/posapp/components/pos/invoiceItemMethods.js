@@ -2905,12 +2905,16 @@ export default {
 		this.$forceUpdate();
 
 		// Trigger discount calculation after UOM changes (if not already applying)
+		console.log(`[UOM_CHANGE] 🎯 UOM changed for item ${item.item_code}: ${item.uom} - triggering discount calculation`);
 		if (!this.isApplyingDiscount) {
 			this.$nextTick(() => {
 				setTimeout(() => {
+					console.log(`[UOM_CHANGE] 📊 Calling calculateDiscountsDebounced() after UOM change for ${item.item_code}`);
 					this.calculateDiscountsDebounced();
 				}, 10);
 			});
+		} else {
+			console.log(`[UOM_CHANGE] ⚠️ Skipping discount calculation - isApplyingDiscount is true`);
 		}
 
 		console.log("calc_uom: completed conversion factor logic", {

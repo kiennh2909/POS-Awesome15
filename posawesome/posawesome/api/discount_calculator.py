@@ -18,14 +18,32 @@ def calculate_discounts(invoice_data):
     :return: A dictionary with the updated invoice state.
     """
     try:
-        log.info("--- Starting Discount Calculation ---")
+        log.info("[DISCOUNT_CALC] 🎯 START - POS Discount Calculation")
+        log.info(f"[DISCOUNT_CALC] 📥 RAW DATA RECEIVED: {invoice_data[:500]}...")  # Log first 500 chars
+
         data = json.loads(invoice_data)
+
+        log.info(f"[DISCOUNT_CALC] 📋 REQUEST DETAILS:")
+        log.info(f"[DISCOUNT_CALC] 📋   - Customer: {data.get('customer', 'N/A')}")
+        log.info(f"[DISCOUNT_CALC] 📋   - POS Profile: {data.get('pos_profile', 'N/A')}")
+        log.info(f"[DISCOUNT_CALC] 📋   - Items Count: {len(data.get('items', []))}")
+        log.info(f"[DISCOUNT_CALC] 📋   - Coupons Count: {len(data.get('coupons', []))}")
+
+        if data.get('items'):
+            log.info(f"[DISCOUNT_CALC] 📦 ITEMS IN REQUEST:")
+            for i, item in enumerate(data['items'][:3]):  # Log first 3 items
+                log.info(f"[DISCOUNT_CALC] 📦   - Item {i+1}: {item.get('item_code')} (qty: {item.get('qty')}, rate: {item.get('rate')})")
+
         calculator = DiscountCalculator(data)
         result = calculator.process()
-        log.info("--- Finished Discount Calculation ---")
+
+        log.info(f"[DISCOUNT_CALC] ✅ COMPLETED - Applied {len(result.get('applied_offers', []))} offers")
+        log.info(f"[DISCOUNT_CALC] 📤 RESPONSE: {len(result.get('updated_items', []))} items updated")
+
         return result
 
     except Exception as e:
+        log.error(f"[DISCOUNT_CALC] ❌ ERROR - POS Discount Calculation failed: {str(e)}")
         log.error({"title": "POS Discount Calculation Error", "traceback": frappe.get_traceback()})
         frappe.throw(str(e))
 

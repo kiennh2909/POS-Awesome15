@@ -91,17 +91,95 @@ def update_invoice(data):
 	# Debug log: Raw data received from client
 	log.info(f"[UPDATE_INVOICE] 📥 RAW DATA RECEIVED: {data}")
 
+	# Log request metadata
+	log.info(f"[UPDATE_INVOICE] 📊 REQUEST METADATA:")
+	log.info(f"[UPDATE_INVOICE] 📊   - Content-Type: {frappe.local.request.headers.get('Content-Type', 'N/A')}")
+	log.info(f"[UPDATE_INVOICE] 📊   - User: {frappe.session.user}")
+	log.info(f"[UPDATE_INVOICE] 📊   - Method: {frappe.local.request.method}")
+	log.info(f"[UPDATE_INVOICE] 📊   - Timestamp: {frappe.utils.now()}")
+
 	data = json.loads(data)
 	invoice_name = data.get("name")
 
-	log.info(f"[UPDATE_INVOICE] 📋 Invoice data - Name: {invoice_name}, Customer: {data.get('customer', 'N/A')}, Amount: {data.get('grand_total', 0)}")
+	log.info(f"[UPDATE_INVOICE] 📋 BASIC INVOICE INFO:")
+	log.info(f"[UPDATE_INVOICE] 📋   - Name: {invoice_name}")
+	log.info(f"[UPDATE_INVOICE] 📋   - Customer: {data.get('customer', 'N/A')}")
+	log.info(f"[UPDATE_INVOICE] 📋   - Company: {data.get('company', 'N/A')}")
+	log.info(f"[UPDATE_INVOICE] 📋   - POS Profile: {data.get('pos_profile', 'N/A')}")
+	log.info(f"[UPDATE_INVOICE] 📋   - Currency: {data.get('currency', 'N/A')}")
+	log.info(f"[UPDATE_INVOICE] 📋   - Grand Total: {data.get('grand_total', 0)}")
+	log.info(f"[UPDATE_INVOICE] 📋   - Is Return: {data.get('is_return', False)}")
+	log.info(f"[UPDATE_INVOICE] 📋   - Posting Date: {data.get('posting_date', 'N/A')}")
 
 	# Debug log: Parsed data structure
-	log.info(f"[UPDATE_INVOICE] 📋 PARSED DATA KEYS: {list(data.keys())}")
-	if 'items' in data:
-		log.info(f"[UPDATE_INVOICE] 📋 ITEMS COUNT: {len(data['items'])}")
-		for i, item in enumerate(data['items'][:2]):  # Log first 2 items
-			log.info(f"[UPDATE_INVOICE] 📋 ITEM {i}: item_code={item.get('item_code')}, qty={item.get('qty')}, rate={item.get('rate')}, posa_offers={item.get('posa_offers')}")
+	log.info(f"[UPDATE_INVOICE] 📋 PARSED DATA STRUCTURE:")
+	log.info(f"[UPDATE_INVOICE] 📋   - Total Keys: {len(data)}")
+	log.info(f"[UPDATE_INVOICE] 📋   - Keys: {sorted(list(data.keys()))}")
+
+	# Log items details
+	if 'items' in data and data['items']:
+		items = data['items']
+		log.info(f"[UPDATE_INVOICE] 📦 ITEMS DETAILS:")
+		log.info(f"[UPDATE_INVOICE] 📦   - Items Count: {len(items)}")
+		for i, item in enumerate(items[:3]):  # Log first 3 items with full details
+			log.info(f"[UPDATE_INVOICE] 📦   - Item {i+1}:")
+			log.info(f"[UPDATE_INVOICE] 📦     * item_code: {item.get('item_code')}")
+			log.info(f"[UPDATE_INVOICE] 📦     * item_name: {item.get('item_name')}")
+			log.info(f"[UPDATE_INVOICE] 📦     * qty: {item.get('qty')}")
+			log.info(f"[UPDATE_INVOICE] 📦     * rate: {item.get('rate')}")
+			log.info(f"[UPDATE_INVOICE] 📦     * amount: {item.get('amount')}")
+			log.info(f"[UPDATE_INVOICE] 📦     * uom: {item.get('uom')}")
+			log.info(f"[UPDATE_INVOICE] 📦     * posa_row_id: {item.get('posa_row_id')}")
+			log.info(f"[UPDATE_INVOICE] 📦     * posa_offers: {item.get('posa_offers')} (type: {type(item.get('posa_offers'))})")
+			log.info(f"[UPDATE_INVOICE] 📦     * posa_offer_applied: {item.get('posa_offer_applied')}")
+			log.info(f"[UPDATE_INVOICE] 📦     * discount_amount: {item.get('discount_amount')}")
+			log.info(f"[UPDATE_INVOICE] 📦     * discount_percentage: {item.get('discount_percentage')}")
+
+		if len(items) > 3:
+			log.info(f"[UPDATE_INVOICE] 📦   - ... and {len(items) - 3} more items")
+	else:
+		log.info(f"[UPDATE_INVOICE] 📦 No items found in invoice data")
+
+	# Log payments details
+	if 'payments' in data and data['payments']:
+		payments = data['payments']
+		log.info(f"[UPDATE_INVOICE] 💳 PAYMENTS DETAILS:")
+		log.info(f"[UPDATE_INVOICE] 💳   - Payments Count: {len(payments)}")
+		for i, payment in enumerate(payments):
+			log.info(f"[UPDATE_INVOICE] 💳   - Payment {i+1}:")
+			log.info(f"[UPDATE_INVOICE] 💳     * mode_of_payment: {payment.get('mode_of_payment')}")
+			log.info(f"[UPDATE_INVOICE] 💳     * amount: {payment.get('amount')}")
+			log.info(f"[UPDATE_INVOICE] 💳     * base_amount: {payment.get('base_amount')}")
+			log.info(f"[UPDATE_INVOICE] 💳     * type: {payment.get('type')}")
+	else:
+		log.info(f"[UPDATE_INVOICE] 💳 No payments found in invoice data")
+
+	# Log offers details
+	if 'posa_offers' in data and data['posa_offers']:
+		offers = data['posa_offers']
+		log.info(f"[UPDATE_INVOICE] 🎫 POS OFFERS DETAILS:")
+		log.info(f"[UPDATE_INVOICE] 🎫   - Offers Count: {len(offers)}")
+		for i, offer in enumerate(offers[:2]):  # Log first 2 offers
+			log.info(f"[UPDATE_INVOICE] 🎫   - Offer {i+1}:")
+			log.info(f"[UPDATE_INVOICE] 🎫     * name: {offer.get('name')}")
+			log.info(f"[UPDATE_INVOICE] 🎫     * title: {offer.get('title')}")
+			log.info(f"[UPDATE_INVOICE] 🎫     * discount_type: {offer.get('discount_type')}")
+			log.info(f"[UPDATE_INVOICE] 🎫     * rate: {offer.get('rate')}")
+			log.info(f"[UPDATE_INVOICE] 🎫     * discount_percentage: {offer.get('discount_percentage')}")
+			log.info(f"[UPDATE_INVOICE] 🎫     * items: {offer.get('items')}")
+
+		if len(offers) > 2:
+			log.info(f"[UPDATE_INVOICE] 🎫   - ... and {len(offers) - 2} more offers")
+	else:
+		log.info(f"[UPDATE_INVOICE] 🎫 No POS offers found in invoice data")
+
+	# Log taxes if present
+	if 'taxes' in data and data['taxes']:
+		log.info(f"[UPDATE_INVOICE] 🧾 TAXES: {len(data['taxes'])} tax entries")
+	else:
+		log.info(f"[UPDATE_INVOICE] 🧾 No taxes found in invoice data")
+
+	log.info(f"[UPDATE_INVOICE] ✅ REQUEST LOGGING COMPLETED - Processing invoice: {invoice_name}")
 
 	if data.get("name"):
 		log.info(f"[UPDATE_INVOICE] 📝 Loading existing invoice: {invoice_name}")
@@ -328,11 +406,27 @@ def update_invoice(data):
 def submit_invoice(invoice, data):
 	log.info(f"[SUBMIT_INVOICE] 🎯 START - Processing invoice submission")
 
+	# Log raw data received
+	log.info(f"[SUBMIT_INVOICE] 📥 RAW INVOICE DATA: {invoice[:500]}...")
+	log.info(f"[SUBMIT_INVOICE] 📥 RAW SUBMIT DATA: {data[:500]}...")
+
 	data = json.loads(data)
 	invoice = json.loads(invoice)
 	invoice_name = invoice.get("name")
 
-	log.info(f"[SUBMIT_INVOICE] 📋 Invoice data - Name: {invoice_name}, Customer: {invoice.get('customer', 'N/A')}, Amount: {invoice.get('grand_total', 0)}")
+	log.info(f"[SUBMIT_INVOICE] 📋 BASIC INFO:")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Invoice Name: {invoice_name}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Customer: {invoice.get('customer', 'N/A')}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Grand Total: {invoice.get('grand_total', 0)}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Items Count: {len(invoice.get('items', []))}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Payments Count: {len(invoice.get('payments', []))}")
+
+	log.info(f"[SUBMIT_INVOICE] 📋 SUBMIT PARAMETERS:")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Total Change: {data.get('total_change', 0)}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Paid Change: {data.get('paid_change', 0)}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Credit Change: {data.get('credit_change', 0)}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Redeemed Credit: {data.get('redeemed_customer_credit', 0)}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Is Cashback: {data.get('is_cashback', False)}")
 
 	if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
 		log.info(f"[SUBMIT_INVOICE] 🆕 Creating new invoice")

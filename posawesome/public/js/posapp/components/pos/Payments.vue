@@ -1279,24 +1279,83 @@ export default {
 	const vm = this;
 	const original_invoice_doc = { ...this.invoice_doc };
 
-	// Debug logging: Client-side data being sent to server
-	console.log(`[CLIENT_DEBUG] 📤 SENDING INVOICE DATA TO SERVER:`);
-	console.log(`[CLIENT_DEBUG] 📋 Invoice basic info:`, {
-		name: this.invoice_doc?.name,
-		customer: this.invoice_doc?.customer,
-		grand_total: this.invoice_doc?.grand_total,
-		is_return: this.invoice_doc?.is_return,
-		items_count: this.invoice_doc?.items?.length || 0
-	});
-	console.log(`[CLIENT_DEBUG] 📋 Payment data:`, data);
-	console.log(`[CLIENT_DEBUG] 📋 Invoice items (first 2):`, this.invoice_doc?.items?.slice(0, 2)?.map(item => ({
-		item_code: item.item_code,
-		qty: item.qty,
-		rate: item.rate,
-		posa_offers: item.posa_offers,
-		posa_offer_applied: item.posa_offer_applied
-	})));
-	console.log(`[CLIENT_DEBUG] 📋 Full invoice doc keys:`, Object.keys(this.invoice_doc || {}));
+	// Detailed client-side logging before sending to server
+	console.log(`[CLIENT_DEBUG] 📤 CLIENT SENDING INVOICE TO SERVER - DETAILED LOG:`);
+	console.log(`[CLIENT_DEBUG] 📊 REQUEST METADATA:`);
+	console.log(`[CLIENT_DEBUG] 📊   - Timestamp: ${new Date().toISOString()}`);
+	console.log(`[CLIENT_DEBUG] 📊   - User: ${frappe.session.user}`);
+	console.log(`[CLIENT_DEBUG] 📊   - Action: submit_invoice (${print ? 'print' : 'no_print'}, ${tax ? 'tax' : 'no_tax'})`);
+
+	console.log(`[CLIENT_DEBUG] 📋 BASIC INVOICE INFO:`);
+	console.log(`[CLIENT_DEBUG] 📋   - Name: ${this.invoice_doc?.name || 'New Invoice'}`);
+	console.log(`[CLIENT_DEBUG] 📋   - Customer: ${this.invoice_doc?.customer}`);
+	console.log(`[CLIENT_DEBUG] 📋   - Company: ${this.invoice_doc?.company}`);
+	console.log(`[CLIENT_DEBUG] 📋   - POS Profile: ${this.invoice_doc?.pos_profile}`);
+	console.log(`[CLIENT_DEBUG] 📋   - Currency: ${this.invoice_doc?.currency}`);
+	console.log(`[CLIENT_DEBUG] 📋   - Grand Total: ${this.invoice_doc?.grand_total}`);
+	console.log(`[CLIENT_DEBUG] 📋   - Is Return: ${this.invoice_doc?.is_return}`);
+	console.log(`[CLIENT_DEBUG] 📋   - Posting Date: ${this.invoice_doc?.posting_date}`);
+
+	console.log(`[CLIENT_DEBUG] 📦 ITEMS DETAILS:`);
+	if (this.invoice_doc?.items?.length > 0) {
+		console.log(`[CLIENT_DEBUG] 📦   - Items Count: ${this.invoice_doc.items.length}`);
+		this.invoice_doc.items.slice(0, 3).forEach((item, i) => {
+			console.log(`[CLIENT_DEBUG] 📦   - Item ${i+1}:`);
+			console.log(`[CLIENT_DEBUG] 📦     * item_code: ${item.item_code}`);
+			console.log(`[CLIENT_DEBUG] 📦     * item_name: ${item.item_name}`);
+			console.log(`[CLIENT_DEBUG] 📦     * qty: ${item.qty}`);
+			console.log(`[CLIENT_DEBUG] 📦     * rate: ${item.rate}`);
+			console.log(`[CLIENT_DEBUG] 📦     * amount: ${item.amount}`);
+			console.log(`[CLIENT_DEBUG] 📦     * uom: ${item.uom}`);
+			console.log(`[CLIENT_DEBUG] 📦     * posa_row_id: ${item.posa_row_id}`);
+			console.log(`[CLIENT_DEBUG] 📦     * posa_offers: ${item.posa_offers} (type: ${typeof item.posa_offers})`);
+			console.log(`[CLIENT_DEBUG] 📦     * posa_offer_applied: ${item.posa_offer_applied}`);
+			console.log(`[CLIENT_DEBUG] 📦     * discount_amount: ${item.discount_amount}`);
+			console.log(`[CLIENT_DEBUG] 📦     * discount_percentage: ${item.discount_percentage}`);
+		});
+		if (this.invoice_doc.items.length > 3) {
+			console.log(`[CLIENT_DEBUG] 📦   - ... and ${this.invoice_doc.items.length - 3} more items`);
+		}
+	} else {
+		console.log(`[CLIENT_DEBUG] 📦   - No items in invoice`);
+	}
+
+	console.log(`[CLIENT_DEBUG] 💳 PAYMENTS DETAILS:`);
+	if (this.invoice_doc?.payments?.length > 0) {
+		console.log(`[CLIENT_DEBUG] 💳   - Payments Count: ${this.invoice_doc.payments.length}`);
+		this.invoice_doc.payments.forEach((payment, i) => {
+			console.log(`[CLIENT_DEBUG] 💳   - Payment ${i+1}:`);
+			console.log(`[CLIENT_DEBUG] 💳     * mode_of_payment: ${payment.mode_of_payment}`);
+			console.log(`[CLIENT_DEBUG] 💳     * amount: ${payment.amount}`);
+			console.log(`[CLIENT_DEBUG] 💳     * base_amount: ${payment.base_amount}`);
+			console.log(`[CLIENT_DEBUG] 💳     * type: ${payment.type}`);
+		});
+	} else {
+		console.log(`[CLIENT_DEBUG] 💳   - No payments in invoice`);
+	}
+
+	console.log(`[CLIENT_DEBUG] 🎫 POS OFFERS DETAILS:`);
+	if (this.invoice_doc?.posa_offers?.length > 0) {
+		console.log(`[CLIENT_DEBUG] 🎫   - Offers Count: ${this.invoice_doc.posa_offers.length}`);
+		this.invoice_doc.posa_offers.slice(0, 2).forEach((offer, i) => {
+			console.log(`[CLIENT_DEBUG] 🎫   - Offer ${i+1}:`);
+			console.log(`[CLIENT_DEBUG] 🎫     * name: ${offer.name}`);
+			console.log(`[CLIENT_DEBUG] 🎫     * title: ${offer.title}`);
+			console.log(`[CLIENT_DEBUG] 🎫     * discount_type: ${offer.discount_type}`);
+			console.log(`[CLIENT_DEBUG] 🎫     * rate: ${offer.rate}`);
+			console.log(`[CLIENT_DEBUG] 🎫     * discount_percentage: ${offer.discount_percentage}`);
+			console.log(`[CLIENT_DEBUG] 🎫     * items: ${offer.items}`);
+		});
+		if (this.invoice_doc.posa_offers.length > 2) {
+			console.log(`[CLIENT_DEBUG] 🎫   - ... and ${this.invoice_doc.posa_offers.length - 2} more offers`);
+		}
+	} else {
+		console.log(`[CLIENT_DEBUG] 🎫   - No POS offers in invoice`);
+	}
+
+	console.log(`[CLIENT_DEBUG] 📋 PAYMENT SUBMIT DATA:`, data);
+	console.log(`[CLIENT_DEBUG] 📋 INVOICE DOC KEYS:`, Object.keys(this.invoice_doc || {}));
+	console.log(`[CLIENT_DEBUG] ✅ CLIENT LOGGING COMPLETED - Sending to server`);
 
 	console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_INVOICE_PROCESS - Prepared data for invoice: ${this.invoice_doc?.name}`);
 
