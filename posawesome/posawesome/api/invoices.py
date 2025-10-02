@@ -382,6 +382,14 @@ def update_invoice(data):
 		log.info(f"[UPDATE_INVOICE] 📤 Updated response data with currency rates")
 
 	log.info(f"[UPDATE_INVOICE] 💾 Preparing to save invoice")
+
+	# --- DEBUG: Tìm field ko phải Table nhưng đang là list ---
+	meta = invoice_doc.meta
+	for k, v in invoice_doc.as_dict().items():
+		df = meta.get_field(k)
+		if isinstance(v, list) and (not df or df.fieldtype != "Table"):
+			log.error(f"[UPDATE_INVOICE] 🚫 Field `{k}` is list but fieldtype is `{df.fieldtype if df else 'N/A'}`")
+
 	invoice_doc.flags.ignore_permissions = True
 	frappe.flags.ignore_account_permission = True
 	invoice_doc.docstatus = 0
