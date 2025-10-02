@@ -633,7 +633,7 @@ export default {
 						});
 					}
 
-					if (item.rate !== expectedPrice && shouldConvert && !item.posa_offer_applied) {
+					if (item.rate !== expectedPrice && shouldConvert && !item.posa_offer_applied && item.discount_amount <= 0) {
 						console.error("[ItemsTable] ❌ PRICE MISMATCH DETECTED - AUTO FIXING:", {
 							Item_code: item.item_code,
 							current_price: item.rate,
