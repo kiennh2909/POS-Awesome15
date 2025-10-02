@@ -264,6 +264,33 @@ def update_invoice(data):
 	invoice_doc.docstatus = 0
 
 	log.info(f"[UPDATE_INVOICE] 💾 Saving invoice: {invoice_doc.name}")
+
+	# Debug logging for invoice structure before save
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Invoice items type: {type(invoice_doc.items)}")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Invoice items length: {len(invoice_doc.items) if hasattr(invoice_doc.items, '__len__') else 'N/A'}")
+	if hasattr(invoice_doc.items, '__iter__') and not isinstance(invoice_doc.items, (str, dict)):
+		for i, item in enumerate(invoice_doc.items[:3]):  # Log first 3 items
+			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item {i}: type={type(item)}, keys={list(item.keys()) if hasattr(item, 'keys') else 'no keys'}")
+			if hasattr(item, 'get'):
+				log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item {i} data: item_code={item.get('item_code')}, qty={item.get('qty')}, rate={item.get('rate')}")
+
+	# Check if items is a list of dicts (which would cause the error)
+	if isinstance(invoice_doc.items, list) and len(invoice_doc.items) > 0 and isinstance(invoice_doc.items[0], dict):
+		log.error(f"[UPDATE_INVOICE] ❌ ERROR - Items is a list of dicts instead of child table objects!")
+		log.error(f"[UPDATE_INVOICE] ❌ ERROR - This will cause 'Value for Items cannot be a list' error")
+		# Try to fix by converting to proper child table format
+		log.info(f"[UPDATE_INVOICE] 🔧 Attempting to fix items structure...")
+		try:
+			# Clear existing items
+			invoice_doc.items = []
+			# Add items properly
+			for item_data in data.get("items", []):
+				item = invoice_doc.append("items", item_data)
+				log.info(f"[UPDATE_INVOICE] ✅ Added item: {item.item_code}")
+		except Exception as fix_error:
+			log.error(f"[UPDATE_INVOICE] ❌ Failed to fix items structure: {str(fix_error)}")
+			frappe.throw(f"Failed to process invoice items: {str(fix_error)}")
+
 	invoice_doc.save()
 	log.info(f"[UPDATE_INVOICE] ✅ Invoice saved successfully: {invoice_doc.name}")
 
