@@ -93,12 +93,6 @@ def update_invoice(data):
 
 	log.info(f"[UPDATE_INVOICE] 📋 Invoice data - Name: {invoice_name}, Customer: {data.get('customer', 'N/A')}, Amount: {data.get('grand_total', 0)}")
 
-	# Debug: Check for list fields in items that could cause the error
-	for i, item in enumerate(data.get('items', [])):
-		for key, value in item.items():
-			if isinstance(value, list):
-				log.error(f"[UPDATE_INVOICE] ❌ Item {i} has list field {key}: {value}")
-
 	if data.get("name"):
 		log.info(f"[UPDATE_INVOICE] 📝 Loading existing invoice: {invoice_name}")
 		invoice_doc = frappe.get_doc("Sales Invoice", data.get("name"))

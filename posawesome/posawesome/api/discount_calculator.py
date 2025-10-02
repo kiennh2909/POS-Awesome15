@@ -61,7 +61,7 @@ class DiscountCalculator:
                 item["posa_offer_applied"] = 0
 
                 # Clear applied offers log
-                item["applied_offers"] = ""
+                item["applied_offers"] = []
 
                 log.info(f"Item {item.get('item_code')} reset: new_rate={item['rate']}, amount={item['amount']}")
 
@@ -83,18 +83,9 @@ class DiscountCalculator:
         for item in self.items:
             log.info(f"Final item {item.get('item_code')}: qty={item.get('qty')}, rate={item.get('rate')}, amount={item.get('amount')}, discount_amount={item.get('discount_amount')}, posa_offer_applied={item.get('posa_offer_applied')}")
 
-        # Clean items to remove list fields that could cause serialization issues
-        cleaned_items = []
-        for item in self.items:
-            cleaned_item = {}
-            for key, value in item.items():
-                if not isinstance(value, list):
-                    cleaned_item[key] = value
-            cleaned_items.append(cleaned_item)
-
         return {
             "status": "success",
-            "updated_items": cleaned_items,
+            "updated_items": self.items,
             "applied_offers": self.applied_offers,
             "totals": self.totals
         }
@@ -816,10 +807,8 @@ class DiscountCalculator:
 
     def _add_offer_to_item_log(self, item, offer):
         if "applied_offers" not in item:
-            item["applied_offers"] = ""
-        if item["applied_offers"]:
-            item["applied_offers"] += ", "
-        item["applied_offers"] += offer.get("name")
+            item["applied_offers"] = []
+        item["applied_offers"].append(offer.get("name"))
 
     def _calculate_totals(self):
         net_total = sum(item.get("amount", 0) for item in self.items)
