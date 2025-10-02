@@ -273,6 +273,13 @@ def update_invoice(data):
 			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item {i}: type={type(item)}, keys={list(item.keys()) if hasattr(item, 'keys') else 'no keys'}")
 			if hasattr(item, 'get'):
 				log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item {i} data: item_code={item.get('item_code')}, qty={item.get('qty')}, rate={item.get('rate')}")
+				# Check for problematic fields that might contain lists
+				for field_name in ['applied_offers', 'posa_offers']:
+					if field_name in item and isinstance(item[field_name], list):
+						log.error(f"[UPDATE_INVOICE] ❌ ERROR - Item {i} has {field_name} as list: {item[field_name]}")
+						# Remove or convert the problematic field
+						item[field_name] = json.dumps(item[field_name]) if item[field_name] else '[]'
+						log.info(f"[UPDATE_INVOICE] ✅ Fixed {field_name} for item {i}")
 
 	# Check if items is a list of dicts (which would cause the error)
 	if isinstance(invoice_doc.items, list) and len(invoice_doc.items) > 0 and isinstance(invoice_doc.items[0], dict):
