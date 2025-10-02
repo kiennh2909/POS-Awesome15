@@ -227,6 +227,16 @@ class DiscountCalculator:
             if item_code == offer.get("item") and not is_offer:
                 log.info(f"Item code matches! Checking qty/amount conditions...")
 
+                # For block-based discounts and tiered pricing, skip min_qty and max_qty checks
+                # The block/tiered calculation will handle quantity logic
+                if offer.get("is_used_block") or offer.get("is_used_tiered_pricing"):
+                    log.info(f"✅ Block-based or tiered pricing offer, skipping min_qty/max_qty checks")
+                    offer["items"] = [item.get("posa_row_id")]
+                    # Store original qty for discount calculation
+                    offer["original_qty"] = qty
+                    log.info(f"✅ Block-based or tiered Item Code offer applicable, items: {offer['items']}, original_qty: {qty}")
+                    return True
+
                 # Special logic for max_qty: offer applies to max_qty items, excess pays normal price
                 min_qty = offer.get("min_qty")
                 max_qty = offer.get("max_qty")
