@@ -449,11 +449,6 @@ class DiscountCalculator:
                 log.info(f"❌ Item {item.get('item_code')} UOM {item_uom} != block UOM {uom_ref} - skipping")
                 continue
 
-            # Item UOM matches - check if qty meets minimum block requirement
-            if item_qty < items_per_block:
-                log.info(f"❌ Item {item.get('item_code')} qty {item_qty} < items_per_block {items_per_block} - skipping")
-                continue
-
             # Calculate blocks for this item - special logic for block UOM
             if item_uom == uom_ref:
                 # Item qty directly represents number of blocks
