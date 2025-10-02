@@ -185,7 +185,7 @@
 										item-title="uom"
 										item-value="uom"
 										hide-details
-										@update:model-value="calcUom(item, $event)"
+										@update:model-value="onUomChange(item, $event)"
 										:disabled="
 											!!item.posa_is_replace ||
 											(isReturnInvoice && invoice_doc.return_against)
@@ -678,6 +678,11 @@ export default {
 		});
 	},
 	methods: {
+		onUomChange(item, value) {
+			this.calcUom(item, value);
+			this.eventBus.emit("uom_changed", item, value);
+		},
+
 		onDragOverFromSelector(event) {
 			// Check if drag data is from item selector
 			const dragData = event.dataTransfer.types.includes("application/json");

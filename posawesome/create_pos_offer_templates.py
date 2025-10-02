@@ -38,11 +38,13 @@ def create_pos_offer_templates():
         # ===== TIME-BASED TEMPLATES =====
         {
             "title": "01 - TIME - CHIẾT_KHUYẾN_MÃI_SÁNG - Giảm giá sáng 8:00-12:00 các ngày trong tuần",
-            "description": "Mẫu: Giảm giá sáng 8:00-12:00 các ngày trong tuần. Áp dụng cho Item Code, giảm 10% giá gốc. Thời gian: 8:00-12:00 từ thứ 2 đến thứ 6. Không áp dụng cuối tuần.",
+            "description": "Mẫu: Giảm giá sáng 8:00-12:00 các ngày trong tuần. Áp dụng cho Item Code, giảm 10% giá gốc. Thời gian: 8:00-12:00 từ thứ 2 đến thứ 6. max_qty=100: 100 sản phẩm đầu được giảm giá, từ sản phẩm 101 trở đi tính giá bình thường.",
             "is_template": 1,
             "offer": "Item Price",
             "apply_on": "Item Code",
             "item": "8936136169170",  # Real item code
+            "min_qty": 3,
+            "max_qty": 100,
             "discount_type": "Discount Percentage",
             "discount_percentage": 10,
             "warehouse": warehouse,
@@ -101,6 +103,8 @@ def create_pos_offer_templates():
             "offer": "Item Price",
             "apply_on": "Item Code",
             "item": "4711588341053",  # Beer item
+            "min_qty": 3,
+            "max_qty": 100,
             "is_used_block": 1,
             "uom_ref": "THÙNG-30",
             "total_items_in_block_qty": 30,
@@ -201,6 +205,8 @@ def create_pos_offer_templates():
             "offer": "Item Price",
             "apply_on": "Item Code",
             "item": "8936136169170",  # Real item code
+            "min_qty": 3,
+            "max_qty": 100,
             "is_used_tiered_pricing": 1,
             "warehouse": warehouse,
             "tiered_pricing_json": json.dumps({
@@ -289,6 +295,8 @@ def create_pos_offer_templates():
             "offer": "Item Price",
             "apply_on": "Item Code",
             "item": "8936136169170",  # Real item code
+            "min_qty": 3,
+            "max_qty": 100,
             "is_used_block": 1,
             "uom_ref": "THÙNG-30",
             "total_items_in_block_qty": 5,
@@ -324,6 +332,8 @@ def create_pos_offer_templates():
             "offer": "Item Price",
             "apply_on": "Item Code",
             "item": "8936136169170",  # Real item code
+            "min_qty": 3,
+            "max_qty": 100,
             "is_used_block": 1,
             "uom_ref": "Kg",  # Different UOM
             "total_items_in_block_qty": 10,
@@ -363,6 +373,11 @@ def create_pos_offer_templates():
         except Exception as e:
             print(f"❌ Failed to create template '{template_data['title']}': {e}")
             continue
+
+    # Commit all changes to database
+    if created_count > 0:
+        frappe.db.commit()
+        print(f"\n💾 Committed {created_count} templates to database")
 
     # Summary
     print("\n" + "=" * 60)

@@ -1508,6 +1508,9 @@ export default {
 			this.posting_date = frappe.datetime.nowdate();
 		});
         this.eventBus.on("calc_uom", this.calc_uom);
+        this.eventBus.on("uom_changed", (item, value) => {
+            this.calculateDiscountsDebounced();
+        });
         this.eventBus.on("item-drag-start", (item) => {
         	this.showDropFeedback(true);
         });

@@ -226,11 +226,33 @@ class DiscountCalculator:
 
             if item_code == offer.get("item") and not is_offer:
                 log.info(f"Item code matches! Checking qty/amount conditions...")
-                condition_result = self._check_qty_amount_conditions(offer, qty, amount)
+
+                # Special logic for max_qty: offer applies to max_qty items, excess pays normal price
+                min_qty = offer.get("min_qty")
+                max_qty = offer.get("max_qty")
+
+                # Check minimum quantity requirement
+                if min_qty and qty < min_qty:
+                    log.info(f"❌ Qty {qty} < min_qty {min_qty}, offer not applicable")
+                    continue
+
+                # For max_qty logic: if qty > max_qty, still apply offer to max_qty items
+                # The excess quantity will be calculated at normal price
+                if max_qty and max_qty > 0:
+                    # Offer is applicable as long as qty >= min_qty
+                    # The actual discount calculation will handle max_qty limit
+                    condition_result = True
+                    log.info(f"✅ Qty {qty} >= min_qty {min_qty}, offer applicable (max_qty {max_qty} will limit discount)")
+                else:
+                    # No max_qty restriction, check normal conditions
+                    condition_result = self._check_qty_amount_conditions(offer, qty, amount)
+
                 log.info(f"Qty/amount condition result: {condition_result}")
                 if condition_result:
                     offer["items"] = [item.get("posa_row_id")]
-                    log.info(f"✅ Item Code offer applicable, items: {offer['items']}")
+                    # Store original qty for discount calculation
+                    offer["original_qty"] = qty
+                    log.info(f"✅ Item Code offer applicable, items: {offer['items']}, original_qty: {qty}")
                     return True
             else:
                 log.info(f"❌ Item code does not match or is offer item")
@@ -595,26 +617,76 @@ class DiscountCalculator:
                 if not item or item.get("posa_offer_applied"):
                     continue
 
-                item["posa_offer_applied"] = 1
-                original_rate = item.get("price_list_rate", 0)
-                new_rate = original_rate
-                discount_type = offer.get("discount_type")
+                original_qty = offer.get("original_qty", item.get("qty", 0))
+                max_qty = offer.get("max_qty", 0)
+                actual_qty = item.get("qty", 0)
 
-                if discount_type == "Rate":
-                    new_rate = offer.get("rate", 0)
-                    item["discount_amount"] = original_rate - new_rate
-                    item["discount_percentage"] = (item["discount_amount"] / original_rate * 100) if original_rate else 0
-                
-                elif discount_type == "Discount Percentage":
-                    discount_percentage = offer.get("discount_percentage", 0)
-                    discount_amount = original_rate * (discount_percentage / 100.0)
-                    new_rate = original_rate - discount_amount
-                    item["discount_amount"] = discount_amount
-                    item["discount_percentage"] = discount_percentage
+                log.info(f"Applying discount for item {item.get('item_code')}: original_qty={original_qty}, max_qty={max_qty}, actual_qty={actual_qty}")
 
-                item["rate"] = new_rate
-                item["amount"] = new_rate * item.get("qty", 0)
-                
+                # Handle max_qty logic: discount applies only to max_qty items, excess pays normal price
+                if max_qty and max_qty > 0 and actual_qty > max_qty:
+                    # Split calculation: max_qty items at discounted price, excess at normal price
+                    discounted_qty = max_qty
+                    excess_qty = actual_qty - max_qty
+
+                    log.info(f"Max qty exceeded: discounted_qty={discounted_qty}, excess_qty={excess_qty}")
+
+                    # Calculate rates for discounted and excess portions
+                    original_rate = item.get("price_list_rate", 0)
+                    discount_type = offer.get("discount_type")
+
+                    if discount_type == "Rate":
+                        discounted_rate = offer.get("rate", 0)
+                        discount_amount_per_item = original_rate - discounted_rate
+                    elif discount_type == "Discount Percentage":
+                        discount_percentage = offer.get("discount_percentage", 0)
+                        discount_amount_per_item = original_rate * (discount_percentage / 100.0)
+                        discounted_rate = original_rate - discount_amount_per_item
+                    else:
+                        log.warning(f"Unknown discount_type: {discount_type}")
+                        continue
+
+                    # Calculate weighted average rate
+                    discounted_amount = discounted_qty * discounted_rate
+                    excess_amount = excess_qty * original_rate
+                    total_amount = discounted_amount + excess_amount
+                    weighted_rate = total_amount / actual_qty
+
+                    # Calculate total discount for the discounted portion
+                    total_discount_amount = discount_amount_per_item * discounted_qty
+
+                    item["posa_offer_applied"] = 1
+                    item["rate"] = weighted_rate
+                    item["discount_amount"] = total_discount_amount
+                    item["discount_percentage"] = (total_discount_amount / (original_rate * actual_qty) * 100) if (original_rate * actual_qty) else 0
+                    item["amount"] = total_amount
+
+                    log.info(f"Applied max_qty logic: weighted_rate={weighted_rate}, total_discount={total_discount_amount}, total_amount={total_amount}")
+
+                else:
+                    # Normal discount application for entire quantity
+                    item["posa_offer_applied"] = 1
+                    original_rate = item.get("price_list_rate", 0)
+                    new_rate = original_rate
+                    discount_type = offer.get("discount_type")
+
+                    if discount_type == "Rate":
+                        new_rate = offer.get("rate", 0)
+                        item["discount_amount"] = original_rate - new_rate
+                        item["discount_percentage"] = (item["discount_amount"] / original_rate * 100) if original_rate else 0
+
+                    elif discount_type == "Discount Percentage":
+                        discount_percentage = offer.get("discount_percentage", 0)
+                        discount_amount = original_rate * (discount_percentage / 100.0)
+                        new_rate = original_rate - discount_amount
+                        item["discount_amount"] = discount_amount
+                        item["discount_percentage"] = discount_percentage
+
+                    item["rate"] = new_rate
+                    item["amount"] = new_rate * item.get("qty", 0)
+
+                    log.info(f"Applied normal discount: rate={new_rate}, discount_amount={item['discount_amount']}")
+
                 self._add_offer_to_item_log(item, offer)
             
             self.applied_offers.append(offer)
