@@ -366,6 +366,16 @@ def submit_invoice(invoice, data):
 
 	invoice_doc.remarks = "\n".join(items)
 
+	# Clean up problematic fields that contain lists before saving
+	log.info(f"[SUBMIT_INVOICE] 🧹 Cleaning up item fields before save")
+	for item in invoice_doc.items:
+		for field_name in ['applied_offers', 'posa_offers']:
+			if hasattr(item, field_name):
+				field_value = getattr(item, field_name)
+				if isinstance(field_value, list):
+					log.info(f"[SUBMIT_INVOICE] 🔧 Converting {field_name} list to JSON string for item {item.item_code}")
+					setattr(item, field_name, json.dumps(field_value) if field_value else '[]')
+
 	# creating advance payment
 	if data.get("credit_change"):
 		log.info(f"[SUBMIT_INVOICE] 💳 Creating advance payment - Amount: {data.get('credit_change')}")
