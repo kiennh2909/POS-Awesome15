@@ -61,7 +61,7 @@ class DiscountCalculator:
                 item["posa_offer_applied"] = 0
 
                 # Clear applied offers log
-                item["applied_offers"] = []
+                item["applied_offers"] = ""
 
                 log.info(f"Item {item.get('item_code')} reset: new_rate={item['rate']}, amount={item['amount']}")
 
@@ -807,8 +807,10 @@ class DiscountCalculator:
 
     def _add_offer_to_item_log(self, item, offer):
         if "applied_offers" not in item:
-            item["applied_offers"] = []
-        item["applied_offers"].append(offer.get("name"))
+            item["applied_offers"] = ""
+        if item["applied_offers"]:
+            item["applied_offers"] += ", "
+        item["applied_offers"] += offer.get("name")
 
     def _calculate_totals(self):
         net_total = sum(item.get("amount", 0) for item in self.items)
