@@ -231,6 +231,12 @@ class DiscountCalculator:
 
     def _check_item_code_offer(self, offer):
         log.info(f"Checking Item Code offer: offer.item='{offer.get('item')}', offer conditions: min_qty={offer.get('min_qty')}, max_qty={offer.get('max_qty')}")
+
+        # Collect all items with matching item_code (for per-item discount logic)
+        matching_items = []
+        total_qty = 0
+        total_amount = 0
+
         for item in self.items:
             item_code = item.get("item_code")
             qty = item.get("qty", 0)
@@ -243,48 +249,51 @@ class DiscountCalculator:
             log.info(f"Conditions: not is_offer: {not is_offer}")
 
             if item_code == offer.get("item") and not is_offer:
-                log.info(f"Item code matches! Checking qty/amount conditions...")
+                matching_items.append(item)
+                total_qty += qty
+                total_amount += amount
+                log.info(f"✅ Found matching item: {item.get('posa_row_id')}, UOM: {item.get('uom')}")
 
-                # For block-based discounts and tiered pricing, skip min_qty and max_qty checks
-                # The block/tiered calculation will handle quantity logic
-                if offer.get("is_used_block") or offer.get("is_used_tiered_pricing"):
-                    log.info(f"✅ Block-based or tiered pricing offer, skipping min_qty/max_qty checks")
-                    offer["items"] = [item.get("posa_row_id")]
-                    # Store original qty for discount calculation
-                    offer["original_qty"] = qty
-                    log.info(f"✅ Block-based or tiered Item Code offer applicable, items: {offer['items']}, original_qty: {qty}")
-                    return True
+        if not matching_items:
+            log.info(f"❌ No matching items found for Item Code offer")
+            return False
 
-                # Special logic for max_qty: offer applies to max_qty items, excess pays normal price
-                min_qty = offer.get("min_qty")
-                max_qty = offer.get("max_qty")
+        log.info(f"Found {len(matching_items)} matching items, total_qty={total_qty}, total_amount={total_amount}")
 
-                # Check minimum quantity requirement
-                if min_qty and qty < min_qty:
-                    log.info(f"❌ Qty {qty} < min_qty {min_qty}, offer not applicable")
-                    continue
+        # For block-based discounts and tiered pricing, collect all matching items
+        # The block/tiered calculation will handle per-item UOM validation
+        if offer.get("is_used_block") or offer.get("is_used_tiered_pricing"):
+            log.info(f"✅ Block-based or tiered pricing offer, collecting all matching items")
+            offer["items"] = [item.get("posa_row_id") for item in matching_items]
+            offer["original_qty"] = total_qty  # Total qty across all matching items
+            log.info(f"✅ Block-based or tiered Item Code offer applicable, items: {offer['items']}, total_original_qty: {total_qty}")
+            return True
 
-                # For max_qty logic: if qty > max_qty, still apply offer to max_qty items
-                # The excess quantity will be calculated at normal price
-                if max_qty and max_qty > 0:
-                    # Offer is applicable as long as qty >= min_qty
-                    # The actual discount calculation will handle max_qty limit
-                    condition_result = True
-                    log.info(f"✅ Qty {qty} >= min_qty {min_qty}, offer applicable (max_qty {max_qty} will limit discount)")
-                else:
-                    # No max_qty restriction, check normal conditions
-                    condition_result = self._check_qty_amount_conditions(offer, qty, amount)
+        # For regular offers, check total qty/amount conditions across all matching items
+        min_qty = offer.get("min_qty")
+        max_qty = offer.get("max_qty")
 
-                log.info(f"Qty/amount condition result: {condition_result}")
-                if condition_result:
-                    offer["items"] = [item.get("posa_row_id")]
-                    # Store original qty for discount calculation
-                    offer["original_qty"] = qty
-                    log.info(f"✅ Item Code offer applicable, items: {offer['items']}, original_qty: {qty}")
-                    return True
-            else:
-                log.info(f"❌ Item code does not match or is offer item")
-        log.info(f"❌ No matching items found for Item Code offer")
+        # Check minimum quantity requirement
+        if min_qty and total_qty < min_qty:
+            log.info(f"❌ Total qty {total_qty} < min_qty {min_qty}, offer not applicable")
+            return False
+
+        # For max_qty logic: offer applies to max_qty items total, excess pays normal price
+        if max_qty and max_qty > 0:
+            condition_result = True
+            log.info(f"✅ Total qty {total_qty} >= min_qty {min_qty}, offer applicable (max_qty {max_qty} will limit discount)")
+        else:
+            # No max_qty restriction, check normal conditions
+            condition_result = self._check_qty_amount_conditions(offer, total_qty, total_amount)
+
+        log.info(f"Total qty/amount condition result: {condition_result}")
+        if condition_result:
+            offer["items"] = [item.get("posa_row_id") for item in matching_items]
+            offer["original_qty"] = total_qty
+            log.info(f"✅ Item Code offer applicable, items: {offer['items']}, total_original_qty: {total_qty}")
+            return True
+
+        log.info(f"❌ Item Code offer not applicable")
         return False
 
     def _check_item_group_offer(self, offer):
@@ -402,82 +411,86 @@ class DiscountCalculator:
                 log.warning(f"Unknown or already applied offer type '{offer_type}' for '{offer.name}'")
     
     def _apply_block_based_discount(self, offer):
-        """Apply block-based discount with UOM validation"""
+        """Apply block-based discount per item with UOM validation"""
         log.info(f"Executing _apply_block_based_discount for '{offer.name}'")
-        
+
         # Validate UOM configuration
         uom_ref = offer.get("uom_ref")
         if not uom_ref:
             log.error(f"Offer '{offer.name}' missing uom_ref for block-based discount")
             return
-            
+
         items_per_block = offer.get("total_items_in_block_qty", 0)
         if items_per_block <= 0:
             log.error(f"Offer '{offer.name}' invalid items_per_block: {items_per_block}")
             return
-            
+
         discount_per_block = offer.get("total_discount_amount_per_block", 0)
         min_blocks = offer.get("min_block_qty", 1)
         max_blocks = offer.get("max_eligible_block_qty", 0)
-        
+
         log.info(f"Block config: UOM={uom_ref}, items_per_block={items_per_block}, discount_per_block={discount_per_block}")
-        
-        # Calculate total eligible items for this offer
-        eligible_items = []
-        total_eligible_qty = 0
-        
+
+        # Apply discount per item - check UOM for each item individually
+        applied_items = []
+
         for item_row_id in offer.get("items", []):
             item = next((i for i in self.items if i.get("posa_row_id") == item_row_id), None)
             if not item or item.get("posa_offer_applied"):
                 continue
-                
-            # Validate UOM conversion (simplified - you may need more complex logic)
+
+            # Validate UOM for this specific item
             item_uom = item.get("uom", item.get("stock_uom"))
+            item_qty = item.get("qty", 0)
+
+            log.info(f"Checking item {item.get('item_code')}: UOM={item_uom}, qty={item_qty}")
+
             if item_uom != uom_ref:
-                log.warning(f"Item {item.get('item_code')} UOM {item_uom} != block UOM {uom_ref}")
+                log.info(f"❌ Item {item.get('item_code')} UOM {item_uom} != block UOM {uom_ref} - skipping")
                 continue
-                
-            eligible_items.append(item)
-            total_eligible_qty += item.get("qty", 0)
-        
-        if not eligible_items:
-            log.info(f"No eligible items for block discount in offer '{offer.name}'")
-            return
-            
-        # Calculate blocks
-        total_blocks = total_eligible_qty // items_per_block
-        eligible_blocks = min(total_blocks, max_blocks) if max_blocks > 0 else total_blocks
-        eligible_blocks = max(eligible_blocks, min_blocks)
-        
-        if eligible_blocks < min_blocks:
-            log.info(f"Insufficient blocks: {eligible_blocks} < {min_blocks} for offer '{offer.name}'")
-            return
-            
-        total_discount = eligible_blocks * discount_per_block
-        
-        log.info(f"Calculated: total_qty={total_eligible_qty}, blocks={eligible_blocks}, total_discount={total_discount}")
-        
-        # Distribute discount proportionally
-        total_eligible_amount = sum(item.get("price_list_rate", 0) * item.get("qty", 0) for item in eligible_items)
-        
-        for item in eligible_items:
-            if total_eligible_amount == 0:
+
+            # Item UOM matches - check if qty meets minimum block requirement
+            if item_qty < items_per_block:
+                log.info(f"❌ Item {item.get('item_code')} qty {item_qty} < items_per_block {items_per_block} - skipping")
                 continue
-                
-            item_amount = item.get("price_list_rate", 0) * item.get("qty", 0)
-            item_discount = (item_amount / total_eligible_amount) * total_discount
-            
+
+            # Calculate blocks for this item
+            item_blocks = item_qty // items_per_block
+            eligible_blocks = min(item_blocks, max_blocks) if max_blocks > 0 else item_blocks
+            eligible_blocks = max(eligible_blocks, min_blocks)
+
+            if eligible_blocks < min_blocks:
+                log.info(f"❌ Item {item.get('item_code')} eligible_blocks {eligible_blocks} < min_blocks {min_blocks} - skipping")
+                continue
+
+            # Apply discount to this item
+            item_discount = eligible_blocks * discount_per_block
+            original_rate = item.get("price_list_rate", 0)
+            item_amount = original_rate * item_qty
+
+            # Calculate new rate after discount
+            if item_qty > 0:
+                discount_per_unit = item_discount / item_qty
+                new_rate = original_rate - discount_per_unit
+            else:
+                new_rate = original_rate
+
             item["posa_offer_applied"] = 1
             item["discount_amount"] = item_discount
             item["discount_percentage"] = (item_discount / item_amount * 100) if item_amount else 0
-            item["rate"] = item.get("price_list_rate", 0) - (item_discount / item.get("qty", 1))
-            item["amount"] = item["rate"] * item.get("qty", 1)
-            
+            item["rate"] = new_rate
+            item["amount"] = new_rate * item_qty
+
             self._add_offer_to_item_log(item, offer)
-            log.info(f"Applied block discount to {item.get('item_code')}: discount={item_discount}")
-        
-        self.applied_offers.append(offer)
-        log.info(f"Successfully applied block-based discount: '{offer.name}'")
+            applied_items.append(item)
+
+            log.info(f"✅ Applied block discount to {item.get('item_code')}: blocks={eligible_blocks}, discount={item_discount}, new_rate={new_rate}")
+
+        if applied_items:
+            self.applied_offers.append(offer)
+            log.info(f"Successfully applied block-based discount to {len(applied_items)} items: '{offer.name}'")
+        else:
+            log.info(f"No items qualified for block discount in offer '{offer.name}'")
 
     def _apply_block_based_gift_offer(self, offer):
         """Apply block-based gift offer with bonus gifts"""
