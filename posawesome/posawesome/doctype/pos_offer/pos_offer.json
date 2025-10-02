@@ -12,6 +12,7 @@
     "description",
     "column_break_4",
     "disable",
+    "is_template",
     "section_break_3",
     "apply_on",
     "offer",
@@ -88,6 +89,13 @@
       "in_list_view": 1,
       "in_standard_filter": 1,
       "label": "Disable"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_template",
+      "fieldtype": "Check",
+      "label": "Is Template",
+      "description": "Mark as template for quick duplication. Templates are excluded from discount calculations."
     },
     {
       "default": "Item Code",
