@@ -44,8 +44,8 @@ def create_pos_offer_templates():
             "apply_on": "Item Code",
             "item": "8936136169170",  # Real item code
             "discount_type": "Discount Percentage",
-            "discount_percentage": 1,
-            "warehouse": warehouse5
+            "discount_percentage": 10,
+            "warehouse": warehouse,
             "available_time_in_day": json.dumps([{
                 "days_of_week": ["monday", "tuesday", "wednesday", "thursday", "friday"],
                 "start_time": "08:00:00",
@@ -63,7 +63,7 @@ def create_pos_offer_templates():
             "apply_on": "Item Group",
             "item_group": "VT007",  # Real item group
             "discount_type": "Discount Percentage",
-            "discount_percentage": 10,
+            "discount_percentage": 15,
             "warehouse": warehouse,
             "available_time_in_day": json.dumps([{
                 "days_of_week": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
