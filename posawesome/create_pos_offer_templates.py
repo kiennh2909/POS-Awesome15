@@ -95,15 +95,15 @@ def create_pos_offer_templates():
 
         # ===== BLOCK-BASED DISCOUNT TEMPLATES =====
         {
-            "title": "04 - BLOCK_DISCOUNT - KHUYẾN_MÃI_BLOCK_BIA - Mua 24 chai bia giảm 50k/thùng",
-            "description": "Mẫu: Mua 24 chai bia (1 thùng), giảm 50k/thùng. UOM: THÙNG-30, 24 chai = 1 block, giảm 50k. Tối thiểu 1 thùng, tối đa 3 thùng.",
+            "title": "04 - BLOCK_DISCOUNT - KHUYẾN_MÃI_BLOCK_BIA - Mua 30 chai bia giảm 50k/thùng",
+            "description": "Mẫu: Mua 30 chai bia (1 thùng), giảm 50k/thùng. UOM: THÙNG-30, 30 chai = 1 block, giảm 50k. Tối thiểu 1 thùng, tối đa 3 thùng.",
             "is_template": 1,
             "offer": "Item Price",
             "apply_on": "Item Code",
             "item": "4711588341053",  # Beer item
             "is_used_block": 1,
             "uom_ref": "THÙNG-30",
-            "total_items_in_block_qty": 24,
+            "total_items_in_block_qty": 30,
             "min_block_qty": 1,
             "max_eligible_block_qty": 3,
             "total_discount_amount_per_block": 50,
@@ -113,7 +113,7 @@ def create_pos_offer_templates():
         },
         {
             "title": "05 - BLOCK_DISCOUNT - KHUYẾN_MÃI_BLOCK_NƯỚC - Mua 12 chai nước giảm 30k/hộp",
-            "description": "Mẫu: Mua 12 chai nước (1 hộp), giảm 30k/hộp. UOM: THÙNG-30, 12 chai = 1 block, giảm 30k. Tối thiểu 2 hộp, tối đa 5 hộp.",
+            "description": "Mẫu: Mua 30 chai nước (1 hộp), giảm 30k/hộp. UOM: THÙNG-30, 12 chai = 1 block, giảm 30k. Tối thiểu 2 hộp, tối đa 5 hộp.",
             "is_template": 1,
             "offer": "Item Price",
             "apply_on": "Item Group",
