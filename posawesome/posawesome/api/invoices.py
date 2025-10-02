@@ -88,10 +88,20 @@ def validate_return_items(original_invoice_name, return_items):
 def update_invoice(data):
 	log.info(f"[UPDATE_INVOICE] 🎯 START - Processing invoice update")
 
+	# Debug log: Raw data received from client
+	log.info(f"[UPDATE_INVOICE] 📥 RAW DATA RECEIVED: {data}")
+
 	data = json.loads(data)
 	invoice_name = data.get("name")
 
 	log.info(f"[UPDATE_INVOICE] 📋 Invoice data - Name: {invoice_name}, Customer: {data.get('customer', 'N/A')}, Amount: {data.get('grand_total', 0)}")
+
+	# Debug log: Parsed data structure
+	log.info(f"[UPDATE_INVOICE] 📋 PARSED DATA KEYS: {list(data.keys())}")
+	if 'items' in data:
+		log.info(f"[UPDATE_INVOICE] 📋 ITEMS COUNT: {len(data['items'])}")
+		for i, item in enumerate(data['items'][:2]):  # Log first 2 items
+			log.info(f"[UPDATE_INVOICE] 📋 ITEM {i}: item_code={item.get('item_code')}, qty={item.get('qty')}, rate={item.get('rate')}, posa_offers={item.get('posa_offers')}")
 
 	if data.get("name"):
 		log.info(f"[UPDATE_INVOICE] 📝 Loading existing invoice: {invoice_name}")

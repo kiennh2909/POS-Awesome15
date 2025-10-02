@@ -1279,6 +1279,25 @@ export default {
 	const vm = this;
 	const original_invoice_doc = { ...this.invoice_doc };
 
+	// Debug logging: Client-side data being sent to server
+	console.log(`[CLIENT_DEBUG] 📤 SENDING INVOICE DATA TO SERVER:`);
+	console.log(`[CLIENT_DEBUG] 📋 Invoice basic info:`, {
+		name: this.invoice_doc?.name,
+		customer: this.invoice_doc?.customer,
+		grand_total: this.invoice_doc?.grand_total,
+		is_return: this.invoice_doc?.is_return,
+		items_count: this.invoice_doc?.items?.length || 0
+	});
+	console.log(`[CLIENT_DEBUG] 📋 Payment data:`, data);
+	console.log(`[CLIENT_DEBUG] 📋 Invoice items (first 2):`, this.invoice_doc?.items?.slice(0, 2)?.map(item => ({
+		item_code: item.item_code,
+		qty: item.qty,
+		rate: item.rate,
+		posa_offers: item.posa_offers,
+		posa_offer_applied: item.posa_offer_applied
+	})));
+	console.log(`[CLIENT_DEBUG] 📋 Full invoice doc keys:`, Object.keys(this.invoice_doc || {}));
+
 	console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_SUBMIT_INVOICE_PROCESS - Prepared data for invoice: ${this.invoice_doc?.name}`);
 
 	// === BƯỚC 2: GỌI SERVER ===
