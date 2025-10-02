@@ -244,6 +244,32 @@ def update_invoice(data):
 	invoice_doc.set_missing_values()
 	log.info(f"[UPDATE_INVOICE] ✅ Missing values set")
 
+	# Calculate stock_qty for all items (critical for inventory management)
+	log.info(f"[UPDATE_INVOICE] 📦 Calculating stock_qty for {len(invoice_doc.items)} items")
+	for i, item in enumerate(invoice_doc.items):
+		# Ensure stock_qty is calculated correctly: stock_qty = qty * conversion_factor
+		if hasattr(item, 'qty') and hasattr(item, 'conversion_factor'):
+			original_stock_qty = getattr(item, 'stock_qty', None)
+			qty = flt(item.qty)
+			conversion_factor = flt(item.conversion_factor)
+
+			if conversion_factor > 0:
+				calculated_stock_qty = qty * conversion_factor
+				item.stock_qty = calculated_stock_qty
+				log.info(f"[UPDATE_INVOICE] 📦 Item {i+1} ({item.item_code}): stock_qty = {qty} × {conversion_factor} = {calculated_stock_qty}")
+			else:
+				# Fallback: if no conversion_factor, stock_qty = qty
+				item.stock_qty = qty
+				log.warning(f"[UPDATE_INVOICE] ⚠️ Item {i+1} ({item.item_code}): conversion_factor is 0 or invalid, setting stock_qty = qty = {qty}")
+
+			# Log the change if stock_qty was different
+			if original_stock_qty is not None and original_stock_qty != item.stock_qty:
+				log.info(f"[UPDATE_INVOICE] 📦 Item {i+1} ({item.item_code}): stock_qty changed from {original_stock_qty} to {item.stock_qty}")
+		else:
+			log.error(f"[UPDATE_INVOICE] ❌ Item {i+1} ({item.item_code}): missing qty or conversion_factor fields")
+
+	log.info(f"[UPDATE_INVOICE] ✅ Stock quantities calculated for all items")
+
 	# Ensure selected currency is preserved after set_missing_values
 	if selected_currency:
 		log.info(f"[UPDATE_INVOICE] 💱 Processing currency conversion setup")
@@ -470,6 +496,29 @@ def submit_invoice(invoice, data):
 
 	invoice_doc.remarks = "\n".join(items)
 
+	# Calculate stock_qty for all items before submit (ensure inventory accuracy)
+	log.info(f"[SUBMIT_INVOICE] 📦 Calculating stock_qty for {len(invoice_doc.items)} items before submit")
+	for i, item in enumerate(invoice_doc.items):
+		if hasattr(item, 'qty') and hasattr(item, 'conversion_factor'):
+			original_stock_qty = getattr(item, 'stock_qty', None)
+			qty = flt(item.qty)
+			conversion_factor = flt(item.conversion_factor)
+
+			if conversion_factor > 0:
+				calculated_stock_qty = qty * conversion_factor
+				item.stock_qty = calculated_stock_qty
+				log.info(f"[SUBMIT_INVOICE] 📦 Item {i+1} ({item.item_code}): stock_qty = {qty} × {conversion_factor} = {calculated_stock_qty}")
+			else:
+				item.stock_qty = qty
+				log.warning(f"[SUBMIT_INVOICE] ⚠️ Item {i+1} ({item.item_code}): conversion_factor is 0, setting stock_qty = qty = {qty}")
+
+			if original_stock_qty is not None and original_stock_qty != item.stock_qty:
+				log.info(f"[SUBMIT_INVOICE] 📦 Item {i+1} ({item.item_code}): stock_qty updated from {original_stock_qty} to {item.stock_qty}")
+		else:
+			log.error(f"[SUBMIT_INVOICE] ❌ Item {i+1} ({item.item_code}): missing qty or conversion_factor")
+
+	log.info(f"[SUBMIT_INVOICE] ✅ Stock quantities calculated for submit")
+
 	# Clean up problematic fields that contain lists before saving
 	log.info(f"[SUBMIT_INVOICE] 🧹 Cleaning up item fields before save")
 	for item in invoice_doc.items:
@@ -659,6 +708,23 @@ def submit_in_background_job(kwargs):
 	log.info(f"[BACKGROUND_JOB] 📋 Loading invoice document: {invoice}")
 	invoice_doc = frappe.get_doc("Sales Invoice", invoice)
 	log.info(f"[BACKGROUND_JOB] ✅ Invoice loaded: {invoice_doc.name}")
+
+	# Calculate stock_qty for background job items
+	log.info(f"[BACKGROUND_JOB] 📦 Calculating stock_qty for {len(invoice_doc.items)} items in background")
+	for i, item in enumerate(invoice_doc.items):
+		if hasattr(item, 'qty') and hasattr(item, 'conversion_factor'):
+			qty = flt(item.qty)
+			conversion_factor = flt(item.conversion_factor)
+
+			if conversion_factor > 0:
+				calculated_stock_qty = qty * conversion_factor
+				item.stock_qty = calculated_stock_qty
+				log.info(f"[BACKGROUND_JOB] 📦 Item {i+1} ({item.item_code}): stock_qty = {qty} × {conversion_factor} = {calculated_stock_qty}")
+			else:
+				item.stock_qty = qty
+				log.warning(f"[BACKGROUND_JOB] ⚠️ Item {i+1} ({item.item_code}): conversion_factor is 0, setting stock_qty = qty = {qty}")
+
+	log.info(f"[BACKGROUND_JOB] ✅ Stock quantities calculated for background job")
 
 	# Update remarks with items details for background job
 	items = []
