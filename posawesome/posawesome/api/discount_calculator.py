@@ -454,8 +454,17 @@ class DiscountCalculator:
                 log.info(f"❌ Item {item.get('item_code')} qty {item_qty} < items_per_block {items_per_block} - skipping")
                 continue
 
-            # Calculate blocks for this item
-            item_blocks = item_qty // items_per_block
+            # Calculate blocks for this item - special logic for block UOM
+            if item_uom == uom_ref:
+                # Item qty directly represents number of blocks
+                # e.g., UOM=THÙNG-24, qty=1 means 1 block (24 items)
+                item_blocks = item_qty
+                log.info(f"✅ Item UOM matches block UOM - qty {item_qty} = {item_qty} blocks")
+            else:
+                # For other UOMs, calculate blocks based on conversion
+                item_blocks = item_qty // items_per_block
+                log.info(f"ℹ️ Item UOM different from block UOM - calculated {item_blocks} blocks from qty {item_qty}")
+
             eligible_blocks = min(item_blocks, max_blocks) if max_blocks > 0 else item_blocks
             eligible_blocks = max(eligible_blocks, min_blocks)
 
