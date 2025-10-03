@@ -115,6 +115,9 @@ class DiscountCalculator:
             elif it.get("has_batch_no") or it.get("has_serial_no"):
                 # skip merging batch/serial items
                 key = None
+            elif it.get("posa_offer_applied"):
+                # skip merging items that already have offers applied
+                key = None
             else:
                 key = (
                     it.get("item_code"),
@@ -614,6 +617,36 @@ class DiscountCalculator:
                 if pack_opt_result:
                     # Gộp các dòng giống nhau sau pack optimization để tránh áp discount đôi
                     self._coalesce_identical_items()
+                    # Refresh offer["items"] sau coalescing để đảm bảo row_ids chính xác
+                    try:
+                        apply_on = offer.get("apply_on")
+                        fresh_rows = []
+                        if apply_on == "Item Code":
+                            target_item = offer.get("item")
+                            for i in self.items:
+                                if not i.get("posa_is_offer") and i.get("item_code") == target_item:
+                                    fresh_rows.append(i.get("posa_row_id"))
+                        elif apply_on == "Item Group":
+                            target_group = offer.get("item_group")
+                            for i in self.items:
+                                if not i.get("posa_is_offer") and i.get("item_group") == target_group:
+                                    fresh_rows.append(i.get("posa_row_id"))
+                        elif apply_on == "Brand":
+                            target_brand = offer.get("brand")
+                            for i in self.items:
+                                if not i.get("posa_is_offer") and i.get("brand") == target_brand:
+                                    fresh_rows.append(i.get("posa_row_id"))
+                        elif apply_on == "Transaction":
+                            # transaction-level: tất cả non-offer items
+                            fresh_rows = [i.get("posa_row_id") for i in self.items if not i.get("posa_is_offer")]
+
+                        if fresh_rows:
+                            offer["items"] = fresh_rows
+                            log.info(f"🔄 Refreshed offer['items'] after coalescing: {fresh_rows}")
+                        else:
+                            log.info("ℹ️ No matching rows found in current cart after coalescing.")
+                    except Exception as _e:
+                        log.error(f"Failed to refresh offer['items'] after coalescing: {_e}")
                     log.info(f"🔄 Re-applying block discount after pack optimization for '{offer.name}' (with coalesced items)")
                     return self._apply_block_based_discount(offer, _depth=_depth+1)
             except Exception as e:
