@@ -505,11 +505,12 @@ class DiscountCalculator:
                 item_blocks = item_qty // items_per_block
                 log.info(f"ℹ️ Item UOM different from block UOM - calculated {item_blocks} blocks from qty {item_qty}")
 
+            # Tính số block theo thực tế
             eligible_blocks = min(item_blocks, max_blocks) if max_blocks > 0 else item_blocks
-            eligible_blocks = max(eligible_blocks, min_blocks)
 
+            # Nếu không đủ min_blocks thì bỏ qua
             if eligible_blocks < min_blocks:
-                log.info(f"❌ Item {item.get('item_code')} eligible_blocks {eligible_blocks} < min_blocks {min_blocks} - skipping")
+                log.info(f"❌ Item {item.get('item_code')} only {eligible_blocks} blocks < min_blocks {min_blocks}")
                 continue
 
             # Apply discount to this item
@@ -599,7 +600,7 @@ class DiscountCalculator:
 
         # Find optimal pack combination
         log.info(f"Finding optimal combination for qty: {total_qty}")
-        optimal_combo = self._find_optimal_pack_combination(total_qty, available_packs)
+        optimal_combo = self._find_optimal_pack_combination(total_qty, available_packs, uom_ref)
 
         if not optimal_combo:
             log.info(f"❌ No optimal combo found")
@@ -611,28 +612,81 @@ class DiscountCalculator:
 
         log.info(f"Cost comparison: optimal={current_total_cost}, regular={regular_cost}")
 
-        # For pack optimization to be beneficial, it should be cheaper than regular cost
-        # OR it should enable block discounts that weren't possible before
-        is_beneficial = current_total_cost < regular_cost
+        # Calculate discount benefit of pack optimization
+        discount_benefit = self._calculate_pack_optimization_discount_benefit(
+            optimal_combo, offer, available_packs, total_qty
+        )
 
-        # Special case: Even if cost is same, optimization might be needed to enable block discounts
+        # For pack optimization to be beneficial, it should:
+        # 1. Be cheaper than regular cost, OR
+        # 2. Enable block discounts that provide net benefit, OR
+        # 3. Enable required UOM for block discounts
+        is_cost_beneficial = current_total_cost < regular_cost
+        is_discount_beneficial = discount_benefit > 0
+
         # Check if the optimal combo includes the required UOM for the offer
         has_required_uom = optimal_combo.get(str(int(items_per_block))) and optimal_combo.get(str(int(items_per_block))) > 0
 
-        if not is_beneficial and not has_required_uom:
-            log.info(f"❌ Pack optimization not beneficial: {current_total_cost} >= {regular_cost} and doesn't enable required UOM")
+        # Special case: If all packs have same unit price, optimization is still beneficial
+        # if it enables larger pack sizes for potential discounts
+        all_same_unit_price = self._check_all_packs_same_unit_price(available_packs, base_price)
+
+        if not is_cost_beneficial and not is_discount_beneficial and not has_required_uom and not all_same_unit_price:
+            log.info(f"❌ Pack optimization not beneficial: cost={current_total_cost}>={regular_cost}, discount_benefit={discount_benefit}, no required UOM")
             return False
 
-        if has_required_uom:
+        if is_discount_beneficial:
+            log.info(f"✅ Pack optimization provides discount benefit: {discount_benefit}")
+        elif has_required_uom:
             log.info(f"✅ Pack optimization enables required UOM {uom_ref} for block discount")
-        elif is_beneficial:
+        elif is_cost_beneficial:
             log.info(f"✅ Pack optimization is cost beneficial: {current_total_cost} < {regular_cost}")
+        elif all_same_unit_price:
+            log.info(f"✅ Pack optimization beneficial for same unit price scenario - enables larger pack sizes")
 
         # Apply pack optimization by splitting items
         log.info(f"✅ Applying pack optimization: {optimal_combo}")
         self._apply_pack_optimization_to_items(optimizable_items, optimal_combo, available_packs)
 
         return True
+
+    def _check_all_packs_same_unit_price(self, available_packs, base_price):
+        """Check if all packs have the same unit price (calculated from stock_uom * conversion_factor)"""
+        if not available_packs or len(available_packs) <= 1:
+            return False
+
+        for pack in available_packs:
+            expected_price = base_price * pack["size"]
+            if abs(pack["price"] - expected_price) > 0.01:  # Allow small floating point differences
+                return False
+
+        log.info(f"All packs have same unit price {base_price} - optimization beneficial for enabling larger pack sizes")
+        return True
+
+    def _calculate_pack_optimization_discount_benefit(self, optimal_combo, offer, available_packs, total_qty):
+        """Calculate the discount benefit of pack optimization for block-based offers"""
+        try:
+            uom_ref = offer.get("uom_ref")
+            items_per_block = offer.get("total_items_in_block_qty", 0)
+            discount_per_block = offer.get("total_discount_amount_per_block", 0)
+
+            if not uom_ref or items_per_block <= 0 or discount_per_block <= 0:
+                return 0
+
+            # Count how many blocks of the required UOM we get from optimal combo
+            required_pack = next((p for p in available_packs if p["uom"] == uom_ref), None)
+            if not required_pack:
+                return 0
+
+            blocks_from_combo = optimal_combo.get(str(required_pack["size"]), 0)
+            discount_benefit = blocks_from_combo * discount_per_block
+
+            log.info(f"Pack optimization discount benefit: {blocks_from_combo} blocks × {discount_per_block} = {discount_benefit}")
+            return discount_benefit
+
+        except Exception as e:
+            log.error(f"Error calculating pack optimization discount benefit: {e}")
+            return 0
 
     def _get_available_packs_for_item(self, item_code):
         """Get available pack options for an item from UOM conversions"""
@@ -701,8 +755,8 @@ class DiscountCalculator:
             log.error(f"Error getting available packs for {item_code}: {e}")
             return []
 
-    def _find_optimal_pack_combination(self, total_qty, packs):
-        """DP algorithm to find optimal pack combination"""
+    def _find_optimal_pack_combination(self, total_qty, packs, required_uom=None):
+        """DP algorithm to find optimal pack combination, prioritizing required UOM when costs are equal"""
         if not packs or len(packs) == 0:
             return {"1": total_qty, "total": total_qty * packs[0]["price"] if packs else 0}
 
@@ -717,6 +771,12 @@ class DiscountCalculator:
                 if qty >= pack["size"] and dp[qty - pack["size"]] + pack["price"] < dp[qty]:
                     dp[qty] = dp[qty - pack["size"]] + pack["price"]
                     choices[qty] = {"pack": pack, "prev": qty - pack["size"]}
+                elif qty >= pack["size"] and dp[qty - pack["size"]] + pack["price"] == dp[qty]:
+                    # Same cost - prefer required UOM if specified
+                    if required_uom and pack["uom"] == required_uom:
+                        dp[qty] = dp[qty - pack["size"]] + pack["price"]
+                        choices[qty] = {"pack": pack, "prev": qty - pack["size"]}
+                        log.info(f"Preferred required UOM {required_uom} for qty {qty}")
 
         # Reconstruct optimal combination
         result = {"total": dp[total_qty]}
@@ -730,10 +790,17 @@ class DiscountCalculator:
 
         # Handle remainder
         if current > 0:
-            smallest_pack = min(packs, key=lambda x: x["size"])
-            result[str(smallest_pack["size"])] = result.get(str(smallest_pack["size"]), 0) + current // smallest_pack["size"]
+            # Prefer required UOM for remainder if possible
+            remainder_pack = None
+            if required_uom:
+                remainder_pack = next((p for p in packs if p["uom"] == required_uom and p["size"] <= current), None)
 
-        log.info(f"Optimal pack combination for qty {total_qty}: {result}")
+            if not remainder_pack:
+                remainder_pack = min(packs, key=lambda x: x["size"])
+
+            result[str(remainder_pack["size"])] = result.get(str(remainder_pack["size"]), 0) + current // remainder_pack["size"]
+
+        log.info(f"Optimal pack combination for qty {total_qty} (required_uom: {required_uom}): {result}")
         return result
 
     def _apply_pack_optimization_to_items(self, items, optimal_combo, available_packs):
@@ -746,6 +813,14 @@ class DiscountCalculator:
 
         # Create new items based on optimal combo
         base_item = items[0].copy()  # Use first item as template
+
+        # Lấy base_price (giá/đơn vị stock_uom) để set base_price_list_rate
+        base_pack_1 = next((p for p in available_packs if p["size"] == 1), None)
+        base_unit_price = 0
+        if base_pack_1:
+            base_unit_price = base_pack_1["price"]  # giá theo stock_uom (1 đơn vị)
+        else:
+            base_unit_price = base_item.get("base_price_list_rate") or base_item.get("price_list_rate", 0)
 
         for pack_size_str, qty in optimal_combo.items():
             if pack_size_str == "total" or qty <= 0:
@@ -761,19 +836,23 @@ class DiscountCalculator:
                 new_item["uom"] = pack_info["uom"]
                 new_item["conversion_factor"] = pack_size
 
-                # For pack UOMs, the rate is the price per pack unit
-                # But amount should be calculated as rate * qty (where qty is number of packs)
                 if pack_size == 1:
                     # Single units - use base price
                     new_item["rate"] = base_item.get("price_list_rate", 0)
                     new_item["price_list_rate"] = new_item["rate"]
                 else:
-                    # Pack UOMs - use the pack price from available_packs
-                    new_item["rate"] = pack_info["price"] / pack_size  # Per unit rate within the pack
+                    # PACK UOM: rate = GIÁ/PACK (không chia pack_size)
+                    new_item["rate"] = pack_info["price"]  # ví dụ: 720/thùng, 180/lốc
                     new_item["price_list_rate"] = new_item["rate"]
 
-                new_item["amount"] = new_item["rate"] * qty * pack_size  # Total amount for all units in packs
-                new_item["stock_qty"] = qty * pack_size  # Total units
+                # amount theo UOM của dòng: rate * số pack
+                new_item["amount"] = new_item["rate"] * qty
+
+                # tồn kho tính theo stock_uom
+                new_item["stock_qty"] = qty * pack_size
+
+                # Set base_price_list_rate cho mọi dòng mới (kể cả pack)
+                new_item["base_price_list_rate"] = base_unit_price  # giá/stock_uom để reset chuẩn
 
                 # Reset offer flags for new items
                 new_item["posa_offer_applied"] = 0
@@ -782,7 +861,7 @@ class DiscountCalculator:
                 new_item["applied_offers"] = []
 
                 self.items.append(new_item)
-                log.info(f"Created optimized pack: {pack_size} x {qty} packs, uom={pack_info['uom']}, rate={new_item['rate']}, amount={new_item['amount']}")
+                log.info(f"Created optimized pack: {pack_size} x {qty} packs, uom={pack_info['uom']}, rate={new_item['rate']}, amount={new_item['amount']}, stock_qty={new_item['stock_qty']}")
 
         log.info(f"Pack optimization completed: {len(self.items)} items after optimization")
 
@@ -815,11 +894,10 @@ class DiscountCalculator:
                 item_uom = item.get("uom", item.get("stock_uom"))
                 if item_uom == uom_ref:
                     total_eligible_qty += item.get("qty", 0)
-        
+
         total_blocks = total_eligible_qty // items_per_block
         eligible_blocks = min(total_blocks, max_blocks) if max_blocks > 0 else total_blocks
-        eligible_blocks = max(eligible_blocks, min_blocks)
-        
+
         if eligible_blocks < min_blocks:
             log.info(f"Insufficient blocks for gift: {eligible_blocks} < {min_blocks}")
             return
