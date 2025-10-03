@@ -612,7 +612,9 @@ class DiscountCalculator:
                 pack_opt_result = self._try_pack_optimization_for_offer(offer, force=True)
                 log.info(f"Pack optimization result (forced): {pack_opt_result}")
                 if pack_opt_result:
-                    log.info(f"🔄 Re-applying block discount after pack optimization for '{offer.name}'")
+                    # Gộp các dòng giống nhau sau pack optimization để tránh áp discount đôi
+                    self._coalesce_identical_items()
+                    log.info(f"🔄 Re-applying block discount after pack optimization for '{offer.name}' (with coalesced items)")
                     return self._apply_block_based_discount(offer, _depth=_depth+1)
             except Exception as e:
                 log.error(f"❌ Error during forced pack optimization for offer '{offer.name}': {e}")
@@ -1034,6 +1036,10 @@ class DiscountCalculator:
                 log.info(f"Created optimized pack: {pack_size} x {qty} packs, uom={pack_info['uom']}, rate={new_item['rate']}, amount={new_item['amount']}, stock_qty={new_item['stock_qty']}")
 
         log.info(f"Pack optimization completed: {len(self.items)} items after optimization")
+
+        # Gộp các dòng giống nhau sau khi tạo pack mới để tránh áp discount đôi
+        self._coalesce_identical_items()
+        log.info(f"Items coalesced after pack optimization: {len(self.items)} items after coalescing")
 
     def _apply_block_based_gift_offer(self, offer):
         """Apply block-based gift offer with bonus gifts"""
