@@ -94,8 +94,65 @@ class DiscountCalculator:
 
         log.info("All items reset to original prices.")
 
+    def _coalesce_identical_items(self):
+        """Merge identical non-offer lines into single rows (sum qty)."""
+        log.info(f"Starting item coalescing: {len(self.items)} items before")
+        merged = {}
+        order = []  # keep stable order for first appearance
+
+        for it in self.items:
+            if it.get("posa_is_offer"):
+                # never merge offer/gift lines
+                key = None
+            elif it.get("has_batch_no") or it.get("has_serial_no"):
+                # skip merging batch/serial items
+                key = None
+            else:
+                key = (
+                    it.get("item_code"),
+                    it.get("uom"),
+                    it.get("stock_uom"),
+                    it.get("conversion_factor"),
+                    it.get("price_list_rate"),
+                    it.get("base_price_list_rate"),
+                    it.get("brand"),
+                    it.get("item_group"),
+                    it.get("warehouse"),
+                )
+
+            if not key:
+                # keep as is
+                merged_id = it.get("posa_row_id")
+                merged[merged_id] = it
+                order.append(merged_id)
+                continue
+
+            if key not in merged:
+                merged[key] = it
+                order.append(key)
+            else:
+                tgt = merged[key]
+                # sum qty and recompute amount from current rate
+                old_qty = tgt.get("qty") or 0
+                new_qty = old_qty + (it.get("qty") or 0)
+                tgt["qty"] = new_qty
+                rate = tgt.get("rate", tgt.get("price_list_rate", 0))
+                tgt["amount"] = rate * new_qty
+                log.info(f"Merged item {it.get('item_code')}: qty {old_qty} + {it.get('qty')} = {new_qty}")
+
+        # rebuild self.items in the original-ish order
+        new_items = []
+        for k in order:
+            v = merged[k]
+            new_items.append(v)
+        self.items = new_items
+        log.info(f"Item coalescing completed: {len(self.items)} items after")
+
     def process(self):
-        # Reset all items to original prices before applying new offers
+        # 1) Gộp các dòng giống nhau
+        self._coalesce_identical_items()
+
+        # 2) Reset giá, tìm & áp offer như cũ
         self._reset_item_prices()
         self._get_valid_offers()
         self._find_applicable_offers()
