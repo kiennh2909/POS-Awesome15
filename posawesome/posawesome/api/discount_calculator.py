@@ -504,7 +504,8 @@ class DiscountCalculator:
 
         # sort giảm dần theo rank
         self.applicable_offers.sort(key=offer_rank, reverse=True)
-        log.info(f"Offers sorted by priority: {[f'{o.get('name')} (block={o.get('is_used_block')}, size={o.get('total_items_in_block_qty')})' for o in self.applicable_offers]}")
+        sorted_offer_names = [f"{o.get('name')} (block={o.get('is_used_block')}, size={o.get('total_items_in_block_qty')})" for o in self.applicable_offers]
+        log.info(f"Offers sorted by priority: {sorted_offer_names}")
 
         applied_grand_total = False
         for offer in self.applicable_offers:
