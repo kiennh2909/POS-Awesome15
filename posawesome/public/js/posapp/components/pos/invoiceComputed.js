@@ -55,12 +55,8 @@ export default {
 	total_items_discount_amount() {
 		let sum = 0;
 		this.items.forEach((item) => {
-			// For returns, use absolute value for correct calculation
-			if (this.isReturnInvoice) {
-				sum += Math.abs(flt(item.qty)) * flt(item.discount_amount);
-			} else {
-				sum += flt(item.qty) * flt(item.discount_amount);
-			}
+			// discount_amount is already the total discount for the line item
+			sum += flt(item.discount_amount);
 		});
 		return this.flt(sum, this.float_precision);
 	},
