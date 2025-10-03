@@ -460,12 +460,21 @@ class DiscountCalculator:
                 log.info(f"ℹ️ Item {item.get('item_code')} has different UOM: {item_uom} vs required {uom_ref}")
 
         # If no items match the required UOM, try pack optimization
-        if not has_matching_uom and total_eligible_qty >= items_per_block:
+        log.info(f"Block discount check: has_matching_uom={has_matching_uom}, total_eligible_qty={total_eligible_qty}, items_per_block={items_per_block}")
+        if not has_matching_uom:
             log.info(f"🚀 No items match required UOM {uom_ref}, attempting pack optimization for offer '{offer.name}'")
-            if self._try_pack_optimization_for_offer(offer):
-                # Re-run the discount application after pack optimization
-                log.info(f"🔄 Re-applying block discount after pack optimization for '{offer.name}'")
-                return self._apply_block_based_discount(offer)
+            try:
+                pack_opt_result = self._try_pack_optimization_for_offer(offer)
+                log.info(f"Pack optimization result: {pack_opt_result}")
+                if pack_opt_result:
+                    # Re-run the discount application after pack optimization
+                    log.info(f"🔄 Re-applying block discount after pack optimization for '{offer.name}'")
+                    return self._apply_block_based_discount(offer)
+                else:
+                    log.info(f"❌ Pack optimization failed or not beneficial for offer '{offer.name}'")
+            except Exception as e:
+                log.error(f"❌ Error during pack optimization for offer '{offer.name}': {e}")
+                log.error({"title": "Pack Optimization Error", "traceback": frappe.get_traceback()})
 
         # Apply discount per item - check UOM for each item individually
         applied_items = []
@@ -539,6 +548,8 @@ class DiscountCalculator:
         uom_ref = offer.get("uom_ref")
         items_per_block = offer.get("total_items_in_block_qty", 0)
 
+        log.info(f"Offer config: uom_ref={uom_ref}, items_per_block={items_per_block}")
+
         if not uom_ref or items_per_block <= 0:
             log.error(f"Invalid offer configuration for pack optimization: uom_ref={uom_ref}, items_per_block={items_per_block}")
             return False
@@ -547,26 +558,39 @@ class DiscountCalculator:
         optimizable_items = []
         total_qty = 0
 
+        log.info(f"Checking {len(offer.get('items', []))} items for optimization")
         for item_row_id in offer.get("items", []):
             item = next((i for i in self.items if i.get("posa_row_id") == item_row_id), None)
             if not item or item.get("posa_offer_applied"):
+                log.info(f"Skipping item {item_row_id}: not found or already applied")
                 continue
 
             item_uom = item.get("uom", item.get("stock_uom"))
             item_qty = item.get("qty", 0)
 
+            log.info(f"Item {item.get('item_code')}: uom={item_uom}, stock_uom={item.get('stock_uom')}, qty={item_qty}")
+
             # Only consider items with stock UOM (individual units)
-            if item_uom == item.get("stock_uom") and item_qty >= items_per_block:
+            if item_uom == item.get("stock_uom"):
                 optimizable_items.append(item)
                 total_qty += item_qty
                 log.info(f"📦 Found optimizable item {item.get('item_code')}: qty={item_qty}, uom={item_uom}")
+            else:
+                log.info(f"❌ Item {item.get('item_code')} has different UOM: {item_uom} vs {item.get('stock_uom')}")
 
-        if not optimizable_items or total_qty < items_per_block:
+        log.info(f"Total optimizable items: {len(optimizable_items)}, total_qty: {total_qty}, required: {items_per_block}")
+
+        if not optimizable_items:
+            log.info(f"❌ No optimizable items found")
+            return False
+
+        if total_qty < items_per_block:
             log.info(f"❌ Not enough quantity for pack optimization: total_qty={total_qty}, required={items_per_block}")
             return False
 
         # Get available packs for this item
         item_code = optimizable_items[0].get("item_code")  # Assume all items are the same
+        log.info(f"Getting available packs for item: {item_code}")
         available_packs = self._get_available_packs_for_item(item_code)
 
         if not available_packs:
@@ -574,10 +598,21 @@ class DiscountCalculator:
             return False
 
         # Find optimal pack combination
+        log.info(f"Finding optimal combination for qty: {total_qty}")
         optimal_combo = self._find_optimal_pack_combination(total_qty, available_packs)
 
-        if not optimal_combo or optimal_combo.get("total", 0) >= total_qty * optimizable_items[0].get("price_list_rate", 0):
-            log.info(f"❌ Pack optimization not beneficial or failed")
+        if not optimal_combo:
+            log.info(f"❌ No optimal combo found")
+            return False
+
+        current_total_cost = optimal_combo.get("total", 0)
+        base_price = optimizable_items[0].get("price_list_rate", 0)
+        regular_cost = total_qty * base_price
+
+        log.info(f"Cost comparison: optimal={current_total_cost}, regular={regular_cost}")
+
+        if current_total_cost >= regular_cost:
+            log.info(f"❌ Pack optimization not beneficial: {current_total_cost} >= {regular_cost}")
             return False
 
         # Apply pack optimization by splitting items
@@ -596,23 +631,52 @@ class DiscountCalculator:
                 fields=["uom", "conversion_factor"]
             )
 
-            # Add stock UOM as pack size 1
+            # Get base price from item (this is the price per stock UOM unit)
             item_doc = frappe.get_doc("Item", item_code)
             stock_uom = item_doc.stock_uom
+
+            # Get base price from Item Price doctype for stock UOM
+            base_price = frappe.db.get_value(
+                "Item Price",
+                {
+                    "item_code": item_code,
+                    "price_list": self.pos_profile.selling_price_list,
+                    "uom": stock_uom,
+                    "selling": 1
+                },
+                "price_list_rate"
+            ) or 0
 
             packs = [{
                 "size": 1,
                 "uom": stock_uom,
-                "price": item_doc.get("price_list_rate") or 0
+                "price": base_price
             }]
 
-            # Add other UOMs as packs
+            # Add other UOMs as packs - price is for the entire pack
             for uom_conv in uom_conversions:
                 if uom_conv.conversion_factor > 1:  # Only consider pack UOMs
+                    pack_size = int(uom_conv.conversion_factor)
+                    # For packs, we need to get the price for the entire pack UOM
+                    pack_price = frappe.db.get_value(
+                        "Item Price",
+                        {
+                            "item_code": item_code,
+                            "price_list": self.pos_profile.selling_price_list,
+                            "uom": uom_conv.uom,
+                            "selling": 1
+                        },
+                        "price_list_rate"
+                    )
+
+                    # If no specific pack price, calculate from base price
+                    if not pack_price:
+                        pack_price = base_price * pack_size
+
                     packs.append({
-                        "size": int(uom_conv.conversion_factor),
+                        "size": pack_size,
                         "uom": uom_conv.uom,
-                        "price": 0  # Will be calculated based on base price
+                        "price": pack_price
                     })
 
             # Sort by size ascending for DP algorithm
@@ -669,7 +733,6 @@ class DiscountCalculator:
 
         # Create new items based on optimal combo
         base_item = items[0].copy()  # Use first item as template
-        base_price = base_item.get("price_list_rate", 0)
 
         for pack_size_str, qty in optimal_combo.items():
             if pack_size_str == "total" or qty <= 0:
@@ -683,18 +746,21 @@ class DiscountCalculator:
                 new_item["posa_row_id"] = f"PACK-{frappe.generate_hash(length=8)}"
                 new_item["qty"] = qty
                 new_item["uom"] = pack_info["uom"]
-
-                # Calculate price for this pack
-                if pack_size == 1:
-                    new_item["rate"] = base_price
-                    new_item["price_list_rate"] = base_price
-                else:
-                    # For packs, price is base_price * pack_size (but will be discounted by offer)
-                    new_item["rate"] = base_price * pack_size / pack_size  # Per unit rate
-                    new_item["price_list_rate"] = base_price * pack_size / pack_size
-
-                new_item["amount"] = new_item["rate"] * qty
                 new_item["conversion_factor"] = pack_size
+
+                # For pack UOMs, the rate is the price per pack unit
+                # But amount should be calculated as rate * qty (where qty is number of packs)
+                if pack_size == 1:
+                    # Single units - use base price
+                    new_item["rate"] = base_item.get("price_list_rate", 0)
+                    new_item["price_list_rate"] = new_item["rate"]
+                else:
+                    # Pack UOMs - use the pack price from available_packs
+                    new_item["rate"] = pack_info["price"] / pack_size  # Per unit rate within the pack
+                    new_item["price_list_rate"] = new_item["rate"]
+
+                new_item["amount"] = new_item["rate"] * qty * pack_size  # Total amount for all units in packs
+                new_item["stock_qty"] = qty * pack_size  # Total units
 
                 # Reset offer flags for new items
                 new_item["posa_offer_applied"] = 0
@@ -703,7 +769,7 @@ class DiscountCalculator:
                 new_item["applied_offers"] = []
 
                 self.items.append(new_item)
-                log.info(f"Created optimized pack: {pack_size} x {qty} units, uom={pack_info['uom']}")
+                log.info(f"Created optimized pack: {pack_size} x {qty} packs, uom={pack_info['uom']}, rate={new_item['rate']}, amount={new_item['amount']}")
 
         log.info(f"Pack optimization completed: {len(self.items)} items after optimization")
 
