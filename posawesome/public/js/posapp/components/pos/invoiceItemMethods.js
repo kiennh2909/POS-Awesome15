@@ -1,4 +1,3 @@
-import packOptimizer from "../packOptimizer.js";
 import {
 	isOffline,
 	saveCustomerBalance,
@@ -10,6 +9,9 @@ import {
 	getTaxTemplate,
 	getTaxInclusiveSetting,
 } from "../../../offline/index.js";
+
+// Import format utilities
+import { formatCurrency } from "../../format.js";
 
 export default {
 	remove_item(item) {
@@ -29,360 +31,292 @@ export default {
 			});
 		}
 	},
-        add_item(item) {
-                console.log("Invoice.add_item received", {
-                        code: item.item_code,
-                        rate: item.rate,
-                });
 
-                // Check if this item should use pack optimization
-                if (this.shouldAutoOptimizePacks() && item.uom === item.stock_uom) {
-                        const existingQty = this.getExistingItemQty(item.item_code);
-                        const newTotalQty = existingQty + (item.qty || 1);
+       add_item(item) {
+               console.log("Invoice.add_item received", {
+                       code: item.item_code,
+                       rate: item.rate,
+               });
+               if (!item.uom) {
+                       item.uom = item.stock_uom;
+               }
 
-                        console.log("Checking pack optimization", {
-                                item_code: item.item_code,
-                                existing_qty: existingQty,
-                                new_qty: item.qty || 1,
-                                total_qty: newTotalQty
+               // Check if pack optimization should be applied
+               if (this.shouldOptimizePacks(item)) {
+                       console.log('[PACK_OPTIMIZER] Applying pack optimization for:', item.item_code);
+                       return this.add_item_with_pack_optimization(item);
+               }
+		let index = -1;
+		if (!this.new_line) {
+			// Simplified logic: just check item_code, uom, and basic flags
+			// Ignore complex batch logic that can cause mismatches
+			index = this.items.findIndex(
+				(el) =>
+					el.item_code === item.item_code &&
+					el.uom === item.uom &&
+					!el.posa_is_offer &&
+					!el.posa_is_replace,
+			);
+
+			// Debug: Log item matching logic
+			console.log("add_item: checking for existing item", {
+				new_item: {
+					item_code: item.item_code,
+					uom: item.uom,
+					has_batch_no: item.has_batch_no,
+					batch_no: item.batch_no,
+					posa_is_offer: item.posa_is_offer,
+					posa_is_replace: item.posa_is_replace
+				},
+				posa_auto_set_batch: this.pos_profile.posa_auto_set_batch,
+				items_count: this.items.length,
+				found_index: index
+			});
+
+			// Log existing items for comparison
+			if (this.items.length > 0) {
+				console.log("add_item: existing items in cart:");
+				this.items.forEach((existing, idx) => {
+					console.log(`  [${idx}]:`, {
+						item_code: existing.item_code,
+						uom: existing.uom,
+						has_batch_no: existing.has_batch_no,
+						batch_no: existing.batch_no,
+						posa_is_offer: existing.posa_is_offer,
+						posa_is_replace: existing.posa_is_replace,
+						posa_row_id: existing.posa_row_id
+					});
+				});
+			}
+		}
+
+		let new_item;
+		if (index === -1 || this.new_line) {
+			new_item = this.get_new_item(item);
+			// Handle serial number logic
+			if (item.has_serial_no && item.to_set_serial_no) {
+				new_item.serial_no_selected = [];
+				new_item.serial_no_selected.push(item.to_set_serial_no);
+				item.to_set_serial_no = null;
+			}
+			// Handle batch number logic
+			if (item.has_batch_no && item.to_set_batch_no) {
+				new_item.batch_no = item.to_set_batch_no;
+				item.to_set_batch_no = null;
+				item.batch_no = null;
+				this.set_batch_qty(new_item, new_item.batch_no, false);
+			}
+			// Make quantity negative for returns
+			if (this.isReturnInvoice) {
+				new_item.qty = -Math.abs(new_item.qty || 1);
+			}
+
+                       this.items.unshift(new_item);
+                       // Replace the newly inserted item at index 0 to ensure
+                       // Vue reactivity and avoid overwriting existing rows
+                       this.items[0] = { ...new_item };
+                       console.log("Item inserted at", 0, {
+                               code: new_item.item_code,
+                               rate: new_item.rate,
+                       });
+                       // Force update of item rates when item is first added
+                       console.log("Before update_item_detail - Initial item state", {
+                               Item_code: new_item.item_code,
+                               Price: new_item.rate,
+                               Uom: new_item.uom,
+                               base_rate: new_item.base_rate,
+                               stock_uom: new_item.stock_uom,
+                               conversion_factor: new_item.conversion_factor
+                       });
+                       this.update_item_detail(new_item, true);
+                       console.log("After update_item_detail - Item state after server call", {
+                               Item_code: new_item.item_code,
+                               Price: new_item.rate,
+                               Uom: new_item.uom,
+                               base_rate: new_item.base_rate,
+                               base_price_list_rate: new_item.base_price_list_rate,
+                               stock_uom: new_item.stock_uom,
+                               conversion_factor: new_item.conversion_factor
+                       });
+                       // Apply UOM conversion immediately
+                       if (new_item.uom && new_item.uom !== new_item.stock_uom) {
+                        console.log("Calling calc_uom for barcode scan", {
+                         Item_code: new_item.item_code,
+                         current_uom: new_item.uom,
+                         stock_uom: new_item.stock_uom,
+                         base_rate_before: new_item.base_rate,
+                         rate_before: new_item.rate
+                        });
+                   
+                        // CRITICAL: Apply immediate UOM conversion to ensure rate is correct before ItemsTable renders
+                        // First, ensure we have the correct conversion_factor by finding the UOM
+                        const uomData = this.find_uom(new_item, new_item.uom);
+                        if (uomData) {
+                        	// Direct assignment since this is not a Vue component context
+                        	new_item.conversion_factor = uomData.conversion_factor;
+                        	console.log("UOM data found for immediate conversion", {
+                        		Item_code: new_item.item_code,
+                        		uom: new_item.uom,
+                        		conversion_factor: new_item.conversion_factor
+                        	});
+                   
+                        	// Ensure base_rate is set before conversion
+                        	if (!new_item.base_rate || new_item.base_rate === 0) {
+                        		new_item.base_rate = new_item.rate || 0;
+                        		console.log("Setting base_rate for immediate conversion", {
+                        			Item_code: new_item.item_code,
+                        			base_rate: new_item.base_rate,
+                        			original_rate: new_item.rate
+                        		});
+                        	}
+                   
+                        	// Apply immediate conversion if needed
+                        	if (new_item.base_rate && new_item.conversion_factor !== 1) {
+                        		const convertedRate = new_item.base_rate * new_item.conversion_factor;
+                        		new_item.rate = convertedRate;
+                        		new_item.price_list_rate = (new_item.base_price_list_rate || new_item.base_rate) * new_item.conversion_factor;
+                        		console.log("Immediate UOM conversion applied in add_item", {
+                        			Item_code: new_item.item_code,
+                        			base_rate: new_item.base_rate,
+                        			conversion_factor: new_item.conversion_factor,
+                        			converted_rate: convertedRate
+                        		});
+                        	}
+                        } else {
+                        	console.log("No UOM data found for immediate conversion", {
+                        		Item_code: new_item.item_code,
+                        		uom: new_item.uom,
+                        		stock_uom: new_item.stock_uom
+                        	});
+                        }
+                   
+                        this.calc_uom(new_item, new_item.uom);
+                        console.log("After calc_uom for barcode scan", {
+                         Item_code: new_item.item_code,
+                         final_uom: new_item.uom,
+                         base_rate_after: new_item.base_rate,
+                         rate_after: new_item.rate,
+                         conversion_factor: new_item.conversion_factor
                         });
 
-                        // Only optimize if we have enough quantity for meaningful optimization
-                        if (newTotalQty >= 6) { // Minimum for 6-pack
-                                this.optimizeItemPacks(item, newTotalQty).then(optimizationResult => {
-                                        if (optimizationResult) {
-                                                console.log("Applying pack optimization", optimizationResult);
-
-                                                // Remove existing items of this type
-                                                this.items = this.items.filter(existingItem =>
-                                                        existingItem.item_code !== item.item_code ||
-                                                        existingItem.posa_is_offer ||
-                                                        existingItem.posa_is_replace
-                                                );
-
-                                                // Apply optimized pack combination
-                                                this.applyPackOptimization(item, optimizationResult).then(optimizedItems => {
-                                                        // Add optimized items to cart
-                                                        optimizedItems.forEach(optimizedItem => {
-                                                                this.items.unshift(optimizedItem);
-                                                        });
-
-                                                        // Show savings message
-                                                        const savings = optimizationResult.savings;
-                                                        if (savings.savings > 0) {
-                                                                this.eventBus.emit("show_message", {
-                                                                        title: __(`Pack optimization saved ${this.flt(savings.savings, 0)} VND (${savings.savingsPercent.toFixed(1)}%)`),
-                                                                        color: "success",
-                                                                        duration: 3000
-                                                                });
-                                                        }
-
-                                                        // Force UI updates
-                                                        this.$forceUpdate();
-
-                                                        // Trigger discount calculation
-                                                        if (!this.isApplyingDiscount) {
-                                                                this.$nextTick(() => {
-                                                                        setTimeout(() => {
-                                                                                this.calculateDiscountsDebounced();
-                                                                        }, 10);
-                                                                });
-                                                        }
-                                                });
-                                                return; // Exit early - optimization handled
-                                        } else {
-                                                // Continue with normal add_item logic
-                                                this.add_item_normal(item);
-                                        }
-                                }).catch(error => {
-                                        console.error("Pack optimization failed, using normal add_item", error);
-                                        this.add_item_normal(item);
-                                });
-                                return;
-                        }
-                }
-
-                // Normal add_item logic
-                this.add_item_normal(item);
-        },
-
-        // Original add_item logic extracted to separate method
-        add_item_normal(item) {
-                if (!item.uom) {
-                        item.uom = item.stock_uom;
-                }
-
-                let index = -1;
-                if (!this.new_line) {
-                        // Simplified logic: just check item_code, uom, and basic flags
-                        // Ignore complex batch logic that can cause mismatches
-                        index = this.items.findIndex(
-                                (el) =>
-                                        el.item_code === item.item_code &&
-                                        el.uom === item.uom &&
-                                        !el.posa_is_offer &&
-                                        !el.posa_is_replace,
-                        );
-
-                        // Debug: Log item matching logic
-                        console.log("add_item: checking for existing item", {
-                                new_item: {
-                                        item_code: item.item_code,
-                                        uom: item.uom,
-                                        has_batch_no: item.has_batch_no,
-                                        batch_no: item.batch_no,
-                                        posa_is_offer: item.posa_is_offer,
-                                        posa_is_replace: item.posa_is_replace
-                                },
-                                posa_auto_set_batch: this.pos_profile.posa_auto_set_batch,
-                                items_count: this.items.length,
-                                found_index: index
-                        });
-
-                        // Log existing items for comparison
-                        if (this.items.length > 0) {
-                                console.log("add_item: existing items in cart:");
-                                this.items.forEach((existing, idx) => {
-                                        console.log(`  [${idx}]:`, {
-                                                item_code: existing.item_code,
-                                                uom: existing.uom,
-                                                has_batch_no: existing.has_batch_no,
-                                                batch_no: existing.batch_no,
-                                                posa_is_offer: existing.posa_is_offer,
-                                                posa_is_replace: existing.posa_is_replace,
-                                                posa_row_id: existing.posa_row_id
-                                        });
-                                });
-                        }
-                }
-
-                let new_item;
-                if (index === -1 || this.new_line) {
-                        new_item = this.get_new_item(item);
-                        // Handle serial number logic
-                        if (item.has_serial_no && item.to_set_serial_no) {
-                                new_item.serial_no_selected = [];
-                                new_item.serial_no_selected.push(item.to_set_serial_no);
-                                item.to_set_serial_no = null;
-                        }
-                        // Handle batch number logic
-                        if (item.has_batch_no && item.to_set_batch_no) {
-                                new_item.batch_no = item.to_set_batch_no;
-                                item.to_set_batch_no = null;
-                                item.batch_no = null;
-                                this.set_batch_qty(new_item, new_item.batch_no, false);
-                        }
-                        // Make quantity negative for returns
-                        if (this.isReturnInvoice) {
-                                new_item.qty = -Math.abs(new_item.qty || 1);
-                        }
-
-                        this.items.unshift(new_item);
-                        // Replace the newly inserted item at index 0 to ensure
-                        // Vue reactivity and avoid overwriting existing rows
-                        this.items[0] = { ...new_item };
-                        console.log("Item inserted at", 0, {
-                                code: new_item.item_code,
-                                rate: new_item.rate,
-                        });
-                        // Force update of item rates when item is first added
-                        console.log("Before update_item_detail - Initial item state", {
-                                Item_code: new_item.item_code,
-                                Price: new_item.rate,
-                                Uom: new_item.uom,
-                                base_rate: new_item.base_rate,
-                                stock_uom: new_item.stock_uom,
-                                conversion_factor: new_item.conversion_factor
-                        });
-                        this.update_item_detail(new_item, true);
-                        console.log("After update_item_detail - Item state after server call", {
-                                Item_code: new_item.item_code,
-                                Price: new_item.rate,
-                                Uom: new_item.uom,
-                                base_rate: new_item.base_rate,
-                                base_price_list_rate: new_item.base_price_list_rate,
-                                stock_uom: new_item.stock_uom,
-                                conversion_factor: new_item.conversion_factor
-                        });
-                        // Apply UOM conversion immediately
-                        if (new_item.uom && new_item.uom !== new_item.stock_uom) {
-                         console.log("Calling calc_uom for barcode scan", {
-                          Item_code: new_item.item_code,
-                          current_uom: new_item.uom,
-                          stock_uom: new_item.stock_uom,
-                          base_rate_before: new_item.base_rate,
-                          rate_before: new_item.rate
-                         });
-
-                         // CRITICAL: Apply immediate UOM conversion to ensure rate is correct before ItemsTable renders
-                         // First, ensure we have the correct conversion_factor by finding the UOM
-                         const uomData = this.find_uom(new_item, new_item.uom);
-                         if (uomData) {
-                         	// Direct assignment since this is not a Vue component context
-                         	new_item.conversion_factor = uomData.conversion_factor;
-                         	console.log("UOM data found for immediate conversion", {
+                        // CRITICAL: Force update ItemsTable after calc_uom completes
+                        setTimeout(() => {
+                         	this.$forceUpdate();
+                         	console.log("Force update after calc_uom completion", {
                          		Item_code: new_item.item_code,
-                         		uom: new_item.uom,
+                         		rate_after_force_update: new_item.rate,
                          		conversion_factor: new_item.conversion_factor
                          	});
+                         }, 50);
 
-                         	// Ensure base_rate is set before conversion
-                         	if (!new_item.base_rate || new_item.base_rate === 0) {
-                         		new_item.base_rate = new_item.rate || 0;
-                         		console.log("Setting base_rate for immediate conversion", {
-                         			Item_code: new_item.item_code,
-                         			base_rate: new_item.base_rate,
-                         			original_rate: new_item.rate
-                         		});
-                         	}
-
-                         	// Apply immediate conversion if needed
-                         	if (new_item.base_rate && new_item.conversion_factor !== 1) {
-                         		const convertedRate = new_item.base_rate * new_item.conversion_factor;
-                         		new_item.rate = convertedRate;
-                         		new_item.price_list_rate = (new_item.base_price_list_rate || new_item.base_rate) * new_item.conversion_factor;
-                         		console.log("Immediate UOM conversion applied in add_item", {
-                         			Item_code: new_item.item_code,
-                         			base_rate: new_item.base_rate,
-                         			conversion_factor: new_item.conversion_factor,
-                         			converted_rate: convertedRate
-                         		});
-                         	}
-                         } else {
-                         	console.log("No UOM data found for immediate conversion", {
-                         		Item_code: new_item.item_code,
-                         		uom: new_item.uom,
-                         		stock_uom: new_item.stock_uom
-                         	});
-                         }
-
-                         this.calc_uom(new_item, new_item.uom);
-                         console.log("After calc_uom for barcode scan", {
-                          Item_code: new_item.item_code,
-                          final_uom: new_item.uom,
-                          base_rate_after: new_item.base_rate,
-                          rate_after: new_item.rate,
-                          conversion_factor: new_item.conversion_factor
-                         });
-
-                         // CRITICAL: Force update ItemsTable after calc_uom completes
+                         // CRITICAL: Force update after calc_uom to ensure ItemsTable gets the updated rate
                          setTimeout(() => {
-                          	this.$forceUpdate();
-                          	console.log("Force update after calc_uom completion", {
-                          		Item_code: new_item.item_code,
-                          		rate_after_force_update: new_item.rate,
-                          		conversion_factor: new_item.conversion_factor
-                          	});
-                          }, 50);
+                         	this.$forceUpdate();
+                         	// Emit event to force ItemsTable update
+                         	this.eventBus.emit("force_items_table_update");
+                         	console.log("Force update after calc_uom completion", {
+                         		Item_code: new_item.item_code,
+                         		rate_after_force_update: new_item.rate,
+                         		conversion_factor: new_item.conversion_factor
+                         	});
+                         }, 100);
+                       } else {
+                        console.log("No UOM conversion needed for barcode scan", {
+                         Item_code: new_item.item_code,
+                         uom: new_item.uom,
+                         stock_uom: new_item.stock_uom,
+                         rate: new_item.rate
+                        });
+                       }
 
-                          // CRITICAL: Force update after calc_uom to ensure ItemsTable gets the updated rate
-                          setTimeout(() => {
-                          	this.$forceUpdate();
-                          	// Emit event to force ItemsTable update
-                          	this.eventBus.emit("force_items_table_update");
-                          	console.log("Force update after calc_uom completion", {
-                          		Item_code: new_item.item_code,
-                          		rate_after_force_update: new_item.rate,
-                          		conversion_factor: new_item.conversion_factor
-                          	});
-                          }, 100);
-                        } else {
-                         console.log("No UOM conversion needed for barcode scan", {
-                          Item_code: new_item.item_code,
-                          uom: new_item.uom,
-                          stock_uom: new_item.stock_uom,
-                          rate: new_item.rate
-                         });
-                        }
+   // Ensure stock_qty is calculated correctly after UOM conversion
+   this.calc_stock_qty(new_item, new_item.qty);
 
-    // Ensure stock_qty is calculated correctly after UOM conversion
-    this.calc_stock_qty(new_item, new_item.qty);
+   // Force Vue reactivity update for ItemsTable - critical for price display
+   this.$forceUpdate();
 
-    // Force Vue reactivity update for ItemsTable - critical for price display
-    this.$forceUpdate();
+   // Additional force update after a short delay to ensure all async operations complete
+   setTimeout(() => {
+   	this.$forceUpdate();
+   	console.log("Additional force update after barcode scan", {
+   		Item_code: new_item.item_code,
+   		final_rate: new_item.rate,
+   		final_uom: new_item.uom
+   	});
+   }, 200);
 
-    // Additional force update after a short delay to ensure all async operations complete
-    setTimeout(() => {
-     this.$forceUpdate();
-     console.log("Additional force update after barcode scan", {
-      Item_code: new_item.item_code,
-      final_rate: new_item.rate,
-      final_uom: new_item.uom
-     });
-    }, 200);
+   console.log("Barcode scan - Final quantities after UOM conversion", {
+   	Item_code: new_item.item_code,
+   	Price: new_item.rate,
+   	Uom: new_item.uom,
+   	display_qty: new_item.qty,
+   	stock_qty: new_item.stock_qty,
+   	conversion_factor: new_item.conversion_factor,
+   	stock_uom: new_item.stock_uom,
+   	base_rate: new_item.base_rate,
+   	expected_display_rate: new_item.base_rate * new_item.conversion_factor
+   });
 
-    console.log("Barcode scan - Final quantities after UOM conversion", {
-     Item_code: new_item.item_code,
-     Price: new_item.rate,
-     Uom: new_item.uom,
-     display_qty: new_item.qty,
-     stock_qty: new_item.stock_qty,
-     conversion_factor: new_item.conversion_factor,
-     stock_uom: new_item.stock_uom,
-     base_rate: new_item.base_rate,
-     expected_display_rate: new_item.base_rate * new_item.conversion_factor
-    });
+			// Expand new item if it has batch or serial number
+			if ((!this.pos_profile.posa_auto_set_batch && new_item.has_batch_no) || new_item.has_serial_no) {
+				this.$nextTick(() => {
+					this.expanded = [new_item.posa_row_id];
+				});
+			}
+		} else {
+			const cur_item = this.items[index];
+			this.update_items_details([cur_item]);
+			// Serial number logic for existing item
+			if (item.has_serial_no && item.to_set_serial_no) {
+				if (cur_item.serial_no_selected.includes(item.to_set_serial_no)) {
+					this.eventBus.emit("show_message", {
+						title: __(`This Serial Number {0} has already been added!`, [item.to_set_serial_no]),
+						color: "warning",
+					});
+					item.to_set_serial_no = null;
+					return;
+				}
+				cur_item.serial_no_selected.push(item.to_set_serial_no);
+				item.to_set_serial_no = null;
+			}
 
-   // Expand new item if it has batch or serial number
-   if ((!this.pos_profile.posa_auto_set_batch && new_item.has_batch_no) || new_item.has_serial_no) {
-    this.$nextTick(() => {
-     this.expanded = [new_item.posa_row_id];
-    });
-   }
-  } else {
-   const cur_item = this.items[index];
-   this.update_items_details([cur_item]);
-   // Serial number logic for existing item
-   if (item.has_serial_no && item.to_set_serial_no) {
-    if (cur_item.serial_no_selected.includes(item.to_set_serial_no)) {
-     this.eventBus.emit("show_message", {
-      title: __(`This Serial Number {0} has already been added!`, [item.to_set_serial_no]),
-      color: "warning",
-     });
-     item.to_set_serial_no = null;
-     return;
-    }
-    cur_item.serial_no_selected.push(item.to_set_serial_no);
-    item.to_set_serial_no = null;
-   }
+			// For returns, subtract from quantity to make it more negative
+			if (this.isReturnInvoice) {
+				cur_item.qty -= item.qty || 1;
+			} else {
+				cur_item.qty += item.qty || 1;
+			}
+			this.calc_stock_qty(cur_item, cur_item.qty);
 
-   // For returns, subtract from quantity to make it more negative
-   if (this.isReturnInvoice) {
-    cur_item.qty -= item.qty || 1;
-   } else {
-    cur_item.qty += item.qty || 1;
-   }
-   this.calc_stock_qty(cur_item, cur_item.qty);
+			// Update batch quantity if needed
+			if (cur_item.has_batch_no && cur_item.batch_no) {
+				this.set_batch_qty(cur_item, cur_item.batch_no, false);
+			}
 
-   // Update batch quantity if needed
-   if (cur_item.has_batch_no && cur_item.batch_no) {
-    this.set_batch_qty(cur_item, cur_item.batch_no, false);
-   }
+			this.set_serial_no(cur_item);
+			if (cur_item.uom && cur_item.uom !== cur_item.stock_uom) {
+				this.calc_uom(cur_item, cur_item.uom);
+			}
 
-   this.set_serial_no(cur_item);
-   if (cur_item.uom && cur_item.uom !== cur_item.stock_uom) {
-    this.calc_uom(cur_item, cur_item.uom);
-   }
+			// Ensure Vue watcher is triggered after all updates complete (if not already applying)
+			if (!this.isApplyingDiscount) {
+				this.$nextTick(() => {
+					setTimeout(() => {
+						this.calculateDiscountsDebounced();
+					}, 10);
+				});
+			}
+		}
+		this.$forceUpdate();
 
-   // Ensure Vue watcher is triggered after all updates complete (if not already applying)
-   if (!this.isApplyingDiscount) {
-    this.$nextTick(() => {
-     setTimeout(() => {
-      this.calculateDiscountsDebounced();
-     }, 10);
-    });
-   }
-  }
-  this.$forceUpdate();
-
-  // Only try to expand if new_item exists and should be expanded
-  if (
-  	new_item &&
-  	((!this.pos_profile.posa_auto_set_batch && new_item.has_batch_no) || new_item.has_serial_no)
-  ) {
-  	this.expanded = [new_item.posa_row_id];
-  }
- },
+		// Only try to expand if new_item exists and should be expanded
+		if (
+			new_item &&
+			((!this.pos_profile.posa_auto_set_batch && new_item.has_batch_no) || new_item.has_serial_no)
+		) {
+			this.expanded = [new_item.posa_row_id];
+		}
+	},
 
 	// Create a new item object with default and calculated fields
 	get_new_item(item) {
@@ -3206,115 +3140,255 @@ export default {
 	// 		}
 	// 	});
 
-	// Optimize pack combinations for items with multiple UOM options
-	async optimizeItemPacks(item, totalQty) {
-		console.log("optimizeItemPacks called", {
-			item_code: item.item_code,
-			total_qty: totalQty,
-			current_uom: item.uom
+	// 	d.show();
+	// ============================================================================
+	// PACK OPTIMIZATION FUNCTIONS - Tự động tối ưu combo pack
+	// ============================================================================
+
+	// Lấy danh sách pack có sẵn từ POS Offers (động từ Item Price)
+	getAvailablePacks(item_code) {
+		const packs = [];
+
+		// Lấy thông tin item để biết stock UOM
+		const item = this.items.find(i => i.item_code === item_code) ||
+					this.allItems?.find(i => i.item_code === item_code);
+
+		if (!item) {
+			console.warn('[PACK_OPTIMIZER] Item not found:', item_code);
+			return packs;
+		}
+
+		const stockUOM = item.stock_uom;
+		const basePrice = item.base_price_list_rate || item.price_list_rate || 0;
+
+		// Pack lẻ (không KM) - luôn có với giá từ Item Price
+		packs.push({
+			size: 1,
+			uom: stockUOM,
+			price: basePrice,
+			is_offer: false
 		});
 
-		try {
-			// Get available packs for this item
-			const availablePacks = await packOptimizer.getAvailablePacks(item.item_code, this.pos_profile);
+		// Lấy packs từ POS Offers đang active
+		if (this.posa_offers && Array.isArray(this.posa_offers)) {
+			this.posa_offers.forEach(offer => {
+				if (offer.is_used_block && offer.uom_ref && offer.total_items_in_block_qty) {
+					// Kiểm tra offer có áp dụng cho item này không
+					if (this.isOfferApplicableToItem(offer, item_code)) {
+						// Tính giá pack sau KM
+						const originalPrice = this.getPackOriginalPrice(offer.total_items_in_block_qty, item_code);
+						const discountAmount = offer.total_discount_amount_per_block || 0;
+						const packPrice = Math.max(0, originalPrice - discountAmount); // Đảm bảo không âm
 
-			if (!availablePacks || availablePacks.length <= 1) {
-				console.log("No pack optimization needed - only one or no packs available");
-				return null; // No optimization needed
-			}
-
-			console.log("Available packs for optimization:", availablePacks);
-
-			// Get optimal combination
-			const optimalCombo = packOptimizer.getOptimalCombo(totalQty, availablePacks);
-
-			console.log("Optimal combo calculated:", optimalCombo);
-
-			// If no optimization benefit, return null
-			if (optimalCombo.total >= totalQty * (item.rate || 33)) {
-				console.log("No optimization benefit - keeping individual items");
-				return null;
-			}
-
-			return {
-				originalQty: totalQty,
-				optimalCombo: optimalCombo,
-				availablePacks: availablePacks,
-				savings: packOptimizer.getSavingsComparison(optimalCombo, item.rate || 33)
-			};
-
-		} catch (error) {
-			console.error("Error in pack optimization:", error);
-			return null;
+						packs.push({
+							size: offer.total_items_in_block_qty,
+							uom: offer.uom_ref,
+							price: packPrice,
+							is_offer: true,
+							offer: offer
+						});
+					}
+				}
+			});
 		}
+
+		// Sắp xếp theo size tăng dần để DP hoạt động đúng
+		return packs.sort((a, b) => a.size - b.size);
 	},
 
-	// Apply pack optimization by creating multiple invoice lines
-	async applyPackOptimization(item, optimizationResult) {
-		console.log("applyPackOptimization called", {
-			item_code: item.item_code,
-			optimization: optimizationResult
-		});
+	// Kiểm tra offer có áp dụng cho item không
+	isOfferApplicableToItem(offer, item_code) {
+		// Kiểm tra theo item code hoặc item group
+		if (offer.item && offer.item === item_code) return true;
+		if (offer.item_group) {
+			// TODO: Kiểm tra item có thuộc item group không
+			return true; // Tạm thời return true
+		}
+		return false;
+	},
 
-		const { optimalCombo, availablePacks } = optimizationResult;
-		const optimizedItems = [];
+	// Tính giá gốc của pack (trước KM)
+	getPackOriginalPrice(packSize, item_code) {
+		// Lấy thông tin item
+		const item = this.items.find(i => i.item_code === item_code) ||
+					this.allItems?.find(i => i.item_code === item_code);
 
-		// Create invoice lines for each pack type
-		[24, 6, 1].forEach(packSize => {
-			const qty = optimalCombo[packSize];
-			if (qty > 0) {
-				const pack = availablePacks.find(p => p.size === packSize);
-				if (pack) {
-					const optimizedItem = {
-						...item,
-						qty: qty,
-						uom: pack.uom,
-						rate: pack.price,
-						price_list_rate: pack.price,
-						conversion_factor: pack.conversion_factor || 1,
-						posa_row_id: this.makeid(20),
-						_pack_optimized: true,
-						_pack_size: packSize,
-						_original_item_code: item.item_code
-					};
+		if (!item) {
+			console.warn('[PACK_OPTIMIZER] Item not found for price calculation:', item_code);
+			return 0;
+		}
 
-					// Calculate amounts
-					optimizedItem.amount = optimizedItem.qty * optimizedItem.rate;
-					optimizedItem.stock_qty = optimizedItem.qty * optimizedItem.conversion_factor;
+		// Lấy giá từ Item Price cho stock UOM
+		const basePrice = item.base_price_list_rate || item.price_list_rate || 0;
+		return basePrice * packSize;
+	},
 
-					// Set base rates
-					const baseCurrency = this.price_list_currency || this.pos_profile.currency;
-					if (this.selected_currency !== baseCurrency) {
-						optimizedItem.base_rate = optimizedItem.rate / this.exchange_rate;
-						optimizedItem.base_price_list_rate = optimizedItem.price_list_rate / this.exchange_rate;
-						optimizedItem.base_amount = optimizedItem.amount / this.exchange_rate;
-					} else {
-						optimizedItem.base_rate = optimizedItem.rate;
-						optimizedItem.base_price_list_rate = optimizedItem.price_list_rate;
-						optimizedItem.base_amount = optimizedItem.amount;
-					}
+	// Thuật toán DP để tìm combo pack tối ưu (min cost)
+	findOptimalPackCombination(totalQty, packs) {
+		console.log('[PACK_OPTIMIZER] Finding optimal combo for qty:', totalQty, 'with packs:', packs);
 
-					optimizedItems.push(optimizedItem);
-					console.log(`Created optimized item line: ${pack.uom} x ${qty} @ ${pack.price}`);
+		if (!packs || packs.length === 0) {
+			// Nếu không có packs, dùng pack lẻ với giá từ pack đầu tiên (nếu có)
+			const unitPrice = packs.length > 0 ? packs[0].price / packs[0].size : 0;
+			return {1: totalQty, total: totalQty * unitPrice};
+		}
+
+		// Khởi tạo DP array
+		const dp = new Array(totalQty + 1).fill(Infinity);
+		const choices = new Array(totalQty + 1).fill(null);
+
+		dp[0] = 0;
+
+		// Điền DP table
+		for (let qty = 1; qty <= totalQty; qty++) {
+			for (const pack of packs) {
+				if (qty >= pack.size && dp[qty - pack.size] + pack.price < dp[qty]) {
+					dp[qty] = dp[qty - pack.size] + pack.price;
+					choices[qty] = {pack: pack, prev: qty - pack.size};
+				}
+			}
+		}
+
+		// Reconstruct optimal combination - sử dụng pack sizes động
+		const result = {total: dp[totalQty]};
+		let current = totalQty;
+
+		while (current > 0 && choices[current]) {
+			const choice = choices[current];
+			const packSize = choice.pack.size;
+
+			// Tăng số lượng pack tương ứng
+			result[packSize] = (result[packSize] || 0) + 1;
+
+			current = choice.prev;
+		}
+
+		// Xử lý phần dư (nếu có) - dùng pack nhỏ nhất
+		if (current > 0) {
+			const smallestPack = Math.min(...packs.map(p => p.size));
+			result[smallestPack] = (result[smallestPack] || 0) + Math.ceil(current / smallestPack);
+		}
+
+		console.log('[PACK_OPTIMIZER] Optimal combo found:', result);
+		return result;
+	},
+
+	// Tách item thành multiple lines theo combo tối ưu
+	splitItemIntoOptimalPacks(item, optimalCombo, availablePacks) {
+		console.log('[PACK_SPLITTER] Splitting item into optimal packs:', item.item_code, optimalCombo);
+
+		const newItems = [];
+		const baseItem = {...item};
+
+		// Tạo line cho từng loại pack trong optimalCombo
+		Object.keys(optimalCombo).forEach(packSizeStr => {
+			const qty = optimalCombo[packSizeStr];
+			if (qty > 0 && packSizeStr !== 'total') {
+				const packSize = parseInt(packSizeStr);
+				const packItem = {...baseItem};
+				packItem.posa_row_id = this.makeid(20);
+				packItem.qty = qty;
+
+				// Tìm pack tương ứng để lấy UOM và giá
+				const packInfo = availablePacks.find(p => p.size === packSize);
+				if (packInfo) {
+					packItem.uom = packInfo.uom;
+					packItem.rate = packInfo.price / packInfo.size; // Giá per unit
+					packItem.price_list_rate = packItem.rate;
+					packItem.amount = packItem.qty * packItem.rate;
+
+					// Set conversion factor dựa trên pack size
+					packItem.conversion_factor = packInfo.size;
+
+					// Tính stock_qty
+					this.calc_stock_qty(packItem, packItem.qty);
+
+					newItems.push(packItem);
+					console.log('[PACK_SPLITTER] Created pack line:', packSize, 'qty:', qty, 'rate:', packItem.rate, 'uom:', packItem.uom);
 				}
 			}
 		});
 
-		return optimizedItems;
+		return newItems;
 	},
 
-	// Check if POS profile allows automatic pack optimization
-	shouldAutoOptimizePacks() {
-		// Check POS profile setting - default to true if not set
-		return this.pos_profile.posa_auto_optimize_packs !== false;
+
+	// Tích hợp pack optimization vào add_item
+	add_item_with_pack_optimization(item) {
+		console.log('[PACK_OPTIMIZER] add_item_with_pack_optimization called for:', item.item_code, 'qty:', item.qty);
+
+		// Kiểm tra có cần tối ưu pack không
+		const shouldOptimize = this.shouldOptimizePacks(item);
+		if (!shouldOptimize) {
+			// Dùng logic add_item thông thường
+			return this.add_item(item);
+		}
+
+		// Lấy danh sách packs có sẵn
+		const availablePacks = this.getAvailablePacks(item.item_code);
+		console.log('[PACK_OPTIMIZER] Available packs:', availablePacks);
+
+		// Tìm combo tối ưu
+		const optimalCombo = this.findOptimalPackCombination(item.qty, availablePacks);
+
+		// Tách thành multiple lines
+		const packItems = this.splitItemIntoOptimalPacks(item, optimalCombo, availablePacks);
+
+		// Thêm các lines vào invoice
+		packItems.forEach(packItem => {
+			this.items.unshift(packItem);
+			this.update_item_detail(packItem, true);
+		});
+
+		// Force update UI
+		this.$forceUpdate();
+
+		// Hiển thị thông báo combo tối ưu
+		this.showPackOptimizationMessage(optimalCombo, availablePacks);
+
+		console.log('[PACK_OPTIMIZER] Pack optimization completed for:', item.item_code);
 	},
 
-	// Get existing quantity for an item in the current cart
-	getExistingItemQty(itemCode) {
-		return this.items
-			.filter(item => item.item_code === itemCode && !item.posa_is_offer)
-			.reduce((total, item) => total + (item.qty || 0), 0);
+	// Kiểm tra có nên tối ưu pack không
+	shouldOptimizePacks(item) {
+		// Tối ưu cho tất cả items có POS offers với block discounts
+		return this.posa_offers && this.posa_offers.some(offer =>
+			offer.is_used_block && offer.uom_ref && offer.total_items_in_block_qty
+		);
 	},
-	// 	d.show();
-	// },
+
+	// Hiển thị thông báo combo tối ưu
+	showPackOptimizationMessage(optimalCombo, availablePacks) {
+		const savings = this.calculateSavings(optimalCombo, availablePacks);
+		if (savings > 0) {
+			this.eventBus.emit("show_message", {
+				title: __("Combo tối ưu được áp dụng"),
+				text: __(`Tiết kiệm ${formatCurrency(savings)} so với mua lẻ`),
+				color: "success",
+			});
+		}
+	},
+
+	// Tính số tiền tiết kiệm
+	calculateSavings(optimalCombo, availablePacks) {
+		// Tìm pack lẻ để tính giá gốc
+		const unitPack = availablePacks.find(p => p.size === 1);
+		if (!unitPack) return 0;
+
+		// Tính tổng số lượng từ optimalCombo
+		let totalQty = 0;
+		Object.keys(optimalCombo).forEach(packSize => {
+			if (packSize !== 'total') {
+				totalQty += parseInt(packSize) * optimalCombo[packSize];
+			}
+		});
+
+		const regularPrice = totalQty * (unitPack.price / unitPack.size); // Giá mua lẻ per unit
+		const optimizedPrice = optimalCombo.total;
+		return Math.max(0, regularPrice - optimizedPrice); // Đảm bảo không âm
+	},
+
+	// ============================================================================
+	// END PACK OPTIMIZATION FUNCTIONS
+	// ============================================================================
 };

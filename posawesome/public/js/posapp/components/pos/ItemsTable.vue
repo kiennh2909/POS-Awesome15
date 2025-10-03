@@ -87,6 +87,22 @@
 				></v-checkbox-btn>
 			</template>
 
+			<!-- Pack info column -->
+			<template v-slot:item.pack_info="{ item }">
+				<div class="pack-info-display">
+					<v-chip
+						v-if="getPackInfo(item)"
+						:color="getPackInfo(item).color"
+						size="small"
+						variant="flat"
+						class="pack-chip"
+					>
+						<v-icon size="small" class="mr-1">{{ getPackInfo(item).icon }}</v-icon>
+						{{ getPackInfo(item).text }}
+					</v-chip>
+				</div>
+			</template>
+
 			<!-- Expanded row content using Vuetify's built-in system -->
 			<template v-slot:expanded-row="{ item }">
 				<td :colspan="headers.length" class="ma-0 pa-0">
@@ -810,6 +826,51 @@ export default {
 				this.eventBus.off("highlight_scanned_item");
 			}
 		},
+
+		// Get pack information for display
+		getPackInfo(item) {
+			// Check if item is part of a pack based on UOM (dynamic)
+			if (item.uom && item.uom.includes('THÙNG')) {
+				// Extract pack size from UOM (e.g., 'THÙNG-24' -> 24)
+				const packSizeMatch = item.uom.match(/THÙNG-(\d+)/);
+				if (packSizeMatch) {
+					const packSize = parseInt(packSizeMatch[1]);
+					// Dynamic pack display based on size
+					let color = 'info';
+					let icon = 'mdi-package-variant';
+
+					// Color coding based on pack size (can be customized)
+					if (packSize >= 20) {
+						color = 'success';
+						icon = 'mdi-package-variant-closed';
+					} else if (packSize >= 10) {
+						color = 'primary';
+						icon = 'mdi-package-variant';
+					} else if (packSize >= 5) {
+						color = 'secondary';
+						icon = 'mdi-package-variant';
+					}
+
+					return {
+						text: `${packSize} Pack`,
+						icon: icon,
+						color: color
+					};
+				}
+			}
+
+			// Check if item has offer applied (combo discount)
+			if (item.posa_offer_applied) {
+				return {
+					text: 'Combo',
+					icon: 'mdi-percent',
+					color: 'warning'
+				};
+			}
+
+			// Default for single items
+			return null;
+		},
 	},
 };
 </script>
@@ -1231,5 +1292,24 @@ export default {
 		transform: scale(1);
 		box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
 	}
+}
+
+/* Pack info display styling */
+.pack-info-display {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	min-height: 32px;
+}
+
+.pack-chip {
+	font-size: 0.75rem !important;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.pack-chip .v-icon {
+	margin-right: 4px !important;
 }
 </style>

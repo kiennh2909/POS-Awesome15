@@ -493,6 +493,7 @@ export default {
 				{ title: __("Discount %"), key: "discount_value", align: "start", required: false },
 				{ title: __("Discount Amount"), key: "discount_amount", align: "start", required: false },
 				{ title: __("Amount"), key: "amount", align: "start", required: true },
+				{ title: __("Pack Info"), key: "pack_info", align: "center", required: false },
 				{ title: __("Offer?"), key: "posa_is_offer", align: "center", required: false },
 			];
 
@@ -506,6 +507,8 @@ export default {
 							return true;
 						if (col.key === "discount_amount" && this.pos_profile.posa_display_discount_amount)
 							return true;
+						// Enable pack_info by default as it's a useful feature
+						if (col.key === "pack_info") return true;
 						return false;
 					})
 					.map((col) => col.key);
