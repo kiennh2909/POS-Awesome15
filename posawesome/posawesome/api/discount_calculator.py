@@ -489,6 +489,23 @@ class DiscountCalculator:
         # A real implementation should handle offer priorities, stacking rules, etc.
         # This simplified version applies the first applicable offer of each type.
         log.info(f"Starting to apply {len(self.applicable_offers)} offers...")
+
+        # Ưu tiên áp dụng offers theo thứ tự: block-based lớn trước, rồi theo benefit
+        def offer_rank(o):
+            # Ưu tiên: block-based item price > tiered > others
+            is_block = 1 if o.get("offer") == "Item Price" and o.get("is_used_block") else 0
+            items_per_block = int(o.get("total_items_in_block_qty") or 0)
+            # benefit per unit (cao hơn → tốt hơn)
+            benefit_per_unit = 0.0
+            if is_block and items_per_block > 0:
+                benefit_per_unit = float(o.get("total_discount_amount_per_block") or 0.0) / items_per_block
+            # sort key: block trước, rồi theo kích cỡ block giảm dần, rồi theo benefit/đơn vị giảm dần
+            return (is_block, items_per_block, benefit_per_unit)
+
+        # sort giảm dần theo rank
+        self.applicable_offers.sort(key=offer_rank, reverse=True)
+        log.info(f"Offers sorted by priority: {[f'{o.get('name')} (block={o.get('is_used_block')}, size={o.get('total_items_in_block_qty')})' for o in self.applicable_offers]}")
+
         applied_grand_total = False
         for offer in self.applicable_offers:
             offer_type = offer.get("offer")
