@@ -611,9 +611,22 @@ class DiscountCalculator:
 
         log.info(f"Cost comparison: optimal={current_total_cost}, regular={regular_cost}")
 
-        if current_total_cost >= regular_cost:
-            log.info(f"❌ Pack optimization not beneficial: {current_total_cost} >= {regular_cost}")
+        # For pack optimization to be beneficial, it should be cheaper than regular cost
+        # OR it should enable block discounts that weren't possible before
+        is_beneficial = current_total_cost < regular_cost
+
+        # Special case: Even if cost is same, optimization might be needed to enable block discounts
+        # Check if the optimal combo includes the required UOM for the offer
+        has_required_uom = optimal_combo.get(str(int(items_per_block))) and optimal_combo.get(str(int(items_per_block))) > 0
+
+        if not is_beneficial and not has_required_uom:
+            log.info(f"❌ Pack optimization not beneficial: {current_total_cost} >= {regular_cost} and doesn't enable required UOM")
             return False
+
+        if has_required_uom:
+            log.info(f"✅ Pack optimization enables required UOM {uom_ref} for block discount")
+        elif is_beneficial:
+            log.info(f"✅ Pack optimization is cost beneficial: {current_total_cost} < {regular_cost}")
 
         # Apply pack optimization by splitting items
         log.info(f"✅ Applying pack optimization: {optimal_combo}")
