@@ -289,20 +289,6 @@ fixtures = [
 		],
 	},
 	{
-		"doctype": "Custom Field",
-		"filters": [
-			[
-				"name",
-				"in",
-				[
-					"Sales Invoice Item-posa_original_base_rate",
-					"Sales Invoice Item-posa_stock_uom_price",
-					"Sales Invoice Item-posa_conversion_log",
-				],
-			]
-		],
-	},
-	{
 		"doctype": "Server Script",
 		"filters": [
 			[
