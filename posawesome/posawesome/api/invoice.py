@@ -23,17 +23,18 @@ def validate(doc, method):
 	log.info(f"[INVOICE_VALIDATION] START - Invoice: {doc.name}, Amount: {doc.grand_total}")
 
 	# Log Item Prices before invoice creation
-	log.info(f"[ITEM_PRICE_LOG] 📝 BEFORE INVOICE CREATION - Invoice: {doc.name}")
+	log.info(f"[ITEM_PRICE_LOG] 📝 BEFORE INVOICE CREATION - Invoice: {doc.name}, Selling Price List: {doc.selling_price_list}")
 	for item in doc.items:
 		# Get Item Price from database
+		price_list = doc.selling_price_list or "Standard Selling"
 		item_price_data = frappe.db.get_value("Item Price",
-			{"item_code": item.item_code, "price_list": doc.selling_price_list or "Standard Selling"},
+			{"item_code": item.item_code, "price_list": price_list},
 			["price_list_rate", "currency"], as_dict=True)
 		item_price_rate = item_price_data.price_list_rate if item_price_data else 0
 		item_price_currency = item_price_data.currency if item_price_data else "N/A"
 
 		log.info(f"[ITEM_PRICE_LOG] 📝 Item: {item.item_code}, Qty: {item.qty}, Rate: {item.rate}, Amount: {item.amount}, Discount: {item.discount_amount}")
-		log.info(f"[ITEM_PRICE_LOG] 📝 Item Price Table: {item.item_code}, Price List Rate: {item_price_rate}, Currency: {item_price_currency}")
+		log.info(f"[ITEM_PRICE_LOG] 📝 Item Price Table: {item.item_code}, Price List: {price_list}, Price List Rate: {item_price_rate}, Currency: {item_price_currency}")
 
 	validate_shift(doc)
 	set_patient(doc)
@@ -62,17 +63,18 @@ def on_submit(doc, method):
 	log.info(f"[INVOICE_TRACKING] ON_SUBMIT - Trigger on - Invoice: {doc.name}, Amount: {doc.grand_total}")
 
 	# Log Item Prices after successful invoice creation
-	log.info(f"[ITEM_PRICE_LOG] ✅ AFTER INVOICE CREATION SUCCESS - Invoice: {doc.name}")
+	log.info(f"[ITEM_PRICE_LOG] ✅ AFTER INVOICE CREATION SUCCESS - Invoice: {doc.name}, Selling Price List: {doc.selling_price_list}")
 	for item in doc.items:
 		# Get Item Price from database
+		price_list = doc.selling_price_list or "Standard Selling"
 		item_price_data = frappe.db.get_value("Item Price",
-			{"item_code": item.item_code, "price_list": doc.selling_price_list or "Standard Selling"},
+			{"item_code": item.item_code, "price_list": price_list},
 			["price_list_rate", "currency"], as_dict=True)
 		item_price_rate = item_price_data.price_list_rate if item_price_data else 0
 		item_price_currency = item_price_data.currency if item_price_data else "N/A"
 
 		log.info(f"[ITEM_PRICE_LOG] ✅ Item: {item.item_code}, Qty: {item.qty}, Rate: {item.rate}, Amount: {item.amount}, Discount: {item.discount_amount}")
-		log.info(f"[ITEM_PRICE_LOG] ✅ Item Price Table: {item.item_code}, Price List Rate: {item_price_rate}, Currency: {item_price_currency}")
+		log.info(f"[ITEM_PRICE_LOG] ✅ Item Price Table: {item.item_code}, Price List: {price_list}, Price List Rate: {item_price_rate}, Currency: {item_price_currency}")
 
 	if hasattr(doc, 'pos_shift_report') and doc.pos_shift_report:
 		update_shift_report_with_invoice(doc, "submit")
