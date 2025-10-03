@@ -10,8 +10,23 @@ import {
 	getTaxInclusiveSetting,
 } from "../../../offline/index.js";
 
-// Import format utilities
-import { formatCurrency } from "../../format.js";
+// Local formatCurrency function
+function formatCurrency(value, precision = 2) {
+	if (value === null || value === undefined) {
+		value = 0;
+	}
+	let number = Number(String(value).replace(/,/g, ""));
+	if (isNaN(number)) number = 0;
+	let prec = precision != null ? Number(precision) : 2;
+	// Clamp precision to the valid range 0-20 to avoid RangeError
+	if (!Number.isInteger(prec) || prec < 0 || prec > 20) {
+		prec = Math.min(Math.max(parseInt(prec) || 2, 0), 20);
+	}
+	return number.toLocaleString("en-US", {
+		minimumFractionDigits: prec,
+		maximumFractionDigits: prec,
+	});
+}
 
 export default {
 	remove_item(item) {
