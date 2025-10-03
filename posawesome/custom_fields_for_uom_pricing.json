@@ -1,0 +1,38 @@
+[
+	{
+		"doctype": "Custom Field",
+		"name": "Sales Invoice Item-posa_original_base_rate",
+		"dt": "Sales Invoice Item",
+		"fieldname": "posa_original_base_rate",
+		"fieldtype": "Float",
+		"label": "Original Base Rate (Stock UOM)",
+		"description": "Giá gốc theo Stock UOM để audit - không thay đổi sau khi áp offer",
+		"insert_after": "base_price_list_rate",
+		"read_only": 1,
+		"precision": 4
+	},
+	{
+		"doctype": "Custom Field",
+		"name": "Sales Invoice Item-posa_stock_uom_price",
+		"dt": "Sales Invoice Item",
+		"fieldname": "posa_stock_uom_price",
+		"fieldtype": "Float",
+		"label": "Stock UOM Price",
+		"description": "Giá theo đơn vị Stock UOM (base price)",
+		"insert_after": "posa_original_base_rate",
+		"read_only": 1,
+		"precision": 4
+	},
+	{
+		"doctype": "Custom Field",
+		"name": "Sales Invoice Item-posa_conversion_log",
+		"dt": "Sales Invoice Item",
+		"fieldname": "posa_conversion_log",
+		"fieldtype": "Small Text",
+		"label": "UOM Conversion Log",
+		"description": "Log quy trình quy đổi UOM để audit",
+		"insert_after": "posa_stock_uom_price",
+		"read_only": 1,
+		"length": 500
+	}
+]

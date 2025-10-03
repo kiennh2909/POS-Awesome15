@@ -66,12 +66,32 @@ class DiscountCalculator:
             if not item.get("posa_is_offer"):  # Don't reset gift items
                 # Log current state
                 current_rate = item.get("rate", 0)
-                original_rate = item.get("price_list_rate", 0)
-                log.info(f"Resetting item {item.get('item_code')}: current_rate={current_rate}, original_rate={original_rate}")
+                base_price_list_rate = item.get("base_price_list_rate", 0)
+                conversion_factor = item.get("conversion_factor", 1)
+                uom = item.get("uom")
+                stock_uom = item.get("stock_uom")
 
-                # Reset to original price list rate
-                item["rate"] = original_rate
-                item["amount"] = original_rate * item.get("qty", 0)
+                log.info(f"Resetting item {item.get('item_code')}: current_rate={current_rate}, base_price_list_rate={base_price_list_rate}, uom={uom}, stock_uom={stock_uom}, conversion_factor={conversion_factor}")
+
+                # Calculate original base rate (stock UOM price for audit)
+                original_base_rate = base_price_list_rate
+                if uom != stock_uom and conversion_factor > 0:
+                    # If UOM different from stock_uom, convert back to stock_uom price
+                    original_base_rate = base_price_list_rate / conversion_factor
+
+                # Reset to base price list rate (always in stock UOM) converted to display UOM
+                if uom == stock_uom:
+                    reset_rate = base_price_list_rate
+                else:
+                    reset_rate = base_price_list_rate * conversion_factor
+
+                # Set custom audit fields
+                item["posa_original_base_rate"] = original_base_rate  # Audit field: stock UOM price
+                item["posa_stock_uom_price"] = original_base_rate     # Same as above for clarity
+                item["posa_conversion_log"] = f"UOM:{uom}→{stock_uom}, factor:{conversion_factor}, base_price:{base_price_list_rate}"
+
+                item["rate"] = reset_rate
+                item["amount"] = reset_rate * item.get("qty", 0)
 
                 # Reset discount fields
                 item["discount_amount"] = 0
@@ -81,7 +101,7 @@ class DiscountCalculator:
                 # Clear applied offers log
                 item["applied_offers"] = []
 
-                log.info(f"Item {item.get('item_code')} reset: new_rate={item['rate']}, amount={item['amount']}")
+                log.info(f"Item {item.get('item_code')} reset: display_rate={reset_rate}, original_base_rate={original_base_rate}, audit_fields_set")
 
         log.info("All items reset to original prices.")
 

@@ -104,6 +104,9 @@ doc_events = {
 		"validate": "posawesome.posawesome.api.customer.validate",
 		"after_insert": "posawesome.posawesome.api.customer.after_insert",
 	},
+	"Item Price": {
+		"after_insert": "posawesome.posawesome.api.item_price_monitor.alert_invalid_uom",
+	},
 }
 
 # Scheduled Tasks
@@ -281,6 +284,33 @@ fixtures = [
 				[
 					"POS Profile-posa_allow_multi_currency",
 					"POS Profile-posa_decimal_precision",
+				],
+			]
+		],
+	},
+	{
+		"doctype": "Custom Field",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Sales Invoice Item-posa_original_base_rate",
+					"Sales Invoice Item-posa_stock_uom_price",
+					"Sales Invoice Item-posa_conversion_log",
+				],
+			]
+		],
+	},
+	{
+		"doctype": "Server Script",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Block Item Price UOM != Stock UOM",
+					"Block Manual Rate Edit on Sales Invoice",
 				],
 			]
 		],

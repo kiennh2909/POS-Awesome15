@@ -1,0 +1,18 @@
+[
+	{
+		"doctype": "Server Script",
+		"name": "Block Item Price UOM != Stock UOM",
+		"script_type": "DocType Event",
+		"doctype_event": "Before Save",
+		"reference_doctype": "Item Price",
+		"script": "if doc.uom != frappe.db.get_value('Item', doc.item_code, 'stock_uom'):\n    frappe.throw(f'Không được tạo/sửa Item Price với UOM {doc.uom}. Chỉ cho phép UOM gốc {frappe.db.get_value(\"Item\", doc.item_code, \"stock_uom\")} của item {doc.item_code}.')"
+	},
+	{
+		"doctype": "Server Script",
+		"name": "Block Manual Rate Edit on Sales Invoice",
+		"script_type": "DocType Event",
+		"doctype_event": "Validate",
+		"reference_doctype": "Sales Invoice",
+		"script": "for item in doc.items:\n    if item.posa_offer_applied == 0 and item.rate != item.price_list_rate:\n        frappe.throw(f'Không được sửa rate tay cho item {item.item_code}. Rate phải bằng price_list_rate trước khi áp Offer.')\n    elif item.posa_offer_applied == 1 and item.rate > item.price_list_rate:\n        frappe.throw(f'Không được tăng rate sau khi áp Offer cho item {item.item_code}.')"
+	}
+]
