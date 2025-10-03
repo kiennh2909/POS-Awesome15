@@ -271,28 +271,45 @@ class DiscountCalculator:
 
         # For block-based discounts and tiered pricing, check minimum quantity requirement first
         if offer.get("is_used_block") or offer.get("is_used_tiered_pricing"):
+            # ---- NEW: verify min blocks by converting to stock units ----
+            uom_ref = offer.get("uom_ref")
             items_per_block = int(offer.get("total_items_in_block_qty") or 0)
             min_blocks = int(offer.get("min_block_qty") or 1)
-            required_units = items_per_block * max(1, min_blocks)
 
-            if items_per_block <= 0:
-                log.error(f"Offer '{offer.name}' invalid items_per_block: {items_per_block}")
+            if not (uom_ref and items_per_block > 0):
+                log.info("❌ Block offer missing uom_ref or items_per_block")
                 return False
 
-            if total_qty < required_units:
-                log.info(
-                    f"❌ Block offer '{offer.name}' requires at least {required_units} units "
-                    f"({min_blocks} block x {items_per_block}); got {total_qty}. Not applicable."
-                )
+            eligible_units = 0  # count in stock_uom units
+
+            for it in matching_items:
+                qty = it.get("qty", 0) or 0
+                item_uom = it.get("uom") or it.get("stock_uom")
+                stock_uom = it.get("stock_uom")
+                cf = it.get("conversion_factor") or 1
+
+                # Quy đổi về stock_uom:
+                # - Nếu dòng đang ở stock_uom: + qty
+                # - Nếu dòng ở pack UOM: + qty * conversion_factor
+                # (conversion_factor của chính dòng là số đơn vị stock trong 1 pack)
+                if item_uom == stock_uom:
+                    eligible_units += qty
+                else:
+                    eligible_units += qty * int(cf)
+
+            total_blocks = eligible_units // items_per_block
+
+            if total_blocks < min_blocks:
+                req_units = min_blocks * items_per_block
+                log.info(f"❌ Block offer '{offer.name}' requires at least {req_units} units "
+                         f"({min_blocks} block x {items_per_block}); got {eligible_units}. Not applicable.")
                 return False
 
-            # Đủ lượng tối thiểu → gom item rows & trả về True
-            offer["items"] = [item.get("posa_row_id") for item in matching_items]
-            offer["original_qty"] = total_qty
-            log.info(
-                f"✅ Block-based Item Code offer applicable: items={offer['items']}, "
-                f"total_original_qty={total_qty}, min_required={required_units}"
-            )
+            # Lưu danh sách dòng để các bước sau xử lý (pack-opt/discount)
+            offer["items"] = [it.get("posa_row_id") for it in matching_items]
+            offer["original_qty"] = eligible_units  # (tuỳ bạn: có thể lưu theo stock units)
+            log.info(f"✅ Block-based Item Code offer applicable after unit conversion. "
+                     f"eligible_units={eligible_units}, total_blocks={total_blocks}")
             return True
 
         # For regular offers, check total qty/amount conditions across all matching items
@@ -440,20 +457,52 @@ class DiscountCalculator:
         """Apply block-based discount per item with UOM validation and auto-pack optimization"""
         log.info(f"Executing _apply_block_based_discount for '{offer.name}'")
 
+        # Rebuild offer["items"] from current cart to avoid stale posa_row_id after pack optimization
+        try:
+            apply_on = offer.get("apply_on")
+            fresh_rows = []
+            if apply_on == "Item Code":
+                target_item = offer.get("item")
+                for i in self.items:
+                    if not i.get("posa_is_offer") and i.get("item_code") == target_item:
+                        fresh_rows.append(i.get("posa_row_id"))
+            elif apply_on == "Item Group":
+                target_group = offer.get("item_group")
+                for i in self.items:
+                    if not i.get("posa_is_offer") and i.get("item_group") == target_group:
+                        fresh_rows.append(i.get("posa_row_id"))
+            elif apply_on == "Brand":
+                target_brand = offer.get("brand")
+                for i in self.items:
+                    if not i.get("posa_is_offer") and i.get("brand") == target_brand:
+                        fresh_rows.append(i.get("posa_row_id"))
+            elif apply_on == "Transaction":
+                # transaction-level: tất cả non-offer items
+                fresh_rows = [i.get("posa_row_id") for i in self.items if not i.get("posa_is_offer")]
+
+            if fresh_rows:
+                offer["items"] = fresh_rows
+                log.info(f"🔄 Refreshed offer['items'] with current cart rows: {fresh_rows}")
+            else:
+                log.info("ℹ️ No matching rows found in current cart for this offer after refresh.")
+        except Exception as _e:
+            log.error(f"Failed to refresh offer['items']: {_e}")
+
         # Validate UOM configuration
         uom_ref = offer.get("uom_ref")
         if not uom_ref:
             log.error(f"Offer '{offer.name}' missing uom_ref for block-based discount")
             return
 
-        items_per_block = offer.get("total_items_in_block_qty", 0)
+        # 👇 ép kiểu an toàn
+        items_per_block = int(offer.get("total_items_in_block_qty") or 0)
         if items_per_block <= 0:
             log.error(f"Offer '{offer.name}' invalid items_per_block: {items_per_block}")
             return
 
-        discount_per_block = offer.get("total_discount_amount_per_block", 0)
-        min_blocks = offer.get("min_block_qty", 1)
-        max_blocks = offer.get("max_eligible_block_qty", 0)
+        discount_per_block = float(offer.get("total_discount_amount_per_block") or 0)
+        min_blocks = int(offer.get("min_block_qty") or 1)
+        max_blocks = int(offer.get("max_eligible_block_qty") or 0)  # 0 = unlimited
 
         log.info(f"Block config: UOM={uom_ref}, items_per_block={items_per_block}, discount_per_block={discount_per_block}")
 
@@ -467,7 +516,8 @@ class DiscountCalculator:
                 continue
 
             item_uom = item.get("uom", item.get("stock_uom"))
-            item_qty = item.get("qty", 0)
+            # 👇 qty về int để tính block
+            item_qty = int(item.get("qty", 0) or 0)
 
             if item_uom == uom_ref:
                 has_matching_uom = True
@@ -503,7 +553,8 @@ class DiscountCalculator:
 
             # Validate UOM for this specific item
             item_uom = item.get("uom", item.get("stock_uom"))
-            item_qty = item.get("qty", 0)
+            # 👇 qty về int để tính block
+            item_qty = int(item.get("qty", 0) or 0)
 
             log.info(f"Checking item {item.get('item_code')}: UOM={item_uom}, qty={item_qty}")
 
@@ -564,7 +615,7 @@ class DiscountCalculator:
         log.info(f"🚀 Attempting pack optimization for offer '{offer.name}'")
 
         uom_ref = offer.get("uom_ref")
-        items_per_block = offer.get("total_items_in_block_qty", 0)
+        items_per_block = int(offer.get("total_items_in_block_qty") or 0)
 
         log.info(f"Offer config: uom_ref={uom_ref}, items_per_block={items_per_block}")
 
@@ -774,48 +825,56 @@ class DiscountCalculator:
 
     def _find_optimal_pack_combination(self, total_qty, packs, required_uom=None):
         """DP algorithm to find optimal pack combination, prioritizing required UOM when costs are equal"""
-        if not packs or len(packs) == 0:
-            return {"1": total_qty, "total": total_qty * packs[0]["price"] if packs else 0}
+        if not packs:
+            return {"1": total_qty, "total": 0}
 
-        # Initialize DP
         dp = [float('inf')] * (total_qty + 1)
         choices = [None] * (total_qty + 1)
         dp[0] = 0
 
-        # Fill DP table
         for qty in range(1, total_qty + 1):
             for pack in packs:
-                if qty >= pack["size"] and dp[qty - pack["size"]] + pack["price"] < dp[qty]:
-                    dp[qty] = dp[qty - pack["size"]] + pack["price"]
-                    choices[qty] = {"pack": pack, "prev": qty - pack["size"]}
-                elif qty >= pack["size"] and dp[qty - pack["size"]] + pack["price"] == dp[qty]:
-                    # Same cost - prefer required UOM if specified
-                    if required_uom and pack["uom"] == required_uom:
-                        dp[qty] = dp[qty - pack["size"]] + pack["price"]
+                if qty >= pack["size"]:
+                    cand = dp[qty - pack["size"]] + pack["price"]
+                    if cand < dp[qty]:
+                        dp[qty] = cand
                         choices[qty] = {"pack": pack, "prev": qty - pack["size"]}
-                        log.info(f"Preferred required UOM {required_uom} for qty {qty}")
+                    elif cand == dp[qty] and required_uom and pack["uom"] == required_uom:
+                        # tie-break: ưu tiên UOM yêu cầu
+                        choices[qty] = {"pack": pack, "prev": qty - pack["size"]}
 
-        # Reconstruct optimal combination
-        result = {"total": dp[total_qty]}
+        result = {}
         current = total_qty
 
+        # reconstruct
         while current > 0 and choices[current]:
             choice = choices[current]
-            pack_size = choice["pack"]["size"]
-            result[str(pack_size)] = result.get(str(pack_size), 0) + 1
+            sz = choice["pack"]["size"]
+            result[str(sz)] = result.get(str(sz), 0) + 1
             current = choice["prev"]
 
-        # Handle remainder
+        # fallback remainder nếu không build được đủ
         if current > 0:
-            # Prefer required UOM for remainder if possible
             remainder_pack = None
             if required_uom:
-                remainder_pack = next((p for p in packs if p["uom"] == required_uom and p["size"] <= current), None)
-
+                # pack nhỏ nhất thỏa required_uom và ≤ current (nếu có)
+                candidates = [p for p in packs if p["uom"] == required_uom and p["size"] <= current]
+                if candidates:
+                    remainder_pack = max(candidates, key=lambda x: x["size"])
             if not remainder_pack:
+                # pack nhỏ nhất để lấp phần còn lại
                 remainder_pack = min(packs, key=lambda x: x["size"])
+            count = (current + remainder_pack["size"] - 1) // remainder_pack["size"]  # ceil
+            result[str(remainder_pack["size"])] = result.get(str(remainder_pack["size"]), 0) + count
+            current = 0
 
-            result[str(remainder_pack["size"])] = result.get(str(remainder_pack["size"]), 0) + current // remainder_pack["size"]
+        # 🔧 luôn tính lại total từ combo
+        total_cost = 0.0
+        for p in packs:
+            c = result.get(str(p["size"]), 0)
+            if c:
+                total_cost += c * p["price"]
+        result["total"] = total_cost
 
         log.info(f"Optimal pack combination for qty {total_qty} (required_uom: {required_uom}): {result}")
         return result
