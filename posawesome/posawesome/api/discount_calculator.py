@@ -269,13 +269,30 @@ class DiscountCalculator:
 
         log.info(f"Found {len(matching_items)} matching items, total_qty={total_qty}, total_amount={total_amount}")
 
-        # For block-based discounts and tiered pricing, collect all matching items
-        # The block/tiered calculation will handle per-item UOM validation
+        # For block-based discounts and tiered pricing, check minimum quantity requirement first
         if offer.get("is_used_block") or offer.get("is_used_tiered_pricing"):
-            log.info(f"✅ Block-based or tiered pricing offer, collecting all matching items")
+            items_per_block = int(offer.get("total_items_in_block_qty") or 0)
+            min_blocks = int(offer.get("min_block_qty") or 1)
+            required_units = items_per_block * max(1, min_blocks)
+
+            if items_per_block <= 0:
+                log.error(f"Offer '{offer.name}' invalid items_per_block: {items_per_block}")
+                return False
+
+            if total_qty < required_units:
+                log.info(
+                    f"❌ Block offer '{offer.name}' requires at least {required_units} units "
+                    f"({min_blocks} block x {items_per_block}); got {total_qty}. Not applicable."
+                )
+                return False
+
+            # Đủ lượng tối thiểu → gom item rows & trả về True
             offer["items"] = [item.get("posa_row_id") for item in matching_items]
-            offer["original_qty"] = total_qty  # Total qty across all matching items
-            log.info(f"✅ Block-based or tiered Item Code offer applicable, items: {offer['items']}, total_original_qty: {total_qty}")
+            offer["original_qty"] = total_qty
+            log.info(
+                f"✅ Block-based Item Code offer applicable: items={offer['items']}, "
+                f"total_original_qty={total_qty}, min_required={required_units}"
+            )
             return True
 
         # For regular offers, check total qty/amount conditions across all matching items
