@@ -420,7 +420,7 @@ class DiscountCalculator:
                 log.warning(f"Unknown or already applied offer type '{offer_type}' for '{offer.name}'")
     
     def _apply_block_based_discount(self, offer):
-        """Apply block-based discount per item with UOM validation"""
+        """Apply block-based discount per item with UOM validation and auto-pack optimization"""
         log.info(f"Executing _apply_block_based_discount for '{offer.name}'")
 
         # Validate UOM configuration
@@ -439,6 +439,33 @@ class DiscountCalculator:
         max_blocks = offer.get("max_eligible_block_qty", 0)
 
         log.info(f"Block config: UOM={uom_ref}, items_per_block={items_per_block}, discount_per_block={discount_per_block}")
+
+        # Check if any items match the required UOM
+        has_matching_uom = False
+        total_eligible_qty = 0
+
+        for item_row_id in offer.get("items", []):
+            item = next((i for i in self.items if i.get("posa_row_id") == item_row_id), None)
+            if not item or item.get("posa_offer_applied"):
+                continue
+
+            item_uom = item.get("uom", item.get("stock_uom"))
+            item_qty = item.get("qty", 0)
+
+            if item_uom == uom_ref:
+                has_matching_uom = True
+                total_eligible_qty += item_qty
+                log.info(f"✅ Found matching UOM item {item.get('item_code')}: UOM={item_uom}, qty={item_qty}")
+            else:
+                log.info(f"ℹ️ Item {item.get('item_code')} has different UOM: {item_uom} vs required {uom_ref}")
+
+        # If no items match the required UOM, try pack optimization
+        if not has_matching_uom and total_eligible_qty >= items_per_block:
+            log.info(f"🚀 No items match required UOM {uom_ref}, attempting pack optimization for offer '{offer.name}'")
+            if self._try_pack_optimization_for_offer(offer):
+                # Re-run the discount application after pack optimization
+                log.info(f"🔄 Re-applying block discount after pack optimization for '{offer.name}'")
+                return self._apply_block_based_discount(offer)
 
         # Apply discount per item - check UOM for each item individually
         applied_items = []
@@ -504,6 +531,181 @@ class DiscountCalculator:
             log.info(f"Successfully applied block-based discount to {len(applied_items)} items: '{offer.name}'")
         else:
             log.info(f"No items qualified for block discount in offer '{offer.name}'")
+
+    def _try_pack_optimization_for_offer(self, offer):
+        """Try to optimize packs for block-based offers when UOM doesn't match"""
+        log.info(f"🚀 Attempting pack optimization for offer '{offer.name}'")
+
+        uom_ref = offer.get("uom_ref")
+        items_per_block = offer.get("total_items_in_block_qty", 0)
+
+        if not uom_ref or items_per_block <= 0:
+            log.error(f"Invalid offer configuration for pack optimization: uom_ref={uom_ref}, items_per_block={items_per_block}")
+            return False
+
+        # Find items that could be optimized
+        optimizable_items = []
+        total_qty = 0
+
+        for item_row_id in offer.get("items", []):
+            item = next((i for i in self.items if i.get("posa_row_id") == item_row_id), None)
+            if not item or item.get("posa_offer_applied"):
+                continue
+
+            item_uom = item.get("uom", item.get("stock_uom"))
+            item_qty = item.get("qty", 0)
+
+            # Only consider items with stock UOM (individual units)
+            if item_uom == item.get("stock_uom") and item_qty >= items_per_block:
+                optimizable_items.append(item)
+                total_qty += item_qty
+                log.info(f"📦 Found optimizable item {item.get('item_code')}: qty={item_qty}, uom={item_uom}")
+
+        if not optimizable_items or total_qty < items_per_block:
+            log.info(f"❌ Not enough quantity for pack optimization: total_qty={total_qty}, required={items_per_block}")
+            return False
+
+        # Get available packs for this item
+        item_code = optimizable_items[0].get("item_code")  # Assume all items are the same
+        available_packs = self._get_available_packs_for_item(item_code)
+
+        if not available_packs:
+            log.info(f"❌ No packs available for item {item_code}")
+            return False
+
+        # Find optimal pack combination
+        optimal_combo = self._find_optimal_pack_combination(total_qty, available_packs)
+
+        if not optimal_combo or optimal_combo.get("total", 0) >= total_qty * optimizable_items[0].get("price_list_rate", 0):
+            log.info(f"❌ Pack optimization not beneficial or failed")
+            return False
+
+        # Apply pack optimization by splitting items
+        log.info(f"✅ Applying pack optimization: {optimal_combo}")
+        self._apply_pack_optimization_to_items(optimizable_items, optimal_combo, available_packs)
+
+        return True
+
+    def _get_available_packs_for_item(self, item_code):
+        """Get available pack options for an item from UOM conversions"""
+        try:
+            # Get UOM conversions for this item
+            uom_conversions = frappe.get_all(
+                "UOM Conversion Detail",
+                filters={"parent": item_code},
+                fields=["uom", "conversion_factor"]
+            )
+
+            # Add stock UOM as pack size 1
+            item_doc = frappe.get_doc("Item", item_code)
+            stock_uom = item_doc.stock_uom
+
+            packs = [{
+                "size": 1,
+                "uom": stock_uom,
+                "price": item_doc.get("price_list_rate") or 0
+            }]
+
+            # Add other UOMs as packs
+            for uom_conv in uom_conversions:
+                if uom_conv.conversion_factor > 1:  # Only consider pack UOMs
+                    packs.append({
+                        "size": int(uom_conv.conversion_factor),
+                        "uom": uom_conv.uom,
+                        "price": 0  # Will be calculated based on base price
+                    })
+
+            # Sort by size ascending for DP algorithm
+            packs.sort(key=lambda x: x["size"])
+            log.info(f"Available packs for {item_code}: {packs}")
+            return packs
+
+        except Exception as e:
+            log.error(f"Error getting available packs for {item_code}: {e}")
+            return []
+
+    def _find_optimal_pack_combination(self, total_qty, packs):
+        """DP algorithm to find optimal pack combination"""
+        if not packs or len(packs) == 0:
+            return {"1": total_qty, "total": total_qty * packs[0]["price"] if packs else 0}
+
+        # Initialize DP
+        dp = [float('inf')] * (total_qty + 1)
+        choices = [None] * (total_qty + 1)
+        dp[0] = 0
+
+        # Fill DP table
+        for qty in range(1, total_qty + 1):
+            for pack in packs:
+                if qty >= pack["size"] and dp[qty - pack["size"]] + pack["price"] < dp[qty]:
+                    dp[qty] = dp[qty - pack["size"]] + pack["price"]
+                    choices[qty] = {"pack": pack, "prev": qty - pack["size"]}
+
+        # Reconstruct optimal combination
+        result = {"total": dp[total_qty]}
+        current = total_qty
+
+        while current > 0 and choices[current]:
+            choice = choices[current]
+            pack_size = choice["pack"]["size"]
+            result[str(pack_size)] = result.get(str(pack_size), 0) + 1
+            current = choice["prev"]
+
+        # Handle remainder
+        if current > 0:
+            smallest_pack = min(packs, key=lambda x: x["size"])
+            result[str(smallest_pack["size"])] = result.get(str(smallest_pack["size"]), 0) + current // smallest_pack["size"]
+
+        log.info(f"Optimal pack combination for qty {total_qty}: {result}")
+        return result
+
+    def _apply_pack_optimization_to_items(self, items, optimal_combo, available_packs):
+        """Apply pack optimization by replacing items with optimal pack combination"""
+        log.info(f"Applying pack optimization to {len(items)} items")
+
+        # Remove original items
+        original_item_codes = {item["posa_row_id"] for item in items}
+        self.items = [item for item in self.items if item["posa_row_id"] not in original_item_codes]
+
+        # Create new items based on optimal combo
+        base_item = items[0].copy()  # Use first item as template
+        base_price = base_item.get("price_list_rate", 0)
+
+        for pack_size_str, qty in optimal_combo.items():
+            if pack_size_str == "total" or qty <= 0:
+                continue
+
+            pack_size = int(pack_size_str)
+            pack_info = next((p for p in available_packs if p["size"] == pack_size), None)
+
+            if pack_info:
+                new_item = base_item.copy()
+                new_item["posa_row_id"] = f"PACK-{frappe.generate_hash(length=8)}"
+                new_item["qty"] = qty
+                new_item["uom"] = pack_info["uom"]
+
+                # Calculate price for this pack
+                if pack_size == 1:
+                    new_item["rate"] = base_price
+                    new_item["price_list_rate"] = base_price
+                else:
+                    # For packs, price is base_price * pack_size (but will be discounted by offer)
+                    new_item["rate"] = base_price * pack_size / pack_size  # Per unit rate
+                    new_item["price_list_rate"] = base_price * pack_size / pack_size
+
+                new_item["amount"] = new_item["rate"] * qty
+                new_item["conversion_factor"] = pack_size
+
+                # Reset offer flags for new items
+                new_item["posa_offer_applied"] = 0
+                new_item["discount_amount"] = 0
+                new_item["discount_percentage"] = 0
+                new_item["applied_offers"] = []
+
+                self.items.append(new_item)
+                log.info(f"Created optimized pack: {pack_size} x {qty} units, uom={pack_info['uom']}")
+
+        log.info(f"Pack optimization completed: {len(self.items)} items after optimization")
 
     def _apply_block_based_gift_offer(self, offer):
         """Apply block-based gift offer with bonus gifts"""
