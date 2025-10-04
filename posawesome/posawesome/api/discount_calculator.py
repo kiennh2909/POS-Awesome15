@@ -314,7 +314,7 @@ class DiscountCalculator:
             amount = qty * price
             is_offer = item.get("posa_is_offer", 0)
 
-            log.info(f"Checking item: code='{item_code}', qty={qty}, price_list_rate={price_list_rate}, amount={amount}, is_offer={is_offer}")
+            log.info(f"Checking item: code='{item_code}', qty={qty}, price={price}, amount={amount}, is_offer={is_offer}")
             log.info(f"Comparing: item_code == offer.item: '{item_code}' == '{offer.get('item')}' -> {item_code == offer.get('item')}")
             log.info(f"Conditions: not is_offer: {not is_offer}")
 
