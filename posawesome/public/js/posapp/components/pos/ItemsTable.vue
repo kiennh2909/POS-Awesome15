@@ -604,15 +604,6 @@ export default {
 			}
 			return false;
 		},
-		getRowClass(item) {
-			return this.highlightedRowId === item.posa_row_id ? 'row-highlight' : '';
-		},
-		getItemProps(item) {
-			return {
-				'data-row-id': item.posa_row_id,
-				'data-item-code': item.item_code
-			};
-		},
 	},
 	watch: {
 		items: {
@@ -728,6 +719,15 @@ export default {
 		}
 	},
 	methods: {
+		getRowClass(item) {
+			return this.highlightedRowId === item.posa_row_id ? 'row-highlight' : '';
+		},
+		getItemProps(item) {
+			return {
+				'data-row-id': item.posa_row_id,
+				'data-item-code': item.item_code,
+			};
+		},
 		onUomChange(item, value) {
 			this.calcUom(item, value);
 			this.eventBus.emit("uom_changed", item, value);
@@ -777,14 +777,17 @@ export default {
 			this.highlightedRowId = this.items[idx].posa_row_id;
 
 			this.$nextTick(() => {
-				const wrapper =
-					this.$el.querySelector('.v-data-table__wrapper') ||
-					this.$el.querySelector('.v-table__wrapper');
-
-				if (wrapper) {
-					const rowH = 48; // hoặc đo từ 1 tr thực tế
-					const targetTop = Math.max(0, idx * rowH - wrapper.clientHeight / 2);
-					requestAnimationFrame(() => { wrapper.scrollTop = targetTop; });
+				// Tìm chính <tr> theo data-row-id đã gắn từ getItemProps
+				const rowEl = this.$el.querySelector(`[data-row-id="${this.highlightedRowId}"]`);
+				if (rowEl && rowEl.scrollIntoView) {
+					rowEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+				} else {
+					// Fallback: scroll container của virtual table nếu cần
+					const scroller =
+						this.$el.querySelector('.v-data-table__wrapper') ||
+						this.$el.querySelector('.v-table__wrapper') ||
+						this.$el.querySelector('.v-virtual-scroll');
+					if (scroller) scroller.scrollTop = Math.max(0, rowEl?.offsetTop - scroller.clientHeight / 2 || 0);
 				}
 
 				setTimeout(() => (this.highlightedRowId = null), 1200);
