@@ -295,83 +295,31 @@
 				<v-col cols="auto" class="d-flex justify-end align-center" style="gap: 5px;">
 					<v-btn
 						color="warning"
-						variant="flat"
+						variant="text"
 						size="default"
 						@click="show_offers"
-						class="summary-btn"
+						class="icon-link-btn"
 						min-height="60"
 					>
-						<v-icon left size="default">mdi-gift</v-icon>
-						<span>{{ offersCount }} {{ __("Offers") }}</span>
+						<v-icon size="default">mdi-gift</v-icon>
 					</v-btn>
 					<v-btn
 						color="primary"
-						variant="flat"
+						variant="text"
 						size="default"
 						@click="show_coupons"
-						class="summary-btn"
+						class="icon-link-btn"
 						min-height="60"
 					>
-						<v-icon left size="default">mdi-ticket-percent</v-icon>
-						<span>{{ couponsCount }} {{ __("Coupons") }}</span>
+						<v-icon size="default">mdi-ticket-percent</v-icon>
 					</v-btn>
 				</v-col>
 			</v-row>
 		</v-card>
 
-		<!-- Mode Selection Section - All controls in one line -->
-		<v-card class="mode-selection-card mt-3 dynamic-padding resizable" v-if="pos_profile.posa_new_line || true">
-			<v-row no-gutters align="center" justify="space-between" class="mode-selection-row">
-				<v-col cols="3" class="dynamic-margin-xs">
-					<!-- Spacer for alignment -->
-				</v-col>
-				<v-col cols="auto" class="d-flex justify-end align-center" style="gap: 5px;">
-					<!-- NLine Button -->
-					<div v-if="pos_profile.posa_new_line" class="control-item">
-						<v-btn
-							:color="new_line ? 'success' : 'grey'"
-							:variant="new_line ? 'flat' : 'outlined'"
-							size="default"
-							@click="new_line = !new_line"
-							class="summary-btn"
-							min-height="60"
-						>
-							<v-icon left size="default">mdi-format-line-spacing</v-icon>
-							<span>{{ __("NLine") }}</span>
-						</v-btn>
-					</div>
-
-					<!-- Mode Selection Buttons -->
-					<div class="control-item">
-						<v-btn
-							:color="scan_add_mode ? 'success' : 'grey'"
-							:variant="scan_add_mode ? 'flat' : 'outlined'"
-							size="default"
-							@click="setScanMode(true)"
-							class="summary-btn"
-							min-height="60"
-						>
-							<v-icon left size="default">mdi-plus-circle</v-icon>
-							<span>{{ __("Add Mode") }}</span>
-						</v-btn>
-					</div>
-
-					<div class="control-item" v-if="false">
-						<v-btn
-							:color="!scan_add_mode ? 'error' : 'grey'"
-							:variant="!scan_add_mode ? 'flat' : 'outlined'"
-							size="default"
-							@click="setScanMode(false)"
-							class="summary-btn"
-							min-height="60"
-						>
-							<v-icon left size="default">mdi-minus-circle</v-icon>
-							<span>{{ __("Remove Mode") }}</span>
-						</v-btn>
-					</div>
-				</v-col>
-			</v-row>
-		</v-card>
+		<!-- Mode Selection Section - Hidden as per requirements -->
+		<!-- NLine, Add Mode, and Remove Mode buttons are now hidden -->
+		<!-- Always default to Add Mode -->
 
 		<!-- Camera Scanner Component -->
 		<CameraScanner
@@ -2917,6 +2865,24 @@ export default {
     white-space: nowrap !important;
 }
 
+/* Icon link button styling */
+.icon-link-btn {
+    min-width: 60px !important;
+    min-height: 60px !important;
+    border-radius: 50% !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.icon-link-btn:hover {
+    transform: scale(1.1) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.icon-link-btn .v-icon {
+    font-size: 28px !important;
+}
+
 /* Standard text field styling - match InvoiceSummary */
 .standard-text-field :deep(.v-field__input) {
     font-size: 1.4rem !important;
@@ -2955,6 +2921,15 @@ export default {
 	.summary-btn {
 		min-height: 50px !important;
 		font-size: 1.1rem !important;
+	}
+
+	.icon-link-btn {
+		min-width: 50px !important;
+		min-height: 50px !important;
+	}
+
+	.icon-link-btn .v-icon {
+		font-size: 24px !important;
 	}
 
 	.standard-text-field :deep(.v-field__input) {
@@ -3011,6 +2986,15 @@ export default {
 	.standard-text-field :deep(.v-field__input input) {
 		font-size: 1.1rem !important;
 		min-height: 48px !important;
+	}
+
+	.icon-link-btn {
+		min-width: 48px !important;
+		min-height: 48px !important;
+	}
+
+	.icon-link-btn .v-icon {
+		font-size: 20px !important;
 	}
 }
 </style>
