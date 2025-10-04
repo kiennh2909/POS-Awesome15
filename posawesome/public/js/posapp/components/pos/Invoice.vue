@@ -189,6 +189,9 @@
 						@item-dropped="showDropFeedback(false)"
 					/>
 				</div>
+
+				<!-- Spacer between Items Table and Invoice Summary -->
+				<div class="section-spacer"></div>
 			</div>
 		</v-card>
 		<!-- Payment Section -->
@@ -1726,6 +1729,20 @@ export default {
 .items-table-wrapper {
 	position: relative;
 	margin-top: 0; /* Remove margin since button is no longer above */
+	margin-bottom: 1px; /* Add space before invoice summary */
+}
+
+/* Spacer between sections */
+.section-spacer {
+	height: 12px; /* Additional spacing between items table and summary */
+}
+
+/* Override Vuetify row margins for better spacing */
+:deep(.v-row) {
+	display: flex;
+	flex: 1 1 auto;
+	flex-wrap: wrap;
+	margin: -14px;
 }
 
 /* New styles for improved column switches */
