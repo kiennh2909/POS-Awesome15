@@ -21,7 +21,7 @@
 			hide-default-footer
 			:single-expand="true"
 			:header-props="headerProps"
-			:item-props="getItemProps"
+			:item-class="getRowClass"
 			@update:expanded="$emit('update:expanded', $event)"
 			:search="itemSearch"
 		>
@@ -581,6 +581,7 @@ export default {
 			draggedIndex: null,
 			dragOverIndex: null,
 			isDragging: false,
+			highlightedRowId: null,
 		};
 	},
 	computed: {
@@ -602,11 +603,8 @@ export default {
 			}
 			return false;
 		},
-		getItemProps(item) {
-			return {
-				'data-row-id': item.posa_row_id || '',
-				'data-item-code': item.item_code
-			};
+		getRowClass(item) {
+			return this.highlightedRowId === item.posa_row_id ? 'row-highlight' : '';
 		},
 	},
 	watch: {
@@ -744,24 +742,50 @@ export default {
 
 		highlightItem(key) {
 			// key có thể là posa_row_id hoặc item_code
-			const root = this.$el;
-			if (!root) return false;
+			console.log("[ItemsTable] Highlighting item with key:", key);
 
-			// bỏ highlight cũ
-			root.querySelectorAll('.row-highlight').forEach(el => el.classList.remove('row-highlight'));
+			// Tìm item trong this.items
+			let targetItem = null;
+			if (key) {
+				targetItem = this.items.find(item =>
+					item.posa_row_id === key || item.item_code === key
+				);
+			}
 
-			let el =
-				root.querySelector(`[data-row-id="${key}"]`) ||
-				root.querySelector(`[data-item-code="${key}"]`);
+			if (!targetItem) {
+				console.log("[ItemsTable] Item not found for key:", key);
+				return false;
+			}
 
-			if (!el) return false;
+			console.log("[ItemsTable] Found item:", targetItem.item_code, "row_id:", targetItem.posa_row_id);
 
-			// thêm class + scroll vào giữa
-			el.classList.add('row-highlight');
-			el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			// Set highlighted row
+			this.highlightedRowId = targetItem.posa_row_id;
 
-			// tự tắt highlight sau 1.2s
-			setTimeout(() => el && el.classList.remove('row-highlight'), 1200);
+			// Scroll vào view sau khi DOM update
+			this.$nextTick(() => {
+				const rowElements = this.$el.querySelectorAll('tr');
+				let targetRow = null;
+
+				// Tìm row chứa item này (có thể phức tạp với virtual table)
+				// Thử scroll đến vị trí item trong array
+				const itemIndex = this.items.indexOf(targetItem);
+				if (itemIndex >= 0) {
+					// Ước tính vị trí scroll
+					const rowHeight = 48; // approximate row height
+					const scrollTop = itemIndex * rowHeight;
+					const container = this.$el.querySelector('.v-data-table__wrapper');
+					if (container) {
+						container.scrollTop = scrollTop - container.clientHeight / 2;
+					}
+				}
+
+				// Tự tắt highlight sau 1.2s
+				setTimeout(() => {
+					this.highlightedRowId = null;
+				}, 1200);
+			});
+
 			return true;
 		},
 
@@ -1209,9 +1233,14 @@ export default {
 
 /* Row highlight styling */
 .row-highlight {
-	outline: 2px solid var(--v-theme-primary);
-	background: rgba(var(--v-theme-primary), 0.12);
-	transition: background 0.3s ease, outline-color 0.3s ease;
+	background-color: #e8f5e9 !important;
+	border-left: 4px solid #4caf50 !important;
+	transition: all 0.3s ease;
+}
+
+.row-highlight .amount-value {
+	font-weight: 700 !important;
+	color: #2e7d32 !important;
 }
 
 /* Pack info display styling */
