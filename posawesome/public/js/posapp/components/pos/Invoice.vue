@@ -1742,6 +1742,18 @@ export default {
 	margin-top: 8px;
 }
 
+/* Summary button styling */
+:deep(.summary-btn[data-v-ab85018a]) {
+	min-height: 60px !important;
+	font-size: 1.3rem !important;
+	font-weight: 600 !important;
+	text-transform: none;
+	margin: 1px;
+	border-radius: 6px;
+	padding: 3px 3px !important;
+	white-space: nowrap !important;
+}
+
 /* New styles for improved column switches */
 :deep(.column-switch) {
 	margin: 0;
