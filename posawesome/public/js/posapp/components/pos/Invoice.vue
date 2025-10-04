@@ -26,8 +26,8 @@
 			<!-- Dynamic padding wrapper -->
 			<div class="dynamic-padding">
 				<!-- Top Row: Customer Selection, Invoice Type, and Columns Button -->
-				<v-row align="center" class="items px-3 py-2">
-					<v-col :cols="pos_profile.posa_allow_sales_order ? 7 : 9" class="pb-0 pr-0">
+				<v-row align="center" class="items px-3 py-2 header-row">
+					<v-col :cols="pos_profile.posa_allow_sales_order ? 8 : 10" class="pb-0 pr-0">
 						<!-- Customer selection component with Quick View props -->
 						<Customer
 							:pos_profile="pos_profile"
@@ -41,14 +41,14 @@
 						/>
 					</v-col>
 					<!-- Invoice Type Selection (Only shown if sales orders are allowed) -->
-					<v-col v-if="pos_profile.posa_allow_sales_order" cols="2" class="pb-4">
+					<v-col v-if="pos_profile.posa_allow_sales_order" cols="1" class="pb-0 pr-1 d-flex align-center">
 						<v-select
 							density="compact"
 							hide-details
 							variant="solo"
 							color="primary"
 							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field compact-select"
+							class="dark-field sleek-field compact-select mini-select"
 							:items="invoiceTypes"
 							:label="frappe._('Type')"
 							v-model="invoiceType"
@@ -56,7 +56,7 @@
 						></v-select>
 					</v-col>
 					<!-- Columns Button -->
-					<v-col :cols="pos_profile.posa_allow_sales_order ? 3 : 3" class="pb-4 d-flex justify-end">
+					<v-col :cols="pos_profile.posa_allow_sales_order ? 3 : 2" class="pb-0 d-flex justify-end align-center">
 						<v-btn
 							density="compact"
 							variant="text"
@@ -1717,6 +1717,16 @@ export default {
 	}
 }
 
+/* Header row alignment */
+.header-row {
+	align-items: flex-start !important;
+}
+
+.header-row .v-col {
+	display: flex;
+	align-items: flex-start;
+}
+
 /* Compact button styles for 14-inch POS screens (80% of original size) */
 .compact-btn {
 	font-size: 0.7rem !important; /* 80% of 0.875rem */
@@ -1736,6 +1746,17 @@ export default {
 .compact-select .v-field__input {
 	font-size: 0.8rem !important;
 	min-height: 40px !important; /* Reduced height */
+}
+
+/* Mini select for invoice type */
+.mini-select {
+	font-size: 0.75rem !important;
+}
+
+.mini-select .v-field__input {
+	font-size: 0.75rem !important;
+	min-height: 36px !important;
+	padding: 4px 8px !important;
 }
 
 .items-table-wrapper {
