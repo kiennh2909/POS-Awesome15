@@ -524,6 +524,13 @@ export default {
 			// Use the existing add_item method to add the dropped item
 			this.add_item(item);
 
+			// Highlight the dropped item with light green background and bold quantity
+			this.$nextTick(() => {
+				if (this.$refs.itemsTable) {
+					this.$refs.itemsTable.highlightItem(item.item_code, true);
+				}
+			});
+
 			// Show success feedback
 			this.eventBus.emit("show_message", {
 				title: __(`Item {0} added to invoice`, [item.item_name]),

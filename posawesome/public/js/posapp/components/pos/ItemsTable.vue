@@ -1232,65 +1232,57 @@ export default {
 	background-color: var(--surface-secondary);
 }
 
-/* Highlighted item styling with stronger visual feedback */
+/* Highlighted item styling with light green background */
 :deep(.highlighted-item) {
-	background-color: #4caf50 !important;
-	color: white !important;
-	animation: highlightPulse 1s ease-in-out;
+	background-color: #e8f5e9 !important;
+	color: #2e7d32 !important;
+	animation: highlightPulseLight 1s ease-in-out;
 	transition: all 0.3s ease;
-	border-left: 4px solid #2e7d32 !important;
-	box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3) !important;
+	border-left: 4px solid #4caf50 !important;
+	box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2) !important;
 }
 
 :deep(.dark-theme .highlighted-item),
 :deep(.v-theme--dark .highlighted-item) {
-	background-color: #4caf50 !important;
-	color: white !important;
-	border-left: 4px solid #66bb6a !important;
-	box-shadow: 0 2px 8px rgba(76, 175, 80, 0.5) !important;
+	background-color: rgba(76, 175, 80, 0.1) !important;
+	color: #81c784 !important;
+	border-left: 4px solid #4caf50 !important;
+	box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3) !important;
 }
 
-@keyframes highlightPulse {
+@keyframes highlightPulseLight {
 	0% {
-		background-color: #4caf50;
+		background-color: #e8f5e9;
 		transform: scale(1);
-		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
 	}
 	50% {
-		background-color: #66bb6a;
-		transform: scale(1.02);
-		box-shadow: 0 4px 12px rgba(76, 175, 80, 0.5);
+		background-color: #c8e6c9;
+		transform: scale(1.01);
+		box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
 	}
 	100% {
-		background-color: #4caf50;
+		background-color: #e8f5e9;
 		transform: scale(1);
-		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
 	}
-}
-
-:deep(.dark-theme) .highlighted-item {
-	animation: highlightPulseDark 1s ease-in-out;
-}
-
-:deep(.v-theme--dark) .highlighted-item {
-	animation: highlightPulseDark 1s ease-in-out;
 }
 
 @keyframes highlightPulseDark {
 	0% {
-		background-color: #1976d2;
+		background-color: rgba(76, 175, 80, 0.1);
 		transform: scale(1);
-		box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
+		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
 	}
 	50% {
-		background-color: #42a5f5;
+		background-color: rgba(76, 175, 80, 0.2);
 		transform: scale(1.01);
-		box-shadow: 0 4px 12px rgba(25, 118, 210, 0.5);
+		box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
 	}
 	100% {
-		background-color: #1976d2;
+		background-color: rgba(76, 175, 80, 0.1);
 		transform: scale(1);
-		box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
+		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
 	}
 }
 
