@@ -89,6 +89,9 @@ class DiscountCalculator:
 
                 item["rate"] = reset_rate
                 item["amount"] = self._round_money(reset_rate * item.get("qty", 0))
+                # ❗ Quan trọng: đồng bộ lại price_list_rate theo UOM hiện tại
+                # để ERPNext tính Discount đúng và không bị âm.
+                item["price_list_rate"] = reset_rate
 
                 # Reset discount fields
                 item["discount_amount"] = 0
