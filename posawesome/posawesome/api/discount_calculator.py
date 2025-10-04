@@ -711,77 +711,75 @@ class DiscountCalculator:
                 log.error(f"❌ Error during pack optimization for offer '{offer.name}': {e}")
                 log.error({"title": "Pack Optimization Error", "traceback": frappe.get_traceback()})
 
-        # Apply discount per item - check UOM for each item individually
-        applied_items = []
+        # --- trước vòng for các item, sau khi có min_blocks/max_blocks ---
+        INF = 10**9
+        blocks_left = max_blocks if max_blocks and max_blocks > 0 else INF
 
+        applied_items = []
         for item_row_id in offer.get("items", []):
             item = next((i for i in self.items if i.get("posa_row_id") == item_row_id), None)
             if not item or item.get("posa_offer_applied"):
                 continue
 
-            # Validate UOM for this specific item
             item_uom = item.get("uom", item.get("stock_uom"))
-            qty_full = float(item.get("qty", 0) or 0)  # Giữ số lượng đầy đủ để tính weighted-rate
-
-            log.info(f"Checking item {item.get('item_code')}: UOM={item_uom}, qty={qty_full}")
-
-            if item_uom != uom_ref:
-                log.info(f"❌ Item {item.get('item_code')} UOM {item_uom} != block UOM {uom_ref} - skipping")
+            qty_full = float(item.get("qty") or 0.0)
+            if item_uom != uom_ref or qty_full <= 0:
                 continue
 
-            # Calculate blocks for this item - special logic for block UOM
-            if item_uom == uom_ref:
-                # Item qty directly represents number of blocks
-                # e.g., UOM=THÙNG-24, qty=1 means 1 block (24 items)
-                item_blocks = math.floor(qty_full)  # Floor để tính số block nguyên
-                log.info(f"✅ Item UOM matches block UOM - qty {qty_full} = {item_blocks} blocks")
-            else:
-                # For other UOMs, calculate blocks based on conversion
-                item_blocks = math.floor(qty_full) // items_per_block
-                log.info(f"ℹ️ Item UOM different from block UOM - calculated {item_blocks} blocks from qty {qty_full}")
+            # 1 qty LỐC-6 = 1 block
+            import math
+            item_blocks = int(math.floor(qty_full))
 
-            # Tính số block theo thực tế
-            eligible_blocks = min(item_blocks, max_blocks) if max_blocks > 0 else item_blocks
-
-            # Nếu không đủ min_blocks thì bỏ qua
-            if eligible_blocks < min_blocks:
-                log.info(f"❌ Item {item.get('item_code')} only {eligible_blocks} blocks < min_blocks {min_blocks}")
+            # số block được phép giảm cho dòng này (trừ dần của toàn offer)
+            discountable_blocks = min(item_blocks, blocks_left)
+            nondiscount_blocks  = item_blocks - discountable_blocks
+            if discountable_blocks <= 0:
+                # không còn suất giảm -> đưa về giá gốc
+                base_rate = float(item.get("price_list_rate", item.get("rate", 0)))
+                item.update({
+                    "posa_offer_applied": 0,
+                    "discount_amount": 0,
+                    "discount_percentage": 0,
+                    "rate": self._round_money(base_rate),
+                    "amount": self._round_money(base_rate * qty_full),
+                })
                 continue
 
-            # Split line logic: phần được giảm giữ nguyên trên dòng cũ, phần dư tạo dòng mới với giá thường
-            original_rate = item.get("rate", item.get("price_list_rate", 0))  # giá/LỐC-6 hiện tại
-            # số block được giảm (đã bị cap bởi max_blocks)
-            discounted_qty = float(min(qty_full, eligible_blocks))
-            # phần vượt quá cần thanh toán giá thường
-            excess_qty = max(0.0, float(qty_full) - discounted_qty)
+            # GIÁ GỐC THEO UOM (198/LỐC-6) – luôn lấy price_list_rate
+            base_rate = float(item.get("price_list_rate", item.get("rate", 0)))
 
-            # Nếu có phần dư => tạo 1 dòng mới giá thường
-            if excess_qty > 0:
+            # nếu có phần dư không giảm → tách dòng
+            if nondiscount_blocks > 0:
                 excess = item.copy()
                 excess["posa_row_id"] = f"SPLIT-{frappe.generate_hash(length=8)}"
-                excess["qty"] = excess_qty
-                excess["rate"] = self._round_money(original_rate)       # 198.00
+                excess["qty"] = float(nondiscount_blocks)
+                excess["rate"] = self._round_money(base_rate)          # 198
                 excess["price_list_rate"] = excess["rate"]
-                excess["amount"] = self._round_money(excess_qty * excess["rate"])
+                excess["amount"] = self._round_money(excess["qty"] * excess["rate"])
                 excess["discount_amount"] = 0
                 excess["discount_percentage"] = 0
                 excess["posa_offer_applied"] = 0
                 excess["applied_offers"] = []
                 self.items.append(excess)
 
-            # Áp giảm cho phần đủ điều kiện (trên dòng gốc)
-            item["qty"] = discounted_qty                                # ví dụ: 10
-            rate_discounted = self._round_money(max(0.0, original_rate - float(discount_per_block)))  # 198-25=173
-            item["rate"] = rate_discounted
-            item["amount"] = self._round_money(rate_discounted * discounted_qty)
-            item["discount_amount"] = self._round_money(float(discount_per_block) * discounted_qty)
-            # % giảm theo đơn giá gốc (mỗi block)
-            item["discount_percentage"] = min(100.0, self._round_money((float(discount_per_block) / original_rate) * 100))
+            # áp giảm cho phần được phép trên dòng gốc
+            item["qty"] = float(discountable_blocks)
+            discounted_rate = self._round_money(max(0.0, base_rate - discount_per_block))  # 198-25 = 173
+            item["rate"] = discounted_rate
+            item["amount"] = self._round_money(discounted_rate * item["qty"])
+            # per-unit discount & tổng discount của dòng
+            item["discount_amount"] = self._round_money(discount_per_block)
+            item["posa_discount_total"] = self._round_money(discount_per_block * item["qty"])
+            pct = (item["discount_amount"] / base_rate * 100.0) if base_rate else 0
+            item["discount_percentage"] = min(100.0, self._round_money(pct))
             item["posa_offer_applied"] = 1
             self._add_offer_to_item_log(item, offer)
             applied_items.append(item)
 
-            log.info(f"✅ Applied block discount to {item.get('item_code')}: blocks={eligible_blocks}, discounted_qty={discounted_qty}, excess_qty={excess_qty}, new_rate={rate_discounted}")
+            # trừ dần quota cho toàn offer
+            blocks_left -= discountable_blocks
+            if blocks_left <= 0:
+                break
 
         if applied_items:
             self.applied_offers.append(offer)
@@ -1384,6 +1382,7 @@ class DiscountCalculator:
                             discount_amount = original_rate
                             new_rate = 0
                         item["discount_amount"] = discount_amount
+                        item["posa_discount_total"] = self._round_money(discount_amount * item.get("qty", 0))
                         pct = (item["discount_amount"] / original_rate * 100) if original_rate else 0
                         item["discount_percentage"] = min(100.0, self._round_money(pct))
 
@@ -1398,6 +1397,7 @@ class DiscountCalculator:
                             new_rate = 0
                             discount_percentage = 100.0
                         item["discount_amount"] = discount_amount
+                        item["posa_discount_total"] = self._round_money(discount_amount * item.get("qty", 0))
                         item["discount_percentage"] = discount_percentage
 
                     item["rate"] = new_rate
@@ -1508,7 +1508,7 @@ class DiscountCalculator:
             item["rate"] = new_rate
             item["amount"] = self._round_money(new_rate * qty)
 
-            log.info(f"Applied to item {item.get('item_code')}: discount_amount={discount_amount}, discount_percentage={item['discount_percentage']}, rate={new_rate}, amount={item['amount']}")
+            log.info(f"Applied to item {item.get('item_code')}: unit_disc={unit_disc}, posa_discount_total={item['posa_discount_total']}, discount_percentage={item['discount_percentage']}, rate={new_rate}, amount={item['amount']}")
 
             self._add_offer_to_item_log(item, offer)
             applied_items_count += 1
