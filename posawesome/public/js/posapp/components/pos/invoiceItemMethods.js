@@ -3376,11 +3376,12 @@ export default {
 	showPackOptimizationMessage(optimalCombo, availablePacks) {
 		const savings = this.calculateSavings(optimalCombo, availablePacks);
 		if (savings > 0) {
-			this.eventBus.emit("show_message", {
-				title: __("Combo tối ưu được áp dụng"),
-				text: __(`Tiết kiệm ${formatCurrency(savings)} so với mua lẻ`),
-				color: "success",
-			});
+			// Popup bị tắt theo yêu cầu người dùng để tránh ảnh hưởng trải nghiệm
+			// this.eventBus.emit("show_message", {
+			// 	title: __("Combo tối ưu được áp dụng"),
+			// 	text: __(`Tiết kiệm ${formatCurrency(savings)} so với mua lẻ`),
+			// 	color: "success",
+			// });
 		}
 	},
 
