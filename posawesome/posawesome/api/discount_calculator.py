@@ -310,8 +310,8 @@ class DiscountCalculator:
         for item in self.items:
             item_code = item.get("item_code")
             qty = item.get("qty", 0)
-            price_list_rate = item.get("price_list_rate", 0)
-            amount = qty * price_list_rate
+            price = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM)
+            amount = qty * price
             is_offer = item.get("posa_is_offer", 0)
 
             log.info(f"Checking item: code='{item_code}', qty={qty}, price_list_rate={price_list_rate}, amount={amount}, is_offer={is_offer}")
@@ -407,8 +407,10 @@ class DiscountCalculator:
         for item in self.items:
             if item.get("item_group") == offer.get("item_group") and not item.get("posa_is_offer"):
                 group_items_rows.append(item.get("posa_row_id"))
-                total_qty += item.get("qty", 0)
-                total_amount += item.get("qty", 0) * item.get("price_list_rate", 0)
+                qty = item.get("qty", 0)
+                price = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM)
+                total_qty += qty
+                total_amount += qty * price
         
         if self._check_qty_amount_conditions(offer, total_qty, total_amount):
             offer["items"] = group_items_rows
@@ -422,8 +424,10 @@ class DiscountCalculator:
         for item in self.items:
             if item.get("brand") == offer.get("brand") and not item.get("posa_is_offer"):
                 brand_items_rows.append(item.get("posa_row_id"))
-                total_qty += item.get("qty", 0)
-                total_amount += item.get("qty", 0) * item.get("price_list_rate", 0)
+                qty = item.get("qty", 0)
+                price = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM)
+                total_qty += qty
+                total_amount += qty * price
 
         if self._check_qty_amount_conditions(offer, total_qty, total_amount):
             offer["items"] = brand_items_rows
@@ -432,7 +436,10 @@ class DiscountCalculator:
 
     def _check_transaction_offer(self, offer):
         total_qty = sum(item.get("qty", 0) for item in self.items if not item.get("posa_is_offer"))
-        total_amount = sum(item.get("qty", 0) * item.get("price_list_rate", 0) for item in self.items if not item.get("posa_is_offer"))
+        total_amount = sum(
+            item.get("qty", 0) * item.get("rate", item.get("price_list_rate", 0))
+            for item in self.items if not item.get("posa_is_offer")
+        )
 
         log.info(f"Transaction offer '{offer.name}': total_qty={total_qty}, total_amount={total_amount}")
         log.info(f"Transaction offer conditions: min_qty={offer.get('min_qty')}, max_qty={offer.get('max_qty')}, min_amt={offer.get('min_amt')}, max_amt={offer.get('max_amt')}")
@@ -727,8 +734,13 @@ class DiscountCalculator:
 
             # Apply discount to this item
             item_discount = eligible_blocks * discount_per_block
-            original_rate = item.get("price_list_rate", 0)
+            original_rate = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM của dòng)
             item_amount = original_rate * item_qty
+
+            # Validation an toàn: không cho discount vượt quá giá gốc
+            if item_discount > item_amount:
+                log.warning(f"Block discount {item_discount} exceeds item amount {item_amount}, capping discount")
+                item_discount = item_amount
 
             # Calculate new rate after discount - safe calculation
             item_qty_safe = max(1, int(item_qty))
@@ -1191,7 +1203,7 @@ class DiscountCalculator:
                 continue
                 
             qty = item.get("qty", 0)
-            original_rate = item.get("price_list_rate", 0)
+            original_rate = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM của dòng)
             
             # Find applicable tier based on quantity
             applicable_tier = None
@@ -1221,6 +1233,12 @@ class DiscountCalculator:
                 continue
 
             discount_amount = self._round_money(original_rate - new_rate)
+
+            # Validation an toàn: không cho discount vượt quá original_rate
+            if discount_amount > original_rate:
+                log.warning(f"Tier discount {discount_amount} exceeds original rate {original_rate}, capping discount")
+                discount_amount = original_rate
+                new_rate = 0
 
             item["posa_offer_applied"] = 1
             item["rate"] = new_rate
@@ -1273,7 +1291,7 @@ class DiscountCalculator:
                     log.info(f"Max qty exceeded: discounted_qty={discounted_qty}, excess_qty={excess_qty}")
 
                     # Calculate rates for discounted and excess portions
-                    original_rate = item.get("price_list_rate", 0)
+                    original_rate = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM của dòng)
                     discount_type = offer.get("discount_type")
 
                     if discount_type == "Rate":
@@ -1286,6 +1304,12 @@ class DiscountCalculator:
                     else:
                         log.warning(f"Unknown discount_type: {discount_type}")
                         continue
+
+                    # Validation an toàn: không cho discount per item vượt quá original_rate
+                    if discount_amount_per_item > original_rate:
+                        log.warning(f"Discount per item {discount_amount_per_item} exceeds original rate {original_rate}, capping discount")
+                        discount_amount_per_item = original_rate
+                        discounted_rate = 0
 
                     # Calculate weighted average rate
                     discounted_amount = self._round_money(discounted_qty * discounted_rate)
@@ -1308,13 +1332,19 @@ class DiscountCalculator:
                 else:
                     # Normal discount application for entire quantity
                     item["posa_offer_applied"] = 1
-                    original_rate = item.get("price_list_rate", 0)
+                    original_rate = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM của dòng)
                     new_rate = original_rate
                     discount_type = offer.get("discount_type")
 
                     if discount_type == "Rate":
                         new_rate = self._round_money(offer.get("rate", 0))
-                        item["discount_amount"] = self._round_money(original_rate - new_rate)
+                        discount_amount = self._round_money(original_rate - new_rate)
+                        # Validation an toàn: không cho discount vượt quá original_rate
+                        if discount_amount > original_rate:
+                            log.warning(f"Rate discount {discount_amount} exceeds original rate {original_rate}, capping discount")
+                            discount_amount = original_rate
+                            new_rate = 0
+                        item["discount_amount"] = discount_amount
                         pct = (item["discount_amount"] / original_rate * 100) if original_rate else 0
                         item["discount_percentage"] = min(100.0, self._round_money(pct))
 
@@ -1322,6 +1352,12 @@ class DiscountCalculator:
                         discount_percentage = offer.get("discount_percentage", 0)
                         discount_amount = self._round_money(original_rate * (discount_percentage / 100.0))
                         new_rate = self._round_money(original_rate - discount_amount)
+                        # Validation an toàn: không cho discount vượt quá original_rate
+                        if discount_amount > original_rate:
+                            log.warning(f"Percentage discount {discount_amount} exceeds original rate {original_rate}, capping discount")
+                            discount_amount = original_rate
+                            new_rate = 0
+                            discount_percentage = 100.0
                         item["discount_amount"] = discount_amount
                         item["discount_percentage"] = discount_percentage
 
@@ -1403,7 +1439,7 @@ class DiscountCalculator:
 
             item["posa_offer_applied"] = 1
             qty = item.get("qty", 0)
-            original_rate = item.get("price_list_rate", 0)
+            original_rate = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM của dòng)
 
             log.info(f"Item {item.get('item_code')}: qty={qty}, original_rate={original_rate}")
 
@@ -1413,10 +1449,11 @@ class DiscountCalculator:
 
             log.info(f"Calculated: discount_amount={discount_amount}, new_rate={new_rate}")
 
-            # Ensure discount doesn't exceed original price
-            if discount_amount > original_rate * qty:
-                log.warning(f"Discount amount {discount_amount} exceeds total price {original_rate * qty}, capping discount")
-                discount_amount = self._round_money(original_rate * qty)
+            # Validation an toàn: không cho discount vượt quá giá gốc
+            item_amount = original_rate * qty
+            if discount_amount > item_amount:
+                log.warning(f"Quantity discount {discount_amount} exceeds item amount {item_amount}, capping discount")
+                discount_amount = item_amount
                 new_rate = 0
 
             item["discount_amount"] = discount_amount
