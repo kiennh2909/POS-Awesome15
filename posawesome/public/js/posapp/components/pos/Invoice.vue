@@ -521,17 +521,24 @@ export default {
 		handleItemDrop(item) {
 			console.log("Item dropped:", item);
 
-			// Use the existing add_item method to add the dropped item
+			// Thêm vào hóa đơn như cũ
 			this.add_item(item);
 
-			// Highlight the dropped item with light green background and bold quantity
+			// 👉 sau khi DOM cập nhật, highlight dòng vừa thêm
 			this.$nextTick(() => {
-				if (this.$refs.itemsTable) {
-					this.$refs.itemsTable.highlightItem(item.item_code, true);
+				// tìm dòng mới nhất có cùng item_code
+				const last = [...this.items].reverse().find(i => i.item_code === item.item_code);
+				const key = (last && (last.posa_row_id || last.item_code)) || item.item_code;
+
+				if (this.$refs.itemsTable && this.$refs.itemsTable.highlightItem) {
+					this.$refs.itemsTable.highlightItem(key);
+				} else {
+					// fallback: phát event để ItemsTable tự xử lý
+					this.eventBus.emit("highlight_scanned_item", key);
 				}
 			});
 
-			// Show success feedback
+			// feedback
 			this.eventBus.emit("show_message", {
 				title: __(`Item {0} added to invoice`, [item.item_name]),
 				color: "success",

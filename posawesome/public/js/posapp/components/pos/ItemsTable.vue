@@ -21,13 +21,13 @@
 			hide-default-footer
 			:single-expand="true"
 			:header-props="headerProps"
-			:item-class="getRowClass"
+			:item-props="getItemProps"
 			@update:expanded="$emit('update:expanded', $event)"
 			:search="itemSearch"
 		>
 			<!-- Quantity column -->
 			<template v-slot:item.qty="{ item }">
-				<div class="amount-value" :class="{ 'enlarged-font': enlargeFont && highlightedItemCode === item.item_code }">
+				<div class="amount-value">
 					{{ formatFloat(item.qty, hide_qty_decimals ? 0 : undefined) }}
 				</div>
 			</template>
@@ -44,7 +44,7 @@
 			<template v-slot:item.amount="{ item }">
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value" :class="{ 'enlarged-font': enlargeFont && highlightedItemCode === item.item_code }">{{ formatCurrency(item.qty * item.rate) }}</span>
+					<span class="amount-value">{{ formatCurrency(item.qty * item.rate) }}</span>
 				</div>
 			</template>
 
@@ -581,9 +581,6 @@ export default {
 			draggedIndex: null,
 			dragOverIndex: null,
 			isDragging: false,
-			highlightedItemCode: null,
-			highlightTimeout: null,
-			enlargeFont: false,
 		};
 	},
 	computed: {
@@ -605,8 +602,11 @@ export default {
 			}
 			return false;
 		},
-		getRowClass(item) {
-			return this.highlightedItemCode === item.item_code ? 'highlighted-item' : '';
+		getItemProps(item) {
+			return {
+				'data-row-id': item.posa_row_id || '',
+				'data-item-code': item.item_code
+			};
 		},
 	},
 	watch: {
@@ -742,47 +742,26 @@ export default {
 			}
 		},
 
-		highlightItem(itemCode, enlargeFont = false) {
-			console.log("[ItemsTable] Highlighting item:", itemCode, "with enlarge font:", enlargeFont);
-			console.log("[ItemsTable] Current items count:", this.items.length);
-			console.log("[ItemsTable] Current items:", this.items.map(i => i.item_code));
+		highlightItem(key) {
+			// key có thể là posa_row_id hoặc item_code
+			const root = this.$el;
+			if (!root) return false;
 
-			// Check if item exists in current items
-			const itemExists = this.items.find(item => item.item_code === itemCode);
-			if (!itemExists) {
-				console.log("[ItemsTable] ❌ Item not found in table:", itemCode);
-				return false;
-			}
+			// bỏ highlight cũ
+			root.querySelectorAll('.row-highlight').forEach(el => el.classList.remove('row-highlight'));
 
-			console.log("[ItemsTable] ✅ Item found:", itemCode);
+			let el =
+				root.querySelector(`[data-row-id="${key}"]`) ||
+				root.querySelector(`[data-item-code="${key}"]`);
 
-			// Clear any existing highlight timeout
-			if (this.highlightTimeout) {
-				clearTimeout(this.highlightTimeout);
-			}
+			if (!el) return false;
 
-			// Set the highlighted item and force Vue to update
-			this.highlightedItemCode = itemCode;
-			this.enlargeFont = enlargeFont;
-			console.log("[ItemsTable] Set highlightedItemCode to:", this.highlightedItemCode);
-			console.log("[ItemsTable] Set enlargeFont to:", this.enlargeFont);
+			// thêm class + scroll vào giữa
+			el.classList.add('row-highlight');
+			el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-			// Force immediate update with nextTick for better reactivity
-			this.$nextTick(() => {
-				console.log("[ItemsTable] Force update triggered");
-				this.$forceUpdate();
-			});
-
-			// Remove highlight after 2 seconds (shorter for better UX)
-			this.highlightTimeout = setTimeout(() => {
-				console.log("[ItemsTable] Removing highlight for:", itemCode);
-				this.highlightedItemCode = null;
-				this.enlargeFont = false;
-				this.$nextTick(() => {
-					this.$forceUpdate();
-				});
-			}, 2000);
-
+			// tự tắt highlight sau 1.2s
+			setTimeout(() => el && el.classList.remove('row-highlight'), 1200);
 			return true;
 		},
 
@@ -1159,11 +1138,6 @@ export default {
 	transition: font-size 0.3s ease;
 }
 
-.amount-value.enlarged-font {
-	font-size: 130% !important;
-	font-weight: 700 !important;
-	color: #2e7d32 !important;
-}
 
 /* Drag and drop styles */
 .draggable-row {
@@ -1232,58 +1206,12 @@ export default {
 	background-color: var(--surface-secondary);
 }
 
-/* Highlighted item styling with light green background */
-:deep(.highlighted-item) {
-	background-color: #e8f5e9 !important;
-	color: #2e7d32 !important;
-	animation: highlightPulseLight 1s ease-in-out;
-	transition: all 0.3s ease;
-	border-left: 4px solid #4caf50 !important;
-	box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2) !important;
-}
 
-:deep(.dark-theme .highlighted-item),
-:deep(.v-theme--dark .highlighted-item) {
-	background-color: rgba(76, 175, 80, 0.1) !important;
-	color: #81c784 !important;
-	border-left: 4px solid #4caf50 !important;
-	box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3) !important;
-}
-
-@keyframes highlightPulseLight {
-	0% {
-		background-color: #e8f5e9;
-		transform: scale(1);
-		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
-	}
-	50% {
-		background-color: #c8e6c9;
-		transform: scale(1.01);
-		box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
-	}
-	100% {
-		background-color: #e8f5e9;
-		transform: scale(1);
-		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
-	}
-}
-
-@keyframes highlightPulseDark {
-	0% {
-		background-color: rgba(76, 175, 80, 0.1);
-		transform: scale(1);
-		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
-	}
-	50% {
-		background-color: rgba(76, 175, 80, 0.2);
-		transform: scale(1.01);
-		box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
-	}
-	100% {
-		background-color: rgba(76, 175, 80, 0.1);
-		transform: scale(1);
-		box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
-	}
+/* Row highlight styling */
+.row-highlight {
+	outline: 2px solid var(--v-theme-primary);
+	background: rgba(var(--v-theme-primary), 0.12);
+	transition: background 0.3s ease, outline-color 0.3s ease;
 }
 
 /* Pack info display styling */
