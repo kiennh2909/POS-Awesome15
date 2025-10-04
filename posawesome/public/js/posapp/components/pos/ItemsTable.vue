@@ -719,6 +719,14 @@ export default {
 			this.highlightItem(itemCode);
 		});
 	},
+	beforeUnmount() {
+		// Cleanup event listeners
+		if (this.eventBus) {
+			this.eventBus.off("force_items_table_update");
+			this.eventBus.off("highlight_invoice_item");
+			this.eventBus.off("highlight_scanned_item");
+		}
+	},
 	methods: {
 		onUomChange(item, value) {
 			this.calcUom(item, value);
@@ -775,22 +783,13 @@ export default {
 
 				if (wrapper) {
 					const rowH = 48; // hoặc đo từ 1 tr thực tế
-					wrapper.scrollTop = Math.max(0, idx * rowH - wrapper.clientHeight / 2);
+					const targetTop = Math.max(0, idx * rowH - wrapper.clientHeight / 2);
+					requestAnimationFrame(() => { wrapper.scrollTop = targetTop; });
 				}
 
 				setTimeout(() => (this.highlightedRowId = null), 1200);
 			});
 		},
-
-
-	beforeUnmount() {
-		// Cleanup event listeners
-		if (this.eventBus) {
-			this.eventBus.off("force_items_table_update");
-			this.eventBus.off("highlight_invoice_item");
-			this.eventBus.off("highlight_scanned_item");
-		}
-	},
 
 		// Get pack information for display
 		getPackInfo(item) {
@@ -1195,9 +1194,13 @@ export default {
 
 /* Row highlight styling */
 :deep(.row-highlight) {
-	background-color: #e8f5e9 !important;
+	animation: flashRow 1.2s ease;
 	border-left: 4px solid #4caf50 !important;
-	transition: all 0.3s ease;
+}
+
+@keyframes flashRow {
+	from { background-color: #c8e6c9; }
+	to   { background-color: transparent; }
 }
 
 :deep(.row-highlight) .amount-value {
