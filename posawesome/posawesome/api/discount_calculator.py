@@ -53,7 +53,15 @@ class DiscountCalculator:
         self.items = invoice_data.get("items", [])
         self.customer = invoice_data.get("customer")
         self.pos_profile_name = invoice_data.get("pos_profile")
-        self.pos_profile = frappe.get_doc("POS Profile", self.pos_profile_name)
+
+        # Validate POS Profile early to prevent crashes
+        if not self.pos_profile_name:
+            frappe.throw("POS Profile is required for discount calculation.")
+        try:
+            self.pos_profile = frappe.get_doc("POS Profile", self.pos_profile_name)
+        except Exception:
+            frappe.throw(f"POS Profile '{self.pos_profile_name}' not found.")
+
         self.coupons = invoice_data.get("coupons", [])
         self.applicable_offers = []
         self.applied_offers = []
@@ -135,8 +143,8 @@ class DiscountCalculator:
                 )
 
             if not key:
-                # keep as is
-                merged_id = it.get("posa_row_id")
+                # keep as is - fallback nếu posa_row_id trống
+                merged_id = it.get("posa_row_id") or f"ROW-{id(it)}"
                 merged[merged_id] = it
                 order.append(merged_id)
                 continue
@@ -227,6 +235,11 @@ class DiscountCalculator:
             log.info(f"❌ Coupon check failed for offer '{offer.name}'")
             return False
 
+        # Check time-based restrictions early to avoid noise
+        if not self.is_offer_active_in_time_slots(offer):
+            log.info(f"❌ Offer '{offer.name}' not active in current time slot")
+            return False
+
         apply_on = offer.get("apply_on")
         log.info(f"Checking apply_on='{apply_on}' for offer '{offer.name}'")
 
@@ -267,39 +280,39 @@ class DiscountCalculator:
         
         try:
             time_slots = json.loads(time_slots_json)
-            log.info(f"Offer '{offer.get('name')}' has {len(time_slots)} time slots configured")
+            log.debug(f"Offer '{offer.get('name')}' has {len(time_slots)} time slots configured")
         except json.JSONDecodeError as e:
             log.error(f"Invalid JSON in available_time_in_day for offer '{offer.get('name')}': {e}")
             return False  # Invalid JSON = inactive
-        
+
         current_time = frappe.utils.nowtime()  # HH:MM:SS format
         current_day = frappe.utils.getdate().strftime('%A').lower()  # monday, tuesday, etc.
-        
-        log.info(f"Checking time slots for offer '{offer.get('name')}' - Current: {current_day} {current_time}")
-        
+
+        log.debug(f"Checking time slots for offer '{offer.get('name')}' - Current: {current_day} {current_time}")
+
         for slot in time_slots:
             days_of_week = slot.get("days_of_week", [])
             start_time = slot.get("start_time")
             end_time = slot.get("end_time")
             is_overnight = slot.get("is_overnight", False)
-            
+
             # Check if current day is in allowed days
             if current_day not in [day.lower() for day in days_of_week]:
                 continue  # Not active on this day
-            
+
             # Check time range
             if is_overnight:
                 # Handle overnight offers (e.g., 22:00 - 02:00) - only when end_time < start_time
                 if end_time < start_time and (current_time >= start_time or current_time <= end_time):
-                    log.info(f"✅ Offer '{offer.get('name')}' active (overnight slot: {start_time}-{end_time})")
+                    log.debug(f"✅ Offer '{offer.get('name')}' active (overnight slot: {start_time}-{end_time})")
                     return True
             else:
                 # Normal time range
                 if start_time <= current_time <= end_time:
-                    log.info(f"✅ Offer '{offer.get('name')}' active (slot: {start_time}-{end_time})")
+                    log.debug(f"✅ Offer '{offer.get('name')}' active (slot: {start_time}-{end_time})")
                     return True
-        
-        log.info(f"❌ Offer '{offer.get('name')}' not active in any time slot")
+
+        log.debug(f"❌ Offer '{offer.get('name')}' not active in any time slot")
         return False
 
     def _check_item_code_offer(self, offer):
@@ -333,8 +346,8 @@ class DiscountCalculator:
 
         log.info(f"Found {len(matching_items)} matching items, total_qty={total_qty}, total_amount={total_amount}")
 
-        # For block-based discounts and tiered pricing, check minimum quantity requirement first
-        if offer.get("is_used_block") or offer.get("is_used_tiered_pricing"):
+        # For block-based discounts, check minimum quantity requirement first
+        if offer.get("is_used_block"):
             # ---- NEW: verify min blocks by converting to stock units ----
             uom_ref = offer.get("uom_ref")
             items_per_block = int(offer.get("total_items_in_block_qty") or 0)
@@ -610,9 +623,9 @@ class DiscountCalculator:
                 continue
 
             item_uom = item.get("uom", item.get("stock_uom"))
-            item_qty = int(item.get("qty", 0) or 0)
+            item_qty = item.get("qty", 0) or 0  # Keep as float for fractional quantities
             stock_uom = item.get("stock_uom")
-            cf = int(item.get("conversion_factor") or 1)
+            cf = item.get("conversion_factor") or 1  # Keep as float for conversion factors
 
             # đếm pack hiện có
             if item_uom == uom_ref:
@@ -628,8 +641,9 @@ class DiscountCalculator:
             else:
                 total_units_in_stock += item_qty * cf
 
-        current_blocks_from_pack = total_eligible_qty_uomref
-        potential_blocks_from_all = total_units_in_stock // items_per_block
+        import math
+        current_blocks_from_pack = int(math.floor(float(total_eligible_qty_uomref)))
+        potential_blocks_from_all = int(math.floor(float(total_units_in_stock) / float(items_per_block)))
 
         log.info(f"Block discount check: has_matching_uom={has_matching_uom}, "
                  f"current_blocks_from_pack={current_blocks_from_pack}, "
@@ -707,10 +721,9 @@ class DiscountCalculator:
 
             # Validate UOM for this specific item
             item_uom = item.get("uom", item.get("stock_uom"))
-            # 👇 qty về int để tính block
-            item_qty = int(item.get("qty", 0) or 0)
+            qty_full = float(item.get("qty", 0) or 0)  # Giữ số lượng đầy đủ để tính weighted-rate
 
-            log.info(f"Checking item {item.get('item_code')}: UOM={item_uom}, qty={item_qty}")
+            log.info(f"Checking item {item.get('item_code')}: UOM={item_uom}, qty={qty_full}")
 
             if item_uom != uom_ref:
                 log.info(f"❌ Item {item.get('item_code')} UOM {item_uom} != block UOM {uom_ref} - skipping")
@@ -720,12 +733,12 @@ class DiscountCalculator:
             if item_uom == uom_ref:
                 # Item qty directly represents number of blocks
                 # e.g., UOM=THÙNG-24, qty=1 means 1 block (24 items)
-                item_blocks = item_qty
-                log.info(f"✅ Item UOM matches block UOM - qty {item_qty} = {item_qty} blocks")
+                item_blocks = math.floor(qty_full)  # Floor để tính số block nguyên
+                log.info(f"✅ Item UOM matches block UOM - qty {qty_full} = {item_blocks} blocks")
             else:
                 # For other UOMs, calculate blocks based on conversion
-                item_blocks = item_qty // items_per_block
-                log.info(f"ℹ️ Item UOM different from block UOM - calculated {item_blocks} blocks from qty {item_qty}")
+                item_blocks = math.floor(qty_full) // items_per_block
+                log.info(f"ℹ️ Item UOM different from block UOM - calculated {item_blocks} blocks from qty {qty_full}")
 
             # Tính số block theo thực tế
             eligible_blocks = min(item_blocks, max_blocks) if max_blocks > 0 else item_blocks
@@ -735,37 +748,32 @@ class DiscountCalculator:
                 log.info(f"❌ Item {item.get('item_code')} only {eligible_blocks} blocks < min_blocks {min_blocks}")
                 continue
 
-            # Apply discount to this item
+            # Apply discount to this item - sử dụng weighted-rate để không mất phần lẻ
             item_discount = eligible_blocks * discount_per_block
             original_rate = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM của dòng)
-            item_amount = original_rate * item_qty
+            item_amount = original_rate * qty_full
 
             # Validation an toàn: không cho discount vượt quá giá gốc
-            if item_discount > item_amount:
-                log.warning(f"Block discount {item_discount} exceeds item amount {item_amount}, capping discount")
-                item_discount = item_amount
+            discount_total = min(item_discount, original_rate * qty_full)
 
-            # Calculate new rate after discount - safe calculation
-            item_qty_safe = max(1, int(item_qty))
-            discount_per_unit = float(item_discount) / item_qty_safe
-            new_rate = max(0.0, float(original_rate) - discount_per_unit)
+            # Tính weighted-rate trên toàn dòng để không mất phần lẻ
+            weighted_rate = self._round_money(max(0.0, original_rate - (discount_total / max(qty_full, 1))))
 
             # Round money values
-            new_rate = self._round_money(new_rate)
-            item_discount = self._round_money(item_discount)
+            discount_total = self._round_money(discount_total)
             item_amount = self._round_money(item_amount)
 
             item["posa_offer_applied"] = 1
-            item["discount_amount"] = item_discount
-            pct = (item_discount / item_amount * 100) if item_amount else 0
+            item["discount_amount"] = discount_total
+            pct = (discount_total / item_amount * 100) if item_amount else 0
             item["discount_percentage"] = min(100.0, self._round_money(pct))
-            item["rate"] = new_rate
-            item["amount"] = self._round_money(new_rate * item_qty)
+            item["rate"] = weighted_rate
+            item["amount"] = self._round_money(weighted_rate * qty_full)
 
             self._add_offer_to_item_log(item, offer)
             applied_items.append(item)
 
-            log.info(f"✅ Applied block discount to {item.get('item_code')}: blocks={eligible_blocks}, discount={item_discount}, new_rate={new_rate}")
+            log.info(f"✅ Applied block discount to {item.get('item_code')}: blocks={eligible_blocks}, discount={item_discount}, new_rate={weighted_rate}")
 
         if applied_items:
             self.applied_offers.append(offer)
@@ -994,6 +1002,12 @@ class DiscountCalculator:
         if not packs:
             return {"1": total_qty, "total": 0}
 
+        # DP chỉ làm việc với số nguyên - ép total_qty về int
+        try:
+            total_qty = int(float(total_qty))
+        except Exception:
+            total_qty = 0
+
         dp = [float('inf')] * (total_qty + 1)
         choices = [None] * (total_qty + 1)
         dp[0] = 0
@@ -1199,15 +1213,17 @@ class DiscountCalculator:
             log.error(f"Invalid tiered pricing JSON for offer '{offer.name}': {e}")
             return
             
+        applied_items_count = 0
+
         # Apply tiered pricing to eligible items
         for item_row_id in offer.get("items", []):
             item = next((i for i in self.items if i.get("posa_row_id") == item_row_id), None)
             if not item or item.get("posa_offer_applied"):
                 continue
-                
+
             qty = item.get("qty", 0)
             original_rate = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM của dòng)
-            
+
             # Find applicable tier based on quantity
             applicable_tier = None
             for tier in tiered_config.get("tiers", []):
@@ -1216,15 +1232,15 @@ class DiscountCalculator:
                 if min_qty <= qty <= max_qty:
                     applicable_tier = tier
                     break
-            
+
             if not applicable_tier:
                 log.info(f"No applicable tier for item {item.get('item_code')} qty {qty}")
                 continue
-                
+
             # Apply tier pricing
             tier_type = applicable_tier.get("type", "fixed_rate")
             tier_value = applicable_tier.get("value", 0)
-            
+
             if tier_type == "fixed_rate":
                 new_rate = self._round_money(tier_value)
             elif tier_type == "discount_percentage":
@@ -1249,29 +1265,39 @@ class DiscountCalculator:
             pct = (discount_amount / original_rate * 100) if original_rate else 0
             item["discount_percentage"] = min(100.0, self._round_money(pct))
             item["amount"] = self._round_money(new_rate * qty)
-            
+
             self._add_offer_to_item_log(item, offer)
+            applied_items_count += 1
             log.info(f"Applied tiered pricing to {item.get('item_code')}: tier={tier_type}, new_rate={new_rate}")
-        
-        self.applied_offers.append(offer)
-        log.info(f"Successfully applied tiered pricing: '{offer.name}'")
+
+        if applied_items_count > 0:
+            self.applied_offers.append(offer)
+            log.info(f"Successfully applied tiered pricing: '{offer.name}' to {applied_items_count} items")
+        else:
+            log.info(f"No items qualified for tiered pricing: '{offer.name}'")
 
     # --- Nghiệp vụ giảm giá theo sản phẩm ---
     def _apply_item_price_offer(self, offer):
         log.debug(f"Executing _apply_item_price_offer for '{offer.name}'.")
-        
+
         # Check time-based restrictions first
         if not self.is_offer_active_in_time_slots(offer):
             log.info(f"Offer '{offer.name}' not active in current time slot")
             return
-            
+
+        applied_items_count = 0
+
         # Route to appropriate method based on offer configuration
         if offer.get("is_used_block"):
             log.info(f"Routing to block-based discount for '{offer.name}'")
             self._apply_block_based_discount(offer)
+            # Block discount tự quản lý applied_offers
+            return
         elif offer.get("is_used_tiered_pricing"):
             log.info(f"Routing to tiered pricing for '{offer.name}'")
             self._apply_tiered_pricing(offer)
+            # Tiered pricing tự quản lý applied_offers
+            return
         else:
             # Original logic for regular item price offers
             for item_row_id in offer.get("items", []):
@@ -1298,7 +1324,7 @@ class DiscountCalculator:
                     discount_type = offer.get("discount_type")
 
                     if discount_type == "Rate":
-                        discounted_rate = offer.get("rate", 0)
+                        discounted_rate = min(float(offer.get("rate", 0) or 0), float(original_rate))
                         discount_amount_per_item = original_rate - discounted_rate
                     elif discount_type == "Discount Percentage":
                         discount_percentage = offer.get("discount_percentage", 0)
@@ -1331,6 +1357,7 @@ class DiscountCalculator:
                     item["amount"] = total_amount
 
                     log.info(f"Applied max_qty logic: weighted_rate={weighted_rate}, total_discount={total_discount_amount}, total_amount={total_amount}")
+                    applied_items_count += 1
 
                 else:
                     # Normal discount application for entire quantity
@@ -1340,7 +1367,7 @@ class DiscountCalculator:
                     discount_type = offer.get("discount_type")
 
                     if discount_type == "Rate":
-                        new_rate = self._round_money(offer.get("rate", 0))
+                        new_rate = self._round_money(min(float(offer.get("rate", 0) or 0), float(original_rate)))
                         discount_amount = self._round_money(original_rate - new_rate)
                         # Validation an toàn: không cho discount vượt quá original_rate
                         if discount_amount > original_rate:
@@ -1368,11 +1395,15 @@ class DiscountCalculator:
                     item["amount"] = self._round_money(new_rate * item.get("qty", 0))
 
                     log.info(f"Applied normal discount: rate={new_rate}, discount_amount={item['discount_amount']}")
+                    applied_items_count += 1
 
                 self._add_offer_to_item_log(item, offer)
-            
-            self.applied_offers.append(offer)
-            log.info(f"Successfully applied regular 'Item Price' offer: '{offer.name}'.")
+
+            if applied_items_count > 0:
+                self.applied_offers.append(offer)
+                log.info(f"Successfully applied regular 'Item Price' offer: '{offer.name}' to {applied_items_count} items.")
+            else:
+                log.info(f"No items qualified for regular 'Item Price' offer: '{offer.name}'.")
 
     # --- Nghiệp vụ tặng sản phẩm ---
     def _apply_give_product_offer(self, offer):
@@ -1430,6 +1461,8 @@ class DiscountCalculator:
             return
 
         log.info(f"Processing {len(offer.get('items', []))} items for offer '{offer.name}'")
+        applied_items_count = 0
+
         for item_row_id in offer.get("items", []):
             log.info(f"Processing item_row_id: {item_row_id}")
             item = next((i for i in self.items if i.get("posa_row_id") == item_row_id), None)
@@ -1468,9 +1501,13 @@ class DiscountCalculator:
             log.info(f"Applied to item {item.get('item_code')}: discount_amount={discount_amount}, discount_percentage={item['discount_percentage']}, rate={new_rate}, amount={item['amount']}")
 
             self._add_offer_to_item_log(item, offer)
+            applied_items_count += 1
 
-        self.applied_offers.append(offer)
-        log.info(f"Successfully applied 'Quantity Discount Per Item' offer: '{offer.name}'.")
+        if applied_items_count > 0:
+            self.applied_offers.append(offer)
+            log.info(f"Successfully applied 'Quantity Discount Per Item' offer: '{offer.name}' to {applied_items_count} items.")
+        else:
+            log.info(f"No items qualified for 'Quantity Discount Per Item' offer: '{offer.name}'.")
 
     # --- Nghiệp vụ giảm giá trên tổng hóa đơn ---
     def _apply_grand_total_offer(self, offer):
@@ -1499,7 +1536,7 @@ class DiscountCalculator:
                 elif discount_type == "Discount Amount":
                     discount_amount = self._round_money(offer.get("discount_amount", 0))
 
-                grand_total = self._round_money(grand_total - discount_amount)
+                grand_total = max(0.0, self._round_money(grand_total - discount_amount))
                 log.info(f"Applied Grand Total discount of {discount_amount} from offer '{offer.name}'.")
                 break # Apply only one
 
