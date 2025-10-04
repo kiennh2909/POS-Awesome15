@@ -1355,7 +1355,7 @@ class DiscountCalculator:
                     item["rate"] = weighted_rate
                     item["discount_amount"] = self._round_money(discount_amount_per_item)
                     item["posa_discount_total"] = self._round_money(discount_amount_per_item * actual_qty)
-                    pct = (total_discount_amount / (original_rate * actual_qty) * 100) if (original_rate * actual_qty) else 0
+                    pct = (item["posa_discount_total"] / (original_rate * actual_qty) * 100) if (original_rate * actual_qty) else 0
                     item["discount_percentage"] = min(100.0, self._round_money(pct))
                     item["amount"] = total_amount
 

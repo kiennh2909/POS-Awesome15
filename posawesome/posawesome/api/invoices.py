@@ -26,6 +26,49 @@ from posawesome.posawesome.utils.logging import get_logger
 
 # Initialize logger
 log = get_logger("invoice")
+def _set_item_level_discount_totals(inv):
+    """Gán posa_discount_total (và per-unit nếu có) cho từng dòng invoice."""
+    for it in inv.items:
+        # bỏ qua dòng quà/tặng
+        if getattr(it, "posa_is_offer", 0) or getattr(it, "is_free_item", 0):
+            # Nếu muốn ghi rõ 0:
+            if it.meta.has_field("posa_discount_total"):
+                it.posa_discount_total = 0
+            if it.meta.has_field("posa_discount_per_unit"):
+                it.posa_discount_per_unit = 0
+            continue
+
+        qty  = flt(getattr(it, "qty", 0))
+        rate = flt(getattr(it, "rate", 0))
+        plr  = flt(getattr(it, "price_list_rate", 0))  # đã được reset về giá gốc theo UOM hiện tại
+
+        # Tính theo chênh lệch giá × số lượng (không âm, không vượt quá giá gốc)
+        per_unit_disc = max(0, plr - rate)
+        line_total_disc = per_unit_disc * qty
+
+        # Chặn trần: tổng giảm không vượt tổng giá gốc
+        max_allowed = max(0, plr * qty)
+        if line_total_disc > max_allowed:
+            line_total_disc = max_allowed
+            per_unit_disc = max_allowed / qty if qty else 0
+
+        # Ghi vào custom field nếu có, không có thì bỏ qua (không lỗi)
+        if it.meta.has_field("posa_discount_total"):
+            it.posa_discount_total = flt(line_total_disc, it.precision("amount"))
+        if it.meta.has_field("posa_discount_per_unit"):
+            it.posa_discount_per_unit = flt(per_unit_disc, it.precision("rate"))
+
+
+def _sum_item_level_discount(inv):
+    total = 0
+    for it in inv.items:
+        if getattr(it, "posa_is_offer", 0) or getattr(it, "is_free_item", 0):
+            continue
+        plr  = flt(getattr(it, "price_list_rate", 0))
+        rate = flt(getattr(it, "rate", 0))
+        qty  = flt(getattr(it, "qty", 0))
+        total += max(0, plr - rate) * qty
+    return flt(total, inv.precision("grand_total"))
 
 
 def get_latest_rate(from_currency: str, to_currency: str):
@@ -431,6 +474,7 @@ def update_invoice(data):
 			log.error(f"[UPDATE_INVOICE] ❌ Failed to fix items structure: {str(fix_error)}")
 			frappe.throw(f"Failed to process invoice items: {str(fix_error)}")
 
+	_set_item_level_discount_totals(invoice_doc)
 	invoice_doc.save()
 	log.info(f"[UPDATE_INVOICE] ✅ Invoice saved successfully: {invoice_doc.name}")
 
@@ -714,7 +758,8 @@ def submit_invoice(invoice, data):
 		log.info(f"[SUBMIT_INVOICE] ✅ All invoices queued for background processing")
 	else:
 		log.info(f"[SUBMIT_INVOICE] ⚡ Call Submitting invoice immediately - Directly Mode")
-  
+
+		_set_item_level_discount_totals(invoice_doc)
 		invoice_doc.submit()
   
 		log.info(f"[SUBMIT_INVOICE] ✅ Invoice submitted successfully: {invoice_doc.name}")
@@ -806,6 +851,7 @@ def submit_in_background_job(kwargs):
 	invoice_doc.save()
 	log.info(f"[BACKGROUND_JOB] 💾 Invoice saved: {invoice_doc.name}")
 
+	_set_item_level_discount_totals(invoice_doc)
 	invoice_doc.save()
 	invoice_doc.submit()
 	log.info(f"[BACKGROUND_JOB] ✅ Invoice submitted: {invoice_doc.name}")
