@@ -524,21 +524,15 @@ export default {
 			// Thêm vào hóa đơn như cũ
 			this.add_item(item);
 
-			// 👉 sau khi DOM cập nhật, highlight dòng vừa thêm
-			setTimeout(() => {
-				// tìm dòng mới nhất có cùng item_code
-				const last = [...this.items].reverse().find(i => i.item_code === item.item_code);
-				const key = (last && (last.posa_row_id || last.item_code)) || item.item_code;
-
-				console.log("Highlighting item:", item.item_code, "key:", key, "last item:", last);
-
-				if (this.$refs.itemsTable && this.$refs.itemsTable.highlightItem) {
-					this.$refs.itemsTable.highlightItem(key);
-				} else {
-					// fallback: phát event để ItemsTable tự xử lý
-					this.eventBus.emit("highlight_scanned_item", key);
+			// 👉 highlight dòng vừa thêm
+			this.$nextTick(() => {
+				const added = this.items[this.items.length - 1];
+				if (added?.posa_row_id) {
+					this.eventBus.emit("highlight_invoice_item", { itemRowId: added.posa_row_id });
+				} else if (added?.item_code) {
+					this.eventBus.emit("highlight_scanned_item", added.item_code);
 				}
-			}, 100); // delay 100ms để đảm bảo DOM update
+			});
 
 			// feedback
 			this.eventBus.emit("show_message", {

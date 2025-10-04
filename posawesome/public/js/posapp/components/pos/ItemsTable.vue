@@ -22,6 +22,7 @@
 			:single-expand="true"
 			:header-props="headerProps"
 			:item-class="getRowClass"
+			:item-props="getItemProps"
 			@update:expanded="$emit('update:expanded', $event)"
 			:search="itemSearch"
 		>
@@ -606,6 +607,12 @@ export default {
 		getRowClass(item) {
 			return this.highlightedRowId === item.posa_row_id ? 'row-highlight' : '';
 		},
+		getItemProps(item) {
+			return {
+				'data-row-id': item.posa_row_id,
+				'data-item-code': item.item_code
+			};
+		},
 	},
 	watch: {
 		items: {
@@ -693,10 +700,23 @@ export default {
 		}
 	},
 	mounted() {
+		console.log("[ItemsTable] Mounted, setting up listeners");
+
 		// Listen for force update events
 		this.eventBus.on("force_items_table_update", () => {
 			console.log("[ItemsTable] Force update triggered by event");
 			this.$forceUpdate();
+		});
+
+		// Listen for highlight events
+		this.eventBus.on("highlight_invoice_item", (data) => {
+			console.log("[ItemsTable] 📨 Received highlight_invoice_item event:", data);
+			this.highlightItem(data.itemRowId);
+		});
+
+		this.eventBus.on("highlight_scanned_item", (itemCode) => {
+			console.log("[ItemsTable] 📨 Received old highlight_scanned_item event for:", itemCode);
+			this.highlightItem(itemCode);
 		});
 	},
 	methods: {
@@ -741,94 +761,36 @@ export default {
 		},
 
 		highlightItem(key) {
-			// key có thể là posa_row_id hoặc item_code
-			console.log("[ItemsTable] Highlighting item with key:", key);
+			const idx = this.items.findIndex(it =>
+				it.posa_row_id === key || it.item_code === key
+			);
+			if (idx < 0) return;
 
-			// Tìm item trong this.items
-			let targetItem = null;
-			if (key) {
-				targetItem = this.items.find(item =>
-					item.posa_row_id === key || item.item_code === key
-				);
-			}
+			this.highlightedRowId = this.items[idx].posa_row_id;
 
-			if (!targetItem) {
-				console.log("[ItemsTable] Item not found for key:", key);
-				return false;
-			}
-
-			console.log("[ItemsTable] Found item:", targetItem.item_code, "row_id:", targetItem.posa_row_id);
-
-			// Set highlighted row
-			this.highlightedRowId = targetItem.posa_row_id;
-
-			// Scroll vào view sau khi DOM update
 			this.$nextTick(() => {
-				const rowElements = this.$el.querySelectorAll('tr');
-				let targetRow = null;
+				const wrapper =
+					this.$el.querySelector('.v-data-table__wrapper') ||
+					this.$el.querySelector('.v-table__wrapper');
 
-				// Tìm row chứa item này (có thể phức tạp với virtual table)
-				// Thử scroll đến vị trí item trong array
-				const itemIndex = this.items.indexOf(targetItem);
-				if (itemIndex >= 0) {
-					// Ước tính vị trí scroll
-					const rowHeight = 48; // approximate row height
-					const scrollTop = itemIndex * rowHeight;
-					const container = this.$el.querySelector('.v-data-table__wrapper');
-					if (container) {
-						container.scrollTop = scrollTop - container.clientHeight / 2;
-					}
+				if (wrapper) {
+					const rowH = 48; // hoặc đo từ 1 tr thực tế
+					wrapper.scrollTop = Math.max(0, idx * rowH - wrapper.clientHeight / 2);
 				}
 
-				// Tự tắt highlight sau 1.2s
-				setTimeout(() => {
-					this.highlightedRowId = null;
-				}, 1200);
+				setTimeout(() => (this.highlightedRowId = null), 1200);
 			});
-
-			return true;
 		},
 
-		// Add mounted hook for event listeners (moved from created to ensure eventBus is available)
-		mounted() {
-			console.log("[ItemsTable] Setting up event listeners");
-			console.log("[ItemsTable] Initial items on mount:", this.items.map(item => ({
-				Item_code: item.item_code,
-				Price: item.rate,
-				Uom: item.uom,
-				qty: item.qty
-			})));
 
-			// Ensure eventBus is available before setting up listeners
-			if (!this.eventBus) {
-				console.warn("[ItemsTable] EventBus not available, skipping event listener setup");
-				return;
-			}
-
-			// Listen for highlight invoice item event
-			this.eventBus.on("highlight_invoice_item", (data) => {
-				console.log("[ItemsTable] 📨 Received highlight_invoice_item event:", data);
-				console.log("[ItemsTable] Item to highlight:", data.itemRowId, "enlarge font:", data.enlargeFont);
-				this.highlightItem(data.itemRowId, data.enlargeFont);
-			});
-
-			// Keep old event listener for backward compatibility
-			this.eventBus.on("highlight_scanned_item", (itemCode) => {
-				console.log("[ItemsTable] 📨 Received old highlight_scanned_item event for:", itemCode);
-				this.highlightItem(itemCode, false);
-			});
-
-			console.log("[ItemsTable] Event listeners setup complete");
-		},
-
-		// Add beforeUnmount for cleanup
-		beforeUnmount() {
-			// Cleanup event listeners
-			if (this.eventBus) {
-				this.eventBus.off("highlight_invoice_item");
-				this.eventBus.off("highlight_scanned_item");
-			}
-		},
+	beforeUnmount() {
+		// Cleanup event listeners
+		if (this.eventBus) {
+			this.eventBus.off("force_items_table_update");
+			this.eventBus.off("highlight_invoice_item");
+			this.eventBus.off("highlight_scanned_item");
+		}
+	},
 
 		// Get pack information for display
 		getPackInfo(item) {
@@ -1232,13 +1194,13 @@ export default {
 
 
 /* Row highlight styling */
-.row-highlight {
+:deep(.row-highlight) {
 	background-color: #e8f5e9 !important;
 	border-left: 4px solid #4caf50 !important;
 	transition: all 0.3s ease;
 }
 
-.row-highlight .amount-value {
+:deep(.row-highlight) .amount-value {
 	font-weight: 700 !important;
 	color: #2e7d32 !important;
 }
