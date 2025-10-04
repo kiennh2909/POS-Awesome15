@@ -45,6 +45,19 @@ def validate(doc, method):
 	log.info(f"[INVOICE_VALIDATION] COMPLETED - Invoice: {doc.name}")
 
 
+def _sum_item_level_discount(inv):
+	"""Calculate total discount from all items in the invoice"""
+	total = 0
+	for it in inv.items:
+		# Nếu đã có posa_discount_total thì dùng
+		if hasattr(it, "posa_discount_total") and it.posa_discount_total:
+			total += flt(it.posa_discount_total)
+		else:
+			# fallback: per-unit * qty
+			unit_disc = (flt(it.price_list_rate) - flt(it.rate)) if (it.price_list_rate and it.rate) else flt(it.discount_amount or 0)
+			total += unit_disc * flt(it.qty or 0)
+	return flt(total, inv.precision("grand_total"))
+
 # def before_submit(doc, method):
 # 	log.info(f"[BEFORE_SUBMIT] 🎯 START - Invoice: {doc.name}, Customer: {doc.customer}, Amount: {doc.grand_total}")
 
@@ -56,6 +69,10 @@ def validate(doc, method):
 
 def before_submit(doc, method):
 	log.info(f"[BEFORE_SUBMIT] START - Invoice: {doc.name}")
+
+	# Calculate and set total item discount
+	doc.posa_total_item_discount = _sum_item_level_discount(doc)
+	log.info(f"[BEFORE_SUBMIT] Total item discount calculated: {doc.posa_total_item_discount}")
 
 
 def on_submit(doc, method):

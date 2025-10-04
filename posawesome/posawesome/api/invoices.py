@@ -434,6 +434,13 @@ def update_invoice(data):
 	invoice_doc.save()
 	log.info(f"[UPDATE_INVOICE] ✅ Invoice saved successfully: {invoice_doc.name}")
 
+	# Calculate and set total item discount if field exists
+	if hasattr(invoice_doc, 'posa_total_item_discount'):
+		from posawesome.posawesome.api.invoice import _sum_item_level_discount
+		invoice_doc.posa_total_item_discount = _sum_item_level_discount(invoice_doc)
+		invoice_doc.save()
+		log.info(f"[UPDATE_INVOICE] Total item discount updated: {invoice_doc.posa_total_item_discount}")
+
 	# Return both the invoice doc and the updated data
 	log.info(f"[UPDATE_INVOICE] 📤 Preparing response data")
 	response = invoice_doc.as_dict()

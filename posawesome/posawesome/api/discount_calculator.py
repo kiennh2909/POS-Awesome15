@@ -757,14 +757,16 @@ class DiscountCalculator:
             discount_total = min(item_discount, original_rate * qty_full)
 
             # Tính weighted-rate trên toàn dòng để không mất phần lẻ
-            weighted_rate = self._round_money(max(0.0, original_rate - (discount_total / max(qty_full, 1))))
+            unit_disc = self._round_money(discount_total / max(qty_full, 1))
+            item["discount_amount"] = unit_disc
+            item["posa_discount_total"] = discount_total
+            weighted_rate = self._round_money(max(0.0, original_rate - unit_disc))
 
             # Round money values
             discount_total = self._round_money(discount_total)
             item_amount = self._round_money(item_amount)
 
             item["posa_offer_applied"] = 1
-            item["discount_amount"] = discount_total
             pct = (discount_total / item_amount * 100) if item_amount else 0
             item["discount_percentage"] = min(100.0, self._round_money(pct))
             item["rate"] = weighted_rate
@@ -1351,7 +1353,8 @@ class DiscountCalculator:
 
                     item["posa_offer_applied"] = 1
                     item["rate"] = weighted_rate
-                    item["discount_amount"] = total_discount_amount
+                    item["discount_amount"] = self._round_money(discount_amount_per_item)
+                    item["posa_discount_total"] = self._round_money(discount_amount_per_item * actual_qty)
                     pct = (total_discount_amount / (original_rate * actual_qty) * 100) if (original_rate * actual_qty) else 0
                     item["discount_percentage"] = min(100.0, self._round_money(pct))
                     item["amount"] = total_amount
@@ -1480,20 +1483,21 @@ class DiscountCalculator:
             log.info(f"Item {item.get('item_code')}: qty={qty}, original_rate={original_rate}")
 
             # Calculate discount: qty_discount_per_item * quantity
-            discount_amount = self._round_money(qty_discount_per_item * qty)
-            new_rate = self._round_money(original_rate - qty_discount_per_item)  # Rate sau khi trừ discount per item
-
-            log.info(f"Calculated: discount_amount={discount_amount}, new_rate={new_rate}")
+            unit_disc = self._round_money(qty_discount_per_item)
+            item["discount_amount"] = unit_disc
+            item["posa_discount_total"] = self._round_money(unit_disc * qty)
+            new_rate = self._round_money(original_rate - unit_disc)
+            log.info(f"Calculated: unit_disc={unit_disc}, posa_discount_total={item['posa_discount_total']}, new_rate={new_rate}")
 
             # Validation an toàn: không cho discount vượt quá giá gốc
-            item_amount = original_rate * qty
-            if discount_amount > item_amount:
-                log.warning(f"Quantity discount {discount_amount} exceeds item amount {item_amount}, capping discount")
-                discount_amount = item_amount
+            if unit_disc > original_rate:
+                log.warning(f"Unit discount {unit_disc} exceeds original rate {original_rate}, capping discount")
+                unit_disc = original_rate
+                item["discount_amount"] = unit_disc
+                item["posa_discount_total"] = self._round_money(unit_disc * qty)
                 new_rate = 0
 
-            item["discount_amount"] = discount_amount
-            pct = (discount_amount / (original_rate * qty) * 100) if (original_rate * qty) else 0
+            pct = (item["posa_discount_total"] / (original_rate * qty) * 100) if (original_rate * qty) else 0
             item["discount_percentage"] = min(100.0, self._round_money(pct))
             item["rate"] = new_rate
             item["amount"] = self._round_money(new_rate * qty)
