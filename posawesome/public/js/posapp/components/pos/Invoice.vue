@@ -189,9 +189,6 @@
 						@item-dropped="showDropFeedback(false)"
 					/>
 				</div>
-
-				<!-- Spacer between Items Table and Invoice Summary -->
-				<div class="section-spacer"></div>
 			</div>
 		</v-card>
 		<!-- Payment Section -->
@@ -1729,29 +1726,6 @@ export default {
 .items-table-wrapper {
 	position: relative;
 	margin-top: 0; /* Remove margin since button is no longer above */
-}
-
-/* Spacer between Items Table and Invoice Summary sections */
-.section-spacer {
-	height: 1px;
-	min-height: 1px;
-}
-
-/* Payment Section spacing adjustments */
-:deep(.v-row + .v-row) {
-	margin-top: 8px;
-}
-
-/* Summary button styling */
-:deep(.summary-btn[data-v-ab85018a]) {
-	min-height: 60px !important;
-	font-size: 1.3rem !important;
-	font-weight: 600 !important;
-	text-transform: none;
-	margin: 1px;
-	border-radius: 6px;
-	padding: 3px 3px !important;
-	white-space: nowrap !important;
 }
 
 /* New styles for improved column switches */
