@@ -1745,6 +1745,11 @@ export default {
 	margin: -14px;
 }
 
+/* Override dense row column padding */
+:deep(.v-row--dense>.v-col), :deep(.v-row--dense>[class*=v-col-]) {
+	padding: 10px;
+}
+
 /* New styles for improved column switches */
 :deep(.column-switch) {
 	margin: 0;
