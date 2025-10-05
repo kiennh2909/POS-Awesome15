@@ -654,6 +654,7 @@ export default {
 
 	// Save and clear the current invoice (draft logic)
 	save_and_clear_invoice() {
+		let old_invoice = null; // Declare old_invoice variable
 		const doc = this.get_invoice_doc();
 		if (doc.name) {
 			old_invoice = this.update_invoice(doc);

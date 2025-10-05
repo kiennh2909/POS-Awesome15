@@ -15,9 +15,13 @@ export default {
 		this.fetch_customer_balance();
 		this.set_delivery_charges();
 
-		// Trigger discount calculation
-		this.calculateDiscountsDebounced();
-		console.log("👀 [DISCOUNT_TRIGGER] calculateDiscountsDebounced() called from customer watcher");
+		// Trigger discount calculation only if cart has items
+		if (this.items.length > 0) {
+			this.calculateDiscountsDebounced();
+			console.log("👀 [DISCOUNT_TRIGGER] calculateDiscountsDebounced() called from customer watcher");
+		} else {
+			console.log("👀 [DISCOUNT_TRIGGER] Skipped discount calculation - cart is empty");
+		}
 	},
 	// Watch for customer_info change and emit to edit form
 	customer_info() {
@@ -93,10 +97,12 @@ export default {
 			});
 
 			if (structureChanged || qtyChanged || isFirstItemAdded) {
-				// Debounce the call to the new API
-				if (this.calculateDiscountsDebounced) {
+				// Debounce the call to the new API only if cart has items
+				if (this.calculateDiscountsDebounced && this.items.length > 0) {
 					console.log("items watcher: triggering calculateDiscountsDebounced");
 					this.calculateDiscountsDebounced();
+				} else if (this.items.length === 0) {
+					console.log("items watcher: skipped calculateDiscountsDebounced - cart is empty");
 				} else {
 					console.log("items watcher: calculateDiscountsDebounced not available");
 				}

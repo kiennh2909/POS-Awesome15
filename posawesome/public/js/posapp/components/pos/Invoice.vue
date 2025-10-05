@@ -1438,9 +1438,13 @@ export default {
 			this.posa_coupons = data;
 			console.log("🎫 [COUPON_UPDATE] posa_coupons updated:", this.posa_coupons);
 
-			// Trigger discount calculation using backend API
-			this.calculateDiscountsDebounced();
-			console.log("🎫 [DISCOUNT_TRIGGER] calculateDiscountsDebounced() called from coupon update");
+			// Trigger discount calculation using backend API only if cart has items
+			if (this.items.length > 0) {
+				this.calculateDiscountsDebounced();
+				console.log("🎫 [DISCOUNT_TRIGGER] calculateDiscountsDebounced() called from coupon update");
+			} else {
+				console.log("🎫 [DISCOUNT_TRIGGER] Skipped discount calculation - cart is empty");
+			}
 		});
 		this.eventBus.on("set_all_items", (data) => {
 			this.allItems = data;
