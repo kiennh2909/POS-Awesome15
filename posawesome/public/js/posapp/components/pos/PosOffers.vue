@@ -369,11 +369,15 @@ export default {
 					console.log("📋 [POS_OFFERS] Loaded", this.pos_offers.length, "offers");
 					this.updateCounters();
 
-					// Remove search results message to avoid popup spam
-					// Only log to console for debugging
+					// Show search results message
 					if (itemCode || offerTitle) {
 						const searchType = itemCode ? `Item Code: ${itemCode}` : `Tên: ${offerTitle}`;
-						console.log(`🔍 [POS_OFFERS] Search completed: Found ${this.pos_offers.length} offers for ${searchType}`);
+						this.eventBus.emit("show_message", {
+							title: __("Kết quả tìm kiếm"),
+							message: __(`Tìm thấy ${this.pos_offers.length} chương trình khuyến mại cho ${searchType}.`),
+							color: "success",
+							timeout: 3000
+						});
 					}
 				}
 
@@ -947,40 +951,41 @@ export default {
 			}
 		},
 
-		handleApplicableOffersResult(data) {
-			console.log("🔍 [POS_OFFERS] Handling applicable offers result:", data);
-
-			if (data && data.applied_offers) {
-				// Mark applicable offers
-				const applicableOfferNames = data.applied_offers.map(offer => offer.name);
-
-				this.pos_offers.forEach(offer => {
-					offer.is_applicable = applicableOfferNames.includes(offer.name);
-				});
-
-				// Clear search fields and switch to show only applicable offers
-				this.searchItemCode = "";
-				this.searchOfferTitle = "";
-				this.show_only_applicable = true;
-
-				console.log("🔍 [POS_OFFERS] Marked applicable offers:", applicableOfferNames);
-				console.log("🔍 [POS_OFFERS] Total applicable offers:", applicableOfferNames.length);
-
-				// Only show success message if there are applicable offers
-				if (applicableOfferNames.length > 0) {
-					this.eventBus.emit("show_message", {
-						title: __("Kiểm tra hoàn tất"),
-						message: __(`Tìm thấy ${applicableOfferNames.length} chương trình khuyến mại phù hợp.`),
-						color: "success",
-						timeout: 3000
-					});
-				}
-			} else {
-				console.warn("🔍 [POS_OFFERS] No applied_offers in result data");
-				// Don't show warning message for automatic calculations when adding items
-				// Only show when user explicitly clicks "Kiểm tra Offer" button
-			}
-		},
+		// Bro đi việc - Comment out để Cashier làm việc nhanh chóng hơn, có thể dùng trong tương lai
+		// handleApplicableOffersResult(data) {
+		// 	console.log("🔍 [POS_OFFERS] Handling applicable offers result:", data);
+		//
+		// 	if (data && data.applied_offers) {
+		// 		// Mark applicable offers
+		// 		const applicableOfferNames = data.applied_offers.map(offer => offer.name);
+		//
+		// 		this.pos_offers.forEach(offer => {
+		// 			offer.is_applicable = applicableOfferNames.includes(offer.name);
+		// 		});
+		//
+		// 		// Clear search fields and switch to show only applicable offers
+		// 		this.searchItemCode = "";
+		// 		this.searchOfferTitle = "";
+		// 		this.show_only_applicable = true;
+		//
+		// 		console.log("🔍 [POS_OFFERS] Marked applicable offers:", applicableOfferNames);
+		// 		console.log("🔍 [POS_OFFERS] Total applicable offers:", applicableOfferNames.length);
+		//
+		// 		// Only show success message if there are applicable offers
+		// 		if (applicableOfferNames.length > 0) {
+		// 			this.eventBus.emit("show_message", {
+		// 				title: __("Kiểm tra hoàn tất"),
+		// 				message: __(`Tìm thấy ${applicableOfferNames.length} chương trình khuyến mại phù hợp.`),
+		// 				color: "success",
+		// 				timeout: 3000
+		// 			});
+		// 		}
+		// 	} else {
+		// 		console.warn("🔍 [POS_OFFERS] No applied_offers in result data");
+		// 		// Don't show warning message for automatic calculations when adding items
+		// 		// Only show when user explicitly clicks "Kiểm tra Offer" button
+		// 	}
+		// },
 
 		getDiscountDisplay(offer) {
 			// Handle block-based discount first
@@ -1091,11 +1096,11 @@ export default {
 				this.loadOffers();
 			});
 
-			// Listen for applicable offers result from calculate_discounts
-			this.eventBus.on("applicable_offers_result", (data) => {
-				console.log("📥 [POS_OFFERS] Received applicable offers result:", data);
-				this.handleApplicableOffersResult(data);
-			});
+			// Bro đi việc - Comment out để Cashier làm việc nhanh chóng hơn
+			// this.eventBus.on("applicable_offers_result", (data) => {
+			// 	console.log("📥 [POS_OFFERS] Received applicable offers result:", data);
+			// 	this.handleApplicableOffersResult(data);
+			// });
 		});
 	},
 };
@@ -1549,7 +1554,7 @@ export default {
 
 /* Offer buttons styling */
 .offer-buttons-row {
-	padding: 6px 8px;
+	padding: 8px;
 }
 
 .offer-button-col {
@@ -1557,41 +1562,39 @@ export default {
 }
 
 .offer-button {
-	font-size: 0.7rem !important; /* Even smaller font size */
-	padding: 4px 6px !important; /* Smaller padding */
-	min-height: 32px !important; /* Smaller height */
-	border-radius: 4px !important; /* Smaller border radius */
-	font-weight: 500 !important;
-	text-transform: none !important;
+	font-size: 0.75rem !important; /* Smaller font size */
+	padding: 6px 8px !important; /* Smaller padding */
+	min-height: 36px !important; /* Smaller height */
+	border-radius: 6px !important; /* Slightly rounded corners */
 }
 
 .offer-button .v-btn__content {
-	font-size: 0.7rem !important;
+	font-size: 0.75rem !important;
 	line-height: 1.2;
 }
 
 /* Responsive adjustments for offer buttons */
 @media (max-width: 768px) {
 	.offer-button {
-		font-size: 0.65rem !important;
-		padding: 3px 5px !important;
-		min-height: 28px !important;
+		font-size: 0.7rem !important;
+		padding: 4px 6px !important;
+		min-height: 32px !important;
 	}
 
 	.offer-button .v-btn__content {
-		font-size: 0.65rem !important;
+		font-size: 0.7rem !important;
 	}
 }
 
 @media (max-width: 480px) {
 	.offer-button {
-		font-size: 0.6rem !important;
-		padding: 2px 4px !important;
-		min-height: 24px !important;
+		font-size: 0.65rem !important;
+		padding: 3px 4px !important;
+		min-height: 28px !important;
 	}
 
 	.offer-button .v-btn__content {
-		font-size: 0.6rem !important;
+		font-size: 0.65rem !important;
 	}
 }
 </style>

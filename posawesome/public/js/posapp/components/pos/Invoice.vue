@@ -453,11 +453,11 @@ export default {
 
 					console.log("🎁 [DISCOUNT_CALC] Applied offers:", this.posa_offers.map(o => `${o.name} (${o.offer})`));
 
-					// Emit result to PosOffers dialog for applicable offers filtering
-					this.eventBus.emit("applicable_offers_result", {
-						applied_offers: this.posa_offers,
-						updated_items: this.items
-					});
+					// Bro đi việc - Comment out để Cashier làm việc nhanh chóng hơn
+					// this.eventBus.emit("applicable_offers_result", {
+					// 	applied_offers: this.posa_offers,
+					// 	updated_items: this.items
+					// });
 
 				} else {
 					console.log("💰 [DISCOUNT_CALC] API returned error status");
