@@ -66,6 +66,9 @@ class DiscountCalculator:
         self.applicable_offers = []
         self.applied_offers = []
         self.totals = {"grand_total": 0, "net_total": 0}
+        self.valid_coupons = []
+        self.invalid_coupons = []
+        self.validation_errors = {}
 
     def _round_money(self, x):
         """Round money values according to ERP precision"""
@@ -170,11 +173,95 @@ class DiscountCalculator:
         self.items = new_items
         log.info(f"Item coalescing completed: {len(self.items)} items after")
 
+    def _validate_coupons(self):
+        """Validate coupons based on POS Coupon schema"""
+        log.info("🎫 [COUPON_VALIDATION] Validating coupons", {
+            "coupons_count": len(self.coupons),
+            "customer": self.customer,
+            "company": self.pos_profile.company
+        })
+
+        valid_coupons = []
+        invalid_coupons = []
+
+        for coupon_data in self.coupons:
+            coupon_code = coupon_data.get("coupon_code")
+            if not coupon_code:
+                log.warning("🎫 [COUPON_ERROR] Missing coupon code in data", coupon_data)
+                continue
+
+            try:
+                # Use optimized check_coupon_code function
+                from posawesome.posawesome.doctype.pos_coupon.pos_coupon import check_coupon_code
+                result = check_coupon_code(
+                    coupon_code,
+                    self.customer,
+                    self.pos_profile.company
+                )
+
+                if result.get("coupon"):
+                    coupon_doc = result["coupon"]
+                    valid_coupons.append({
+                        "coupon_doc": coupon_doc,
+                        "coupon_data": coupon_data,
+                        "offer_name": coupon_doc.pos_offer
+                    })
+                    log.info("🎫 [COUPON_VALID] Coupon validated", {
+                        "coupon_code": coupon_code,
+                        "coupon_type": coupon_doc.coupon_type,
+                        "offer": coupon_doc.pos_offer
+                    })
+                else:
+                    invalid_coupons.append({
+                        "coupon_code": coupon_code,
+                        "reason": result.get("msg", "Unknown error")
+                    })
+                    log.warning("🎫 [COUPON_INVALID] Coupon validation failed", {
+                        "coupon_code": coupon_code,
+                        "reason": result.get("msg")
+                    })
+
+            except Exception as e:
+                log.error("🎫 [COUPON_ERROR] Error validating coupon", {
+                    "coupon_code": coupon_code,
+                    "error": str(e)
+                })
+                invalid_coupons.append({
+                    "coupon_code": coupon_code,
+                    "reason": str(e)
+                })
+
+        self.valid_coupons = valid_coupons
+        self.invalid_coupons = invalid_coupons
+
+        log.info("🎫 [COUPON_VALIDATION] Completed", {
+            "valid_coupons": len(valid_coupons),
+            "invalid_coupons": len(invalid_coupons)
+        })
+
+        # Report invalid coupons to frontend
+        if invalid_coupons:
+            self._report_invalid_coupons(invalid_coupons)
+
+    def _report_invalid_coupons(self, invalid_coupons):
+        """Report invalid coupons back to frontend"""
+        error_messages = []
+        for invalid in invalid_coupons:
+            error_messages.append(f"{invalid['coupon_code']}: {invalid['reason']}")
+
+        self.validation_errors["coupons"] = {
+            "invalid_coupons": invalid_coupons,
+            "error_messages": error_messages
+        }
+
     def process(self):
         # 1) Gộp các dòng giống nhau
         self._coalesce_identical_items()
 
-        # 2) Reset giá, tìm & áp offer như cũ
+        # 2) Validate coupons
+        self._validate_coupons()
+
+        # 3) Reset giá, tìm & áp offer như cũ
         self._reset_item_prices()
         self._get_valid_offers()
         self._find_applicable_offers()

@@ -7,6 +7,15 @@
 		>
 			<v-card-title>
 				<span class="text-h6 text-primary">{{ __("Coupons") }}</span>
+				<v-spacer></v-spacer>
+				<v-btn
+					variant="text"
+					color="warning"
+					@click="back_to_invoice"
+				>
+					<v-icon size="small" class="mr-1">mdi-arrow-left</v-icon>
+					{{ __("Back") }}
+				</v-btn>
 			</v-card-title>
 
 			<!-- Input and Button Row - Same Level -->
@@ -33,7 +42,8 @@
 						block
 						@click="add_coupon(new_coupon)"
 					>
-						{{ __("add") }}
+						<v-icon size="small" class="mr-1">mdi-plus</v-icon>
+						{{ __("Add") }}
 					</v-btn>
 				</v-col>
 			</v-row>
@@ -59,22 +69,6 @@
 				</v-data-table>
 			</div>
 		</v-card>
-
-		<v-card flat style="max-height: 11vh; height: 11vh" class="cards mb-0 mt-3 py-0">
-			<v-row align="start" no-gutters>
-				<v-col cols="12">
-					<v-btn
-						block
-						class="pa-1"
-						size="large"
-						color="warning"
-						theme="dark"
-						@click="back_to_invoice"
-						>{{ __("Back") }}</v-btn
-					>
-				</v-col>
-			</v-row>
-		</v-card>
 	</div>
 </template>
 
@@ -88,6 +82,7 @@ export default {
 		new_coupon: null,
 		itemsPerPage: 1000,
 		singleExpand: true,
+		couponInputTimeout: null, // For debouncing
 		items_headers: [
 			{ title: __("Coupon"), value: "coupon_code", align: "start" },
 			{ title: __("Type"), value: "type", align: "start" },
@@ -109,18 +104,61 @@ export default {
 	},
 
 	methods: {
+		// Debounce function for coupon input
+		debounceCouponInput(func, delay) {
+			return function(...args) {
+				const context = this;
+				clearTimeout(this.couponInputTimeout);
+				this.couponInputTimeout = setTimeout(() => func.apply(context, args), delay);
+				console.log(`⏱️ [COUPON_DEBOUNCE] Function debounced for ${delay}ms`);
+			};
+		},
+
+		// Validate coupon input based on schema constraints
+		validateCouponInput(couponCode) {
+			if (!couponCode || couponCode.trim().length === 0) {
+				return { valid: false, message: __("Coupon code is required") };
+			}
+
+			// Check format based on schema constraints
+			const code = couponCode.trim().toUpperCase();
+			if (code.length < 3 || code.length > 20) {
+				return { valid: false, message: __("Coupon code must be 3-20 characters") };
+			}
+
+			// Check for invalid characters
+			if (!/^[A-Z0-9\-_]+$/.test(code)) {
+				return { valid: false, message: __("Only letters, numbers, hyphens, underscores allowed") };
+			}
+
+			return { valid: true, code: code };
+		},
+
 		back_to_invoice() {
 			this.eventBus.emit("show_coupons", "false");
 		},
 		add_coupon(new_coupon) {
-			if (!this.customer || !new_coupon) {
+			// Enhanced validation with schema-based checks
+			if (!this.customer) {
 				this.eventBus.emit("show_message", {
 					title: __("Select a customer to use coupon"),
 					color: "error",
 				});
 				return;
 			}
-			const exist = this.posa_coupons.find((el) => el.coupon_code == new_coupon);
+
+			const validation = this.validateCouponInput(new_coupon);
+			if (!validation.valid) {
+				this.eventBus.emit("show_message", {
+					title: __("Invalid Coupon Code"),
+					message: validation.message,
+					color: "warning"
+				});
+				return;
+			}
+
+			// Check for duplicates in current session
+			const exist = this.posa_coupons.find((el) => el.coupon_code == validation.code);
 			if (exist) {
 				this.eventBus.emit("show_message", {
 					title: __("This coupon already used !"),
@@ -128,23 +166,44 @@ export default {
 				});
 				return;
 			}
+
+			// Debounce the actual API call
+			this.debouncedAddCoupon(validation.code);
+		},
+
+		// Debounced API call method
+		_addCouponAPI(couponCode) {
+			console.log("🎫 [COUPON_ADD] Adding validated coupon:", couponCode);
 			const vm = this;
+
 			frappe.call({
 				method: "posawesome.posawesome.api.offers.get_pos_coupon",
 				args: {
-					coupon: new_coupon,
+					coupon: couponCode,
 					customer: vm.customer,
 					company: vm.pos_profile.company,
 				},
 				callback: function (r) {
+					console.log("🎫 [COUPON_API] API response received", {
+						has_coupon: !!r.message?.coupon,
+						message: r.message?.msg
+					});
+
 					if (r.message) {
 						const res = r.message;
 						if (res.msg != "Apply" || !res.coupon) {
+							console.warn("🎫 [COUPON_ERROR] Coupon validation failed:", res.msg);
 							vm.eventBus.emit("show_message", {
-								text: res.msg,
+								title: __("Coupon Validation Failed"),
+								message: res.msg,
 								color: "error",
 							});
 						} else {
+							console.log("🎫 [COUPON_SUCCESS] Coupon added successfully", {
+								coupon_code: couponCode,
+								coupon_type: res.coupon.coupon_type
+							});
+
 							vm.new_coupon = null;
 							const coupon = res.coupon;
 							vm.posa_coupons.push({
@@ -154,6 +213,17 @@ export default {
 								applied: 0,
 								pos_offer: coupon.pos_offer,
 								customer: coupon.customer || vm.customer,
+								valid_from: coupon.valid_from,
+								valid_upto: coupon.valid_upto,
+								maximum_use: coupon.maximum_use,
+								used: coupon.used
+							});
+
+							vm.eventBus.emit("show_message", {
+								title: __("Coupon Added"),
+								message: __("Coupon {0} has been added successfully", [couponCode]),
+								color: "success",
+								timeout: 2000
 							});
 						}
 					}
@@ -203,6 +273,44 @@ export default {
 				appliedCouponsCount: this.appliedCouponsCount,
 			});
 		},
+
+		// Keyboard shortcuts handler
+		handleKeyboardShortcuts(event) {
+			// Only handle when dialog is active and focused
+			if (!this.$el || !this.$el.contains(document.activeElement)) return;
+
+			// Ctrl/Cmd + Enter: Add coupon
+			if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+				event.preventDefault();
+				if (this.new_coupon && this.new_coupon.trim()) {
+					this.add_coupon(this.new_coupon.trim());
+				}
+			}
+
+			// Delete key: Remove selected coupon
+			if (event.key === "Delete" && !event.target.matches('input, textarea')) {
+				event.preventDefault();
+				if (this.expanded.length > 0) {
+					const selectedCoupon = this.posa_coupons.find(c =>
+						c.coupon === this.expanded[0]
+					);
+					if (selectedCoupon) {
+						this.remove_coupon(selectedCoupon);
+					}
+				}
+			}
+
+			// Escape: Back to invoice
+			if (event.key === "Escape") {
+				event.preventDefault();
+				this.back_to_invoice();
+			}
+		},
+	},
+
+	beforeUnmount() {
+		// Cleanup keyboard event listener
+		document.removeEventListener("keydown", this.handleKeyboardShortcuts);
 	},
 
 	watch: {
@@ -217,6 +325,12 @@ export default {
 
 	created: function () {
 		this.$nextTick(function () {
+			// Initialize debounced coupon addition
+			this.debouncedAddCoupon = this.debounceCouponInput(this._addCouponAPI, 300);
+
+			// Add keyboard shortcuts
+			document.addEventListener("keydown", this.handleKeyboardShortcuts.bind(this));
+
 			this.eventBus.on("register_pos_profile", (data) => {
 				this.pos_profile = data.pos_profile;
 			});
