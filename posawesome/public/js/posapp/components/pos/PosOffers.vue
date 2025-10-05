@@ -309,7 +309,13 @@ export default {
 				// Emit event để Invoice component tính toán offers với giỏ hàng hiện tại
 				this.eventBus.emit("check_applicable_offers");
 
-				// Don't show message for automatic offer checking
+				this.eventBus.emit("show_message", {
+					title: __("Đang kiểm tra offers..."),
+					message: __("Đang tính toán các chương trình khuyến mại phù hợp với giỏ hàng hiện tại."),
+					color: "info",
+					timeout: 2000
+				});
+
 				console.log("🔍 [POS_OFFERS] Check offers request sent");
 			} catch (error) {
 				console.error("🔍 [POS_OFFERS] Error checking offers:", error);
@@ -363,7 +369,16 @@ export default {
 					console.log("📋 [POS_OFFERS] Loaded", this.pos_offers.length, "offers");
 					this.updateCounters();
 
-					// Don't show search results message - offers are applied silently
+					// Show search results message
+					if (itemCode || offerTitle) {
+						const searchType = itemCode ? `Item Code: ${itemCode}` : `Tên: ${offerTitle}`;
+						this.eventBus.emit("show_message", {
+							title: __("Kết quả tìm kiếm"),
+							message: __(`Tìm thấy ${this.pos_offers.length} chương trình khuyến mại cho ${searchType}.`),
+							color: "success",
+							timeout: 3000
+						});
+					}
 				}
 
 			} catch (error) {
@@ -955,11 +970,19 @@ export default {
 				console.log("🔍 [POS_OFFERS] Marked applicable offers:", applicableOfferNames);
 				console.log("🔍 [POS_OFFERS] Total applicable offers:", applicableOfferNames.length);
 
-				// Don't show any message for automatic offer application
-				// Offers are applied silently in the background
+				// Only show success message if there are applicable offers
+				if (applicableOfferNames.length > 0) {
+					this.eventBus.emit("show_message", {
+						title: __("Kiểm tra hoàn tất"),
+						message: __(`Tìm thấy ${applicableOfferNames.length} chương trình khuyến mại phù hợp.`),
+						color: "success",
+						timeout: 3000
+					});
+				}
 			} else {
 				console.warn("🔍 [POS_OFFERS] No applied_offers in result data");
-				// Don't show any message for automatic offer calculations
+				// Don't show warning message for automatic calculations when adding items
+				// Only show when user explicitly clicks "Kiểm tra Offer" button
 			}
 		},
 
