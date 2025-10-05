@@ -55,52 +55,9 @@
 				</v-row>
 			</v-card-text>
 
-			<!-- Action Buttons Section (moved up for better UX) -->
-			<v-card-text class="action-buttons-section pa-4 pt-0">
-				<v-row align="start" no-gutters class="offer-buttons-row">
-					<v-col cols="4" class="offer-button-col">
-						<v-btn
-							variant="text"
-							class="pa-1 offer-button"
-							size="large"
-							color="info"
-							theme="dark"
-							@click="show_all_offers"
-						>
-							<v-icon size="small" class="mr-1">mdi-view-list</v-icon>
-							{{ __("Xem tất cả") }}
-						</v-btn>
-					</v-col>
-					<v-col cols="4" class="offer-button-col">
-						<v-btn
-							variant="text"
-							class="pa-1 offer-button"
-							size="large"
-							color="success"
-							theme="dark"
-							@click="check_offers"
-						>
-							<v-icon size="small" class="mr-1">mdi-magnify</v-icon>
-							{{ __("Kiểm tra Offer") }}
-						</v-btn>
-					</v-col>
-					<v-col cols="4" class="offer-button-col">
-						<v-btn
-							block
-							class="pa-1 offer-button"
-							size="large"
-							color="warning"
-							theme="dark"
-							@click="back_to_invoice"
-							>{{ __("Back") }}</v-btn
-						>
-					</v-col>
-				</v-row>
-			</v-card-text>
-
 			<div
 				class="my-0 py-0 overflow-y-auto"
-				style="max-height: 50vh" /* Reduced height since buttons moved up */
+				style="max-height: 60vh"
 				@mouseover="style = 'cursor: pointer'"
 			>
 				<v-data-table
@@ -215,6 +172,48 @@
 					</v-card>
 				</v-dialog>
 			</div>
+		</v-card>
+
+		<v-card flat style="max-height: 11vh; height: 11vh" class="cards mb-0 mt-3 py-0">
+			<v-row align="start" no-gutters class="offer-buttons-row">
+				<v-col cols="4" class="offer-button-col">
+					<v-btn
+						variant="text"
+						class="pa-1 offer-button"
+						size="large"
+						color="info"
+						theme="dark"
+						@click="show_all_offers"
+					>
+						<v-icon size="small" class="mr-1">mdi-view-list</v-icon>
+						{{ __("Xem tất cả") }}
+					</v-btn>
+				</v-col>
+				<v-col cols="4" class="offer-button-col">
+					<v-btn
+						variant="text"
+						class="pa-1 offer-button"
+						size="large"
+						color="success"
+						theme="dark"
+						@click="check_offers"
+					>
+						<v-icon size="small" class="mr-1">mdi-magnify</v-icon>
+						{{ __("Kiểm tra Offer") }}
+					</v-btn>
+				</v-col>
+				<v-col cols="4" class="offer-button-col">
+					<v-btn
+						block
+						class="pa-1 offer-button"
+						size="large"
+						color="warning"
+						theme="dark"
+						@click="back_to_invoice"
+						>{{ __("Back") }}</v-btn
+					>
+				</v-col>
+			</v-row>
 		</v-card>
 	</div>
 </template>
@@ -1446,12 +1445,6 @@ export default {
 /* Search section styling */
 .search-section {
 	background: linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 243, 244, 0.8) 100%);
-	border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-}
-
-/* Action buttons section styling */
-.action-buttons-section {
-	background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.9) 100%);
 	border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
