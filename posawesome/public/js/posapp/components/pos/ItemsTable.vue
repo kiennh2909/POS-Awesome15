@@ -84,7 +84,7 @@
 				<v-checkbox-btn
 					v-model="item.posa_is_offer"
 					class="center"
-					@change="toggleOffer(item)"
+					@change="handleOfferToggle(item)"
 				></v-checkbox-btn>
 			</template>
 
@@ -691,7 +691,12 @@ export default {
 		}
 	},
 	mounted() {
-		console.log("[ItemsTable] Mounted, setting up listeners");
+		console.log("[ItemsTable] ✅ Mounted successfully, setting up listeners");
+		console.log("[ItemsTable] 📋 Props received:", {
+			hasToggleOffer: typeof this.toggleOffer === 'function',
+			itemsCount: this.items?.length || 0,
+			headersCount: this.headers?.length || 0
+		});
 
 		// Listen for force update events
 		this.eventBus.on("force_items_table_update", () => {
@@ -792,6 +797,19 @@ export default {
 
 				setTimeout(() => (this.highlightedRowId = null), 1200);
 			});
+		},
+
+		// Handle offer toggle with debug logging
+		handleOfferToggle(item) {
+			console.log("🎯 [ITEMS_TABLE] Offer checkbox clicked for item:", {
+				item_code: item.item_code,
+				posa_row_id: item.posa_row_id,
+				current_posa_is_offer: item.posa_is_offer,
+				timestamp: new Date().toISOString()
+			});
+
+			// Call the parent toggleOffer method
+			this.toggleOffer(item);
 		},
 
 		// Get pack information for display

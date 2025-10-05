@@ -318,8 +318,19 @@ export default {
 			this.pos_offers = this.pos_offers.filter((offer) => !offers_id_list.includes(offer.row_id));
 		},
 		handelOffers() {
+			console.log("📤 [POS_OFFERS] handelOffers() called");
 			const applyedOffers = this.pos_offers.filter((offer) => offer.offer_applied);
+			console.log("📤 [POS_OFFERS] Filtered applied offers:", applyedOffers.length, "offers");
+			console.log("📤 [POS_OFFERS] Applied offers details:", applyedOffers.map(o => ({
+				name: o.name,
+				offer: o.offer,
+				row_id: o.row_id
+			})));
+
+			console.log("📤 [POS_OFFERS] Emitting 'update_invoice_offers' event");
 			this.eventBus.emit("update_invoice_offers", applyedOffers);
+
+			console.log("📤 [POS_OFFERS] Event emitted successfully");
 		},
 		handleNewLine(str) {
 			if (str) {
@@ -359,10 +370,28 @@ export default {
 		},
 
 		toggleOfferApplied(item) {
+			console.log("🔄 [POS_OFFERS] Checkbox 'Applied' clicked for offer:", item.name);
+			console.log("🔄 [POS_OFFERS] Previous offer_applied state:", !item.offer_applied);
+			console.log("🔄 [POS_OFFERS] New offer_applied state:", item.offer_applied);
+			console.log("🔄 [POS_OFFERS] Offer details:", {
+				name: item.name,
+				offer: item.offer,
+				apply_on: item.apply_on,
+				row_id: item.row_id
+			});
+
 			// Toggle trạng thái áp dụng offer
 			item.offer_applied = !item.offer_applied;
+
+			console.log("🔄 [POS_OFFERS] After toggle - offer_applied:", item.offer_applied);
+			console.log("🔄 [POS_OFFERS] Calling handelOffers()...");
+
 			this.handelOffers();
+
+			console.log("🔄 [POS_OFFERS] Calling forceUpdateItem()...");
 			this.forceUpdateItem();
+
+			console.log("🔄 [POS_OFFERS] Toggle operation completed");
 		},
 
 		openOfferDialog(item) {

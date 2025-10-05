@@ -975,7 +975,14 @@ export default {
 		},
 
 		show_offers() {
+			console.log("🎁 [ITEMS_SELECTOR] Button Offer clicked - opening offers dialog");
+			console.log("🎁 [ITEMS_SELECTOR] Emitting 'show_offers' event with value: 'true'");
+			console.log("🎁 [ITEMS_SELECTOR] Current POS Profile:", this.pos_profile?.name);
+			console.log("🎁 [ITEMS_SELECTOR] Current customer:", this.customer);
+
 			this.eventBus.emit("show_offers", "true");
+
+			console.log("🎁 [ITEMS_SELECTOR] Event emitted successfully");
 		},
 		show_coupons() {
 			this.eventBus.emit("show_coupons", "true");

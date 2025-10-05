@@ -1314,6 +1314,13 @@ export default {
 	},
 
 	mounted() {
+		console.log("🎯 [INVOICE] Invoice component mounted successfully");
+		console.log("🎯 [INVOICE] Available methods:", {
+			hasToggleOffer: typeof this.toggleOffer === 'function',
+			hasFetchOffersForItems: typeof this.fetchOffersForItems === 'function',
+			hasCalculateDiscountsAPI: typeof this.calculateDiscountsAPI === 'function'
+		});
+
 		// Setup discount calculation debounced function
 		this.calculateDiscountsDebounced = this.debounce(this.calculateDiscountsAPI, 300);
 		console.log("⏱️ [DEBOUNCE_SETUP] calculateDiscountsDebounced created with 300ms delay");
@@ -1431,7 +1438,14 @@ export default {
 			this.posOffers = data;
 		});
 		this.eventBus.on("update_invoice_offers", (data) => {
+			console.log("📥 [INVOICE] Received 'update_invoice_offers' event");
+			console.log("📥 [INVOICE] Applied offers data:", data);
+			console.log("📥 [INVOICE] Current invoice items count:", this.items.length);
+			console.log("📥 [INVOICE] Current customer:", this.customer);
+
 			this.updateInvoiceOffers(data);
+
+			console.log("📥 [INVOICE] updateInvoiceOffers() completed");
 		});
 		this.eventBus.on("update_invoice_coupons", (data) => {
 			console.log("🎫 [EVENT_RECEIVED] update_invoice_coupons received", data);

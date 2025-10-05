@@ -423,9 +423,15 @@ export default {
 				this.coupons = false ? data === "true" : false;
 			});
 			this.eventBus.on("show_offers", (data) => {
+				console.log("🎯 [POS_MAIN] Received 'show_offers' event with data:", data);
+				console.log("🎯 [POS_MAIN] Previous state - offers:", this.offers, "payment:", this.payment, "coupons:", this.coupons);
+
 				this.offers = true ? data === "true" : false;
 				this.payment = false ? data === "true" : false;
 				this.coupons = false ? data === "true" : false;
+
+				console.log("🎯 [POS_MAIN] New state - offers:", this.offers, "payment:", this.payment, "coupons:", this.coupons);
+				console.log("🎯 [POS_MAIN] PosOffers component should now be visible:", this.offers);
 			});
 			this.eventBus.on("show_coupons", (data) => {
 				this.coupons = true ? data === "true" : false;
