@@ -1621,7 +1621,13 @@ export default {
 		document.removeEventListener("keydown", this.shortOpenFirstItem);
 		document.removeEventListener("keydown", this.shortSelectDiscount);
 	},
-	watch: invoiceWatchers,
+	watch: {
+		...invoiceWatchers,
+		customer(newVal) {
+			console.log("👤 [INVOICE] Customer changed, emitting update_customer:", newVal);
+			this.eventBus.emit("update_customer", newVal);
+		}
+	},
 };
 </script>
 

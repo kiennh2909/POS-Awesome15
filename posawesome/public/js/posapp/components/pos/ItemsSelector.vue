@@ -979,6 +979,7 @@ export default {
 			console.log("🎁 [ITEMS_SELECTOR] Emitting 'show_offers' event with value: 'true'");
 			console.log("🎁 [ITEMS_SELECTOR] Current POS Profile:", this.pos_profile?.name);
 			console.log("🎁 [ITEMS_SELECTOR] Current customer:", this.customer);
+			console.log("🎁 [ITEMS_SELECTOR] Customer info:", this.customer_info);
 
 			this.eventBus.emit("show_offers", "true");
 
@@ -2422,6 +2423,7 @@ export default {
 			this.customer_price_list = data;
 		});
 		this.eventBus.on("update_customer", (data) => {
+			console.log("🎯 [ITEMS_SELECTOR] Customer updated via event bus:", data);
 			this.customer = data;
 		});
 
