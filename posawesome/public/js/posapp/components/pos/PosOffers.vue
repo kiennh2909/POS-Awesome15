@@ -8,9 +8,56 @@
 			<v-card-title>
 				<span class="text-h6 text-primary">{{ __("Danh sách chương trình khuyến mại") }}</span>
 			</v-card-title>
+
+			<!-- Search Section -->
+			<v-card-text class="search-section pa-4 pt-0">
+				<v-row dense class="search-row">
+					<v-col cols="12" md="4" class="search-col">
+						<v-text-field
+							v-model="searchItemCode"
+							:label="__('Item Code')"
+							variant="outlined"
+							density="compact"
+							clearable
+							hide-details
+							class="search-input"
+							placeholder="Nhập mã sản phẩm chính xác"
+							@click:clear="clearSearch"
+						></v-text-field>
+					</v-col>
+					<v-col cols="12" md="4" class="search-col">
+						<v-text-field
+							v-model="searchOfferTitle"
+							:label="__('Tên khuyến mại')"
+							variant="outlined"
+							density="compact"
+							clearable
+							hide-details
+							class="search-input"
+							placeholder="Nhập tên chương trình"
+							@click:clear="clearSearch"
+						></v-text-field>
+					</v-col>
+					<v-col cols="12" md="4" class="search-col">
+						<v-btn
+							color="primary"
+							variant="flat"
+							block
+							size="large"
+							@click="searchOffers"
+							:disabled="loading"
+							class="search-button"
+						>
+							<v-icon size="small" class="mr-1">mdi-magnify</v-icon>
+							{{ __("Search") }}
+						</v-btn>
+					</v-col>
+				</v-row>
+			</v-card-text>
+
 			<div
 				class="my-0 py-0 overflow-y-auto"
-				style="max-height: 75vh"
+				style="max-height: 65vh"
 				@mouseover="style = 'cursor: pointer'"
 			>
 				<v-data-table
@@ -21,14 +68,14 @@
 					:items-per-page="itemsPerPage"
 					hide-default-footer
 				>
-					<template v-slot:item.name="{ item }">
+					<template v-slot:item.title="{ item }">
 						<div class="d-flex align-center">
 							<span
 								class="offer-name-link mr-2"
 								@click.stop="openOfferDialog(item)"
 								title="Click để xem chi tiết"
 							>
-								{{ item.name }}
+								{{ item.title || item.name }}
 							</span>
 							<v-btn
 								icon="mdi-information-outline"
@@ -60,7 +107,7 @@
 						<v-card-title class="offer-dialog-header pa-4 d-flex align-center">
 							<div class="d-flex align-center">
 								<v-icon color="primary" class="mr-2">mdi-gift</v-icon>
-								<span class="offer-dialog-title">{{ selectedOffer.title || selectedOffer.name }}</span>
+								<span class="offer-dialog-title">{{ selectedOffer.title || selectedOffer.name || 'Chi tiết chương trình khuyến mại' }}</span>
 							</div>
 							<v-spacer></v-spacer>
 							<v-btn
@@ -128,11 +175,11 @@
 		</v-card>
 
 		<v-card flat style="max-height: 11vh; height: 11vh" class="cards mb-0 mt-3 py-0">
-			<v-row align="start" no-gutters>
-				<v-col cols="4">
+			<v-row align="start" no-gutters class="offer-buttons-row">
+				<v-col cols="4" class="offer-button-col">
 					<v-btn
 						block
-						class="pa-1"
+						class="pa-1 offer-button"
 						size="large"
 						color="info"
 						theme="dark"
@@ -140,10 +187,10 @@
 						>{{ __("Xem tất cả") }}</v-btn
 					>
 				</v-col>
-				<v-col cols="4">
+				<v-col cols="4" class="offer-button-col">
 					<v-btn
 						block
-						class="pa-1"
+						class="pa-1 offer-button"
 						size="large"
 						color="success"
 						theme="dark"
@@ -151,10 +198,10 @@
 						>{{ __("Kiểm tra Offer") }}</v-btn
 					>
 				</v-col>
-				<v-col cols="4">
+				<v-col cols="4" class="offer-button-col">
 					<v-btn
 						block
-						class="pa-1"
+						class="pa-1 offer-button"
 						size="large"
 						color="warning"
 						theme="dark"
@@ -181,11 +228,16 @@ export default {
 		offerDialog: false,
 		selectedOffer: null,
 		showDebugInfo: false,
+		// Search fields
+		searchItemCode: "",
+		searchOfferTitle: "",
 		items_headers: [
-			{ title: __("Name"), value: "name", align: "start" },
-			{ title: __("Apply On"), value: "apply_on", align: "start" },
-			{ title: __("Offer"), value: "offer", align: "start" },
-			{ title: __("Actions"), value: "actions", align: "center", sortable: false },
+			{ title: __("Tên khuyến mại"), value: "title", align: "start", width: "20%" },
+			{ title: __("Loại khuyến mại"), value: "offer", align: "start", width: "15%" },
+			{ title: __("Item Code"), value: "item", align: "start", width: "15%" },
+			{ title: __("Số tiền giảm (%giảm giá)"), value: "discount_display", align: "start", width: "20%" },
+			{ title: __("Điều kiện"), value: "conditions_display", align: "start", width: "20%" },
+			{ title: __("Áp dụng tới ngày"), value: "valid_upto", align: "start", width: "10%" },
 		],
 	}),
 
@@ -202,10 +254,16 @@ export default {
 		},
 		displayedOffers() {
 			// Return filtered offers based on show_only_applicable flag
-			if (this.show_only_applicable) {
-				return this.pos_offers.filter(offer => offer.is_applicable);
-			}
-			return this.pos_offers;
+			let offers = this.show_only_applicable
+				? this.pos_offers.filter(offer => offer.is_applicable)
+				: this.pos_offers;
+
+			// Add computed display fields for each offer
+			return offers.map(offer => ({
+				...offer,
+				discount_display: this.getDiscountDisplay(offer),
+				conditions_display: this.getConditionsDisplay(offer)
+			}));
 		},
 		formattedOfferContent() {
 			if (!this.selectedOffer) return '';
@@ -229,6 +287,9 @@ export default {
 		async show_all_offers() {
 			console.log("📋 [POS_OFFERS] Show all offers button clicked");
 			this.show_only_applicable = false;
+			// Clear search fields when showing all offers
+			this.searchItemCode = "";
+			this.searchOfferTitle = "";
 			this.loadOffers();
 		},
 
@@ -236,6 +297,10 @@ export default {
 			console.log("🔍 [POS_OFFERS] Check offers button clicked - calculating applicable offers");
 
 			try {
+				// Clear search fields when checking applicable offers
+				this.searchItemCode = "";
+				this.searchOfferTitle = "";
+
 				// Emit event để Invoice component tính toán offers với giỏ hàng hiện tại
 				this.eventBus.emit("check_applicable_offers");
 
@@ -257,8 +322,8 @@ export default {
 			}
 		},
 
-		async loadOffers() {
-			console.log("📋 [POS_OFFERS] Loading all offers for POS Profile:", this.pos_profile?.name);
+		async loadOffers(itemCode = null, offerTitle = null) {
+			console.log("📋 [POS_OFFERS] Loading offers for POS Profile:", this.pos_profile?.name, "with filters:", { itemCode, offerTitle });
 
 			if (!this.pos_profile?.name) {
 				console.warn("📋 [POS_OFFERS] No POS Profile available");
@@ -268,11 +333,21 @@ export default {
 			try {
 				this.loading = true;
 
+				const args = {
+					profile: this.pos_profile.name
+				};
+
+				// Add search parameters if provided
+				if (itemCode) {
+					args.item_code = itemCode;
+				}
+				if (offerTitle) {
+					args.offer_title = offerTitle;
+				}
+
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.offers.get_offers",
-					args: {
-						profile: this.pos_profile.name
-					}
+					args: args
 				});
 
 				if (response.message) {
@@ -288,6 +363,17 @@ export default {
 
 					console.log("📋 [POS_OFFERS] Loaded", this.pos_offers.length, "offers");
 					this.updateCounters();
+
+					// Show search results message
+					if (itemCode || offerTitle) {
+						const searchType = itemCode ? `Item Code: ${itemCode}` : `Tên: ${offerTitle}`;
+						this.eventBus.emit("show_message", {
+							title: __("Kết quả tìm kiếm"),
+							message: __(`Tìm thấy ${this.pos_offers.length} chương trình khuyến mại cho ${searchType}.`),
+							color: "success",
+							timeout: 3000
+						});
+					}
 				}
 
 			} catch (error) {
@@ -300,6 +386,38 @@ export default {
 			} finally {
 				this.loading = false;
 			}
+		},
+
+		async searchOffers() {
+			console.log("🔍 [POS_OFFERS] Search button clicked with:", {
+				itemCode: this.searchItemCode,
+				offerTitle: this.searchOfferTitle
+			});
+
+			// Validate search inputs
+			if (!this.searchItemCode && !this.searchOfferTitle) {
+				this.eventBus.emit("show_message", {
+					title: __("Thiếu thông tin tìm kiếm"),
+					message: __("Vui lòng nhập Item Code hoặc Tên khuyến mại để tìm kiếm."),
+					color: "warning"
+				});
+				return;
+			}
+
+			// Reset applicable offers filter when searching
+			this.show_only_applicable = false;
+
+			// Call loadOffers with search parameters
+			await this.loadOffers(this.searchItemCode, this.searchOfferTitle);
+		},
+
+		clearSearch() {
+			console.log("🧹 [POS_OFFERS] Search cleared");
+			// Reset search fields and reload all offers
+			this.searchItemCode = "";
+			this.searchOfferTitle = "";
+			this.show_only_applicable = false;
+			this.loadOffers();
 		},
 		forceUpdateItem() {
 			let list_offers = [];
@@ -386,26 +504,158 @@ export default {
 		formatOfferDetails(offer) {
 			let details = `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;">`;
 
-			// Tên chương trình - màu đen, font to
-			details += `<div style="font-size: 18px; font-weight: bold; color: #000000; margin-bottom: 8px;">`;
-			details += `📋 ${offer.title || offer.name}`;
+			// Header với mô tả
+			details += `<div style="font-size: 16px; color: #000000; margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #007bff;">`;
+			details += `👇 Dưới đây là bản tóm tắt các trường quan trọng nhất, giúp bạn hoặc nhân viên hiểu nhanh cách rule này hoạt động`;
 			details += `</div>`;
 
-			// Thời gian khuyến mại - màu đen
-			if (offer.valid_from || offer.valid_upto) {
-				details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
-				details += `📅 Thời gian: `;
-				if (offer.valid_from) {
-					details += `${this.formatDate(offer.valid_from)}`;
-				}
-				if (offer.valid_upto) {
-					details += ` - ${this.formatDate(offer.valid_upto)}`;
-				}
-				details += `</div>`;
-			}
+			// Phần 1: Thông tin cơ bản
+			details += `<div style="margin-bottom: 20px;">`;
+			details += `<h3 style="font-size: 16px; font-weight: bold; color: #007bff; margin-bottom: 12px;">🧩 Phần 1: Thông tin cơ bản</h3>`;
+			details += `<table style="width: 100%; border-collapse: collapse; font-size: 14px;">`;
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold; width: 30%;">Trường</td><td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">Giải thích</td></tr>`;
 
-			// Hiển thị thông tin chi tiết theo từng loại offer
-			details += this.getOfferSpecificDetails(offer);
+			// Qualifying Transaction / Item
+			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Qualifying Transaction / Item</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Xác định loại điều kiện áp dụng khuyến mãi — ở đây là theo ${offer.apply_on}.</td></tr>`;
+
+			// Apply Rule On Item Code/Item Group/Brand
+			let applyField = '';
+			let applyValue = '';
+			if (offer.apply_on === 'Item Code') {
+				applyField = 'Apply Rule On Item Code';
+				applyValue = offer.item || 'N/A';
+			} else if (offer.apply_on === 'Item Group') {
+				applyField = 'Apply Rule On Item Group';
+				applyValue = offer.item_group || 'N/A';
+			} else if (offer.apply_on === 'Brand') {
+				applyField = 'Apply Rule On Brand';
+				applyValue = offer.brand || 'N/A';
+			} else if (offer.apply_on === 'Transaction') {
+				applyField = 'Apply Rule On Transaction';
+				applyValue = 'Toàn bộ hóa đơn';
+			}
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">${applyField}</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${applyValue}</td></tr>`;
+
+			// Promo Type
+			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Promo Type</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Loại khuyến mãi — ở đây là ${offer.offer}, nghĩa là ${this.getOfferTypeDescription(offer.offer)}.</td></tr>`;
+
+			// Valid From / Valid Upto
+			let dateRange = 'N/A';
+			if (offer.valid_from || offer.valid_upto) {
+				if (offer.valid_from && offer.valid_upto) {
+					dateRange = `${this.formatDate(offer.valid_from)} → ${this.formatDate(offer.valid_upto)}`;
+				} else if (offer.valid_from) {
+					dateRange = `Từ ${this.formatDate(offer.valid_from)}`;
+				} else if (offer.valid_upto) {
+					dateRange = `Đến ${this.formatDate(offer.valid_upto)}`;
+				}
+			}
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">Valid From / Valid Upto</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Khoảng thời gian hiệu lực của chương trình (${dateRange}).</td></tr>`;
+
+			// Company
+			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Company</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Công ty áp dụng (${offer.company || 'N/A'}).</td></tr>`;
+
+			// POS Profile
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">POS Profile</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Hồ sơ POS cụ thể được áp dụng (${offer.pos_profile || 'Tất cả'}).</td></tr>`;
+
+			// Coupon Code Based
+			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Coupon Code Based</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.coupon_based ? '✅ Bật — yêu cầu nhập mã coupon mới được giảm.' : '❌ Tắt — giảm tự động khi đủ điều kiện.'}</td></tr>`;
+
+			// Auto Apply
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">Auto Apply</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.auto ? '✅ Bật — khuyến mãi sẽ tự động áp dụng khi đủ điều kiện, không cần chọn thủ công.' : '❌ Tắt — cần chọn thủ công.'}</td></tr>`;
+
+			details += `</table>`;
+			details += `</div>`;
+
+			// Phần 2: Quantity and Amount Conditions
+			details += `<div style="margin-bottom: 20px;">`;
+			details += `<h3 style="font-size: 16px; font-weight: bold; color: #28a745; margin-bottom: 12px;">📦 Phần 2: Quantity and Amount Conditions</h3>`;
+			details += `<table style="width: 100%; border-collapse: collapse; font-size: 14px;">`;
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold; width: 30%;">Trường</td><td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">Giải thích</td></tr>`;
+
+			// Min Quantity / Max Quantity
+			let qtyRange = 'N/A';
+			if (offer.min_qty || offer.max_qty) {
+				if (offer.min_qty && offer.max_qty) {
+					qtyRange = `${offer.min_qty} → ${offer.max_qty} sản phẩm`;
+				} else if (offer.min_qty) {
+					qtyRange = `≥${offer.min_qty} sản phẩm`;
+				} else if (offer.max_qty) {
+					qtyRange = `≤${offer.max_qty} sản phẩm`;
+				}
+			}
+			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Min Quantity / Max Quantity</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Số lượng mua tối thiểu & tối đa được áp dụng khuyến mãi (${qtyRange}).</td></tr>`;
+
+			// Min Amount / Max Amount
+			let amtRange = '0 (không giới hạn)';
+			if (offer.min_amt || offer.max_amt) {
+				if (offer.min_amt && offer.max_amt) {
+					amtRange = `${this.formatCurrency(offer.min_amt)} → ${this.formatCurrency(offer.max_amt)}`;
+				} else if (offer.min_amt) {
+					amtRange = `≥${this.formatCurrency(offer.min_amt)}`;
+				} else if (offer.max_amt) {
+					amtRange = `≤${this.formatCurrency(offer.max_amt)}`;
+				}
+			}
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">Min Amount / Max Amount</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Giới hạn giá trị hóa đơn để được áp dụng (${amtRange}).</td></tr>`;
+
+			details += `</table>`;
+			details += `</div>`;
+
+			// Phần 3: Block-based Configuration
+			details += `<div style="margin-bottom: 20px;">`;
+			details += `<h3 style="font-size: 16px; font-weight: bold; color: #ffc107; margin-bottom: 12px;">💰 Phần 3: Block-based Configuration (giảm theo lô/thùng)</h3>`;
+			details += `<table style="width: 100%; border-collapse: collapse; font-size: 14px;">`;
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold; width: 30%;">Trường</td><td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">Giải thích</td></tr>`;
+
+			// Enable Block-based Discount
+			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Enable Block-based Discount</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.is_used_block ? '✅ Bật — kích hoạt kiểu giảm giá theo từng "block" sản phẩm.' : '❌ Chưa bật'}</td></tr>`;
+
+			// Block UOM Reference
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">Block UOM Reference</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Đơn vị quy đổi block (${offer.uom_ref || 'N/A'}).</td></tr>`;
+
+			// Items per Block
+			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Items per Block</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Một block gồm bao nhiêu sản phẩm — ở đây là ${offer.total_items_in_block_qty || 0} sản phẩm/block.</td></tr>`;
+
+			// Discount per Block
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">Discount per Block</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Số tiền giảm cho mỗi block — ở đây là ${this.formatCurrency(offer.total_discount_amount_per_block || 0)}.</td></tr>`;
+
+			// Min Blocks Required
+			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Min Blocks Required</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Số block tối thiểu để áp dụng — ${offer.min_block_qty || 1} block trở lên.</td></tr>`;
+
+			// Max Eligible Blocks
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">Max Eligible Blocks</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Tối đa số block được giảm — ${offer.max_eligible_block_qty || 0} block.</td></tr>`;
+
+			// Enable Block-based Gift / Enable Tiered Pricing
+			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Enable Block-based Gift / Enable Tiered Pricing</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.is_used_gift_block || offer.is_used_tiered_pricing ? '✅ Bật' : '❌ Chưa bật'} — ${offer.is_used_gift_block ? 'tặng quà' : offer.is_used_tiered_pricing ? 'tính giá theo bậc' : 'không có cấu hình đặc biệt'}.</td></tr>`;
+
+			// Gifts per Block / Gift Item Code
+			let giftInfo = 'Trống — chưa cấu hình quà tặng.';
+			if (offer.gift_item_code) {
+				giftInfo = `${offer.gift_per_block_qty || 0} ${offer.gift_item_code} mỗi block.`;
+			}
+			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">Gifts per Block / Gift Item Code</td>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${giftInfo}</td></tr>`;
+
+			details += `</table>`;
+			details += `</div>`;
 
 			details += `</div>`;
 			return details;
@@ -653,6 +903,30 @@ export default {
 			};
 			return types[offerType] || offerType;
 		},
+
+		getOfferTypeDescription(offerType) {
+			const descriptions = {
+				'Item Price': 'giảm trực tiếp theo giá sản phẩm',
+				'Give Product': 'tặng sản phẩm miễn phí',
+				'Grand Total': 'giảm giá trên tổng hóa đơn',
+				'Loyalty Point': 'tích điểm thưởng cho khách hàng'
+			};
+			return descriptions[offerType] || offerType.toLowerCase();
+		},
+
+		formatDate(dateString) {
+			if (!dateString) return 'N/A';
+			try {
+				const date = new Date(dateString);
+				return date.toLocaleDateString('vi-VN', {
+					day: '2-digit',
+					month: '2-digit',
+					year: 'numeric'
+				});
+			} catch (e) {
+				return dateString;
+			}
+		},
 		getDiscountDetails(offer) {
 			if (!offer.discount_type) return null;
 
@@ -679,28 +953,62 @@ export default {
 					offer.is_applicable = applicableOfferNames.includes(offer.name);
 				});
 
-				// Switch to show only applicable offers
+				// Clear search fields and switch to show only applicable offers
+				this.searchItemCode = "";
+				this.searchOfferTitle = "";
 				this.show_only_applicable = true;
 
 				console.log("🔍 [POS_OFFERS] Marked applicable offers:", applicableOfferNames);
 				console.log("🔍 [POS_OFFERS] Total applicable offers:", applicableOfferNames.length);
 
-				// Show success message
-				this.eventBus.emit("show_message", {
-					title: __("Kiểm tra hoàn tất"),
-					message: __(`Tìm thấy ${applicableOfferNames.length} chương trình khuyến mại phù hợp.`),
-					color: "success",
-					timeout: 3000
-				});
+				// Only show success message if there are applicable offers
+				if (applicableOfferNames.length > 0) {
+					this.eventBus.emit("show_message", {
+						title: __("Kiểm tra hoàn tất"),
+						message: __(`Tìm thấy ${applicableOfferNames.length} chương trình khuyến mại phù hợp.`),
+						color: "success",
+						timeout: 3000
+					});
+				}
 			} else {
 				console.warn("🔍 [POS_OFFERS] No applied_offers in result data");
-				this.eventBus.emit("show_message", {
-					title: __("Không có offers phù hợp"),
-					message: __("Không tìm thấy chương trình khuyến mại nào phù hợp với giỏ hàng hiện tại."),
-					color: "warning",
-					timeout: 3000
-				});
+				// Don't show warning message for automatic calculations when adding items
+				// Only show when user explicitly clicks "Kiểm tra Offer" button
 			}
+		},
+
+		getDiscountDisplay(offer) {
+			if (!offer.discount_type) return '-';
+
+			switch (offer.discount_type) {
+				case 'Rate':
+					return `${this.formatCurrency(offer.rate)}`;
+				case 'Discount Percentage':
+					return `${offer.discount_percentage}%`;
+				case 'Discount Amount':
+					return `${this.formatCurrency(offer.discount_amount)}`;
+				default:
+					return '-';
+			}
+		},
+
+		getConditionsDisplay(offer) {
+			let conditions = [];
+
+			if (offer.min_qty && offer.min_qty > 0) {
+				conditions.push(`≥${offer.min_qty} sản phẩm`);
+			}
+			if (offer.max_qty && offer.max_qty > 0) {
+				conditions.push(`≤${offer.max_qty} sản phẩm`);
+			}
+			if (offer.min_amt && offer.min_amt > 0) {
+				conditions.push(`≥${this.formatCurrency(offer.min_amt)}`);
+			}
+			if (offer.max_amt && offer.max_amt > 0) {
+				conditions.push(`≤${this.formatCurrency(offer.max_amt)}`);
+			}
+
+			return conditions.length > 0 ? conditions.join(', ') : 'Không có điều kiện';
 		},
 
 		getFallbackContent() {
@@ -811,6 +1119,33 @@ export default {
 	line-height: 1.8;
 	font-size: 15px;
 	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.offer-dialog-content table {
+	border-collapse: collapse;
+	width: 100%;
+	margin: 10px 0;
+}
+
+.offer-dialog-content th,
+.offer-dialog-content td {
+	padding: 8px 12px;
+	text-align: left;
+	border: 1px solid #dee2e6;
+}
+
+.offer-dialog-content th {
+	background-color: #f8f9fa;
+	font-weight: 600;
+	color: #495057;
+}
+
+.offer-dialog-content tr:nth-child(even) {
+	background-color: #f8f9fa;
+}
+
+.offer-dialog-content tr:hover {
+	background-color: #e9ecef;
 }
 
 .offer-dialog-content div {
@@ -1061,5 +1396,128 @@ export default {
 	background: #2a2a2a;
 	border-color: #555;
 	color: #e0e0e0;
+}
+
+/* Search section styling */
+.search-section {
+	background: linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 243, 244, 0.8) 100%);
+	border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.search-row {
+	align-items: center;
+	margin: 0;
+}
+
+.search-col {
+	padding: 4px 8px;
+}
+
+.search-input {
+	background: rgba(255, 255, 255, 0.9);
+	border-radius: 8px;
+}
+
+.search-input .v-field {
+	border-radius: 8px;
+}
+
+.search-button {
+	border-radius: 8px;
+	font-weight: 600;
+	text-transform: none;
+	box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+	transition: all 0.2s ease;
+}
+
+.search-button:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+}
+
+.search-button .v-btn__content {
+	font-size: 0.85rem;
+}
+
+/* Responsive search section */
+@media (max-width: 768px) {
+	.search-col {
+		padding: 2px 4px;
+	}
+
+	.search-input {
+		font-size: 0.85rem;
+	}
+
+	.search-button {
+		font-size: 0.8rem;
+		min-height: 40px;
+	}
+}
+
+@media (max-width: 480px) {
+	.search-section {
+		padding: 8px !important;
+	}
+
+	.search-col {
+		padding: 2px;
+	}
+
+	.search-input {
+		font-size: 0.8rem;
+	}
+
+	.search-button {
+		font-size: 0.75rem;
+		min-height: 36px;
+		padding: 0 12px;
+	}
+}
+
+/* Offer buttons styling */
+.offer-buttons-row {
+	padding: 8px;
+}
+
+.offer-button-col {
+	padding: 0 1.5px; /* 3px total spacing between buttons */
+}
+
+.offer-button {
+	font-size: 0.75rem !important; /* Smaller font size */
+	padding: 6px 8px !important; /* Smaller padding */
+	min-height: 36px !important; /* Smaller height */
+	border-radius: 6px !important; /* Slightly rounded corners */
+}
+
+.offer-button .v-btn__content {
+	font-size: 0.75rem !important;
+	line-height: 1.2;
+}
+
+/* Responsive adjustments for offer buttons */
+@media (max-width: 768px) {
+	.offer-button {
+		font-size: 0.7rem !important;
+		padding: 4px 6px !important;
+		min-height: 32px !important;
+	}
+
+	.offer-button .v-btn__content {
+		font-size: 0.7rem !important;
+	}
+}
+
+@media (max-width: 480px) {
+	.offer-button {
+		font-size: 0.65rem !important;
+		padding: 3px 4px !important;
+		min-height: 28px !important;
+	}
+
+	.offer-button .v-btn__content {
+		font-size: 0.65rem !important;
+	}
 }
 </style>

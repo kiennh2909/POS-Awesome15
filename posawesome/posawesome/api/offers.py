@@ -40,8 +40,8 @@ def get_active_gift_coupons(customer, company):
 
 
 @frappe.whitelist()
-def get_offers(profile):
-	log.info(f"[OFFERS] 📋 get_offers called for POS Profile: {profile}")
+def get_offers(profile, item_code=None, offer_title=None):
+	log.info(f"[OFFERS] 📋 get_offers called for POS Profile: {profile}, item_code: {item_code}, offer_title: {offer_title}")
 
 	date = nowdate()
 
@@ -51,26 +51,41 @@ def get_offers(profile):
 		"valid_upto": date,
 	}
 
-	log.info(f"[OFFERS] 📋 Query parameters: pos_profile={profile}, date={date}")
-
-	data = frappe.db.sql(
-		"""
-        SELECT *
-        FROM `tabPOS Offer`
-        WHERE
+	# Build WHERE conditions
+	where_conditions = """
         disable = 0 AND
         is_template = 0 AND
         (pos_profile is NULL OR pos_profile  = '' OR  pos_profile = %(pos_profile)s) AND
         (valid_from is NULL OR valid_from  = '' OR  valid_from <= %(valid_from)s) AND
         (valid_upto is NULL OR valid_from  = '' OR  valid_upto >= %(valid_upto)s)
+    """
+
+	# Add search conditions
+	if item_code:
+		where_conditions += " AND item = %(item_code)s"
+		values["item_code"] = item_code
+		log.info(f"[OFFERS] 📋 Adding exact item_code filter: {item_code}")
+
+	if offer_title:
+		where_conditions += " AND title LIKE %(offer_title)s"
+		values["offer_title"] = f"%{offer_title}%"
+		log.info(f"[OFFERS] 📋 Adding title LIKE filter: {offer_title}")
+
+	log.info(f"[OFFERS] 📋 Query parameters: {values}")
+
+	data = frappe.db.sql(
+		f"""
+        SELECT *
+        FROM `tabPOS Offer`
+        WHERE {where_conditions}
     """,
 		values=values,
 		as_dict=1,
 	)
 
-	log.info(f"[OFFERS] 📋 Found {len(data)} offers for POS Profile '{profile}'")
+	log.info(f"[OFFERS] 📋 Found {len(data)} offers for POS Profile '{profile}' with filters")
 	if data:
-		offer_names = [f"{o.get('name')} ({o.get('offer')})" for o in data[:5]]  # Log first 5 offers
+		offer_names = [f"{o.get('title', o.get('name'))} ({o.get('offer')})" for o in data[:5]]  # Log first 5 offers
 		log.info(f"[OFFERS] 📋 Sample offers: {offer_names}")
 		if len(data) > 5:
 			log.info(f"[OFFERS] 📋 ... and {len(data) - 5} more offers")
