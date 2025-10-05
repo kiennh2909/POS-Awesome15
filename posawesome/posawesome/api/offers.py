@@ -10,6 +10,9 @@ from posawesome.posawesome.doctype.pos_coupon.pos_coupon import check_coupon_cod
 from posawesome.posawesome.doctype.delivery_charges.delivery_charges import (
 	get_applicable_delivery_charges as _get_applicable_delivery_charges,
 )
+from posawesome.posawesome.utils.logging import get_logger
+
+log = get_logger("offers")
 
 
 @frappe.whitelist()
@@ -38,33 +41,40 @@ def get_active_gift_coupons(customer, company):
 
 @frappe.whitelist()
 def get_offers(profile):
-	pos_profile = frappe.get_doc("POS Profile", profile)
-	company = pos_profile.company
-	warehouse = pos_profile.warehouse
+	log.info(f"[OFFERS] 📋 get_offers called for POS Profile: {profile}")
+
 	date = nowdate()
 
 	values = {
-		"company": company,
 		"pos_profile": profile,
-		"warehouse": warehouse,
 		"valid_from": date,
 		"valid_upto": date,
 	}
+
+	log.info(f"[OFFERS] 📋 Query parameters: pos_profile={profile}, date={date}")
+
 	data = frappe.db.sql(
 		"""
         SELECT *
         FROM `tabPOS Offer`
-        WHERE 
+        WHERE
         disable = 0 AND
-        company = %(company)s AND
+        is_template = 0 AND
         (pos_profile is NULL OR pos_profile  = '' OR  pos_profile = %(pos_profile)s) AND
-        (warehouse is NULL OR warehouse  = '' OR  warehouse = %(warehouse)s) AND
         (valid_from is NULL OR valid_from  = '' OR  valid_from <= %(valid_from)s) AND
         (valid_upto is NULL OR valid_from  = '' OR  valid_upto >= %(valid_upto)s)
     """,
 		values=values,
 		as_dict=1,
 	)
+
+	log.info(f"[OFFERS] 📋 Found {len(data)} offers for POS Profile '{profile}'")
+	if data:
+		offer_names = [f"{o.get('name')} ({o.get('offer')})" for o in data[:5]]  # Log first 5 offers
+		log.info(f"[OFFERS] 📋 Sample offers: {offer_names}")
+		if len(data) > 5:
+			log.info(f"[OFFERS] 📋 ... and {len(data) - 5} more offers")
+
 	return data
 
 

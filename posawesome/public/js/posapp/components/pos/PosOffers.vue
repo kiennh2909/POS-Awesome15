@@ -15,7 +15,7 @@
 			>
 				<v-data-table
 					:headers="items_headers"
-					:items="pos_offers"
+					:items="displayedOffers"
 					item-key="row_id"
 					class="elevation-1"
 					:items-per-page="itemsPerPage"
@@ -129,7 +129,18 @@
 
 		<v-card flat style="max-height: 11vh; height: 11vh" class="cards mb-0 mt-3 py-0">
 			<v-row align="start" no-gutters>
-				<v-col cols="6">
+				<v-col cols="4">
+					<v-btn
+						block
+						class="pa-1"
+						size="large"
+						color="info"
+						theme="dark"
+						@click="show_all_offers"
+						>{{ __("Xem tất cả") }}</v-btn
+					>
+				</v-col>
+				<v-col cols="4">
 					<v-btn
 						block
 						class="pa-1"
@@ -140,7 +151,7 @@
 						>{{ __("Kiểm tra Offer") }}</v-btn
 					>
 				</v-col>
-				<v-col cols="6">
+				<v-col cols="4">
 					<v-btn
 						block
 						class="pa-1"
@@ -164,6 +175,8 @@ export default {
 		loading: false,
 		pos_profile: "",
 		pos_offers: [],
+		all_offers: [], // Store all offers for filtering
+		show_only_applicable: false, // Flag to show only applicable offers
 		itemsPerPage: 1000,
 		offerDialog: false,
 		selectedOffer: null,
@@ -187,6 +200,13 @@ export default {
 		isDarkTheme() {
 			return this.$theme?.current === "dark";
 		},
+		displayedOffers() {
+			// Return filtered offers based on show_only_applicable flag
+			if (this.show_only_applicable) {
+				return this.pos_offers.filter(offer => offer.is_applicable);
+			}
+			return this.pos_offers;
+		},
 		formattedOfferContent() {
 			if (!this.selectedOffer) return '';
 
@@ -204,6 +224,12 @@ export default {
 	methods: {
 		back_to_invoice() {
 			this.eventBus.emit("show_offers", "false");
+		},
+
+		async show_all_offers() {
+			console.log("📋 [POS_OFFERS] Show all offers button clicked");
+			this.show_only_applicable = false;
+			this.loadOffers();
 		},
 
 		async check_offers() {
@@ -253,8 +279,12 @@ export default {
 					// Reset tất cả offers về không áp dụng
 					this.pos_offers = response.message.map(offer => ({
 						...offer,
-						offer_applied: false
+						offer_applied: false,
+						is_applicable: false // Flag for applicable offers
 					}));
+
+					// Store all offers for filtering
+					this.all_offers = [...this.pos_offers];
 
 					console.log("📋 [POS_OFFERS] Loaded", this.pos_offers.length, "offers");
 					this.updateCounters();
@@ -638,6 +668,41 @@ export default {
 			}
 		},
 
+		handleApplicableOffersResult(data) {
+			console.log("🔍 [POS_OFFERS] Handling applicable offers result:", data);
+
+			if (data && data.applied_offers) {
+				// Mark applicable offers
+				const applicableOfferNames = data.applied_offers.map(offer => offer.name);
+
+				this.pos_offers.forEach(offer => {
+					offer.is_applicable = applicableOfferNames.includes(offer.name);
+				});
+
+				// Switch to show only applicable offers
+				this.show_only_applicable = true;
+
+				console.log("🔍 [POS_OFFERS] Marked applicable offers:", applicableOfferNames);
+				console.log("🔍 [POS_OFFERS] Total applicable offers:", applicableOfferNames.length);
+
+				// Show success message
+				this.eventBus.emit("show_message", {
+					title: __("Kiểm tra hoàn tất"),
+					message: __(`Tìm thấy ${applicableOfferNames.length} chương trình khuyến mại phù hợp.`),
+					color: "success",
+					timeout: 3000
+				});
+			} else {
+				console.warn("🔍 [POS_OFFERS] No applied_offers in result data");
+				this.eventBus.emit("show_message", {
+					title: __("Không có offers phù hợp"),
+					message: __("Không tìm thấy chương trình khuyến mại nào phù hợp với giỏ hàng hiện tại."),
+					color: "warning",
+					timeout: 3000
+				});
+			}
+		},
+
 		getFallbackContent() {
 			if (!this.selectedOffer) return '';
 
@@ -681,6 +746,12 @@ export default {
 				this.pos_profile = data.pos_profile;
 				// Tự động load offers khi POS Profile được đăng ký
 				this.loadOffers();
+			});
+
+			// Listen for applicable offers result from calculate_discounts
+			this.eventBus.on("applicable_offers_result", (data) => {
+				console.log("📥 [POS_OFFERS] Received applicable offers result:", data);
+				this.handleApplicableOffersResult(data);
 			});
 		});
 	},

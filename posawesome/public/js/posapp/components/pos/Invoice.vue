@@ -437,22 +437,28 @@ export default {
 					this.items.forEach((item, index) => {
 						console.log(`📦 [BEFORE] Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}`);
 					});
-	
+
 					this.items = response.message.updated_items;
 					this.posa_offers = response.message.applied_offers;
-	
+
 					console.log("💰 [DISCOUNT_CALC] Items and offers updated successfully", {
 						items_count: this.items.length,
 						offers_count: this.posa_offers.length
 					});
-	
+
 					console.log("📦 [DISCOUNT_CALC] Items after backend update:");
 					this.items.forEach((item, index) => {
 						console.log(`📦 [AFTER] Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}, discount: ${item.discount_amount}`);
 					});
-	
+
 					console.log("🎁 [DISCOUNT_CALC] Applied offers:", this.posa_offers.map(o => `${o.name} (${o.offer})`));
-	
+
+					// Emit result to PosOffers dialog for applicable offers filtering
+					this.eventBus.emit("applicable_offers_result", {
+						applied_offers: this.posa_offers,
+						updated_items: this.items
+					});
+
 				} else {
 					console.log("💰 [DISCOUNT_CALC] API returned error status");
 					this.eventBus.emit("show_message", {
