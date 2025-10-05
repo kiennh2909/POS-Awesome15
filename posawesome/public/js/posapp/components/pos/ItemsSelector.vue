@@ -981,6 +981,7 @@ export default {
 			console.log("🎁 [ITEMS_SELECTOR] Current customer:", this.customer);
 			console.log("🎁 [ITEMS_SELECTOR] Customer info:", this.customer_info);
 
+			// Emit event để PosOffers component load danh sách offers
 			this.eventBus.emit("show_offers", "true");
 
 			console.log("🎁 [ITEMS_SELECTOR] Event emitted successfully");

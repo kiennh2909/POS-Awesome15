@@ -6,7 +6,7 @@
 			style="max-height: 80vh; height: 80vh"
 		>
 			<v-card-title>
-				<span class="text-h6 text-primary">{{ __("Offers") }}</span>
+				<span class="text-h6 text-primary">{{ __("Danh sách chương trình khuyến mại") }}</span>
 			</v-card-title>
 			<div
 				class="my-0 py-0 overflow-y-auto"
@@ -52,20 +52,6 @@
 							<v-icon size="small">mdi-eye</v-icon>
 						</v-btn>
 					</template>
-					<template v-slot:item.offer_applied="{ item }">
-						<v-checkbox-btn
-							@click.stop="toggleOfferApplied(item)"
-							v-model="item.offer_applied"
-							:disabled="
-								(item.offer == 'Give Product' &&
-									!item.give_item &&
-									(!item.replace_cheapest_item || !item.replace_item)) ||
-								(item.offer == 'Grand Total' &&
-									discount_percentage_offer_name &&
-									discount_percentage_offer_name != item.name)
-							"
-						></v-checkbox-btn>
-					</template>
 				</v-data-table>
 
 				<!-- Dialog hiển thị chi tiết offer -->
@@ -98,32 +84,6 @@
 								<!-- Hiển thị nội dung chi tiết -->
 								<div v-else class="offer-dialog-content" v-html="formattedOfferContent"></div>
 
-								<!-- Phần cấu hình cho Give Product -->
-								<div v-if="selectedOffer.offer == 'Give Product'" class="offer-config-section">
-									<v-divider class="my-4 mx-6"></v-divider>
-									<div class="config-section-wrapper">
-										<div class="config-title mb-3">
-											<v-icon color="primary" size="small" class="mr-2">mdi-cog</v-icon>
-											Sản phẩm tặng:
-										</div>
-										<v-autocomplete
-											v-model="selectedOffer.give_item"
-											:items="get_give_items(selectedOffer)"
-											item-title="item_code"
-											variant="outlined"
-											density="compact"
-											color="primary"
-											:label="frappe._('Chọn sản phẩm tặng')"
-											:disabled="
-												selectedOffer.apply_type != 'Item Group' ||
-												selectedOffer.replace_item ||
-												selectedOffer.replace_cheapest_item
-											"
-											class="config-autocomplete"
-											prepend-inner-icon="mdi-package-variant"
-										></v-autocomplete>
-									</div>
-								</div>
 							</div>
 						</v-card-text>
 						<v-card-actions class="offer-dialog-footer pa-4">
@@ -169,7 +129,18 @@
 
 		<v-card flat style="max-height: 11vh; height: 11vh" class="cards mb-0 mt-3 py-0">
 			<v-row align="start" no-gutters>
-				<v-col cols="12">
+				<v-col cols="6">
+					<v-btn
+						block
+						class="pa-1"
+						size="large"
+						color="success"
+						theme="dark"
+						@click="check_offers"
+						>{{ __("Kiểm tra Offer") }}</v-btn
+					>
+				</v-col>
+				<v-col cols="6">
 					<v-btn
 						block
 						class="pa-1"
@@ -193,8 +164,6 @@ export default {
 		loading: false,
 		pos_profile: "",
 		pos_offers: [],
-		allItems: [],
-		discount_percentage_offer_name: null,
 		itemsPerPage: 1000,
 		offerDialog: false,
 		selectedOffer: null,
@@ -203,7 +172,6 @@ export default {
 			{ title: __("Name"), value: "name", align: "start" },
 			{ title: __("Apply On"), value: "apply_on", align: "start" },
 			{ title: __("Offer"), value: "offer", align: "start" },
-			{ title: __("Applied"), value: "offer_applied", align: "start" },
 			{ title: __("Actions"), value: "actions", align: "center", sortable: false },
 		],
 	}),
@@ -213,7 +181,8 @@ export default {
 			return this.pos_offers.length;
 		},
 		appliedOffersCount() {
-			return this.pos_offers.filter((el) => !!el.offer_applied).length;
+			// Không còn sử dụng offer_applied state trong dialog này
+			return 0;
 		},
 		isDarkTheme() {
 			return this.$theme?.current === "dark";
@@ -236,6 +205,72 @@ export default {
 		back_to_invoice() {
 			this.eventBus.emit("show_offers", "false");
 		},
+
+		async check_offers() {
+			console.log("🔍 [POS_OFFERS] Check offers button clicked - calculating applicable offers");
+
+			try {
+				// Emit event để Invoice component tính toán offers với giỏ hàng hiện tại
+				this.eventBus.emit("check_applicable_offers");
+
+				this.eventBus.emit("show_message", {
+					title: __("Đang kiểm tra offers..."),
+					message: __("Đang tính toán các chương trình khuyến mại phù hợp với giỏ hàng hiện tại."),
+					color: "info",
+					timeout: 2000
+				});
+
+				console.log("🔍 [POS_OFFERS] Check offers request sent");
+			} catch (error) {
+				console.error("🔍 [POS_OFFERS] Error checking offers:", error);
+				this.eventBus.emit("show_message", {
+					title: __("Lỗi kiểm tra offers"),
+					message: error.message || __("Không thể kiểm tra chương trình khuyến mại."),
+					color: "error"
+				});
+			}
+		},
+
+		async loadOffers() {
+			console.log("📋 [POS_OFFERS] Loading all offers for POS Profile:", this.pos_profile?.name);
+
+			if (!this.pos_profile?.name) {
+				console.warn("📋 [POS_OFFERS] No POS Profile available");
+				return;
+			}
+
+			try {
+				this.loading = true;
+
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.offers.get_offers",
+					args: {
+						profile: this.pos_profile.name
+					}
+				});
+
+				if (response.message) {
+					// Reset tất cả offers về không áp dụng
+					this.pos_offers = response.message.map(offer => ({
+						...offer,
+						offer_applied: false
+					}));
+
+					console.log("📋 [POS_OFFERS] Loaded", this.pos_offers.length, "offers");
+					this.updateCounters();
+				}
+
+			} catch (error) {
+				console.error("📋 [POS_OFFERS] Error loading offers:", error);
+				this.eventBus.emit("show_message", {
+					title: __("Lỗi tải offers"),
+					message: __("Không thể tải danh sách chương trình khuyến mại."),
+					color: "error"
+				});
+			} finally {
+				this.loading = false;
+			}
+		},
 		forceUpdateItem() {
 			let list_offers = [];
 			list_offers = [...this.pos_offers];
@@ -250,88 +285,6 @@ export default {
 			}
 			return result;
 		},
-		updatePosOffers(offers) {
-			const toRemove = [];
-			this.pos_offers.forEach((pos_offer) => {
-				const offer = offers.find((offer) => offer.name === pos_offer.name);
-				if (!offer) {
-					toRemove.push(pos_offer.row_id);
-				}
-			});
-			this.removeOffers(toRemove);
-			offers.forEach((offer) => {
-				const pos_offer = this.pos_offers.find((pos_offer) => offer.name === pos_offer.name);
-				if (pos_offer) {
-					pos_offer.items = offer.items;
-					if (pos_offer.offer === "Grand Total" && !this.discount_percentage_offer_name) {
-						pos_offer.offer_applied = !!pos_offer.auto;
-					}
-					if (
-						offer.apply_on == "Item Group" &&
-						offer.apply_type == "Item Group" &&
-						offer.replace_cheapest_item
-					) {
-						pos_offer.give_item = offer.give_item;
-						pos_offer.apply_item_code = offer.apply_item_code;
-					}
-				} else {
-					const newOffer = { ...offer };
-					if (!offer.row_id) {
-						newOffer.row_id = this.makeid(20);
-					}
-					if (offer.apply_type == "Item Code") {
-						newOffer.give_item = offer.apply_item_code || "Nothing";
-					}
-					if (offer.offer_applied) {
-						newOffer.offer_applied == !!offer.offer_applied;
-					} else {
-						if (
-							offer.apply_type == "Item Group" &&
-							offer.offer == "Give Product" &&
-							!offer.replace_cheapest_item &&
-							!offer.replace_item
-						) {
-							newOffer.offer_applied = false;
-						} else if (offer.offer === "Grand Total" && this.discount_percentage_offer_name) {
-							newOffer.offer_applied = false;
-						} else {
-							newOffer.offer_applied = !!offer.auto;
-						}
-					}
-					if (newOffer.offer == "Give Product" && !newOffer.give_item) {
-						newOffer.give_item = this.get_give_items(newOffer)[0].item_code;
-					}
-					this.pos_offers.push(newOffer);
-					// Tạo nội dung thông báo chi tiết với format đẹp
-					const offerDetails = this.formatOfferDetails(newOffer);
-					this.eventBus.emit("show_message", {
-						title: __("🎉 New Offer Available!"),
-						message: offerDetails,
-						color: "warning",
-						offer: newOffer,
-						timeout: 3000
-					});
-				}
-			});
-		},
-		removeOffers(offers_id_list) {
-			this.pos_offers = this.pos_offers.filter((offer) => !offers_id_list.includes(offer.row_id));
-		},
-		handelOffers() {
-			console.log("📤 [POS_OFFERS] handelOffers() called");
-			const applyedOffers = this.pos_offers.filter((offer) => offer.offer_applied);
-			console.log("📤 [POS_OFFERS] Filtered applied offers:", applyedOffers.length, "offers");
-			console.log("📤 [POS_OFFERS] Applied offers details:", applyedOffers.map(o => ({
-				name: o.name,
-				offer: o.offer,
-				row_id: o.row_id
-			})));
-
-			console.log("📤 [POS_OFFERS] Emitting 'update_invoice_offers' event");
-			this.eventBus.emit("update_invoice_offers", applyedOffers);
-
-			console.log("📤 [POS_OFFERS] Event emitted successfully");
-		},
 		handleNewLine(str) {
 			if (str) {
 				return str.replace(/(?:\r\n|\r|\n)/g, "<br />");
@@ -339,60 +292,14 @@ export default {
 				return "";
 			}
 		},
-		get_give_items(offer) {
-			if (offer.apply_type == "Item Code") {
-				return [offer.apply_item_code];
-			} else if (offer.apply_type == "Item Group") {
-				const items = this.allItems;
-				let filterd_items = [];
-				const filterd_items_1 = items.filter((item) => item.item_group == offer.apply_item_group);
-				if (offer.less_then > 0) {
-					filterd_items = filterd_items_1.filter((item) => item.rate < offer.less_then);
-				} else {
-					filterd_items = filterd_items_1;
-				}
-				return filterd_items;
-			} else {
-				return [];
-			}
-		},
 		updateCounters() {
 			this.eventBus.emit("update_offers_counters", {
 				offersCount: this.offersCount,
 				appliedOffersCount: this.appliedOffersCount,
 			});
-		},
-		updatePosCoupuns() {
-			const applyedOffers = this.pos_offers.filter(
-				(offer) => offer.offer_applied && offer.coupon_based,
-			);
-			this.eventBus.emit("update_pos_coupons", applyedOffers);
+			// Không còn gọi updatePosCoupuns() vì không áp dụng offers trong dialog
 		},
 
-		toggleOfferApplied(item) {
-			console.log("🔄 [POS_OFFERS] Checkbox 'Applied' clicked for offer:", item.name);
-			console.log("🔄 [POS_OFFERS] Previous offer_applied state:", !item.offer_applied);
-			console.log("🔄 [POS_OFFERS] New offer_applied state:", item.offer_applied);
-			console.log("🔄 [POS_OFFERS] Offer details:", {
-				name: item.name,
-				offer: item.offer,
-				apply_on: item.apply_on,
-				row_id: item.row_id
-			});
-
-			// Toggle trạng thái áp dụng offer
-			item.offer_applied = !item.offer_applied;
-
-			console.log("🔄 [POS_OFFERS] After toggle - offer_applied:", item.offer_applied);
-			console.log("🔄 [POS_OFFERS] Calling handelOffers()...");
-
-			this.handelOffers();
-
-			console.log("🔄 [POS_OFFERS] Calling forceUpdateItem()...");
-			this.forceUpdateItem();
-
-			console.log("🔄 [POS_OFFERS] Toggle operation completed");
-		},
 
 		openOfferDialog(item) {
 			// Mở dialog hiển thị chi tiết offer
@@ -436,7 +343,8 @@ export default {
 					// Cập nhật give_item nếu có thay đổi
 					if (originalOffer.give_item !== this.selectedOffer.give_item) {
 						originalOffer.give_item = this.selectedOffer.give_item;
-						this.handelOffers(); // Tính toán lại offers
+						// Không còn tự động áp dụng offers trong dialog
+						console.log("📝 [POS_OFFERS] Updated give_item for offer:", originalOffer.name);
 					}
 				}
 			}
@@ -765,36 +673,15 @@ export default {
 		},
 	},
 
-	watch: {
-		pos_offers: {
-			deep: true,
-			handler(pos_offers) {
-				this.handelOffers();
-				this.updateCounters();
-				this.updatePosCoupuns();
-			},
-		},
-	},
+	// Removed watch for pos_offers - no longer auto-applying offers in dialog
 
 	created: function () {
 		this.$nextTick(function () {
 			this.eventBus.on("register_pos_profile", (data) => {
 				this.pos_profile = data.pos_profile;
+				// Tự động load offers khi POS Profile được đăng ký
+				this.loadOffers();
 			});
-		});
-		this.eventBus.on("update_customer", (customer) => {
-			if (this.customer != customer) {
-				this.offers = [];
-			}
-		});
-		this.eventBus.on("update_pos_offers", (data) => {
-			this.updatePosOffers(data);
-		});
-		this.eventBus.on("update_discount_percentage_offer_name", (data) => {
-			this.discount_percentage_offer_name = data.value;
-		});
-		this.eventBus.on("set_all_items", (data) => {
-			this.allItems = data;
 		});
 	},
 };

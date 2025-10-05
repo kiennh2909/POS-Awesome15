@@ -1584,10 +1584,16 @@ export default {
         this.eventBus.on("item-drag-end", () => {
         	this.showDropFeedback(false);
         });
-      
+
         // Listen for shift verification status changes
         this.eventBus.on("shift_verification_changed", (status) => {
         	this.shiftVerificationStatus = status;
+        });
+
+        // Listen for check applicable offers request from PosOffers dialog
+        this.eventBus.on("check_applicable_offers", () => {
+            console.log("🔍 [INVOICE] Received check_applicable_offers event - calculating offers for current cart");
+            this.calculateDiscountsDebounced();
         });
 	},
 	// Cleanup event listeners before component is destroyed
