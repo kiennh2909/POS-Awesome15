@@ -63,8 +63,86 @@
 					:items-per-page="itemsPerPage"
 					hide-default-footer
 				>
-					<template v-slot:item.applied="{ item }">
-						<v-checkbox-btn v-model="item.applied" disabled></v-checkbox-btn>
+					<!-- Serial Number -->
+					<template v-slot:item.serial="{ item, index }">
+						<span class="text-caption font-weight-medium">{{ index + 1 }}</span>
+					</template>
+
+					<!-- Coupon Code with Type Icon -->
+					<template v-slot:item.coupon_code="{ item }">
+						<div class="d-flex align-center">
+							<v-icon
+								:color="getCouponTypeColor(item.type)"
+								size="small"
+								class="mr-1"
+							>
+								{{ getCouponTypeIcon(item.type) }}
+							</v-icon>
+							<span class="font-weight-medium">{{ item.coupon_code }}</span>
+						</div>
+					</template>
+
+					<!-- Coupon Type -->
+					<template v-slot:item.type="{ item }">
+						<v-chip
+							:color="getCouponTypeColor(item.type)"
+							size="small"
+							variant="flat"
+							class="text-caption"
+						>
+							{{ item.type }}
+						</v-chip>
+					</template>
+
+					<!-- Customer Name -->
+					<template v-slot:item.customer_name="{ item }">
+						<span class="text-caption">{{ item.customer_name || '-' }}</span>
+					</template>
+
+					<!-- Mobile Number -->
+					<template v-slot:item.mobile_no="{ item }">
+						<span class="text-caption">{{ item.mobile_no || '-' }}</span>
+					</template>
+
+					<!-- POS Offer -->
+					<template v-slot:item.pos_offer="{ item }">
+						<span class="text-caption">{{ item.pos_offer || '-' }}</span>
+					</template>
+
+					<!-- Use Per Customer -->
+					<template v-slot:item.use_per_customer="{ item }">
+						<v-chip
+							:color="item.one_use ? 'warning' : 'success'"
+							size="small"
+							variant="outlined"
+							class="text-caption"
+						>
+							{{ item.one_use ? '1x' : 'Multi' }}
+						</v-chip>
+					</template>
+
+					<!-- Usage Status -->
+					<template v-slot:item.usage="{ item }">
+						<v-chip
+							:color="getUsageColor(item.used, item.maximum_use)"
+							size="small"
+							variant="flat"
+							class="text-caption"
+						>
+							{{ item.used || 0 }}/{{ item.maximum_use || '∞' }}
+						</v-chip>
+					</template>
+
+					<!-- Actions -->
+					<template v-slot:item.actions="{ item }">
+						<v-btn
+							icon="mdi-delete"
+							size="small"
+							variant="text"
+							color="error"
+							@click.stop="remove_coupon(item)"
+							title="Remove coupon"
+						></v-btn>
 					</template>
 				</v-data-table>
 			</div>
@@ -84,10 +162,15 @@ export default {
 		singleExpand: true,
 		couponInputTimeout: null, // For debouncing
 		items_headers: [
-			{ title: __("Coupon"), value: "coupon_code", align: "start" },
-			{ title: __("Type"), value: "type", align: "start" },
-			{ title: __("Offer"), value: "pos_offer", align: "start" },
-			{ title: __("Applied"), value: "applied", align: "start" },
+			{ title: __("Serial"), value: "serial", align: "start", width: "8%" },
+			{ title: __("Code"), value: "coupon_code", align: "start", width: "15%" },
+			{ title: __("Type"), value: "type", align: "center", width: "10%" },
+			{ title: __("Customer"), value: "customer_name", align: "start", width: "15%" },
+			{ title: __("Phone"), value: "mobile_no", align: "start", width: "12%" },
+			{ title: __("POS Offer"), value: "pos_offer", align: "start", width: "15%" },
+			{ title: __("Use/Customer"), value: "use_per_customer", align: "center", width: "10%" },
+			{ title: __("Usage"), value: "usage", align: "center", width: "10%" },
+			{ title: __("Actions"), value: "actions", align: "center", width: "5%" },
 		],
 	}),
 
@@ -213,10 +296,13 @@ export default {
 								applied: 0,
 								pos_offer: coupon.pos_offer,
 								customer: coupon.customer || vm.customer,
+								customer_name: coupon.customer_name || '',
+								mobile_no: coupon.mobile_no || '',
 								valid_from: coupon.valid_from,
 								valid_upto: coupon.valid_upto,
 								maximum_use: coupon.maximum_use,
-								used: coupon.used
+								used: coupon.used,
+								one_use: coupon.one_use
 							});
 
 							vm.eventBus.emit("show_message", {
@@ -263,6 +349,35 @@ export default {
 
 		removeCoupon(reomove_list) {
 			this.posa_coupons = this.posa_coupons.filter((coupon) => !reomove_list.includes(coupon.coupon));
+		},
+
+		remove_coupon(coupon) {
+			console.log("🎫 [COUPON_REMOVE] Removing coupon:", coupon.coupon_code);
+			this.posa_coupons = this.posa_coupons.filter((c) => c.coupon !== coupon.coupon);
+
+			this.eventBus.emit("show_message", {
+				title: __("Coupon Removed"),
+				message: __("Coupon {0} has been removed", [coupon.coupon_code]),
+				color: "info",
+				timeout: 2000
+			});
+		},
+
+		// Helper methods for UI
+		getCouponTypeColor(type) {
+			return type === 'Gift Card' ? 'success' : 'info';
+		},
+
+		getCouponTypeIcon(type) {
+			return type === 'Gift Card' ? 'mdi-gift' : 'mdi-ticket-percent';
+		},
+
+		getUsageColor(used, max) {
+			if (!max) return 'grey';
+			const ratio = used / max;
+			if (ratio >= 1) return 'error';
+			if (ratio >= 0.8) return 'warning';
+			return 'success';
 		},
 		updateInvoice() {
 			this.eventBus.emit("update_invoice_coupons", this.posa_coupons);
@@ -376,5 +491,57 @@ export default {
 .add-coupon-btn:hover {
 	transform: translateY(-2px);
 	box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+/* Enhanced table styling */
+:deep(.v-data-table .v-data-table__td) {
+	padding: 8px 4px !important;
+	font-size: 0.875rem;
+}
+
+:deep(.v-data-table .v-data-table__th) {
+	font-size: 0.875rem;
+	font-weight: 600;
+	padding: 8px 4px !important;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+	:deep(.v-data-table) {
+		font-size: 0.75rem;
+	}
+
+	:deep(.v-data-table .v-data-table__td),
+	:deep(.v-data-table .v-data-table__th) {
+		padding: 4px 2px !important;
+		font-size: 0.75rem;
+	}
+
+	/* Hide less important columns on mobile */
+	:deep(.v-data-table .v-data-table__th:nth-child(5)),
+	:deep(.v-data-table .v-data-table__th:nth-child(6)),
+	:deep(.v-data-table .v-data-table__td:nth-child(5)),
+	:deep(.v-data-table .v-data-table__td:nth-child(6)) {
+		display: none;
+	}
+}
+
+@media (max-width: 480px) {
+	/* Show only essential columns on very small screens */
+	:deep(.v-data-table .v-data-table__th:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(8)):not(:nth-child(9))),
+	:deep(.v-data-table .v-data-table__td:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(8)):not(:nth-child(9))) {
+		display: none;
+	}
+}
+
+/* Chip styling */
+:deep(.v-chip) {
+	font-size: 0.75rem !important;
+	height: 24px !important;
+}
+
+/* Icon styling */
+:deep(.v-icon) {
+	font-size: 16px !important;
 }
 </style>
