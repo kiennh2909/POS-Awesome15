@@ -433,12 +433,26 @@ export default {
 				if (response.message && response.message.status === "success") {
 					// Directly replace items with the processed list from backend
 					console.log("💰 [DISCOUNT_CALC] API success, updating items and offers");
+					console.log("📦 [DISCOUNT_CALC] Items before backend update:", this.items.length, "items");
+					this.items.forEach((item, index) => {
+						console.log(`📦 [BEFORE] Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}`);
+					});
+	
 					this.items = response.message.updated_items;
 					this.posa_offers = response.message.applied_offers;
+	
 					console.log("💰 [DISCOUNT_CALC] Items and offers updated successfully", {
 						items_count: this.items.length,
 						offers_count: this.posa_offers.length
 					});
+	
+					console.log("📦 [DISCOUNT_CALC] Items after backend update:");
+					this.items.forEach((item, index) => {
+						console.log(`📦 [AFTER] Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}, discount: ${item.discount_amount}`);
+					});
+	
+					console.log("🎁 [DISCOUNT_CALC] Applied offers:", this.posa_offers.map(o => `${o.name} (${o.offer})`));
+	
 				} else {
 					console.log("💰 [DISCOUNT_CALC] API returned error status");
 					this.eventBus.emit("show_message", {
@@ -1132,11 +1146,18 @@ export default {
 
 				// Trigger discount calculation after qty change (if not already applying)
 				if (!this.isApplyingDiscount) {
-					console.log("➕ [ADD_ONE] Triggering discount calculation");
+					console.log("➕ [ADD_ONE] Triggering discount calculation via calculateDiscountsDebounced");
+					console.log("➕ [ADD_ONE] Current cart state before discount calc:", {
+						items_count: this.items.length,
+						customer: this.customer,
+						pos_profile: this.pos_profile?.name
+					});
+
 					this.$nextTick(() => {
 						setTimeout(() => {
+							console.log("⏱️ [ADD_ONE] Calling calculateDiscountsDebounced() now...");
 							this.calculateDiscountsDebounced();
-							console.log("➕ [ADD_ONE] calculateDiscountsDebounced() called");
+							console.log("✅ [ADD_ONE] calculateDiscountsDebounced() called successfully");
 						}, 10);
 					});
 				} else {
@@ -1163,11 +1184,18 @@ export default {
 
 				// Trigger discount calculation after qty change (if not already applying)
 				if (!this.isApplyingDiscount) {
-					console.log("➖ [SUBTRACT_ONE] Triggering discount calculation");
+					console.log("➖ [SUBTRACT_ONE] Triggering discount calculation via calculateDiscountsDebounced");
+					console.log("➖ [SUBTRACT_ONE] Current cart state before discount calc:", {
+						items_count: this.items.length,
+						customer: this.customer,
+						pos_profile: this.pos_profile?.name
+					});
+
 					this.$nextTick(() => {
 						setTimeout(() => {
+							console.log("⏱️ [SUBTRACT_ONE] Calling calculateDiscountsDebounced() now...");
 							this.calculateDiscountsDebounced();
-							console.log("➖ [SUBTRACT_ONE] calculateDiscountsDebounced() called");
+							console.log("✅ [SUBTRACT_ONE] calculateDiscountsDebounced() called successfully");
 						}, 10);
 					});
 				} else {
@@ -1443,9 +1471,21 @@ export default {
 			console.log("📥 [INVOICE] Current invoice items count:", this.items.length);
 			console.log("📥 [INVOICE] Current customer:", this.customer);
 
+			// Log current items before applying offers
+			console.log("📦 [INVOICE] Items before applying offers:");
+			this.items.forEach((item, index) => {
+				console.log(`📦 [INVOICE]   Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}, discount: ${item.discount_amount}`);
+			});
+
 			this.updateInvoiceOffers(data);
 
 			console.log("📥 [INVOICE] updateInvoiceOffers() completed");
+
+			// Log items after applying offers
+			console.log("📦 [INVOICE] Items after applying offers:");
+			this.items.forEach((item, index) => {
+				console.log(`📦 [INVOICE]   Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}, discount: ${item.discount_amount}`);
+			});
 		});
 		this.eventBus.on("update_invoice_coupons", (data) => {
 			console.log("🎫 [EVENT_RECEIVED] update_invoice_coupons received", data);
@@ -1454,6 +1494,14 @@ export default {
 
 			// Trigger discount calculation using backend API only if cart has items
 			if (this.items.length > 0) {
+				console.log("🎫 [COUPON_UPDATE] Cart has items, triggering discount calculation");
+				console.log("🎫 [COUPON_UPDATE] Current cart state:", {
+					items_count: this.items.length,
+					customer: this.customer,
+					pos_profile: this.pos_profile?.name,
+					coupons_count: this.posa_coupons.length
+				});
+
 				this.calculateDiscountsDebounced();
 				console.log("🎫 [DISCOUNT_TRIGGER] calculateDiscountsDebounced() called from coupon update");
 			} else {

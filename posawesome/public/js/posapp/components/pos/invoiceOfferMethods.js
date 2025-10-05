@@ -314,6 +314,14 @@ export default {
 	},
 
 	updateInvoiceOffers(offers) {
+		console.log("🔄 [UPDATE_INVOICE_OFFERS] Starting updateInvoiceOffers with offers:", offers?.length || 0, "offers");
+		console.log("🔄 [UPDATE_INVOICE_OFFERS] Current invoice state:", {
+			items_count: this.items.length,
+			current_offers_count: this.posa_offers.length,
+			customer: this.customer,
+			pos_profile: this.pos_profile?.name
+		});
+
 		// Clear all existing Item Price offers first for consistency
 		this.clearAllItemPriceOffers();
 
@@ -321,14 +329,17 @@ export default {
 		this.posa_offers.forEach((invoiceOffer) => {
 			const existOffer = offers.find((offer) => invoiceOffer.row_id == offer.row_id);
 			if (!existOffer) {
+				console.log("🗑️ [UPDATE_INVOICE_OFFERS] Removing non-applicable offer:", invoiceOffer.name);
 				this.removeApplyOffer(invoiceOffer);
 			}
 		});
 
 		// Apply all offers from the new batch
 		offers.forEach((offer) => {
+			console.log("🎯 [UPDATE_INVOICE_OFFERS] Processing offer:", offer.name, "type:", offer.offer);
 			const existOffer = this.posa_offers.find((invoiceOffer) => invoiceOffer.row_id == offer.row_id);
 			if (existOffer) {
+				console.log("🔄 [UPDATE_INVOICE_OFFERS] Updating existing offer:", offer.name);
 				existOffer.items = JSON.stringify(offer.items);
 				if (
 					existOffer.offer === "Give Product" &&
@@ -414,14 +425,23 @@ export default {
 						}
 					});
 				} else if (existOffer.offer === "Item Price") {
+					console.log("💰 [UPDATE_INVOICE_OFFERS] Applying Item Price offer:", offer.name);
 					this.ApplyOnPrice(offer);
 				} else if (existOffer.offer === "Grand Total") {
+					console.log("💰 [UPDATE_INVOICE_OFFERS] Applying Grand Total offer:", offer.name);
 					this.ApplyOnTotal(offer);
 				}
 				this.addOfferToItems(existOffer);
 			} else {
+				console.log("🆕 [UPDATE_INVOICE_OFFERS] Applying new offer:", offer.name);
 				this.applyNewOffer(offer);
 			}
+		});
+
+		console.log("✅ [UPDATE_INVOICE_OFFERS] Completed - Final state:", {
+			items_count: this.items.length,
+			applied_offers_count: this.posa_offers.length,
+			applied_offer_names: this.posa_offers.map(o => o.name)
 		});
 	},
 
