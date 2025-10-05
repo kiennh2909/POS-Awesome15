@@ -178,25 +178,29 @@
 			<v-row align="start" no-gutters class="offer-buttons-row">
 				<v-col cols="4" class="offer-button-col">
 					<v-btn
-						block
+						variant="text"
 						class="pa-1 offer-button"
 						size="large"
 						color="info"
 						theme="dark"
 						@click="show_all_offers"
-						>{{ __("Xem tất cả") }}</v-btn
 					>
+						<v-icon size="small" class="mr-1">mdi-view-list</v-icon>
+						{{ __("Xem tất cả") }}
+					</v-btn>
 				</v-col>
 				<v-col cols="4" class="offer-button-col">
 					<v-btn
-						block
+						variant="text"
 						class="pa-1 offer-button"
 						size="large"
 						color="success"
 						theme="dark"
 						@click="check_offers"
-						>{{ __("Kiểm tra Offer") }}</v-btn
 					>
+						<v-icon size="small" class="mr-1">mdi-magnify</v-icon>
+						{{ __("Kiểm tra Offer") }}
+					</v-btn>
 				</v-col>
 				<v-col cols="4" class="offer-button-col">
 					<v-btn
@@ -1571,6 +1575,20 @@ export default {
 .offer-button .v-btn__content {
 	font-size: 0.75rem !important;
 	line-height: 1.2;
+}
+
+/* Text variant button styling for link-like appearance */
+.offer-button.v-btn--variant-text {
+	background: transparent !important;
+	border: none !important;
+	box-shadow: none !important;
+	transition: all 0.2s ease;
+}
+
+.offer-button.v-btn--variant-text:hover {
+	background: rgba(255, 255, 255, 0.1) !important;
+	transform: translateY(-1px);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
 }
 
 /* Responsive adjustments for offer buttons */
