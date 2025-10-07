@@ -840,12 +840,12 @@ export default {
 		doc.conversion_rate =
 			(this.invoice_doc && this.invoice_doc.conversion_rate) || this.conversion_rate || 1;
 
-		// Use actual price list currency if available
-		doc.price_list_currency = this.price_list_currency || doc.currency;
+		// Guard tỷ giá (đề phòng exchange_rate rỗng/0)
+		const exr = flt(this.exchange_rate) || 1;
 
-		doc.plc_conversion_rate =
-			(this.invoice_doc && this.invoice_doc.plc_conversion_rate) ||
-			(doc.price_list_currency === doc.currency ? 1 : this.exchange_rate);
+		// Use actual price list currency if available (set 1 lần)
+		doc.price_list_currency = this.price_list_currency || doc.currency;
+		doc.plc_conversion_rate = (doc.price_list_currency === doc.currency) ? 1 : exr;
 
 		// Other fields
 		doc.campaign = doc.campaign || this.pos_profile.campaign;
@@ -861,6 +861,7 @@ export default {
 		const items = this.get_invoice_items();
 
 		// Inject preserve flags into the final items array (by posa_row_id)
+		// Đừng preserve cho dòng khuyến mại (free/offer lines)
 		const flagsById = Object.fromEntries(
 			this.items.map(it => [it.posa_row_id, {
 				_preserve_rate_on_load: !!it._preserve_rate_on_load || !!it._manual_rate_set,
@@ -870,7 +871,8 @@ export default {
 
 		items.forEach(it => {
 			const f = flagsById[it.posa_row_id];
-			if (f && f._preserve_rate_on_load) {
+			const isOffer = it.posa_is_offer === 1 || it.is_free_item === 1 || it.posa_offer_applied === 1;
+			if (f && f._preserve_rate_on_load && !isOffer && flt(it.rate) > 0) {
 				it._preserve_rate_on_load = true;
 				it._manual_rate_set = true;   // lock against recalc on server
 			}
@@ -991,7 +993,7 @@ export default {
 			doc.base_rounded_total = flt(doc.base_grand_total, this.currency_precision);
 		} else {
 			doc.rounded_total = this.roundAmount(grandTotal);
-			doc.base_rounded_total = this.roundAmount(doc.base_grand_total);
+			doc.base_rounded_total = this.roundAmount(doc.base_grand_total); // Round bằng roundAmount
 		}
 
 		// Add POS specific fields
@@ -1042,18 +1044,18 @@ export default {
 		// Add custom fields to track offer rates
 		doc.posa_is_offer_applied = this.posa_offers.length > 0 ? 1 : 0;
 
-		// Calculate base amounts using the exchange rate
+		// Calculate base amounts using the exchange rate (dùng exr đã guard)
 		const baseCurrency = this.price_list_currency || this.pos_profile.currency;
 		if (this.selected_currency !== baseCurrency) {
 			// For returns, we need to ensure negative values
 			const multiplier = isReturn ? -1 : 1;
 
 			// Convert amounts back to the base currency
-			doc.base_total = (total / this.exchange_rate) * multiplier;
-			doc.base_net_total = (total / this.exchange_rate) * multiplier;
-			doc.base_discount_amount = (discountAmount / this.exchange_rate) * multiplier;
-			doc.base_grand_total = (grandTotal / this.exchange_rate) * multiplier;
-			doc.base_rounded_total = (grandTotal / this.exchange_rate) * multiplier;
+			doc.base_total = (total / exr) * multiplier;
+			doc.base_net_total = (total / exr) * multiplier;
+			doc.base_discount_amount = (discountAmount / exr) * multiplier;
+			doc.base_grand_total = (grandTotal / exr) * multiplier;
+			doc.base_rounded_total = (grandTotal / exr) * multiplier;
 		} else {
 			// Same currency, just ensure negative values for returns
 			const multiplier = isReturn ? -1 : 1;
@@ -1065,12 +1067,12 @@ export default {
 			doc.base_rounded_total = grandTotal * multiplier;
 		}
 
-		// Ensure payments have correct base amounts
+		// Ensure payments have correct base amounts (dùng exr đã guard)
 		if (doc.payments && doc.payments.length) {
 			doc.payments.forEach((payment) => {
 				if (this.selected_currency !== baseCurrency) {
 					// Convert payment amount to base currency
-					payment.base_amount = payment.amount / this.exchange_rate;
+					payment.base_amount = payment.amount / exr;
 				} else {
 					payment.base_amount = payment.amount;
 				}
@@ -1283,7 +1285,7 @@ export default {
 			// For return invoices, ensure payment amounts are negative
 			const adjusted_amount = this.isReturnInvoice ? -Math.abs(payment_amount) : payment_amount;
 
-			// Handle currency conversion
+			// Handle currency conversion (dùng exr đã guard)
 			// If selected_currency is USD and base is PKR:
 			// amount is in USD (e.g. 10 USD)
 			// base_amount should be in PKR (e.g. 3000 PKR)
@@ -1291,7 +1293,7 @@ export default {
 			const baseCurrency = this.price_list_currency || this.pos_profile.currency;
 			const base_amount =
 				this.selected_currency !== baseCurrency
-					? this.flt(adjusted_amount / (this.exchange_rate || 1), this.currency_precision)
+					? this.flt(adjusted_amount / exr, this.currency_precision)
 					: adjusted_amount;
 
 			payments.push({
