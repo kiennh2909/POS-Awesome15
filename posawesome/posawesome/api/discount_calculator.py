@@ -150,30 +150,33 @@ class DiscountCalculator:
             if item.get("posa_is_offer"):  # Skip gift items
                 continue
 
-            current_rate = item.get("rate", 0)
-            base_price_list_rate = item.get("base_price_list_rate", 0)
-            preserve_rates = item.get("_preserve_rate_on_load", False)
-            manual_rate_set = item.get("_manual_rate_set", False)
-
-            # Preserve rates for saved invoices or manually set rates - block all reset operations
-            if (preserve_rates or manual_rate_set) and current_rate and current_rate > 0:
-                log.info(f"Preserving rate for {item.get('item_code')}: rate={current_rate} - skipping reset (preserve={preserve_rates}, manual={manual_rate_set})")
-                # Only reset discount fields, keep the rate as-is
-                self._reset_discount_fields_only(item, current_rate)
+            # Luật 2: Preserve nếu có cờ và rate > 0
+            if (item.get("_preserve_rate_on_load") or item.get("_manual_rate_set")) and float(item.get("rate") or 0) > 0:
+                log.info(f"Preserving rate for {item.get('item_code')}: rate={item['rate']} - skipping reset")
+                # Giữ nguyên rate/amount, chỉ dọn field giảm giá nếu cần
+                qty = float(item.get("qty") or 0)
+                item["amount"] = self._round_money(float(item["rate"]) * qty)
+                item["price_list_rate"] = float(item["rate"])
+                item["discount_amount"] = float(item.get("discount_amount") or 0)
                 continue
 
-            # Fallback: if base_price_list_rate is missing but price_list_rate exists, calculate base
-            if (not base_price_list_rate or base_price_list_rate <= 0) and item.get("price_list_rate", 0) > 0:
-                conversion_factor = item.get("conversion_factor", 1)
-                if conversion_factor > 0:
-                    base_price_list_rate = item["price_list_rate"] / conversion_factor
-                    log.info(f"Fallback base rate calculated for {item.get('item_code')}: {base_price_list_rate} = {item['price_list_rate']} / {conversion_factor}")
+            # Luật 3: Fallback base & cf an toàn
+            cf = float(item.get("conversion_factor") or 1) or 1  # cf >= 1
+            base = float(item.get("base_price_list_rate") or 0)
+            plr = float(item.get("price_list_rate") or 0)
+
+            if base <= 0 and plr > 0:
+                base = plr / max(1.0, cf)  # SUY base từ giá hiển thị
+                log.info(f"Fallback base calculated for {item.get('item_code')}: {base} = {plr} / {max(1.0, cf)}")
 
             # Calculate reset rate based on UOM
-            reset_rate = self._calculate_reset_rate(item, base_price_list_rate)
-            item["rate"] = reset_rate
-            item["price_list_rate"] = reset_rate
-            item["amount"] = self._round_money(reset_rate * item.get("qty", 0))
+            reset_rate = base if item.get("uom") == item.get("stock_uom") else base * cf
+            if reset_rate <= 0 and base > 0:
+                reset_rate = base  # last fallback
+
+            item["rate"] = self._round_money(reset_rate)
+            item["price_list_rate"] = item["rate"]
+            item["amount"] = self._round_money(item["rate"] * float(item.get("qty") or 0))
 
             # Reset discount fields
             self._reset_discount_fields_only(item, reset_rate)

@@ -650,14 +650,19 @@ export default {
 		console.log("Items set:", this.items.length, "items");
 
 		if (this.items.length > 0) {
-			this.update_items_details(this.items);
-			this.posa_offers = data.posa_offers || [];
+			// Luật 2: Khi Load, đặt cờ preserve trước, rồi mới gọi update
 			this.items.forEach((item) => {
 				if (!item.posa_row_id) {
 					item.posa_row_id = this.makeid(20);
 				}
 				// Preserve rate when loading saved invoice
 				item._preserve_rate_on_load = true;
+				item._manual_rate_set = true;
+			});
+
+			this.update_items_details(this.items);
+			this.posa_offers = data.posa_offers || [];
+			this.items.forEach((item) => {
 				if (item.batch_no) {
 					this.set_batch_qty(item, item.batch_no);
 				}
@@ -776,12 +781,18 @@ export default {
 			}
 			this.invoice_doc = data;
 			this.items = data.items;
-			this.update_items_details(this.items);
-			this.posa_offers = data.posa_offers || [];
+			// Luật 2: Khi Load, đặt cờ preserve trước, rồi mới gọi update
 			this.items.forEach((item) => {
 				if (!item.posa_row_id) {
 					item.posa_row_id = this.makeid(20);
 				}
+				// Preserve rate when loading saved invoice/order
+				item._preserve_rate_on_load = true;
+				item._manual_rate_set = true;
+			});
+			this.update_items_details(this.items);
+			this.posa_offers = data.posa_offers || [];
+			this.items.forEach((item) => {
 				if (item.batch_no) {
 					this.set_batch_qty(item, item.batch_no);
 				}
