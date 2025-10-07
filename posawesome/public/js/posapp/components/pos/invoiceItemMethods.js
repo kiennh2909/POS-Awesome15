@@ -3432,36 +3432,48 @@ export default {
 	add_item_with_pack_optimization(item) {
 		console.log('[PACK_OPTIMIZER] add_item_with_pack_optimization called for:', item.item_code, 'qty:', item.qty);
 
-		// Kiểm tra có cần tối ưu pack không
-		const shouldOptimize = this.shouldOptimizePacks(item);
-		if (!shouldOptimize) {
-			// Dùng logic add_item thông thường
-			return this.add_item(item);
+		// Set flag to prevent recursive pack optimization during add process
+		this._is_adding_pack = true;
+
+		try {
+			// Kiểm tra có cần tối ưu pack không
+			const shouldOptimize = this.shouldOptimizePacks(item);
+			if (!shouldOptimize) {
+				// Dùng logic add_item thông thường
+				return this.add_item(item);
+			}
+
+			// Lấy danh sách packs có sẵn
+			const availablePacks = this.getAvailablePacks(item.item_code);
+			console.log('[PACK_OPTIMIZER] Available packs:', availablePacks);
+
+			// Tìm combo tối ưu
+			const optimalCombo = this.findOptimalPackCombination(item.qty, availablePacks);
+
+			// Tách thành multiple lines
+			const packItems = this.splitItemIntoOptimalPacks(item, optimalCombo, availablePacks);
+
+			// Thêm các lines vào invoice (push để giữ thứ tự)
+			// Disable discount calculation to prevent recursion during pack addition
+			packItems.forEach(packItem => {
+				this.items.push(packItem);
+				const originalIsApplying = this.isApplyingDiscount;
+				this.isApplyingDiscount = true;
+				this.update_item_detail(packItem, true);
+				this.isApplyingDiscount = originalIsApplying;
+			});
+
+			// Force update UI
+			this.$forceUpdate();
+
+			// Hiển thị thông báo combo tối ưu
+			this.showPackOptimizationMessage(optimalCombo, availablePacks);
+
+			console.log('[PACK_OPTIMIZER] Pack optimization completed for:', item.item_code);
+		} finally {
+			// Always reset flag
+			this._is_adding_pack = false;
 		}
-
-		// Lấy danh sách packs có sẵn
-		const availablePacks = this.getAvailablePacks(item.item_code);
-		console.log('[PACK_OPTIMIZER] Available packs:', availablePacks);
-
-		// Tìm combo tối ưu
-		const optimalCombo = this.findOptimalPackCombination(item.qty, availablePacks);
-
-		// Tách thành multiple lines
-		const packItems = this.splitItemIntoOptimalPacks(item, optimalCombo, availablePacks);
-
-		// Thêm các lines vào invoice (push để giữ thứ tự)
-		packItems.forEach(packItem => {
-			this.items.push(packItem);
-			this.update_item_detail(packItem, true);
-		});
-
-		// Force update UI
-		this.$forceUpdate();
-
-		// Hiển thị thông báo combo tối ưu
-		this.showPackOptimizationMessage(optimalCombo, availablePacks);
-
-		console.log('[PACK_OPTIMIZER] Pack optimization completed for:', item.item_code);
 	},
 
 	// Kiểm tra có nên tối ưu pack không
@@ -3469,6 +3481,11 @@ export default {
 		// Pack optimizer guard: đừng chạy sau Load (hoặc chạy nhưng không đụng rate nếu preserve_rates)
 		if (item && item._preserve_rate_on_load) {
 			console.log('[PACK_OPTIMIZER] Skipping pack optimization for loaded item:', item.item_code);
+			return false;
+		}
+		// Prevent recursive pack optimization during pack addition
+		if (this._is_adding_pack) {
+			console.log('[PACK_OPTIMIZER] Skipping pack optimization - currently adding pack items:', item.item_code);
 			return false;
 		}
 		// Tối ưu cho tất cả items có POS offers với block discounts
