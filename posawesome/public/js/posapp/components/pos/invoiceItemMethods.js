@@ -1969,8 +1969,9 @@ export default {
 						// Preserve rate when loading saved invoice
 						if (item._preserve_rate_on_load && item.rate && item.rate > 0) {
 							console.log("Preserving rate on load for", item.item_code, "rate:", item.rate);
-							// Lock against recalc
+							// Lock against recalc and UOM conversion
 							item._manual_rate_set = true;
+							item._converted_once = true; // Prevent UOM conversion from re-applying
 							// Only update price_list_rate, keep existing rate
 							if (
 								vm.selected_currency === vm.price_list_currency &&
