@@ -36,8 +36,16 @@
 			<!-- Rate column -->
 			<template v-slot:item.rate="{ item }">
 				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.rate) }}</span>
+					<span v-if="item.is_free_item || (item.posa_is_offer && item.rate === 0)" class="free-badge">
+						<v-chip size="small" color="success" variant="flat" class="free-chip">
+							<v-icon size="small" class="mr-1">mdi-gift</v-icon>
+							FREE
+						</v-chip>
+					</span>
+					<span v-else>
+						<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+						<span class="amount-value">{{ formatCurrency(item.rate) }}</span>
+					</span>
 				</div>
 			</template>
 
@@ -1246,5 +1254,27 @@ export default {
 
 .pack-chip .v-icon {
 	margin-right: 4px !important;
+}
+
+/* Free item badge styling */
+.free-badge {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	min-height: 32px;
+}
+
+.free-chip {
+	font-size: 0.75rem !important;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+	0% { transform: scale(1); }
+	50% { transform: scale(1.05); }
+	100% { transform: scale(1); }
 }
 </style>

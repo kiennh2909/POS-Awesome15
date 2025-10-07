@@ -96,7 +96,9 @@ class DiscountCalculator:
                 if uom == stock_uom:
                     reset_rate = self._round_money(base_price_list_rate)
                 else:
-                    reset_rate = self._round_money(base_price_list_rate * conversion_factor)
+                    # E2 Guard: conversion_factor = 0/null → ép max(1, cf)
+                    safe_cf = max(1, float(conversion_factor or 1))
+                    reset_rate = self._round_money(base_price_list_rate * safe_cf)
 
                 item["rate"] = reset_rate
                 item["amount"] = self._round_money(reset_rate * item.get("qty", 0))
@@ -169,14 +171,28 @@ class DiscountCalculator:
                 order.append(key)
             else:
                 tgt = merged[key]
-                # sum qty and recompute amount from current rate
-                old_qty = tgt.get("qty") or 0
-                new_qty = old_qty + (it.get("qty") or 0)
-                tgt["qty"] = new_qty
+                current_rate = tgt.get("rate", tgt.get("price_list_rate", 0))
+                incoming_rate = it.get("rate", it.get("price_list_rate", 0))
+
+                # E5 Guard: Nếu dòng hiện tại rate <= 0 mà dòng mới > 0 → chọn dòng mới làm đại diện
+                if current_rate <= 0 and incoming_rate > 0:
+                    # Swap: dùng dòng mới làm đại diện, dòng cũ cộng vào
+                    merged[key] = it
+                    # Cộng qty từ dòng cũ
+                    it["qty"] = (it.get("qty") or 0) + (tgt.get("qty") or 0)
+                    tgt = it
+                    log.info(f"Swapped representative for {it.get('item_code')}: old_rate={current_rate} <= 0, new_rate={incoming_rate}")
+                else:
+                    # Normal merge: cộng qty vào dòng đại diện hiện tại
+                    old_qty = tgt.get("qty") or 0
+                    new_qty = old_qty + (it.get("qty") or 0)
+                    tgt["qty"] = new_qty
+
+                # Recalculate amount từ rate của dòng đại diện
                 rate = tgt.get("rate", tgt.get("price_list_rate", 0))
-                tgt["amount"] = self._round_money(rate * new_qty)
+                tgt["amount"] = self._round_money(rate * tgt.get("qty", 0))
                 merged_lines += 1
-                log.info(f"Merged item {it.get('item_code')}: qty {old_qty} + {it.get('qty')} = {new_qty}")
+                log.info(f"Merged item {it.get('item_code')}: qty now {tgt.get('qty')}, rate={rate}")
 
         # Log UOM skips
         for item_code, uoms in item_uoms.items():
@@ -481,10 +497,11 @@ class DiscountCalculator:
                 # - Nếu dòng đang ở stock_uom: + qty
                 # - Nếu dòng ở pack UOM: + qty * conversion_factor
                 # (conversion_factor của chính dòng là số đơn vị stock trong 1 pack)
+                # F2 Fix: Dùng float(cf) để không truncate khi cf là số thực (cân/ML)
                 if item_uom == stock_uom:
                     eligible_units += qty
                 else:
-                    eligible_units += qty * int(cf)
+                    eligible_units += qty * float(cf)
 
             total_blocks = eligible_units // items_per_block
 

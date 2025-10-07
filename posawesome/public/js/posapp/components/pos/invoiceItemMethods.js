@@ -608,6 +608,8 @@ export default {
 				if (!item.posa_row_id) {
 					item.posa_row_id = this.makeid(20);
 				}
+				// Preserve rate when loading saved invoice
+				item._preserve_rate_on_load = true;
 				if (item.batch_no) {
 					this.set_batch_qty(item, item.batch_no);
 				}
@@ -644,6 +646,11 @@ export default {
 		} else {
 			this.eventBus.emit("set_pos_coupons", data.posa_coupons);
 		}
+
+		// Clear preserve rate flags after load
+		this.items.forEach((item) => {
+			delete item._preserve_rate_on_load;
+		});
 
 		console.log("load_invoice completed, invoice state:", {
 			invoiceType: this.invoiceType,
@@ -1804,6 +1811,30 @@ export default {
 					if (!item.original_rate) {
 						item.original_rate = data.price_list_rate;
 					}
+
+					// E1: Guard for server price missing/null/0
+					if (!data.price_list_rate || data.price_list_rate <= 0) {
+						console.log("server price missing → retain saved_rate/fallback", {
+							item_code: item.item_code,
+							server_price: data.price_list_rate,
+							saved_rate: item.rate,
+							base_rate: item.base_rate,
+							price_list_rate: item.price_list_rate
+						});
+						// Retain existing rate, don't overwrite with 0
+						if (item.rate && item.rate > 0) {
+							data.price_list_rate = item.rate;
+						} else if (item.base_rate && item.base_rate > 0) {
+							data.price_list_rate = item.base_rate;
+						} else {
+							// Fallback to base_price_list_rate * conversion_factor
+							const fallback_rate = (item.base_price_list_rate || 0) * (item.conversion_factor || 1);
+							if (fallback_rate > 0) {
+								data.price_list_rate = fallback_rate;
+								console.log("fallback rate applied", fallback_rate);
+							}
+						}
+					}
 					if (data.batch_no_data) {
 						item.batch_no_data = data.batch_no_data;
 					}
@@ -1873,37 +1904,63 @@ export default {
 							base_rate: item.base_rate,
 							uom: item.uom,
 							stock_uom: item.stock_uom,
-							rateModifiedByUOM: rateModifiedByUOM
+							rateModifiedByUOM: rateModifiedByUOM,
+							preserve_rate_on_load: item._preserve_rate_on_load
 						});
 
-						if (
-							vm.selected_currency === vm.price_list_currency &&
-							vm.selected_currency !== companyCurrency
-						) {
-							const conv = vm.conversion_rate || 1;
-							item.price_list_rate = vm.flt(
-								item.base_price_list_rate / conv,
-								vm.currency_precision,
-							);
-
-							if (!item._manual_rate_set && !rateModifiedByUOM) {
-								item.rate = vm.flt(item.base_rate / conv, vm.currency_precision);
-							}
-						} else if (vm.selected_currency !== baseCurrency) {
-							const exchange_rate = vm.exchange_rate || 1;
-							item.price_list_rate = vm.flt(
-								item.base_price_list_rate * exchange_rate,
-								vm.currency_precision,
-							);
-
-							if (!rateModifiedByUOM) {
-								item.rate = vm.flt(item.base_rate * exchange_rate, vm.currency_precision);
+						// Preserve rate when loading saved invoice
+						if (item._preserve_rate_on_load && item.rate && item.rate > 0) {
+							console.log("Preserving rate on load for", item.item_code, "rate:", item.rate);
+							// Only update price_list_rate, keep existing rate
+							if (
+								vm.selected_currency === vm.price_list_currency &&
+								vm.selected_currency !== companyCurrency
+							) {
+								const conv = vm.conversion_rate || 1;
+								item.price_list_rate = vm.flt(
+									item.base_price_list_rate / conv,
+									vm.currency_precision,
+								);
+							} else if (vm.selected_currency !== baseCurrency) {
+								const exchange_rate = vm.exchange_rate || 1;
+								item.price_list_rate = vm.flt(
+									item.base_price_list_rate * exchange_rate,
+									vm.currency_precision,
+								);
+							} else {
+								item.price_list_rate = item.base_price_list_rate;
 							}
 						} else {
-							item.price_list_rate = item.base_price_list_rate;
+							// Normal rate update logic
+							if (
+								vm.selected_currency === vm.price_list_currency &&
+								vm.selected_currency !== companyCurrency
+							) {
+								const conv = vm.conversion_rate || 1;
+								item.price_list_rate = vm.flt(
+									item.base_price_list_rate / conv,
+									vm.currency_precision,
+								);
 
-							if (!item._manual_rate_set && !rateModifiedByUOM) {
-								item.rate = item.base_rate;
+								if (!item._manual_rate_set && !rateModifiedByUOM) {
+									item.rate = vm.flt(item.base_rate / conv, vm.currency_precision);
+								}
+							} else if (vm.selected_currency !== baseCurrency) {
+								const exchange_rate = vm.exchange_rate || 1;
+								item.price_list_rate = vm.flt(
+									item.base_price_list_rate * exchange_rate,
+									vm.currency_precision,
+								);
+
+								if (!rateModifiedByUOM) {
+									item.rate = vm.flt(item.base_rate * exchange_rate, vm.currency_precision);
+								}
+							} else {
+								item.price_list_rate = item.base_price_list_rate;
+
+								if (!item._manual_rate_set && !rateModifiedByUOM) {
+									item.rate = item.base_rate;
+								}
 							}
 						}
 					} else {
@@ -1972,7 +2029,18 @@ export default {
 					item.last_purchase_rate = data.last_purchase_rate;
 					item.projected_qty = data.projected_qty;
 					item.reserved_qty = data.reserved_qty;
+
+					// E2: Guard for conversion_factor = 0/null
+					if (!data.conversion_factor || data.conversion_factor <= 0) {
+						console.log("cf<=0 → set to 1", {
+							item_code: item.item_code,
+							server_cf: data.conversion_factor,
+							set_to: 1
+						});
+						data.conversion_factor = 1;
+					}
 					item.conversion_factor = data.conversion_factor;
+
 					item.stock_qty = data.stock_qty;
 					item.actual_qty = data.actual_qty;
 					item.stock_uom = data.stock_uom;
@@ -3084,7 +3152,7 @@ export default {
 					price_list_rate: item.price_list_rate,
 					exchange_rate: this.exchange_rate,
 				});
-			} else if (update) {
+			} else if (update && !item._preserve_rate_on_load) {
 				item.batch_price = null;
 				item.base_batch_price = null;
 				this.update_item_detail(item);
