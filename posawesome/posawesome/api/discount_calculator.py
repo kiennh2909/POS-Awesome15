@@ -89,8 +89,21 @@ class DiscountCalculator:
                 conversion_factor = item.get("conversion_factor", 1)
                 uom = item.get("uom")
                 stock_uom = item.get("stock_uom")
+                preserve_rates = item.get("_preserve_rate_on_load", False)
 
-                log.info(f"Resetting item {item.get('item_code')}: current_rate={current_rate}, base_price_list_rate={base_price_list_rate}, uom={uom}, stock_uom={stock_uom}, conversion_factor={conversion_factor}")
+                log.info(f"Resetting item {item.get('item_code')}: current_rate={current_rate}, base_price_list_rate={base_price_list_rate}, uom={uom}, stock_uom={stock_uom}, conversion_factor={conversion_factor}, preserve_rates={preserve_rates}")
+
+                # Server reset guard: nếu saved_rate hợp lệ + preserve_rates → không sửa rate
+                if preserve_rates and current_rate and current_rate > 0:
+                    log.info(f"Preserving rate for {item.get('item_code')}: rate={current_rate}")
+                    # Only reset discount fields, keep existing rate
+                    item["discount_amount"] = 0
+                    item["discount_percentage"] = 0
+                    item["posa_offer_applied"] = 0
+                    item["applied_offers"] = []
+                    # Recalculate amount with preserved rate
+                    item["amount"] = self._round_money(current_rate * item.get("qty", 0))
+                    continue
 
                 # Reset to base price list rate (always in stock UOM) converted to display UOM
                 if uom == stock_uom:
@@ -1485,20 +1498,28 @@ class DiscountCalculator:
                     total_discount_amount = self._round_money(discount_amount_per_item * discounted_qty)
 
                     item["posa_offer_applied"] = 1
-                    item["rate"] = weighted_rate
+                    # Discount engine guard: cho phép cập nhật discount_amount/posa_offer_applied, không ép rate khi preserve
+                    if not preserve_rates:
+                        item["rate"] = weighted_rate
+                        item["amount"] = total_amount
+                    else:
+                        # Khi preserve, giữ nguyên rate, chỉ update discount và recalc amount
+                        item["amount"] = self._round_money(original_rate * actual_qty)
+                        log.info(f"Preserved rate for max_qty {item.get('item_code')}: kept rate={original_rate}, applied discount")
+
                     item["discount_amount"] = self._round_money(discount_amount_per_item)
                     item["posa_discount_total"] = self._round_money(discount_amount_per_item * actual_qty)
                     pct = (item["posa_discount_total"] / (original_rate * actual_qty) * 100) if (original_rate * actual_qty) else 0
                     item["discount_percentage"] = min(100.0, self._round_money(pct))
-                    item["amount"] = total_amount
 
-                    log.info(f"Applied max_qty logic: weighted_rate={weighted_rate}, total_discount={total_discount_amount}, total_amount={total_amount}")
+                    log.info(f"Applied max_qty logic: rate={weighted_rate if not preserve_rates else original_rate}, total_discount={total_discount_amount}, total_amount={item['amount']}")
                     applied_items_count += 1
 
                 else:
                     # Normal discount application for entire quantity
                     item["posa_offer_applied"] = 1
                     original_rate = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM của dòng)
+                    preserve_rates = item.get("_preserve_rate_on_load", False)
                     new_rate = original_rate
                     discount_type = offer.get("discount_type")
 
@@ -1529,10 +1550,16 @@ class DiscountCalculator:
                         item["posa_discount_total"] = self._round_money(discount_amount * item.get("qty", 0))
                         item["discount_percentage"] = discount_percentage
 
-                    item["rate"] = new_rate
-                    item["amount"] = self._round_money(new_rate * item.get("qty", 0))
+                    # Discount engine guard: cho phép cập nhật discount_amount/posa_offer_applied, không ép rate = base*cf khi đang preserve
+                    if not preserve_rates:
+                        item["rate"] = new_rate
+                        item["amount"] = self._round_money(new_rate * item.get("qty", 0))
+                    else:
+                        # Khi preserve, chỉ update discount fields, giữ nguyên rate và recalc amount
+                        item["amount"] = self._round_money(original_rate * item.get("qty", 0))
+                        log.info(f"Preserved rate for {item.get('item_code')}: kept rate={original_rate}, applied discount_amount={item['discount_amount']}")
 
-                    log.info(f"Applied normal discount: rate={new_rate}, discount_amount={item['discount_amount']}")
+                    log.info(f"Applied normal discount: rate={new_rate if not preserve_rates else original_rate}, discount_amount={item['discount_amount']}")
                     applied_items_count += 1
 
                 self._add_offer_to_item_log(item, offer)

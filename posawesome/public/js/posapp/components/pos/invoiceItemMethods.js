@@ -151,8 +151,8 @@ export default {
                                stock_uom: new_item.stock_uom,
                                conversion_factor: new_item.conversion_factor
                        });
-                       // Apply UOM conversion immediately (only once)
-                       if (new_item.uom && new_item.uom !== new_item.stock_uom && !new_item._uom_converted) {
+                       // Double convert UOM guard: chỉ convert một lần từ stock→display
+                       if (new_item.uom && new_item.uom !== new_item.stock_uom && !new_item._converted_once) {
                         console.log("Calling calc_uom for barcode scan", {
                          Item_code: new_item.item_code,
                          current_uom: new_item.uom,
@@ -204,7 +204,7 @@ export default {
                         }
 
                         // Mark as converted to prevent double conversion
-                        new_item._uom_converted = true;
+                        new_item._converted_once = true;
 
                         this.calc_uom(new_item, new_item.uom);
                         console.log("After calc_uom for barcode scan", {
@@ -2079,7 +2079,7 @@ export default {
 					});
 
 					// If item has different UOM than stock UOM, ensure UOM conversion is applied (only once)
-					if (item.uom && item.uom !== item.stock_uom && !item._uom_converted) {
+					if (item.uom && item.uom !== item.stock_uom && !item._converted_once) {
 						console.log("Applying UOM conversion after update_item_detail", {
 							Item_code: item.item_code,
 							uom: item.uom,
@@ -2089,7 +2089,7 @@ export default {
 							force_update: force_update
 						});
 						// Mark as converted to prevent double conversion
-						item._uom_converted = true;
+						item._converted_once = true;
 						// Always apply UOM conversion after base rates are set
 						setTimeout(() => {
 							vm.calc_uom(item, item.uom);
@@ -2958,7 +2958,7 @@ export default {
 
 		// Reset UOM conversion flag when UOM changes
 		if (item.uom !== value) {
-			item._uom_converted = false;
+			item._converted_once = false;
 		}
 
 		// Store old conversion factor for ratio calculation
@@ -3443,6 +3443,11 @@ export default {
 
 	// Kiểm tra có nên tối ưu pack không
 	shouldOptimizePacks(item) {
+		// Pack optimizer guard: đừng chạy sau Load (hoặc chạy nhưng không đụng rate nếu preserve_rates)
+		if (item && item._preserve_rate_on_load) {
+			console.log('[PACK_OPTIMIZER] Skipping pack optimization for loaded item:', item.item_code);
+			return false;
+		}
 		// Tối ưu cho tất cả items có POS offers với block discounts
 		return this.posa_offers && this.posa_offers.some(offer =>
 			offer.is_used_block && offer.uom_ref && offer.total_items_in_block_qty
