@@ -126,10 +126,8 @@ export default {
 				new_item.qty = -Math.abs(new_item.qty || 1);
 			}
 
-                       this.items.unshift(new_item);
-                       // Replace the newly inserted item at index 0 to ensure
-                       // Vue reactivity and avoid overwriting existing rows
-                       this.items[0] = { ...new_item };
+                       // Add item to end of array to maintain order (push instead of unshift)
+                       this.items.push(new_item);
                        console.log("Item inserted at", 0, {
                                code: new_item.item_code,
                                rate: new_item.rate,
@@ -153,8 +151,8 @@ export default {
                                stock_uom: new_item.stock_uom,
                                conversion_factor: new_item.conversion_factor
                        });
-                       // Apply UOM conversion immediately
-                       if (new_item.uom && new_item.uom !== new_item.stock_uom) {
+                       // Apply UOM conversion immediately (only once)
+                       if (new_item.uom && new_item.uom !== new_item.stock_uom && !new_item._uom_converted) {
                         console.log("Calling calc_uom for barcode scan", {
                          Item_code: new_item.item_code,
                          current_uom: new_item.uom,
@@ -162,7 +160,7 @@ export default {
                          base_rate_before: new_item.base_rate,
                          rate_before: new_item.rate
                         });
-                   
+
                         // CRITICAL: Apply immediate UOM conversion to ensure rate is correct before ItemsTable renders
                         // First, ensure we have the correct conversion_factor by finding the UOM
                         const uomData = this.find_uom(new_item, new_item.uom);
@@ -174,7 +172,7 @@ export default {
                         		uom: new_item.uom,
                         		conversion_factor: new_item.conversion_factor
                         	});
-                   
+
                         	// Ensure base_rate is set before conversion
                         	if (!new_item.base_rate || new_item.base_rate === 0) {
                         		new_item.base_rate = new_item.rate || 0;
@@ -184,7 +182,7 @@ export default {
                         			original_rate: new_item.rate
                         		});
                         	}
-                   
+
                         	// Apply immediate conversion if needed
                         	if (new_item.base_rate && new_item.conversion_factor !== 1) {
                         		const convertedRate = new_item.base_rate * new_item.conversion_factor;
@@ -204,7 +202,10 @@ export default {
                         		stock_uom: new_item.stock_uom
                         	});
                         }
-                   
+
+                        // Mark as converted to prevent double conversion
+                        new_item._uom_converted = true;
+
                         this.calc_uom(new_item, new_item.uom);
                         console.log("After calc_uom for barcode scan", {
                          Item_code: new_item.item_code,
@@ -2009,8 +2010,8 @@ export default {
 						shouldUpdateRate: shouldUpdateRate
 					});
 
-					// If item has different UOM than stock UOM, ensure UOM conversion is applied
-					if (item.uom && item.uom !== item.stock_uom) {
+					// If item has different UOM than stock UOM, ensure UOM conversion is applied (only once)
+					if (item.uom && item.uom !== item.stock_uom && !item._uom_converted) {
 						console.log("Applying UOM conversion after update_item_detail", {
 							Item_code: item.item_code,
 							uom: item.uom,
@@ -2019,6 +2020,8 @@ export default {
 							rate_before_conversion: item.rate,
 							force_update: force_update
 						});
+						// Mark as converted to prevent double conversion
+						item._uom_converted = true;
 						// Always apply UOM conversion after base rates are set
 						setTimeout(() => {
 							vm.calc_uom(item, item.uom);
@@ -2884,6 +2887,11 @@ export default {
 		// Find the UOM
 		const new_uom = this.find_uom(item, value);
 		if (!new_uom) return;
+
+		// Reset UOM conversion flag when UOM changes
+		if (item.uom !== value) {
+			item._uom_converted = false;
+		}
 
 		// Store old conversion factor for ratio calculation
 		const old_conversion_factor = item.conversion_factor || 1;

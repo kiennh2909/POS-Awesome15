@@ -121,8 +121,20 @@ class DiscountCalculator:
         log.info(f"Starting item coalescing: {len(self.items)} items before")
         merged = {}
         order = []  # keep stable order for first appearance
+        merged_lines = 0  # count of lines that were merged into existing groups
+
+        # Track items by item_code to detect UOM differences
+        item_uoms = {}  # item_code -> set of uoms
 
         for it in self.items:
+            item_code = it.get("item_code")
+            uom = it.get("uom")
+
+            if item_code and uom:
+                if item_code not in item_uoms:
+                    item_uoms[item_code] = set()
+                item_uoms[item_code].add(uom)
+
             if it.get("posa_is_offer"):
                 # never merge offer/gift lines
                 key = None
@@ -163,7 +175,13 @@ class DiscountCalculator:
                 tgt["qty"] = new_qty
                 rate = tgt.get("rate", tgt.get("price_list_rate", 0))
                 tgt["amount"] = self._round_money(rate * new_qty)
+                merged_lines += 1
                 log.info(f"Merged item {it.get('item_code')}: qty {old_qty} + {it.get('qty')} = {new_qty}")
+
+        # Log UOM skips
+        for item_code, uoms in item_uoms.items():
+            if len(uoms) > 1:
+                log.info(f"coalesce skip due to UOM for {item_code}: UOMs {list(uoms)}")
 
         # rebuild self.items in the original-ish order
         new_items = []
@@ -171,6 +189,13 @@ class DiscountCalculator:
             v = merged[k]
             new_items.append(v)
         self.items = new_items
+
+        # Log coalesce summary
+        merged_groups = len([k for k in merged.keys() if isinstance(k, tuple)])
+        if merged_lines > 0:
+            total_original_lines = merged_lines + merged_groups
+            log.info(f"coalesce {total_original_lines}→{merged_groups}")
+
         log.info(f"Item coalescing completed: {len(self.items)} items after")
 
     def _validate_coupons(self):
