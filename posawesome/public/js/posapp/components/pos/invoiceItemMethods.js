@@ -824,6 +824,16 @@ export default {
 		doc.company = doc.company || this.pos_profile.company;
 		doc.pos_profile = doc.pos_profile || this.pos_profile.name;
 
+		// Preserve rate flags for items that should keep their displayed rates
+		doc.items = this.items.map(item => {
+			const itemCopy = { ...item };
+			if (item._preserve_rate_on_load || item._manual_rate_set) {
+				itemCopy._preserve_rate_on_load = true;
+				itemCopy._manual_rate_set = true;
+			}
+			return itemCopy;
+		});
+
 		// Currency related fields
 		doc.currency = this.selected_currency || this.pos_profile.currency;
 		doc.conversion_rate =
@@ -1959,6 +1969,8 @@ export default {
 						// Preserve rate when loading saved invoice
 						if (item._preserve_rate_on_load && item.rate && item.rate > 0) {
 							console.log("Preserving rate on load for", item.item_code, "rate:", item.rate);
+							// Lock against recalc
+							item._manual_rate_set = true;
 							// Only update price_list_rate, keep existing rate
 							if (
 								vm.selected_currency === vm.price_list_currency &&

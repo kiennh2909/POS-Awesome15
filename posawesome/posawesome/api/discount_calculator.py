@@ -153,12 +153,21 @@ class DiscountCalculator:
             current_rate = item.get("rate", 0)
             base_price_list_rate = item.get("base_price_list_rate", 0)
             preserve_rates = item.get("_preserve_rate_on_load", False)
+            manual_rate_set = item.get("_manual_rate_set", False)
 
-            # Preserve rates for saved invoices
-            if preserve_rates and current_rate and current_rate > 0:
-                log.info(f"Preserving rate for {item.get('item_code')}: rate={current_rate}")
+            # Preserve rates for saved invoices or manually set rates - block all reset operations
+            if (preserve_rates or manual_rate_set) and current_rate and current_rate > 0:
+                log.info(f"Preserving rate for {item.get('item_code')}: rate={current_rate} - skipping reset (preserve={preserve_rates}, manual={manual_rate_set})")
+                # Only reset discount fields, keep the rate as-is
                 self._reset_discount_fields_only(item, current_rate)
                 continue
+
+            # Fallback: if base_price_list_rate is missing but price_list_rate exists, calculate base
+            if (not base_price_list_rate or base_price_list_rate <= 0) and item.get("price_list_rate", 0) > 0:
+                conversion_factor = item.get("conversion_factor", 1)
+                if conversion_factor > 0:
+                    base_price_list_rate = item["price_list_rate"] / conversion_factor
+                    log.info(f"Fallback base rate calculated for {item.get('item_code')}: {base_price_list_rate} = {item['price_list_rate']} / {conversion_factor}")
 
             # Calculate reset rate based on UOM
             reset_rate = self._calculate_reset_rate(item, base_price_list_rate)
@@ -178,6 +187,11 @@ class DiscountCalculator:
         uom = item.get("uom")
         stock_uom = item.get("stock_uom")
         conversion_factor = item.get("conversion_factor", 1)
+
+        # Guard: if base_price_list_rate is 0 or invalid, don't multiply by conversion_factor
+        if not base_price_list_rate or base_price_list_rate <= 0:
+            log.warning(f"Invalid base_price_list_rate {base_price_list_rate} for {item.get('item_code')}, skipping conversion_factor multiplication")
+            return self._round_money(base_price_list_rate or 0)
 
         if uom == stock_uom:
             return self._round_money(base_price_list_rate)
