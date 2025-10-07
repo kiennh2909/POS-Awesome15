@@ -824,16 +824,6 @@ export default {
 		doc.company = doc.company || this.pos_profile.company;
 		doc.pos_profile = doc.pos_profile || this.pos_profile.name;
 
-		// Preserve rate flags for items that should keep their displayed rates
-		doc.items = this.items.map(item => {
-			const itemCopy = { ...item };
-			if (item._preserve_rate_on_load || item._manual_rate_set) {
-				itemCopy._preserve_rate_on_load = true;
-				itemCopy._manual_rate_set = true;
-			}
-			return itemCopy;
-		});
-
 		// Currency related fields
 		doc.currency = this.selected_currency || this.pos_profile.currency;
 		doc.conversion_rate =
@@ -858,6 +848,23 @@ export default {
 
 		// Calculate amounts in selected currency
 		const items = this.get_invoice_items();
+
+		// Inject preserve flags into the final items array (by posa_row_id)
+		const flagsById = Object.fromEntries(
+			this.items.map(it => [it.posa_row_id, {
+				_preserve_rate_on_load: !!it._preserve_rate_on_load || !!it._manual_rate_set,
+				_manual_rate_set: !!it._manual_rate_set
+			}])
+		);
+
+		items.forEach(it => {
+			const f = flagsById[it.posa_row_id];
+			if (f && f._preserve_rate_on_load) {
+				it._preserve_rate_on_load = true;
+				it._manual_rate_set = true;   // lock against recalc on server
+			}
+		});
+
 		doc.items = items;
 
 		// Calculate totals in selected currency ensuring negative values for returns
