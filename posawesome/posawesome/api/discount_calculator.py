@@ -78,72 +78,122 @@ class DiscountCalculator:
         except:
             return round(float(x), 2)
 
+    def _validate_offer_rate(self, offer, discount_type):
+        """Validate offer rate for discount application"""
+        if discount_type == "Rate":
+            offer_rate = float(offer.get("rate", 0) or 0)
+            if offer_rate <= 0:
+                log.warning(f"Offer '{offer.name}' has invalid rate {offer_rate}, skipping discount application")
+                return None
+            return offer_rate
+        return None
+
+    def _calculate_discount_fields(self, item, discount_amount, original_rate, qty):
+        """Calculate discount percentage and total discount"""
+        item["discount_amount"] = discount_amount
+        item["posa_discount_total"] = self._round_money(discount_amount * qty)
+        pct = (item["posa_discount_total"] / (original_rate * qty) * 100) if (original_rate * qty) else 0
+        item["discount_percentage"] = min(100.0, self._round_money(pct))
+
+    def _apply_rate_discount(self, item, offer_rate, original_rate, qty, preserve_rates=False):
+        """Apply rate-based discount to item"""
+        new_rate = self._round_money(min(offer_rate, float(original_rate)))
+        discount_amount = self._round_money(original_rate - new_rate)
+
+        # Safety validation
+        if discount_amount > original_rate:
+            log.warning(f"Rate discount {discount_amount} exceeds original rate {original_rate}, capping discount")
+            discount_amount = original_rate
+            new_rate = 0
+
+        self._calculate_discount_fields(item, discount_amount, original_rate, qty)
+
+        # Apply rate update based on preserve flag
+        if not preserve_rates:
+            item["rate"] = new_rate
+            item["amount"] = self._round_money(new_rate * qty)
+        else:
+            item["amount"] = self._round_money(original_rate * qty)
+            log.info(f"Preserved rate for {item.get('item_code')}: kept rate={original_rate}, applied discount_amount={item['discount_amount']}")
+
+        return new_rate if not preserve_rates else original_rate
+
+    def _apply_percentage_discount(self, item, discount_percentage, original_rate, qty, preserve_rates=False):
+        """Apply percentage-based discount to item"""
+        discount_amount = self._round_money(original_rate * (discount_percentage / 100.0))
+        new_rate = self._round_money(original_rate - discount_amount)
+
+        # Safety validation
+        if discount_amount > original_rate:
+            log.warning(f"Percentage discount {discount_amount} exceeds original rate {original_rate}, capping discount")
+            discount_amount = original_rate
+            new_rate = 0
+            discount_percentage = 100.0
+
+        self._calculate_discount_fields(item, discount_amount, original_rate, qty)
+        item["discount_percentage"] = discount_percentage
+
+        # Apply rate update based on preserve flag
+        if not preserve_rates:
+            item["rate"] = new_rate
+            item["amount"] = self._round_money(new_rate * qty)
+        else:
+            item["amount"] = self._round_money(original_rate * qty)
+            log.info(f"Preserved rate for {item.get('item_code')}: kept rate={original_rate}, applied discount_amount={item['discount_amount']}")
+
+        return new_rate if not preserve_rates else original_rate
+
     def _reset_item_prices(self):
         """Reset all items to their original prices before applying new offers."""
         log.info("Resetting all items to original prices.")
         for item in self.items:
-            if not item.get("posa_is_offer"):  # Don't reset gift items
-                # Log current state
-                current_rate = item.get("rate", 0)
-                base_price_list_rate = item.get("base_price_list_rate", 0)
-                conversion_factor = item.get("conversion_factor", 1)
-                uom = item.get("uom")
-                stock_uom = item.get("stock_uom")
-                preserve_rates = item.get("_preserve_rate_on_load", False)
+            if item.get("posa_is_offer"):  # Skip gift items
+                continue
 
-                log.info(f"Resetting item {item.get('item_code')}: current_rate={current_rate}, base_price_list_rate={base_price_list_rate}, uom={uom}, stock_uom={stock_uom}, conversion_factor={conversion_factor}, preserve_rates={preserve_rates}")
+            current_rate = item.get("rate", 0)
+            base_price_list_rate = item.get("base_price_list_rate", 0)
+            preserve_rates = item.get("_preserve_rate_on_load", False)
 
-                # Server reset guard: nếu saved_rate hợp lệ + preserve_rates → không sửa rate
-                if preserve_rates and current_rate and current_rate > 0:
-                    log.info(f"Preserving rate for {item.get('item_code')}: rate={current_rate}")
-                    # Only reset discount fields, keep existing rate
-                    item["discount_amount"] = 0
-                    item["discount_percentage"] = 0
-                    item["posa_offer_applied"] = 0
-                    item["applied_offers"] = []
-                    # Recalculate amount with preserved rate
-                    item["amount"] = self._round_money(current_rate * item.get("qty", 0))
-                    continue
+            # Preserve rates for saved invoices
+            if preserve_rates and current_rate and current_rate > 0:
+                log.info(f"Preserving rate for {item.get('item_code')}: rate={current_rate}")
+                self._reset_discount_fields_only(item, current_rate)
+                continue
 
-                # Auto-detect if base_rate is already in display UOM (to avoid double conversion)
-                expected_rate_if_stock_uom = self._round_money(base_price_list_rate * max(1, float(conversion_factor or 1))) if uom != stock_uom else self._round_money(base_price_list_rate)
-                current_rate_rounded = self._round_money(current_rate)
+            # Calculate reset rate based on UOM
+            reset_rate = self._calculate_reset_rate(item, base_price_list_rate)
+            item["rate"] = reset_rate
+            item["price_list_rate"] = reset_rate
+            item["amount"] = self._round_money(reset_rate * item.get("qty", 0))
 
-                # If current rate matches expected (within 5% tolerance), base_rate is in stock UOM
-                # If significantly different, base_rate is already in display UOM (from saved invoice)
-                tolerance = 0.05  # 5% tolerance for rounding differences
-                is_base_in_stock_uom = abs(current_rate_rounded - expected_rate_if_stock_uom) / max(abs(expected_rate_if_stock_uom), 0.01) < tolerance
+            # Reset discount fields
+            self._reset_discount_fields_only(item, reset_rate)
 
-                if is_base_in_stock_uom:
-                    # Normal case: base_rate in stock UOM, convert to display UOM
-                    if uom == stock_uom:
-                        reset_rate = self._round_money(base_price_list_rate)
-                    else:
-                        safe_cf = max(1, float(conversion_factor or 1))
-                        reset_rate = self._round_money(base_price_list_rate * safe_cf)
-                    log.info(f"Base rate detected as stock UOM - converting: {base_price_list_rate} * {safe_cf if uom != stock_uom else 1} = {reset_rate}")
-                else:
-                    # Base rate already in display UOM (from saved invoice) - use as-is to avoid double conversion
-                    reset_rate = self._round_money(base_price_list_rate)
-                    log.info(f"Base rate detected as display UOM - using as-is: {reset_rate} (avoided double conversion from {expected_rate_if_stock_uom})")
-
-                item["rate"] = reset_rate
-                item["amount"] = self._round_money(reset_rate * item.get("qty", 0))
-                # ❗ Quan trọng: đồng bộ lại price_list_rate theo UOM hiện tại
-                # để ERPNext tính Discount đúng và không bị âm.
-                item["price_list_rate"] = reset_rate
-
-                # Reset discount fields
-                item["discount_amount"] = 0
-                item["discount_percentage"] = 0
-                item["posa_offer_applied"] = 0
-
-                # Clear applied offers log
-                item["applied_offers"] = []
-
-                log.info(f"Item {item.get('item_code')} reset: new_rate={item['rate']}, amount={item['amount']}")
+            log.info(f"Item {item.get('item_code')} reset: new_rate={reset_rate}, amount={item['amount']}")
 
         log.info("All items reset to original prices.")
+
+    def _calculate_reset_rate(self, item, base_price_list_rate):
+        """Calculate the correct reset rate based on UOM conversion"""
+        uom = item.get("uom")
+        stock_uom = item.get("stock_uom")
+        conversion_factor = item.get("conversion_factor", 1)
+
+        if uom == stock_uom:
+            return self._round_money(base_price_list_rate)
+        else:
+            safe_cf = max(1, float(conversion_factor or 1))
+            return self._round_money(base_price_list_rate * safe_cf)
+
+    def _reset_discount_fields_only(self, item, rate_for_amount=None):
+        """Reset only discount-related fields"""
+        item["discount_amount"] = 0
+        item["discount_percentage"] = 0
+        item["posa_offer_applied"] = 0
+        item["applied_offers"] = []
+
+        if rate_for_amount is not None:
+            item["amount"] = self._round_money(rate_for_amount * item.get("qty", 0))
 
     def _coalesce_identical_items(self):
         """Merge identical non-offer lines into single rows (sum qty)."""
@@ -159,39 +209,32 @@ class DiscountCalculator:
             item_code = it.get("item_code")
             uom = it.get("uom")
 
+            # Track UOMs per item_code
             if item_code and uom:
-                if item_code not in item_uoms:
-                    item_uoms[item_code] = set()
-                item_uoms[item_code].add(uom)
+                item_uoms.setdefault(item_code, set()).add(uom)
 
-            if it.get("posa_is_offer"):
-                # never merge offer/gift lines
-                key = None
-            elif it.get("has_batch_no") or it.get("has_serial_no"):
-                # skip merging batch/serial items
-                key = None
-            elif it.get("posa_offer_applied"):
-                # skip merging items that already have offers applied
-                key = None
-            else:
-                key = (
-                    it.get("item_code"),
-                    it.get("uom"),
-                    it.get("stock_uom"),
-                    it.get("conversion_factor"),
-                    it.get("price_list_rate"),
-                    it.get("base_price_list_rate"),
-                    it.get("brand"),
-                    it.get("item_group"),
-                    it.get("warehouse"),
-                )
-
-            if not key:
-                # keep as is - fallback nếu posa_row_id trống
+            # Skip merging conditions
+            if (it.get("posa_is_offer") or
+                it.get("has_batch_no") or
+                it.get("has_serial_no") or
+                it.get("posa_offer_applied")):
                 merged_id = it.get("posa_row_id") or f"ROW-{id(it)}"
                 merged[merged_id] = it
                 order.append(merged_id)
                 continue
+
+            # Create merge key
+            key = (
+                it.get("item_code"),
+                it.get("uom"),
+                it.get("stock_uom"),
+                it.get("conversion_factor"),
+                it.get("price_list_rate"),
+                it.get("base_price_list_rate"),
+                it.get("brand"),
+                it.get("item_group"),
+                it.get("warehouse"),
+            )
 
             if key not in merged:
                 merged[key] = it
@@ -201,37 +244,28 @@ class DiscountCalculator:
                 current_rate = tgt.get("rate", tgt.get("price_list_rate", 0))
                 incoming_rate = it.get("rate", it.get("price_list_rate", 0))
 
-                # E5 Guard: Nếu dòng hiện tại rate <= 0 mà dòng mới > 0 → chọn dòng mới làm đại diện
+                # E5 Guard: Prefer item with positive rate as representative
                 if current_rate <= 0 and incoming_rate > 0:
-                    # Swap: dùng dòng mới làm đại diện, dòng cũ cộng vào
                     merged[key] = it
-                    # Cộng qty từ dòng cũ
                     it["qty"] = (it.get("qty") or 0) + (tgt.get("qty") or 0)
                     tgt = it
                     log.info(f"Swapped representative for {it.get('item_code')}: old_rate={current_rate} <= 0, new_rate={incoming_rate}")
                 else:
-                    # Normal merge: cộng qty vào dòng đại diện hiện tại
-                    old_qty = tgt.get("qty") or 0
-                    new_qty = old_qty + (it.get("qty") or 0)
-                    tgt["qty"] = new_qty
+                    # Normal merge: sum quantities
+                    tgt["qty"] = (tgt.get("qty") or 0) + (it.get("qty") or 0)
 
-                # Recalculate amount từ rate của dòng đại diện
+                # Recalculate amount
                 rate = tgt.get("rate", tgt.get("price_list_rate", 0))
                 tgt["amount"] = self._round_money(rate * tgt.get("qty", 0))
                 merged_lines += 1
-                log.info(f"Merged item {it.get('item_code')}: qty now {tgt.get('qty')}, rate={rate}")
 
-        # Log UOM skips
+        # Log UOM conflicts
         for item_code, uoms in item_uoms.items():
             if len(uoms) > 1:
                 log.info(f"coalesce skip due to UOM for {item_code}: UOMs {list(uoms)}")
 
-        # rebuild self.items in the original-ish order
-        new_items = []
-        for k in order:
-            v = merged[k]
-            new_items.append(v)
-        self.items = new_items
+        # Rebuild items list in original order
+        self.items = [merged[k] for k in order]
 
         # Log coalesce summary
         merged_groups = len([k for k in merged.keys() if isinstance(k, tuple)])
@@ -1485,8 +1519,12 @@ class DiscountCalculator:
                     original_rate = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM của dòng)
                     discount_type = offer.get("discount_type")
 
+                    # Calculate discount for max_qty portion
                     if discount_type == "Rate":
-                        discounted_rate = min(float(offer.get("rate", 0) or 0), float(original_rate))
+                        offer_rate = self._validate_offer_rate(offer, discount_type)
+                        if offer_rate is None:
+                            continue
+                        discounted_rate = min(offer_rate, float(original_rate))
                         discount_amount_per_item = original_rate - discounted_rate
                     elif discount_type == "Discount Percentage":
                         discount_percentage = offer.get("discount_percentage", 0)
@@ -1496,31 +1534,30 @@ class DiscountCalculator:
                         log.warning(f"Unknown discount_type: {discount_type}")
                         continue
 
-                    # Validation an toàn: không cho discount per item vượt quá original_rate
+                    # Safety validation
                     if discount_amount_per_item > original_rate:
                         log.warning(f"Discount per item {discount_amount_per_item} exceeds original rate {original_rate}, capping discount")
                         discount_amount_per_item = original_rate
                         discounted_rate = 0
 
-                    # Calculate weighted average rate
+                    # Calculate weighted average for max_qty logic
                     discounted_amount = self._round_money(discounted_qty * discounted_rate)
                     excess_amount = self._round_money(excess_qty * original_rate)
                     total_amount = self._round_money(discounted_amount + excess_amount)
                     weighted_rate = self._round_money(total_amount / actual_qty) if actual_qty > 0 else 0
-
-                    # Calculate total discount for the discounted portion
                     total_discount_amount = self._round_money(discount_amount_per_item * discounted_qty)
 
                     item["posa_offer_applied"] = 1
-                    # Discount engine guard: cho phép cập nhật discount_amount/posa_offer_applied, không ép rate khi preserve
+
+                    # Apply rate update based on preserve flag
                     if not preserve_rates:
                         item["rate"] = weighted_rate
                         item["amount"] = total_amount
                     else:
-                        # Khi preserve, giữ nguyên rate, chỉ update discount và recalc amount
                         item["amount"] = self._round_money(original_rate * actual_qty)
                         log.info(f"Preserved rate for max_qty {item.get('item_code')}: kept rate={original_rate}, applied discount")
 
+                    # Set discount fields
                     item["discount_amount"] = self._round_money(discount_amount_per_item)
                     item["posa_discount_total"] = self._round_money(discount_amount_per_item * actual_qty)
                     pct = (item["posa_discount_total"] / (original_rate * actual_qty) * 100) if (original_rate * actual_qty) else 0
@@ -1537,43 +1574,22 @@ class DiscountCalculator:
                     new_rate = original_rate
                     discount_type = offer.get("discount_type")
 
-                    if discount_type == "Rate":
-                        new_rate = self._round_money(min(float(offer.get("rate", 0) or 0), float(original_rate)))
-                        discount_amount = self._round_money(original_rate - new_rate)
-                        # Validation an toàn: không cho discount vượt quá original_rate
-                        if discount_amount > original_rate:
-                            log.warning(f"Rate discount {discount_amount} exceeds original rate {original_rate}, capping discount")
-                            discount_amount = original_rate
-                            new_rate = 0
-                        item["discount_amount"] = discount_amount
-                        item["posa_discount_total"] = self._round_money(discount_amount * item.get("qty", 0))
-                        pct = (item["discount_amount"] / original_rate * 100) if original_rate else 0
-                        item["discount_percentage"] = min(100.0, self._round_money(pct))
+                    # Apply discount based on type
+                    item["posa_offer_applied"] = 1
 
+                    if discount_type == "Rate":
+                        offer_rate = self._validate_offer_rate(offer, discount_type)
+                        if offer_rate is None:
+                            continue
+                        applied_rate = self._apply_rate_discount(item, offer_rate, original_rate, actual_qty, preserve_rates)
                     elif discount_type == "Discount Percentage":
                         discount_percentage = offer.get("discount_percentage", 0)
-                        discount_amount = self._round_money(original_rate * (discount_percentage / 100.0))
-                        new_rate = self._round_money(original_rate - discount_amount)
-                        # Validation an toàn: không cho discount vượt quá original_rate
-                        if discount_amount > original_rate:
-                            log.warning(f"Percentage discount {discount_amount} exceeds original rate {original_rate}, capping discount")
-                            discount_amount = original_rate
-                            new_rate = 0
-                            discount_percentage = 100.0
-                        item["discount_amount"] = discount_amount
-                        item["posa_discount_total"] = self._round_money(discount_amount * item.get("qty", 0))
-                        item["discount_percentage"] = discount_percentage
-
-                    # Discount engine guard: cho phép cập nhật discount_amount/posa_offer_applied, không ép rate = base*cf khi đang preserve
-                    if not preserve_rates:
-                        item["rate"] = new_rate
-                        item["amount"] = self._round_money(new_rate * item.get("qty", 0))
+                        applied_rate = self._apply_percentage_discount(item, discount_percentage, original_rate, actual_qty, preserve_rates)
                     else:
-                        # Khi preserve, chỉ update discount fields, giữ nguyên rate và recalc amount
-                        item["amount"] = self._round_money(original_rate * item.get("qty", 0))
-                        log.info(f"Preserved rate for {item.get('item_code')}: kept rate={original_rate}, applied discount_amount={item['discount_amount']}")
+                        log.warning(f"Unknown discount_type: {discount_type}")
+                        continue
 
-                    log.info(f"Applied normal discount: rate={new_rate if not preserve_rates else original_rate}, discount_amount={item['discount_amount']}")
+                    log.info(f"Applied normal discount: rate={applied_rate}, discount_amount={item['discount_amount']}")
                     applied_items_count += 1
 
                 self._add_offer_to_item_log(item, offer)
@@ -1654,29 +1670,25 @@ class DiscountCalculator:
 
             item["posa_offer_applied"] = 1
             qty = item.get("qty", 0)
-            original_rate = item.get("rate", item.get("price_list_rate", 0))  # Sử dụng rate hiện tại (đã theo UOM của dòng)
+            original_rate = item.get("rate", item.get("price_list_rate", 0))
 
             log.info(f"Item {item.get('item_code')}: qty={qty}, original_rate={original_rate}")
 
-            # Calculate discount: qty_discount_per_item * quantity
+            # Apply unit discount
             unit_disc = self._round_money(qty_discount_per_item)
-            item["discount_amount"] = unit_disc
-            item["posa_discount_total"] = self._round_money(unit_disc * qty)
-            new_rate = self._round_money(original_rate - unit_disc)
-            log.info(f"Calculated: unit_disc={unit_disc}, posa_discount_total={item['posa_discount_total']}, new_rate={new_rate}")
 
-            # Validation an toàn: không cho discount vượt quá giá gốc
+            # Safety validation
             if unit_disc > original_rate:
                 log.warning(f"Unit discount {unit_disc} exceeds original rate {original_rate}, capping discount")
                 unit_disc = original_rate
-                item["discount_amount"] = unit_disc
-                item["posa_discount_total"] = self._round_money(unit_disc * qty)
-                new_rate = 0
 
-            pct = (item["posa_discount_total"] / (original_rate * qty) * 100) if (original_rate * qty) else 0
-            item["discount_percentage"] = min(100.0, self._round_money(pct))
+            # Calculate new rate and update item
+            new_rate = self._round_money(original_rate - unit_disc)
             item["rate"] = new_rate
             item["amount"] = self._round_money(new_rate * qty)
+
+            # Set discount fields
+            self._calculate_discount_fields(item, unit_disc, original_rate, qty)
 
             log.info(f"Applied to item {item.get('item_code')}: unit_disc={unit_disc}, posa_discount_total={item['posa_discount_total']}, discount_percentage={item['discount_percentage']}, rate={new_rate}, amount={item['amount']}")
 
