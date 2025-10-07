@@ -128,7 +128,7 @@ export default {
 
                        // Add item to end of array to maintain order (push instead of unshift)
                        this.items.push(new_item);
-                       console.log("Item inserted at", 0, {
+                       console.log("Item inserted at", this.items.length - 1, {
                                code: new_item.item_code,
                                rate: new_item.rate,
                        });
@@ -547,24 +547,47 @@ export default {
 		this.invoiceTypes = ["Invoice", "Order"];
 		this.posting_date = frappe.datetime.nowdate();
 		var vm = this;
+
 		if (doc.name && this.pos_profile.posa_allow_delete) {
-			await frappe.call({
-				method: "posawesome.posawesome.api.invoices.delete_invoice",
-				args: { invoice: doc.name },
-				async: true,
-				callback: function (r) {
-					if (r.message) {
-						vm.eventBus.emit("show_message", {
-							text: r.message,
-							color: "warning",
-						});
-					}
-				},
+			try {
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.invoices.delete_invoice",
+					args: { invoice: doc.name },
+				});
+
+				if (response.message) {
+					vm.eventBus.emit("show_message", {
+						text: response.message,
+						color: "success",
+					});
+				}
+			} catch (error) {
+				// Handle specific error messages from backend
+				let errorMessage = __("Failed to delete invoice");
+				if (error.exc_type === "ValidationError" || error.message) {
+					errorMessage = error.message || error.exc;
+				}
+
+				vm.eventBus.emit("show_message", {
+					text: errorMessage,
+					color: "error",
+				});
+
+				// Don't clear invoice if deletion failed
+				this.cancel_dialog = false;
+				return;
+			}
+		} else if (doc.name && !this.pos_profile.posa_allow_delete) {
+			// POS Profile doesn't allow deletion
+			vm.eventBus.emit("show_message", {
+				text: __("Invoice deletion is not allowed in current POS Profile"),
+				color: "warning",
 			});
 		}
+
 		this.clear_invoice(); // This already calls setDefaultCustomerAfterClear()
 		this.cancel_dialog = false;
-		
+
 		// Ensure default customer is set after cancel
 		this.$nextTick(() => {
 			this.setDefaultCustomerAfterClear();
@@ -3426,9 +3449,9 @@ export default {
 		// Tách thành multiple lines
 		const packItems = this.splitItemIntoOptimalPacks(item, optimalCombo, availablePacks);
 
-		// Thêm các lines vào invoice
+		// Thêm các lines vào invoice (push để giữ thứ tự)
 		packItems.forEach(packItem => {
-			this.items.unshift(packItem);
+			this.items.push(packItem);
 			this.update_item_detail(packItem, true);
 		});
 

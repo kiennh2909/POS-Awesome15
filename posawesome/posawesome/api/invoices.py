@@ -864,10 +864,33 @@ def submit_in_background_job(kwargs):
 
 @frappe.whitelist()
 def delete_invoice(invoice):
-	if frappe.get_value("Sales Invoice", invoice, "posa_is_printed"):
-		frappe.throw(_("This invoice {0} cannot be deleted").format(invoice))
-	frappe.delete_doc("Sales Invoice", invoice, force=1)
-	return _("Invoice {0} Deleted").format(invoice)
+	# Check if invoice exists
+	if not frappe.db.exists("Sales Invoice", invoice):
+		frappe.throw(_("Invoice {0} not found").format(invoice))
+
+	# Get invoice details
+	docstatus = frappe.get_value("Sales Invoice", invoice, "docstatus")
+	posa_is_printed = frappe.get_value("Sales Invoice", invoice, "posa_is_printed")
+
+	# Check if already submitted
+	if docstatus == 1:
+		frappe.throw(_("Cannot delete submitted invoice {0}").format(invoice))
+
+	# Check if already printed
+	if posa_is_printed:
+		frappe.throw(_("This invoice {0} cannot be deleted because it has been printed").format(invoice))
+
+	# Check user permissions
+	if not frappe.has_permission("Sales Invoice", "delete"):
+		frappe.throw(_("User not allowed to delete Sales Invoice: {0}").format(invoice))
+
+	# Attempt to delete
+	try:
+		frappe.delete_doc("Sales Invoice", invoice, force=1)
+		return _("Invoice {0} Deleted").format(invoice)
+	except Exception as e:
+		log.error(f"Failed to delete invoice {invoice}: {str(e)}")
+		frappe.throw(_("Failed to delete invoice {0}: {1}").format(invoice, str(e)))
 
 
 @frappe.whitelist()

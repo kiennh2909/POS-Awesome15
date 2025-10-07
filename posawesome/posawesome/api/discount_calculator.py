@@ -105,13 +105,27 @@ class DiscountCalculator:
                     item["amount"] = self._round_money(current_rate * item.get("qty", 0))
                     continue
 
-                # Reset to base price list rate (always in stock UOM) converted to display UOM
-                if uom == stock_uom:
-                    reset_rate = self._round_money(base_price_list_rate)
+                # Auto-detect if base_rate is already in display UOM (to avoid double conversion)
+                expected_rate_if_stock_uom = self._round_money(base_price_list_rate * max(1, float(conversion_factor or 1))) if uom != stock_uom else self._round_money(base_price_list_rate)
+                current_rate_rounded = self._round_money(current_rate)
+
+                # If current rate matches expected (within 5% tolerance), base_rate is in stock UOM
+                # If significantly different, base_rate is already in display UOM (from saved invoice)
+                tolerance = 0.05  # 5% tolerance for rounding differences
+                is_base_in_stock_uom = abs(current_rate_rounded - expected_rate_if_stock_uom) / max(abs(expected_rate_if_stock_uom), 0.01) < tolerance
+
+                if is_base_in_stock_uom:
+                    # Normal case: base_rate in stock UOM, convert to display UOM
+                    if uom == stock_uom:
+                        reset_rate = self._round_money(base_price_list_rate)
+                    else:
+                        safe_cf = max(1, float(conversion_factor or 1))
+                        reset_rate = self._round_money(base_price_list_rate * safe_cf)
+                    log.info(f"Base rate detected as stock UOM - converting: {base_price_list_rate} * {safe_cf if uom != stock_uom else 1} = {reset_rate}")
                 else:
-                    # E2 Guard: conversion_factor = 0/null → ép max(1, cf)
-                    safe_cf = max(1, float(conversion_factor or 1))
-                    reset_rate = self._round_money(base_price_list_rate * safe_cf)
+                    # Base rate already in display UOM (from saved invoice) - use as-is to avoid double conversion
+                    reset_rate = self._round_money(base_price_list_rate)
+                    log.info(f"Base rate detected as display UOM - using as-is: {reset_rate} (avoided double conversion from {expected_rate_if_stock_uom})")
 
                 item["rate"] = reset_rate
                 item["amount"] = self._round_money(reset_rate * item.get("qty", 0))
