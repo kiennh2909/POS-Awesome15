@@ -189,10 +189,7 @@
 										:model-value="
 											formatFloat(item.qty, hide_qty_decimals ? 0 : undefined)
 										"
-										@change="[
-											setFormatedQty(item, 'qty', null, false, $event.target.value),
-											calcStockQty(item, item.qty),
-										]"
+										@change="onQtyChange(item, $event.target.value)"
 										:rules="[isNumber]"
 										:disabled="!!item.posa_is_replace"
 										prepend-inner-icon="mdi-numeric"
@@ -818,6 +815,33 @@ export default {
 
 			// Call the parent toggleOffer method
 			this.toggleOffer(item);
+		},
+
+		// Handle quantity change from direct input
+		onQtyChange(item, value) {
+			console.log("📝 [QTY_CHANGE] Direct qty input for item:", item.item_code, "from:", item.qty, "to:", value);
+
+			// Update qty using setFormatedQty
+			this.setFormatedQty(item, 'qty', null, false, value);
+
+			// Calculate stock qty
+			this.calcStockQty(item, item.qty);
+
+			// Trigger discount calculation (same as INCREASE/DECREASE buttons)
+			if (!this.$parent.isApplyingDiscount) {
+				console.log("📝 [QTY_CHANGE] Triggering discount calculation for direct qty input");
+				this.$parent.$nextTick(() => {
+					setTimeout(() => {
+						this.$parent.calculateDiscountsDebounced();
+						console.log("✅ [QTY_CHANGE] calculateDiscountsDebounced() called for direct qty input");
+					}, 10);
+				});
+			} else {
+				console.log("📝 [QTY_CHANGE] Skipping discount calculation - isApplyingDiscount is true");
+			}
+
+			// Force UI update
+			this.$forceUpdate();
 		},
 
 		// Get pack information for display
