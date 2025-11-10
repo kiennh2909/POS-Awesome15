@@ -381,12 +381,14 @@ export default {
 		},
 		// Check if POS profile country is Vietnam
 		isVietnamCountry() {
-			const result = this.pos_profile && (this.pos_profile.country === "Vietnam" || this.pos_profile.country === "VN");
+			const result =
+				this.pos_profile &&
+				(this.pos_profile.country === "Vietnam" || this.pos_profile.country === "VN");
 			console.log("[DEBUG] isVietnamCountry computed:", {
 				pos_profile_exists: !!this.pos_profile,
 				pos_profile_country: this.pos_profile?.country,
 				result: result,
-				full_pos_profile: this.pos_profile
+				full_pos_profile: this.pos_profile,
 			});
 			return result;
 		},
@@ -1488,6 +1490,13 @@ export default {
 			hasCalculateDiscountsAPI: typeof this.calculateDiscountsAPI === "function",
 		});
 
+		// DEBUG: Force call isVietnamCountry to see if it works
+		console.log(
+			"[DEBUG] Invoice component mounted - force calling isVietnamCountry:",
+			this.isVietnamCountry,
+		);
+		console.log("[DEBUG] Current pos_profile:", this.pos_profile);
+
 		// Setup discount calculation debounced function
 		this.calculateDiscountsDebounced = this.debounce(this.calculateDiscountsAPI, 300);
 		console.log("⏱️ [DEBOUNCE_SETUP] calculateDiscountsDebounced created with 300ms delay");
@@ -1550,15 +1559,23 @@ export default {
 
 		// Register event listeners for POS profile, items, customer, offers, etc.
 		this.eventBus.on("register_pos_profile", (data) => {
+			console.log("[DEBUG] POS Profile registered:", data.pos_profile);
+			console.log("[DEBUG] Country:", data.pos_profile.country);
+
 			this.pos_profile = data.pos_profile;
 			this.company = data.company || null;
 			this.customer = data.pos_profile.customer;
 			this.pos_opening_shift = data.pos_opening_shift;
 			this.stock_settings = data.stock_settings;
 
+			// DEBUG: Force call isVietnamCountry after POS profile is set
+			console.log("[DEBUG] isVietnamCountry after register:", this.isVietnamCountry);
+
 			// Set default customer when POS profile is registered
 			this.$nextTick(() => {
 				this.setDefaultCustomerAfterClear();
+				// Force update to trigger computed properties
+				this.$forceUpdate();
 			});
 			const prec = parseInt(data.pos_profile.posa_decimal_precision);
 			if (!isNaN(prec)) {
