@@ -381,11 +381,12 @@ export default {
 		},
 		// Check if POS profile country is Vietnam
 		isVietnamCountry() {
-			const result = this.pos_profile && this.pos_profile.country === "Vietnam";
+			const result = this.pos_profile && (this.pos_profile.country === "Vietnam" || this.pos_profile.country === "VN");
 			console.log("[DEBUG] isVietnamCountry computed:", {
 				pos_profile_exists: !!this.pos_profile,
 				pos_profile_country: this.pos_profile?.country,
 				result: result,
+				full_pos_profile: this.pos_profile
 			});
 			return result;
 		},
