@@ -393,30 +393,6 @@
 				</v-row>
 			</v-col>
 		</v-row>
-
-		<!-- Row 4: Custom Actions Slot (for Submit, Tax Print, Vietnam Payment buttons) -->
-		<v-row dense v-if="$slots.actions">
-			<v-col cols="12">
-				<!-- DEBUG: Check if slot is being rendered -->
-				<div
-					style="
-						position: fixed;
-						top: 50px;
-						right: 10px;
-						background: blue;
-						color: white;
-						padding: 5px;
-						font-size: 12px;
-						z-index: 9999;
-					"
-				>
-					InvoiceSummary: Slot 'actions' exists!
-				</div>
-				<v-row dense>
-					<slot name="actions"></slot>
-				</v-row>
-			</v-col>
-		</v-row>
 	</v-card>
 </template>
 

@@ -224,25 +224,6 @@
 		>
 			<!-- Add Print and Tax Print Buttons here -->
 			<template #actions>
-				<!-- DEBUG: Force show debug info -->
-				<div
-					style="
-						position: fixed;
-						top: 100px;
-						right: 10px;
-						background: green;
-						color: white;
-						padding: 5px;
-						font-size: 12px;
-						z-index: 9999;
-					"
-				>
-					Invoice: Rendering slot actions<br />
-					isVietnamCountry: {{ isVietnamCountry }}<br />
-					show_tax_print_button: {{ show_tax_print_button }}<br />
-					can_print: {{ can_print }}
-				</div>
-
 				<!-- Submit Button (hidden for Vietnam) -->
 				<v-btn
 					v-if="!isVietnamCountry"
@@ -302,7 +283,7 @@ import offerMethods from "./invoiceOfferMethods";
 import shortcutMethods from "./invoiceShortcuts";
 import invoiceItemMethods from "./invoiceItemMethods";
 import { isOffline, saveCustomerBalance, getCachedCustomerBalance } from "../../../offline";
-import { updateHeaderTaxDisplay, handleVietnamTaxPrint } from "./taxPrintHandler";
+import { updateHeaderTaxDisplay } from "./taxPrintHandler";
 
 export default {
 	name: "POSInvoice",
@@ -380,16 +361,7 @@ export default {
 		},
 		// Check if POS profile country is Vietnam
 		isVietnamCountry() {
-			const result =
-				this.pos_profile &&
-				(this.pos_profile.country === "Vietnam" || this.pos_profile.country === "VN");
-			console.log("[DEBUG] isVietnamCountry computed:", {
-				pos_profile_exists: !!this.pos_profile,
-				pos_profile_country: this.pos_profile?.country,
-				result: result,
-				full_pos_profile: this.pos_profile,
-			});
-			return result;
+			return this.pos_profile && this.pos_profile.country === "Vietnam";
 		},
 		// Show tax print button if POS profile allows and invoice is not a return (only for non-Vietnam countries)
 		show_tax_print_button() {
@@ -1365,16 +1337,7 @@ export default {
 		},
 
 		async print_tax_invoice_vietnam() {
-			console.log("[DEBUG] print_tax_invoice_vietnam called:", {
-				invoice_doc_exists: !!this.invoice_doc,
-				pos_profile_exists: !!this.pos_profile,
-				pos_profile_country: this.pos_profile?.country,
-				isVietnamCountry: this.isVietnamCountry,
-				tax_print_loading: this.tax_print_loading,
-			});
-
 			if (!this.invoice_doc || !this.pos_profile) {
-				console.error("[DEBUG] Missing invoice data or POS profile");
 				this.eventBus.emit("show_message", {
 					title: __("Missing invoice data or POS profile."),
 					color: "error",
@@ -1382,22 +1345,22 @@ export default {
 				return;
 			}
 
-			console.log("[DEBUG] Starting Vietnam tax print process");
+			if (!this.pos_profile.posa_enable_tax_print) {
+				this.eventBus.emit("show_message", {
+					title: __("Tax printing is not enabled in POS Profile."),
+					color: "warning",
+				});
+				return;
+			}
+
 			this.tax_print_loading = true;
 
 			try {
-				console.log("[DEBUG] Calling handleVietnamTaxPrint with:", {
-					invoice_name: this.invoice_doc.name,
-					pos_profile_name: this.pos_profile.name,
-					invoice_items_count: this.invoice_doc.items?.length || 0,
-				});
-
 				await handleVietnamTaxPrint(
 					this.invoice_doc,
 					this.pos_profile,
 					// onSuccess callback
 					(result) => {
-						console.log("[DEBUG] Vietnam tax print success:", result);
 						this.eventBus.emit("show_message", {
 							title: __("Vietnam tax invoice processed successfully."),
 							color: "success",
@@ -1406,7 +1369,7 @@ export default {
 					},
 					// onError callback
 					(error) => {
-						console.error("[DEBUG] Vietnam tax print error:", error);
+						console.error("Error processing Vietnam tax invoice:", error);
 						this.eventBus.emit("show_message", {
 							title: error.message || __("Failed to process Vietnam tax invoice."),
 							color: "error",
@@ -1415,7 +1378,7 @@ export default {
 					},
 				);
 			} catch (e) {
-				console.error("[DEBUG] Unexpected error in print_tax_invoice_vietnam:", e);
+				console.error("Unexpected error in print_tax_invoice_vietnam:", e);
 				this.eventBus.emit("show_message", {
 					title: __("An unexpected error occurred."),
 					color: "error",
@@ -1480,13 +1443,6 @@ export default {
 			hasCalculateDiscountsAPI: typeof this.calculateDiscountsAPI === "function",
 		});
 
-		// DEBUG: Force call isVietnamCountry to see if it works
-		console.log(
-			"[DEBUG] Invoice component mounted - force calling isVietnamCountry:",
-			this.isVietnamCountry,
-		);
-		console.log("[DEBUG] Current pos_profile:", this.pos_profile);
-
 		// Setup discount calculation debounced function
 		this.calculateDiscountsDebounced = this.debounce(this.calculateDiscountsAPI, 300);
 		console.log("⏱️ [DEBOUNCE_SETUP] calculateDiscountsDebounced created with 300ms delay");
@@ -1549,23 +1505,15 @@ export default {
 
 		// Register event listeners for POS profile, items, customer, offers, etc.
 		this.eventBus.on("register_pos_profile", (data) => {
-			console.log("[DEBUG] POS Profile registered:", data.pos_profile);
-			console.log("[DEBUG] Country:", data.pos_profile.country);
-
 			this.pos_profile = data.pos_profile;
 			this.company = data.company || null;
 			this.customer = data.pos_profile.customer;
 			this.pos_opening_shift = data.pos_opening_shift;
 			this.stock_settings = data.stock_settings;
 
-			// DEBUG: Force call isVietnamCountry after POS profile is set
-			console.log("[DEBUG] isVietnamCountry after register:", this.isVietnamCountry);
-
 			// Set default customer when POS profile is registered
 			this.$nextTick(() => {
 				this.setDefaultCustomerAfterClear();
-				// Force update to trigger computed properties
-				this.$forceUpdate();
 			});
 			const prec = parseInt(data.pos_profile.posa_decimal_precision);
 			if (!isNaN(prec)) {

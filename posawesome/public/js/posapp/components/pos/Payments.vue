@@ -633,8 +633,7 @@
 		<!-- Action Buttons -->
 		<v-card flat class="cards mb-0 mt-3 pa-0">
 			<v-row align="start" no-gutters>
-				<!-- Submit Button (hidden for Vietnam) -->
-				<v-col cols="6" v-if="!isVietnamCountry">
+				<v-col cols="6">
 					<v-btn
 						block
 						size="large"
@@ -647,23 +646,17 @@
 						{{ __("IN HOA ĐƠN 1") }}
 					</v-btn>
 				</v-col>
-				<!-- Tax Print Button (hidden for Vietnam) -->
-				<v-col :cols="isVietnamCountry ? 12 : 6" :class="isVietnamCountry ? '' : 'pl-1'">
+				<v-col cols="6" class="pl-1">
 					<v-btn
 						block
 						size="large"
 						color="success"
 						theme="dark"
-						@click="
-							isVietnamCountry
-								? $parent.print_tax_invoice_vietnam()
-								: submit(undefined, false, true, true)
-						"
+						@click="submit(undefined, false, true, true)"
 						:loading="loading"
 						:disabled="loading || vaildatPayment"
 					>
-						<v-icon start v-if="isVietnamCountry">mdi-credit-card</v-icon>
-						{{ isVietnamCountry ? __("THANH TOÁN VN") : __("IN HOA ĐƠN 2") }}
+						{{ __("IN HOA ĐƠN 2") }}
 					</v-btn>
 				</v-col>
 				<v-col cols="12">
@@ -805,13 +798,6 @@ export default {
 		};
 	},
 	computed: {
-		// Check if POS profile country is Vietnam
-		isVietnamCountry() {
-			return (
-				this.pos_profile &&
-				(this.pos_profile.country === "VN" || this.pos_profile.country === "Vietnam")
-			);
-		},
 		// Get currency symbol for given or current currency
 		currencySymbol() {
 			return (currency) => {
