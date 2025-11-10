@@ -654,7 +654,11 @@
 						size="large"
 						color="success"
 						theme="dark"
-						@click="isVietnamCountry ? print_tax_invoice_vietnam() : submit(undefined, false, true, true)"
+						@click="
+							isVietnamCountry
+								? $parent.print_tax_invoice_vietnam()
+								: submit(undefined, false, true, true)
+						"
 						:loading="loading"
 						:disabled="loading || vaildatPayment"
 					>
