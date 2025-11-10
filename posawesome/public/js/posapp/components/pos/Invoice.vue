@@ -224,6 +224,25 @@
 		>
 			<!-- Add Print and Tax Print Buttons here -->
 			<template #actions>
+				<!-- DEBUG: Force show debug info -->
+				<div
+					style="
+						position: fixed;
+						top: 100px;
+						right: 10px;
+						background: green;
+						color: white;
+						padding: 5px;
+						font-size: 12px;
+						z-index: 9999;
+					"
+				>
+					Invoice: Rendering slot actions<br />
+					isVietnamCountry: {{ isVietnamCountry }}<br />
+					show_tax_print_button: {{ show_tax_print_button }}<br />
+					can_print: {{ can_print }}
+				</div>
+
 				<!-- Submit Button (hidden for Vietnam) -->
 				<v-btn
 					v-if="!isVietnamCountry"
@@ -259,26 +278,6 @@
 					<v-icon left>mdi-credit-card</v-icon>
 					{{ __("Thanh toán VN") }}
 				</v-btn>
-
-				<!-- Debug Info (temporary) -->
-				<div
-					style="
-						position: fixed;
-						bottom: 10px;
-						right: 10px;
-						background: rgba(0, 0, 0, 0.8);
-						color: white;
-						padding: 10px;
-						border-radius: 5px;
-						font-size: 12px;
-						z-index: 9999;
-					"
-				>
-					<div>Country: {{ pos_profile?.country || "N/A" }}</div>
-					<div>isVietnamCountry: {{ isVietnamCountry }}</div>
-					<div>show_tax_print_button: {{ show_tax_print_button }}</div>
-					<div>can_print: {{ can_print }}</div>
-				</div>
 			</template>
 		</InvoiceSummary>
 	</div>
