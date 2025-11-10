@@ -302,7 +302,7 @@ import offerMethods from "./invoiceOfferMethods";
 import shortcutMethods from "./invoiceShortcuts";
 import invoiceItemMethods from "./invoiceItemMethods";
 import { isOffline, saveCustomerBalance, getCachedCustomerBalance } from "../../../offline";
-import { updateHeaderTaxDisplay } from "./taxPrintHandler";
+import { updateHeaderTaxDisplay, handleVietnamTaxPrint } from "./taxPrintHandler";
 
 export default {
 	name: "POSInvoice",
