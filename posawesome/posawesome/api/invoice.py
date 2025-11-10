@@ -568,4 +568,75 @@ def update_shift_report_with_invoice(invoice_doc, action):
     except Exception as e:
         log.error(f"[INVOICE_TRACKING] Failed to update shift report for invoice {invoice_doc.name}: {str(e)}")
         # Don't raise error to prevent invoice submission/cancellation failure
+
+
+@frappe.whitelist()
+def mark_invoice_as_submitted_vntax(invoice_name, response_data):
+    """
+    Mark invoice as submitted for Vietnam tax (VNTAX) processing.
+    Updates custom fields: custom_misa_status, custom_misa_ref_id
+    And maintains separate counter for Vietnam tax codes.
+
+    Args:
+        invoice_name: Name of the sales invoice
+        response_data: JSON response from MISA API
+
+    Returns:
+        dict: Status and counter information
+    """
+    try:
+        log.info(f"[VNTAX_MARK_SUBMITTED] START - Invoice: {invoice_name}")
+
+        # Get invoice document
+        invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
+        if not invoice_doc:
+            raise frappe.ValidationError(f"Invoice {invoice_name} not found")
+
+        # Get POS Profile to access tax counters
+        if not invoice_doc.pos_profile:
+            raise frappe.ValidationError(f"No POS Profile found for invoice {invoice_name}")
+
+        pos_profile = frappe.get_doc("POS Profile", invoice_doc.pos_profile)
+
+        # Increment Vietnam tax counter (separate from Taiwan counter)
+        current_counter = pos_profile.get("tax_current_counter") or 0
+        new_counter = current_counter + 1
+
+        # Generate next display for Vietnam (different format from Taiwan)
+        tax_roll_code = pos_profile.get("tax_roll_code") or "VN"
+        next_display = f"{tax_roll_code}{new_counter}"
+
+        # Parse response data to extract req_id
+        req_id = None
+        try:
+            if response_data:
+                response_json = frappe.parse_json(response_data)
+                req_id = response_json.get("req_id") or response_json.get("requestId") or response_json.get("id")
+        except Exception as e:
+            log.warning(f"[VNTAX_MARK_SUBMITTED] Could not parse response data: {str(e)}")
+
+        # Update invoice custom fields
+        invoice_doc.custom_misa_status = "Submitted"
+        invoice_doc.custom_misa_ref_id = req_id or f"VN-{invoice_name}"
+
+        # Save invoice with custom fields
+        invoice_doc.save(ignore_permissions=True)
+
+        # Update POS Profile counter
+        pos_profile.tax_current_counter = new_counter
+        pos_profile.save(ignore_permissions=True)
+
+        log.info(f"[VNTAX_MARK_SUBMITTED] SUCCESS - Invoice: {invoice_name}, ReqID: {req_id}, New Counter: {new_counter}")
+
+        return {
+            "success": True,
+            "message": "Invoice marked as submitted for Vietnam tax",
+            "req_id": req_id,
+            "new_counter": new_counter,
+            "next_display": next_display
+        }
+
+    except Exception as e:
+        log.error(f"[VNTAX_MARK_SUBMITTED] ERROR - Invoice: {invoice_name}, Error: {str(e)}")
+        frappe.throw(f"Failed to mark invoice as submitted for Vietnam tax: {str(e)}")
   
