@@ -1569,7 +1569,7 @@ export default {
 				}
 
 				// 5) Import handler và gọi in - LUỒNG RIÊNG RẼ THEO QUỐC GIA
-				import { handleTaxPrint, handleVietnamTaxPrint, updateHeaderTaxDisplay } from "./taxPrintHandler.js";
+				//import { handleTaxPrint, handleVietnamTaxPrint, updateHeaderTaxDisplay } from "./taxPrintHandler.js";
 				const { handleTaxPrint, handleVietnamTaxPrint } = await import("./taxPrintHandler.js");
 
 				if (this.isVietnamCountry) {
