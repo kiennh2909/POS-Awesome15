@@ -1382,15 +1382,6 @@ export default {
 				return;
 			}
 
-			if (!this.pos_profile.posa_enable_tax_print) {
-				console.warn("[DEBUG] Tax printing not enabled in POS Profile");
-				this.eventBus.emit("show_message", {
-					title: __("Tax printing is not enabled in POS Profile."),
-					color: "warning",
-				});
-				return;
-			}
-
 			console.log("[DEBUG] Starting Vietnam tax print process");
 			this.tax_print_loading = true;
 
