@@ -633,7 +633,8 @@
 		<!-- Action Buttons -->
 		<v-card flat class="cards mb-0 mt-3 pa-0">
 			<v-row align="start" no-gutters>
-				<v-col cols="6">
+				<!-- IN HOA ĐƠN 1 (hidden for Vietnam) -->
+				<v-col cols="6" v-if="!isVietnamCountry">
 					<v-btn
 						block
 						size="large"
@@ -646,7 +647,8 @@
 						{{ __("IN HOA ĐƠN 1") }}
 					</v-btn>
 				</v-col>
-				<v-col cols="6" class="pl-1">
+				<!-- IN HOA ĐƠN 2 (hidden for Vietnam) -->
+				<v-col cols="6" class="pl-1" v-if="!isVietnamCountry">
 					<v-btn
 						block
 						size="large"
@@ -657,6 +659,34 @@
 						:disabled="loading || vaildatPayment"
 					>
 						{{ __("IN HOA ĐƠN 2") }}
+					</v-btn>
+				</v-col>
+				<!-- THANH TOÁN VN (shown for Vietnam) -->
+				<v-col cols="6" v-if="isVietnamCountry">
+					<v-btn
+						block
+						size="large"
+						color="success"
+						theme="dark"
+						@click="submit(undefined, false, false, true)"
+						:loading="loading"
+						:disabled="loading || vaildatPayment"
+					>
+						{{ __("THANH TOÁN VN 1") }}
+					</v-btn>
+				</v-col>
+				<!-- THANH TOÁN VN (shown for Vietnam) -->
+				<v-col cols="6" class="pl-1" v-if="isVietnamCountry">
+					<v-btn
+						block
+						size="large"
+						color="primary"
+						theme="dark"
+						@click="submit(undefined, false, false, false)"
+						:loading="loading"
+						:disabled="loading || vaildatPayment"
+					>
+						{{ __("THANH TOÁN VN 2") }}
 					</v-btn>
 				</v-col>
 				<v-col cols="12">
@@ -798,6 +828,13 @@ export default {
 		};
 	},
 	computed: {
+		// Check if POS profile country is Vietnam
+		isVietnamCountry() {
+			return (
+				this.pos_profile &&
+				(this.pos_profile.country === "VN" || this.pos_profile.country === "Vietnam")
+			);
+		},
 		// Get currency symbol for given or current currency
 		currencySymbol() {
 			return (currency) => {
@@ -2071,40 +2108,76 @@ export default {
 					);
 				}
 
-				// 5) Import handler và gọi in
-				const { handleTaxPrint } = await import("./taxPrintHandler.js");
+				// 5) Import handler và gọi in - LUỒNG RIÊNG RẼ THEO QUỐC GIA
+				const { handleTaxPrint, handleVietnamTaxPrint } = await import("./taxPrintHandler.js");
 
-				console.log(
-					"%c load_print_page_tax -> handleTaxPrint payload:",
-					"color: green; font-weight: bold;",
-					{
-						name: invoice_to_print?.name,
-						customer: invoice_to_print?.customer,
-						tax_id: invoice_to_print?.tax_id,
-						customer_tax_id: invoice_to_print?.customer_tax_id,
-						grand_total: invoice_to_print?.grand_total,
-					},
-				);
+				if (this.isVietnamCountry) {
+					// === LUỒNG VIỆT NAM: Gửi lên MISA API ===
+					console.log(
+						"%c load_print_page_tax -> handleVietnamTaxPrint (VIỆT NAM):",
+						"color: blue; font-weight: bold;",
+						{
+							name: invoice_to_print?.name,
+							customer: invoice_to_print?.customer,
+							tax_id: invoice_to_print?.tax_id,
+							customer_tax_id: invoice_to_print?.customer_tax_id,
+							grand_total: invoice_to_print?.grand_total,
+							country: this.pos_profile?.country,
+						},
+					);
 
-				await handleTaxPrint(
-					invoice_to_print,
-					this.pos_profile,
-					// onSuccess
-					(result) => {
-						console.log("[TaxPrint] Success:", result);
-						// Nếu cần cập nhật header: đã có updateHeaderTaxDisplay trong handler, hoặc tự bắn event ở đây
-						// this.$emit('tax-display-updated', result?.nextDisplay);
-					},
-					// onError
-					(error) => {
-						console.error("[TaxPrint] Handler error:", error);
-						frappe.msgprint({
-							title: "Lỗi In Hóa Đơn Thuế",
-							message: `Không thể in hóa đơn thuế: ${error.message}`,
-							indicator: "red",
-						});
-					},
-				);
+					await handleVietnamTaxPrint(
+						invoice_to_print,
+						this.pos_profile,
+						// onSuccess
+						(result) => {
+							console.log("[TaxPrint] Vietnam Success:", result);
+						},
+						// onError
+						(error) => {
+							console.error("[TaxPrint] Vietnam Handler error:", error);
+							frappe.msgprint({
+								title: "Lỗi Gửi Hóa Đơn MISA",
+								message: `Không thể gửi hóa đơn lên MISA: ${error.message}`,
+								indicator: "red",
+							});
+						},
+					);
+				} else {
+					// === LUỒNG ĐÀI LOAN: In tại chỗ ===
+					console.log(
+						"%c load_print_page_tax -> handleTaxPrint (ĐÀI LOAN):",
+						"color: green; font-weight: bold;",
+						{
+							name: invoice_to_print?.name,
+							customer: invoice_to_print?.customer,
+							tax_id: invoice_to_print?.tax_id,
+							customer_tax_id: invoice_to_print?.customer_tax_id,
+							grand_total: invoice_to_print?.grand_total,
+							country: this.pos_profile?.country,
+						},
+					);
+
+					await handleTaxPrint(
+						invoice_to_print,
+						this.pos_profile,
+						// onSuccess
+						(result) => {
+							console.log("[TaxPrint] Taiwan Success:", result);
+							// Nếu cần cập nhật header: đã có updateHeaderTaxDisplay trong handler
+						},
+						// onError
+						(error) => {
+							console.error("[TaxPrint] Taiwan Handler error:", error);
+							frappe.msgprint({
+								title: "Lỗi In Hóa Đơn Thuế",
+								message: `Không thể in hóa đơn thuế: ${error.message}`,
+								indicator: "red",
+							});
+						},
+					);
+				}
+
 			} catch (error) {
 				console.error("[TaxPrint] Unexpected error in load_print_page_tax:", error);
 				frappe.msgprint({
