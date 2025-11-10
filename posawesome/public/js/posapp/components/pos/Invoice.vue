@@ -259,6 +259,26 @@
 					<v-icon left>mdi-credit-card</v-icon>
 					{{ __("Thanh toán VN") }}
 				</v-btn>
+
+				<!-- Debug Info (temporary) -->
+				<div
+					style="
+						position: fixed;
+						bottom: 10px;
+						right: 10px;
+						background: rgba(0, 0, 0, 0.8);
+						color: white;
+						padding: 10px;
+						border-radius: 5px;
+						font-size: 12px;
+						z-index: 9999;
+					"
+				>
+					<div>Country: {{ pos_profile?.country || "N/A" }}</div>
+					<div>isVietnamCountry: {{ isVietnamCountry }}</div>
+					<div>show_tax_print_button: {{ show_tax_print_button }}</div>
+					<div>can_print: {{ can_print }}</div>
+				</div>
 			</template>
 		</InvoiceSummary>
 	</div>
@@ -361,7 +381,13 @@ export default {
 		},
 		// Check if POS profile country is Vietnam
 		isVietnamCountry() {
-			return this.pos_profile && this.pos_profile.country === "Vietnam";
+			const result = this.pos_profile && this.pos_profile.country === "Vietnam";
+			console.log("[DEBUG] isVietnamCountry computed:", {
+				pos_profile_exists: !!this.pos_profile,
+				pos_profile_country: this.pos_profile?.country,
+				result: result,
+			});
+			return result;
 		},
 		// Show tax print button if POS profile allows and invoice is not a return (only for non-Vietnam countries)
 		show_tax_print_button() {
@@ -1337,7 +1363,16 @@ export default {
 		},
 
 		async print_tax_invoice_vietnam() {
+			console.log("[DEBUG] print_tax_invoice_vietnam called:", {
+				invoice_doc_exists: !!this.invoice_doc,
+				pos_profile_exists: !!this.pos_profile,
+				pos_profile_country: this.pos_profile?.country,
+				isVietnamCountry: this.isVietnamCountry,
+				tax_print_loading: this.tax_print_loading,
+			});
+
 			if (!this.invoice_doc || !this.pos_profile) {
+				console.error("[DEBUG] Missing invoice data or POS profile");
 				this.eventBus.emit("show_message", {
 					title: __("Missing invoice data or POS profile."),
 					color: "error",
@@ -1346,6 +1381,7 @@ export default {
 			}
 
 			if (!this.pos_profile.posa_enable_tax_print) {
+				console.warn("[DEBUG] Tax printing not enabled in POS Profile");
 				this.eventBus.emit("show_message", {
 					title: __("Tax printing is not enabled in POS Profile."),
 					color: "warning",
@@ -1353,14 +1389,22 @@ export default {
 				return;
 			}
 
+			console.log("[DEBUG] Starting Vietnam tax print process");
 			this.tax_print_loading = true;
 
 			try {
+				console.log("[DEBUG] Calling handleVietnamTaxPrint with:", {
+					invoice_name: this.invoice_doc.name,
+					pos_profile_name: this.pos_profile.name,
+					invoice_items_count: this.invoice_doc.items?.length || 0,
+				});
+
 				await handleVietnamTaxPrint(
 					this.invoice_doc,
 					this.pos_profile,
 					// onSuccess callback
 					(result) => {
+						console.log("[DEBUG] Vietnam tax print success:", result);
 						this.eventBus.emit("show_message", {
 							title: __("Vietnam tax invoice processed successfully."),
 							color: "success",
@@ -1369,7 +1413,7 @@ export default {
 					},
 					// onError callback
 					(error) => {
-						console.error("Error processing Vietnam tax invoice:", error);
+						console.error("[DEBUG] Vietnam tax print error:", error);
 						this.eventBus.emit("show_message", {
 							title: error.message || __("Failed to process Vietnam tax invoice."),
 							color: "error",
@@ -1378,7 +1422,7 @@ export default {
 					},
 				);
 			} catch (e) {
-				console.error("Unexpected error in print_tax_invoice_vietnam:", e);
+				console.error("[DEBUG] Unexpected error in print_tax_invoice_vietnam:", e);
 				this.eventBus.emit("show_message", {
 					title: __("An unexpected error occurred."),
 					color: "error",
