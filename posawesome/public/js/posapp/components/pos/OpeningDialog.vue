@@ -254,7 +254,7 @@ export default {
 			console.info("Submitting opening voucher with data:", {
 				pos_profile: this.pos_profile,
 				company: this.company,
-				balance_details: this.payments_methods
+				balance_details: this.payments_methods,
 			});
 
 			return frappe
@@ -298,11 +298,17 @@ export default {
 					// Hiển thị popup cảnh báo đỏ nghiêm trọng
 					if (window.frappe && frappe.show_alert) {
 						frappe.show_alert({
-							message: __("Critical Error: Failed to create Shift Report. Opening shift was created but Shift Report creation failed. Please contact administrator."),
-							indicator: 'red'
+							message: __(
+								"Critical Error: Failed to create Shift Report. Opening shift was created but Shift Report creation failed. Please contact administrator.",
+							),
+							indicator: "red",
 						});
 					} else {
-						alert(__("Critical Error: Failed to create Shift Report. Opening shift was created but Shift Report creation failed. Please contact administrator."));
+						alert(
+							__(
+								"Critical Error: Failed to create Shift Report. Opening shift was created but Shift Report creation failed. Please contact administrator.",
+							),
+						);
 					}
 
 					// Vẫn đóng dialog và tiếp tục với opening shift đã tạo

@@ -1,6 +1,13 @@
 <template>
 	<!-- Debug: Check if ClosingDialog component is rendering -->
-	{{ console.log('[CLOSING_DIALOG] Template rendering, closingDialog:', closingDialog, 'dialog_data:', dialog_data) }}
+	{{
+		console.log(
+			"[CLOSING_DIALOG] Template rendering, closingDialog:",
+			closingDialog,
+			"dialog_data:",
+			dialog_data,
+		)
+	}}
 	<v-row justify="center">
 		<v-dialog v-model="closingDialog" max-width="900px" persistent>
 			<v-card elevation="8" class="closing-dialog-card">
@@ -27,7 +34,12 @@
 						<v-row class="mb-6">
 							<v-col cols="12">
 								<!-- Debug: Log when shift info section renders -->
-								{{ console.log('[CLOSING_DIALOG] Rendering shift info section with data:', dialog_data) }}
+								{{
+									console.log(
+										"[CLOSING_DIALOG] Rendering shift info section with data:",
+										dialog_data,
+									)
+								}}
 								<v-card variant="outlined" class="shift-info-card pa-4">
 									<h5 class="text-h6 text-primary mb-4 d-flex align-center">
 										<v-icon class="me-2">mdi-information-outline</v-icon>
@@ -36,19 +48,36 @@
 									<div class="shift-info-grid">
 										<div class="shift-info-item">
 											<span class="shift-info-label">{{ __("Shift ID:") }}</span>
-											<span class="shift-info-value">{{ dialog_data.pos_opening_shift || 'N/A' }}</span>
+											<span class="shift-info-value">{{
+												dialog_data.pos_opening_shift || "N/A"
+											}}</span>
 										</div>
 										<div class="shift-info-item">
 											<span class="shift-info-label">{{ __("Report ID:") }}</span>
-											<span class="shift-info-value shift-report-id" :class="getShiftReportStatusClass">{{ getShiftReportId || 'N/A' }}</span>
+											<span
+												class="shift-info-value shift-report-id"
+												:class="getShiftReportStatusClass"
+												>{{ getShiftReportId || "N/A" }}</span
+											>
 										</div>
 										<div class="shift-info-item">
 											<span class="shift-info-label">{{ __("Status:") }}</span>
-											<span class="shift-info-value verification-status-text" :class="getVerificationStatusClass">{{ getVerificationStatusText(dialog_data.verification_status) }}</span>
+											<span
+												class="shift-info-value verification-status-text"
+												:class="getVerificationStatusClass"
+												>{{
+													getVerificationStatusText(dialog_data.verification_status)
+												}}</span
+											>
 										</div>
 										<div class="shift-info-item">
 											<span class="shift-info-label">{{ __("Open Time:") }}</span>
-											<span class="shift-info-value">{{ formatDateTime(dialog_data.period_start_date, dialog_data.period_start_time) }}</span>
+											<span class="shift-info-value">{{
+												formatDateTime(
+													dialog_data.period_start_date,
+													dialog_data.period_start_time,
+												)
+											}}</span>
 										</div>
 									</div>
 								</v-card>
@@ -64,7 +93,14 @@
 									<p class="text-body-2 text-grey">
 										{{ __("Enter closing amounts for each payment method") }}
 									</p>
-									<v-alert v-if="!isVerifiedOrConfirmed && (dialog_data.shift_report || dialog_data.shift_report_id)" type="error" class="mt-3">
+									<v-alert
+										v-if="
+											!isVerifiedOrConfirmed &&
+											(dialog_data.shift_report || dialog_data.shift_report_id)
+										"
+										type="error"
+										class="mt-3"
+									>
 										{{ __("Shift Report must be verified before closing shift") }}
 									</v-alert>
 									<v-alert v-if="allFieldsEmpty" type="warning" class="mt-3">
@@ -84,10 +120,7 @@
 									<template v-slot:item.closing_amount="props">
 										<v-text-field
 											v-model="props.item.closing_amount"
-											:rules="[
-												isNumber,
-												max25chars
-											]"
+											:rules="[isNumber, max25chars]"
 											:label="frappe._('Edit')"
 											single-line
 											counter
@@ -125,49 +158,52 @@
 
 				<v-divider></v-divider>
 				<v-card-actions class="dialog-actions-container">
-				<v-btn
-					theme="dark"
-					@click="close_dialog"
-					class="pos-action-btn cancel-action-btn"
-					size="large"
-					elevation="2"
-				>
-					<v-icon start>mdi-close-circle-outline</v-icon>
-					<span>{{ __("Close") }}</span>
-				</v-btn>
-				<v-spacer></v-spacer>
+					<v-btn
+						theme="dark"
+						@click="close_dialog"
+						class="pos-action-btn cancel-action-btn"
+						size="large"
+						elevation="2"
+					>
+						<v-icon start>mdi-close-circle-outline</v-icon>
+						<span>{{ __("Close") }}</span>
+					</v-btn>
+					<v-spacer></v-spacer>
 
-				<v-tooltip
-					v-if="!isVerifiedOrConfirmed && (dialog_data.shift_report || dialog_data.shift_report_id)"
-					text="Shift report must be verified before closing shift"
-					location="top"
-				>
-					<template v-slot:activator="{ props }">
-						<v-btn
-							v-bind="props"
-							theme="dark"
-							@click="submit_dialog"
-							class="pos-action-btn submit-action-btn"
-							size="large"
-							elevation="2"
-							:disabled="!isVerifiedOrConfirmed"
-						>
-							<v-icon start>mdi-check-circle-outline</v-icon>
-							<span>{{ __("Submit") }}</span>
-						</v-btn>
-					</template>
-				</v-tooltip>
-				<v-btn
-					v-else
-					theme="dark"
-					@click="submit_dialog"
-					class="pos-action-btn submit-action-btn"
-					size="large"
-					elevation="2"
-				>
-					<v-icon start>mdi-check-circle-outline</v-icon>
-					<span>{{ __("Submit") }}</span>
-				</v-btn>
+					<v-tooltip
+						v-if="
+							!isVerifiedOrConfirmed &&
+							(dialog_data.shift_report || dialog_data.shift_report_id)
+						"
+						text="Shift report must be verified before closing shift"
+						location="top"
+					>
+						<template v-slot:activator="{ props }">
+							<v-btn
+								v-bind="props"
+								theme="dark"
+								@click="submit_dialog"
+								class="pos-action-btn submit-action-btn"
+								size="large"
+								elevation="2"
+								:disabled="!isVerifiedOrConfirmed"
+							>
+								<v-icon start>mdi-check-circle-outline</v-icon>
+								<span>{{ __("Submit") }}</span>
+							</v-btn>
+						</template>
+					</v-tooltip>
+					<v-btn
+						v-else
+						theme="dark"
+						@click="submit_dialog"
+						class="pos-action-btn submit-action-btn"
+						size="large"
+						elevation="2"
+					>
+						<v-icon start>mdi-check-circle-outline</v-icon>
+						<span>{{ __("Submit") }}</span>
+					</v-btn>
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
@@ -225,7 +261,7 @@ export default {
 		initializeClosingAmounts() {
 			// Default closing amounts to expected amounts
 			if (this.dialog_data.payment_reconciliation) {
-				this.dialog_data.payment_reconciliation.forEach(payment => {
+				this.dialog_data.payment_reconciliation.forEach((payment) => {
 					if (payment.expected_amount !== undefined && payment.expected_amount !== null) {
 						// Set closing amount to expected amount as default
 						payment.closing_amount = payment.expected_amount;
@@ -234,28 +270,27 @@ export default {
 			}
 		},
 
-
 		formatDateTime(date, time) {
-			if (!date) return 'N/A';
+			if (!date) return "N/A";
 
 			try {
 				let dateTimeStr = date;
 				if (time) {
-					dateTimeStr += ' ' + time;
+					dateTimeStr += " " + time;
 				}
 
 				// Use frappe's datetime formatting if available
 				if (window.frappe && frappe.datetime) {
 					const dateObj = frappe.datetime.str_to_obj(dateTimeStr);
-					return frappe.datetime.prettyDate(dateObj) + ' ' + frappe.datetime.get_time(dateObj);
+					return frappe.datetime.prettyDate(dateObj) + " " + frappe.datetime.get_time(dateObj);
 				}
 
 				// Fallback to basic formatting
 				const dateObj = new Date(dateTimeStr);
 				return dateObj.toLocaleString();
 			} catch (e) {
-				console.warn('Error formatting datetime:', e);
-				return date + (time ? ' ' + time : '');
+				console.warn("Error formatting datetime:", e);
+				return date + (time ? " " + time : "");
 			}
 		},
 	},
@@ -265,12 +300,14 @@ export default {
 			return this.$theme.current === "dark";
 		},
 		allFieldsEmpty() {
-			return this.dialog_data.payment_reconciliation?.every(item =>
-				!item.closing_amount || item.closing_amount === ''
-			) || false;
+			return (
+				this.dialog_data.payment_reconciliation?.every(
+					(item) => !item.closing_amount || item.closing_amount === "",
+				) || false
+			);
 		},
 		isVerified() {
-			return this.dialog_data.verification_status === 'Verified';
+			return this.dialog_data.verification_status === "Verified";
 		},
 		isVerifiedOrConfirmed() {
 			// Allow closing if shift report exists and is verified, OR if no shift report exists (optional)
@@ -278,15 +315,17 @@ export default {
 			if (!hasShiftReport) {
 				return true; // Allow closing without shift report
 			}
-			return this.dialog_data.verification_status === 'Verified' ||
-				   this.dialog_data.verification_status === 'Confirmed';
+			return (
+				this.dialog_data.verification_status === "Verified" ||
+				this.dialog_data.verification_status === "Confirmed"
+			);
 		},
 		getShiftReportStatusClass() {
 			const status = this.dialog_data.verification_status;
-			if (status === 'Verified' || status === 'Confirmed') {
-				return 'verified';
+			if (status === "Verified" || status === "Confirmed") {
+				return "verified";
 			} else {
-				return 'unverified';
+				return "unverified";
 			}
 		},
 		getShiftReportId() {
@@ -295,21 +334,21 @@ export default {
 
 		getVerificationStatusText(status) {
 			const statusTexts = {
-				'Pending': __('Pending'),
-				'Verified': __('Verified'),
-				'Confirmed': __('Confirmed')
+				Pending: __("Pending"),
+				Verified: __("Verified"),
+				Confirmed: __("Confirmed"),
 			};
-			return statusTexts[status] || __('Unknown');
+			return statusTexts[status] || __("Unknown");
 		},
 
 		getVerificationStatusClass() {
 			const status = this.dialog_data.verification_status;
-			if (status === 'Verified' || status === 'Confirmed') {
-				return 'status-verified';
-			} else if (status === 'Pending') {
-				return 'status-pending';
+			if (status === "Verified" || status === "Confirmed") {
+				return "status-verified";
+			} else if (status === "Pending") {
+				return "status-pending";
 			} else {
-				return 'status-unknown';
+				return "status-unknown";
 			}
 		},
 	},
@@ -319,12 +358,27 @@ export default {
 		this.eventBus.on("open_ClosingDialog", (data) => {
 			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - Received data:", data);
 			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - Data keys:", Object.keys(data || {}));
-			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - Data is empty?", !data || Object.keys(data).length === 0);
-			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - pos_opening_shift:", data?.pos_opening_shift);
+			console.log(
+				"[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - Data is empty?",
+				!data || Object.keys(data).length === 0,
+			);
+			console.log(
+				"[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - pos_opening_shift:",
+				data?.pos_opening_shift,
+			);
 			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - shift_report:", data?.shift_report);
-			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - verification_status:", data?.verification_status);
-			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - period_start_date:", data?.period_start_date);
-			console.log("[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - period_start_time:", data?.period_start_time);
+			console.log(
+				"[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - verification_status:",
+				data?.verification_status,
+			);
+			console.log(
+				"[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - period_start_date:",
+				data?.period_start_date,
+			);
+			console.log(
+				"[SHIFT_CLOSE_WORKFLOW] CLOSING_DIALOG_OPEN - period_start_time:",
+				data?.period_start_time,
+			);
 
 			this.closingDialog = true;
 			this.dialog_data = data;
@@ -464,7 +518,6 @@ export default {
 	background: linear-gradient(135deg, #388e3c 0%, #2e7d32 100%) !important;
 }
 
-
 .submit-action-btn:hover {
 	transform: translateY(-2px);
 	box-shadow: 0 6px 20px rgba(46, 125, 50, 0.4);
@@ -519,7 +572,6 @@ export default {
 	border-top: 1px solid #373737;
 }
 
-
 /* Header Content Layout */
 .header-content {
 	display: flex;
@@ -570,7 +622,7 @@ export default {
 	font-size: 0.95rem;
 	font-weight: 600;
 	color: #495057;
-	font-family: 'Courier New', monospace;
+	font-family: "Courier New", monospace;
 	word-break: break-all;
 }
 

@@ -35,7 +35,7 @@ frappe.pages["posapp"].on_page_load = async function (wrapper) {
 			const posProfile = this.page.$PosApp.pos_profile;
 			console.log("POS Profile (full object):", JSON.stringify(posProfile, null, 2));
 			console.log("POS Profile default_customer:", posProfile?.default_customer);
-			console.log("POS Profile keys:", posProfile ? Object.keys(posProfile) : 'null');
+			console.log("POS Profile keys:", posProfile ? Object.keys(posProfile) : "null");
 
 			if (posProfile && posProfile.default_customer) {
 				console.log("✅ POS Profile has default customer configured:", posProfile.default_customer);
@@ -54,7 +54,7 @@ frappe.pages["posapp"].on_page_load = async function (wrapper) {
 				console.log("Checking if default_customer exists with different key...");
 				if (posProfile) {
 					for (let key in posProfile) {
-						if (key.includes('customer') || key.includes('default')) {
+						if (key.includes("customer") || key.includes("default")) {
 							console.log(`Found key '${key}':`, posProfile[key]);
 						}
 					}

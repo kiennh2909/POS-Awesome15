@@ -56,7 +56,7 @@ export default {
 		let sum = 0;
 		this.items.forEach((item) => {
 			// Use posa_discount_total if available (total discount for line), otherwise calculate from per-unit discount_amount * qty
-			const discount_total = item.posa_discount_total || (flt(item.discount_amount) * flt(item.qty));
+			const discount_total = item.posa_discount_total || flt(item.discount_amount) * flt(item.qty);
 			sum += discount_total;
 		});
 		return this.flt(sum, this.float_precision);

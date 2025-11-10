@@ -6,7 +6,7 @@ export default {
 		console.log("👀 [WATCHER] customer changed", {
 			old: this.customer,
 			new: this.customer,
-			trigger: "customer field modified"
+			trigger: "customer field modified",
 		});
 
 		this.close_payments();
@@ -66,7 +66,7 @@ export default {
 						new_qty: newItem.qty,
 						old_qty: oldItem?.qty,
 						row_ids_match: newItem.posa_row_id === oldItem?.posa_row_id,
-						qty_match: newItem.qty === oldItem?.qty
+						qty_match: newItem.qty === oldItem?.qty,
 					});
 
 					// Compare by posa_row_id to ensure same item
@@ -76,7 +76,7 @@ export default {
 							console.log("items watcher: qty changed detected", {
 								item_code: newItem.item_code,
 								old_qty: oldItem.qty,
-								new_qty: newItem.qty
+								new_qty: newItem.qty,
 							});
 							break;
 						}
@@ -93,7 +93,7 @@ export default {
 				isFirstItemAdded,
 				itemsCount: items.length,
 				oldItemsCount: oldItems?.length || 0,
-				willTriggerDiscount: structureChanged || qtyChanged || isFirstItemAdded
+				willTriggerDiscount: structureChanged || qtyChanged || isFirstItemAdded,
 			});
 
 			if (structureChanged || qtyChanged || isFirstItemAdded) {

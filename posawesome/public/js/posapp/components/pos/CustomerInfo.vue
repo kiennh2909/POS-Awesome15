@@ -13,12 +13,7 @@
 		<!-- Customer Basic Info Row -->
 		<div class="customer-basic-row" v-if="customerData">
 			<div class="customer-id-chip">
-				<v-chip
-					color="primary"
-					variant="tonal"
-					size="small"
-					class="id-chip"
-				>
+				<v-chip color="primary" variant="tonal" size="small" class="id-chip">
 					<v-icon start size="14">mdi-identifier</v-icon>
 					{{ customerData.customer_id || __("No ID") }}
 				</v-chip>
@@ -35,12 +30,7 @@
 				</v-chip>
 			</div>
 			<div class="customer-card-chip">
-				<v-chip
-					color="info"
-					variant="tonal"
-					size="small"
-					class="card-chip"
-				>
+				<v-chip color="info" variant="tonal" size="small" class="card-chip">
 					<v-icon start size="14">mdi-credit-card</v-icon>
 					{{ customerData.card_number || __("No Card") }}
 				</v-chip>
@@ -52,12 +42,7 @@
 			<div class="vip-status-grid">
 				<!-- VIP Badge -->
 				<div class="vip-badge-item">
-					<v-chip
-						color="purple"
-						variant="flat"
-						size="small"
-						class="vip-chip"
-					>
+					<v-chip color="purple" variant="flat" size="small" class="vip-chip">
 						<v-icon start size="14">mdi-star</v-icon>
 						{{ customerData.vip_info.is_vip ? __("VIP") : __("Standard") }}
 					</v-chip>
@@ -84,7 +69,9 @@
 				<!-- Available Points -->
 				<div class="loyalty-item">
 					<div class="loyalty-label">{{ __("Available Points") }}</div>
-					<div class="loyalty-value">{{ formatNumber(customerData.vip_info.available_points) }}</div>
+					<div class="loyalty-value">
+						{{ formatNumber(customerData.vip_info.available_points) }}
+					</div>
 				</div>
 
 				<!-- Total Debt -->
@@ -112,13 +99,13 @@ export default {
 	props: {
 		customerId: {
 			type: String,
-			default: ""
-		}
+			default: "",
+		},
 	},
 	data() {
 		return {
 			customerData: null,
-			loading: false
+			loading: false,
 		};
 	},
 	watch: {
@@ -130,8 +117,8 @@ export default {
 					this.customerData = null;
 				}
 			},
-			immediate: true
-		}
+			immediate: true,
+		},
 	},
 	methods: {
 		async loadCustomerInfo(customerId) {
@@ -168,44 +155,44 @@ export default {
 					credit_balance: data.credit_info?.credit_balance || 0,
 					loyalty_points: data.loyalty_info?.loyalty_points || 0,
 					available_points: data.loyalty_info?.loyalty_points_balance || 0,
-					total_debt: data.debt_info?.remaining_debt || 0
-				}
+					total_debt: data.debt_info?.remaining_debt || 0,
+				},
 			};
 		},
 
 		getTierColor(tier) {
 			const colors = {
-				'GOLD': 'warning',
-				'PLATINUM': 'info',
-				'DIAMOND': 'success',
-				'VIP': 'purple'
+				GOLD: "warning",
+				PLATINUM: "info",
+				DIAMOND: "success",
+				VIP: "purple",
 			};
-			return colors[tier?.toUpperCase()] || 'grey';
+			return colors[tier?.toUpperCase()] || "grey";
 		},
 
 		formatCurrency(value) {
-			if (!value) return '$0.00';
-			return new Intl.NumberFormat('en-US', {
-				style: 'currency',
-				currency: 'USD'
+			if (!value) return "$0.00";
+			return new Intl.NumberFormat("en-US", {
+				style: "currency",
+				currency: "USD",
 			}).format(value);
 		},
 
 		formatNumber(value) {
 			return new Intl.NumberFormat().format(value || 0);
-		}
-	}
+		},
+	},
 };
 </script>
 
 <style scoped>
 /* Custom styling for specific component instance */
 .customer-info-section {
-    padding: 10px;
-    background: #f0e6e6;
-    border-radius: 8px;
-    border: 1px solid #e0e0e0;
-    margin-bottom: 10px;
+	padding: 10px;
+	background: #f0e6e6;
+	border-radius: 8px;
+	border: 1px solid #e0e0e0;
+	margin-bottom: 10px;
 }
 
 .customer-info-header {
@@ -240,7 +227,9 @@ export default {
 	flex-wrap: wrap;
 }
 
-.id-chip, .tier-chip, .card-chip {
+.id-chip,
+.tier-chip,
+.card-chip {
 	font-weight: 600;
 }
 
@@ -270,7 +259,9 @@ export default {
 	justify-content: center;
 }
 
-.credit-item, .loyalty-item, .debt-item {
+.credit-item,
+.loyalty-item,
+.debt-item {
 	background: white;
 	border-radius: 6px;
 	padding: 8px 12px;
@@ -278,14 +269,18 @@ export default {
 	text-align: center;
 }
 
-.credit-label, .loyalty-label, .debt-label {
+.credit-label,
+.loyalty-label,
+.debt-label {
 	font-size: 0.8rem;
 	color: #666;
 	margin-bottom: 4px;
 	font-weight: 500;
 }
 
-.credit-value, .loyalty-value, .debt-value {
+.credit-value,
+.loyalty-value,
+.debt-value {
 	font-size: 1rem;
 	font-weight: 700;
 	color: #424242;

@@ -9,15 +9,17 @@
 						<div class="shift-info" v-if="fromDate && toDate">
 							<div class="shift-info-item">
 								<span class="shift-info-label">{{ __("Period:") }}</span>
-								<span class="shift-info-value">{{ formatDate(fromDate) }} - {{ formatDate(toDate) }}</span>
+								<span class="shift-info-value"
+									>{{ formatDate(fromDate) }} - {{ formatDate(toDate) }}</span
+								>
 							</div>
 							<div class="shift-info-item">
 								<span class="shift-info-label">{{ __("POS Profile:") }}</span>
-								<span class="shift-info-value">{{ posProfile?.name || 'N/A' }}</span>
+								<span class="shift-info-value">{{ posProfile?.name || "N/A" }}</span>
 							</div>
 							<div class="shift-info-item">
 								<span class="shift-info-label">{{ __("Cashier:") }}</span>
-								<span class="shift-info-value">{{ selectedCashier || 'All' }}</span>
+								<span class="shift-info-value">{{ selectedCashier || "All" }}</span>
 							</div>
 							<div class="shift-info-item">
 								<span class="shift-info-label">{{ __("Generated:") }}</span>
@@ -128,13 +130,17 @@
 					<v-col cols="12" md="2">
 						<v-card variant="outlined" class="pa-3">
 							<div class="text-caption text-medium-emphasis">{{ __("Sale Invoices") }}</div>
-							<div class="text-h6 font-weight-bold text-success">{{ summary.total_sale_invoices || 0 }}</div>
+							<div class="text-h6 font-weight-bold text-success">
+								{{ summary.total_sale_invoices || 0 }}
+							</div>
 						</v-card>
 					</v-col>
 					<v-col cols="12" md="2">
 						<v-card variant="outlined" class="pa-3">
 							<div class="text-caption text-medium-emphasis">{{ __("Return Invoices") }}</div>
-							<div class="text-h6 font-weight-bold text-error">{{ summary.total_return_invoices || 0 }}</div>
+							<div class="text-h6 font-weight-bold text-error">
+								{{ summary.total_return_invoices || 0 }}
+							</div>
 						</v-card>
 					</v-col>
 					<v-col cols="12" md="2">
@@ -178,7 +184,11 @@
 				>
 					<template #item="{ item }">
 						<tr :class="item.isTotalRow ? 'total-row' : ''">
-							<td v-for="(header, hIndex) in headers" :key="hIndex" :class="header.align ? `text-${header.align}` : ''">
+							<td
+								v-for="(header, hIndex) in headers"
+								:key="hIndex"
+								:class="header.align ? `text-${header.align}` : ''"
+							>
 								<!-- Shift ID -->
 								<v-chip
 									v-if="header.key === 'shift_id'"
@@ -190,8 +200,12 @@
 								</v-chip>
 
 								<!-- Employee -->
-								<div v-else-if="header.key === 'user'" class="text-truncate" style="max-width: 120px;">
-									{{ item.user_fullname || item.user || '-' }}
+								<div
+									v-else-if="header.key === 'user'"
+									class="text-truncate"
+									style="max-width: 120px"
+								>
+									{{ item.user_fullname || item.user || "-" }}
 								</div>
 
 								<!-- Date -->
@@ -210,20 +224,46 @@
 								</v-chip>
 
 								<!-- Invoice counts -->
-								<span v-else-if="header.key === 'sale_invoice_count' || header.key === 'return_invoice_count'"
-									:class="item.isTotalRow ? 'font-weight-bold text-primary' : ''">
+								<span
+									v-else-if="
+										header.key === 'sale_invoice_count' ||
+										header.key === 'return_invoice_count'
+									"
+									:class="item.isTotalRow ? 'font-weight-bold text-primary' : ''"
+								>
 									{{ item[header.key] || 0 }}
 								</span>
 
 								<!-- Currency amounts -->
-								<span v-else-if="header.key.includes('amount') || header.key.includes('sale') || header.key.includes('return') || header.key.includes('net') || header.key.includes('cash') || header.key.includes('bank') || header.key.includes('qrpay') || header.key.includes('card') || header.key.includes('other') || header.key.includes('submitted') || header.key.includes('difference')"
-									:class="item.isTotalRow ? 'font-weight-bold text-primary' : getAmountClass(header.key)">
+								<span
+									v-else-if="
+										header.key.includes('amount') ||
+										header.key.includes('sale') ||
+										header.key.includes('return') ||
+										header.key.includes('net') ||
+										header.key.includes('cash') ||
+										header.key.includes('bank') ||
+										header.key.includes('qrpay') ||
+										header.key.includes('card') ||
+										header.key.includes('other') ||
+										header.key.includes('submitted') ||
+										header.key.includes('difference')
+									"
+									:class="
+										item.isTotalRow
+											? 'font-weight-bold text-primary'
+											: getAmountClass(header.key)
+									"
+								>
 									{{ formatCurrency(item[header.key] || 0) }}
 								</span>
 
 								<!-- Currency -->
-								<span v-else-if="header.key === 'currency'" :class="item.isTotalRow ? 'font-weight-bold text-primary' : ''">
-									{{ item.currency || 'VND' }}
+								<span
+									v-else-if="header.key === 'currency'"
+									:class="item.isTotalRow ? 'font-weight-bold text-primary' : ''"
+								>
+									{{ item.currency || "VND" }}
 								</span>
 
 								<!-- Actions -->
@@ -238,7 +278,7 @@
 
 								<!-- Default -->
 								<span v-else :class="item.isTotalRow ? 'font-weight-bold text-primary' : ''">
-									{{ item[header.key] || '-' }}
+									{{ item[header.key] || "-" }}
 								</span>
 							</td>
 						</tr>
@@ -259,30 +299,30 @@
 </template>
 
 <script>
-import ListInvoicesDialog from './ListInvoicesDialog.vue';
+import ListInvoicesDialog from "./ListInvoicesDialog.vue";
 
 export default {
 	name: "ListShiftsDialog",
 	components: {
-		ListInvoicesDialog
+		ListInvoicesDialog,
 	},
 	props: {
 		modelValue: {
 			type: Boolean,
-			default: false
+			default: false,
 		},
 		posProfile: {
 			type: Object,
-			default: () => ({})
-		}
+			default: () => ({}),
+		},
 	},
 	emits: ["update:modelValue"],
 	data() {
 		return {
 			loading: false,
 			exporting: false,
-			fromDate: new Date().toISOString().split('T')[0],
-			toDate: new Date().toISOString().split('T')[0],
+			fromDate: new Date().toISOString().split("T")[0],
+			toDate: new Date().toISOString().split("T")[0],
 			selectedCashier: null,
 			shifts: [],
 			totalShifts: 0,
@@ -301,17 +341,27 @@ export default {
 				total_card_amount: 0,
 				total_other_amount: 0,
 				total_cash_submitted: 0,
-				total_difference: 0
+				total_difference: 0,
 			},
 			headers: [
 				{ title: this.__("Mã SHIFT"), key: "shift_id", width: "120px" },
 				{ title: this.__("Nhân viên"), key: "user", width: "120px" },
 				{ title: this.__("Ngày"), key: "date", width: "100px" },
 				{ title: this.__("Trạng thái"), key: "status", width: "100px" },
-				{ title: this.__("Hóa đơn bán hàng"), key: "sale_invoice_count", width: "120px", align: "end" },
+				{
+					title: this.__("Hóa đơn bán hàng"),
+					key: "sale_invoice_count",
+					width: "120px",
+					align: "end",
+				},
 				{ title: this.__("Hóa đơn hoàn"), key: "return_invoice_count", width: "100px", align: "end" },
 				{ title: this.__("Tổng doanh số (SALE)"), key: "sale_amount", width: "140px", align: "end" },
-				{ title: this.__("Số tiền hoàn (RETURN)"), key: "return_amount", width: "140px", align: "end" },
+				{
+					title: this.__("Số tiền hoàn (RETURN)"),
+					key: "return_amount",
+					width: "140px",
+					align: "end",
+				},
 				{ title: this.__("Số tiền NET"), key: "net_amount", width: "120px", align: "end" },
 				{ title: this.__("CASH"), key: "cash_amount", width: "100px", align: "end" },
 				{ title: this.__("BANK"), key: "bank_amount", width: "100px", align: "end" },
@@ -321,11 +371,11 @@ export default {
 				{ title: this.__("Nộp cuối ca"), key: "cash_submitted", width: "120px", align: "end" },
 				{ title: this.__("Chênh lệch"), key: "difference", width: "100px", align: "end" },
 				{ title: this.__("Tiền tệ"), key: "currency", width: "80px" },
-				{ title: this.__("Actions"), key: "actions", width: "80px", sortable: false }
+				{ title: this.__("Actions"), key: "actions", width: "80px", sortable: false },
 			],
 			// ListInvoicesDialog integration
 			showListInvoicesDialog: false,
-			selectedShift: null
+			selectedShift: null,
 		};
 	},
 	computed: {
@@ -335,17 +385,17 @@ export default {
 			},
 			set(value) {
 				this.$emit("update:modelValue", value);
-			}
+			},
 		},
 		shiftsWithTotal() {
 			const shifts = [...this.shifts];
 
 			// Add grand total row
 			const grandTotal = {
-				shift_id: 'TOTAL',
-				user: '',
-				date: '',
-				status: '',
+				shift_id: "TOTAL",
+				user: "",
+				date: "",
+				status: "",
 				sale_invoice_count: this.summary.total_sale_invoices || 0,
 				return_invoice_count: this.summary.total_return_invoices || 0,
 				sale_amount: this.summary.total_sale_amount || 0,
@@ -358,20 +408,20 @@ export default {
 				other_amount: this.summary.total_other_amount || 0,
 				cash_submitted: this.summary.total_cash_submitted || 0,
 				difference: this.summary.total_difference || 0,
-				currency: this.shifts.length > 0 ? this.shifts[0].currency : 'VND',
-				isTotalRow: true
+				currency: this.shifts.length > 0 ? this.shifts[0].currency : "VND",
+				isTotalRow: true,
 			};
 
 			shifts.push(grandTotal);
 			return shifts;
-		}
+		},
 	},
 	watch: {
 		modelValue(newVal) {
 			if (newVal) {
 				this.initializeDialog();
 			}
-		}
+		},
 	},
 	mounted() {
 		this.debouncedSearch = this.debounce(this.applyFilters, 300);
@@ -388,11 +438,11 @@ export default {
 			try {
 				// Check if user has Sales Manager role
 				const roles = frappe.user_roles || [];
-				this.userRole = roles.includes('Sales Manager') ? 'Sales Manager' : 'Sales Person';
+				this.userRole = roles.includes("Sales Manager") ? "Sales Manager" : "Sales Person";
 				console.log("[LIST_SHIFTS] User role determined:", this.userRole);
 			} catch (error) {
 				console.error("[LIST_SHIFTS] Error checking user role:", error);
-				this.userRole = 'Sales Person'; // Default fallback
+				this.userRole = "Sales Person"; // Default fallback
 			}
 		},
 
@@ -405,17 +455,18 @@ export default {
 						doctype: "User",
 						filters: {
 							enabled: 1,
-							user_type: "System User"
+							user_type: "System User",
 						},
 						fields: ["name", "full_name"],
-						limit: 100
-					}
+						limit: 100,
+					},
 				});
 
-				this.cashierOptions = response.message?.map(user => ({
-					title: user.full_name || user.name,
-					value: user.name
-				})) || [];
+				this.cashierOptions =
+					response.message?.map((user) => ({
+						title: user.full_name || user.name,
+						value: user.name,
+					})) || [];
 			} catch (error) {
 				console.error("[LIST_SHIFTS] Error loading cashiers:", error);
 				this.cashierOptions = [];
@@ -430,13 +481,22 @@ export default {
 
 			this.loading = true;
 			try {
-				console.log("[LIST_SHIFTS] Loading shifts for period:", this.fromDate, "to", this.toDate, "POS:", this.posProfile.name, "Role:", this.userRole);
+				console.log(
+					"[LIST_SHIFTS] Loading shifts for period:",
+					this.fromDate,
+					"to",
+					this.toDate,
+					"POS:",
+					this.posProfile.name,
+					"Role:",
+					this.userRole,
+				);
 
 				const args = {
 					company: this.posProfile?.company || frappe.defaults.get_default("company"),
 					pos_profile: this.posProfile.name,
 					from_date: this.fromDate,
-					to_date: this.toDate
+					to_date: this.toDate,
 				};
 
 				// Add cashier filter if selected
@@ -445,13 +505,13 @@ export default {
 				}
 
 				// Add user filter for Sales Person role
-				if (this.userRole === 'Sales Person') {
+				if (this.userRole === "Sales Person") {
 					args.user = frappe.session.user;
 				}
 
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.reports.get_shift_list_report",
-					args: args
+					args: args,
 				});
 
 				console.log("[LIST_SHIFTS] API Response:", response);
@@ -482,36 +542,39 @@ export default {
 		},
 
 		calculateSummary() {
-			this.summary = this.shifts.reduce((acc, shift) => {
-				acc.total_shifts += 1;
-				acc.total_sale_invoices += parseInt(shift.sale_invoice_count || 0);
-				acc.total_return_invoices += parseInt(shift.return_invoice_count || 0);
-				acc.total_sale_amount += parseFloat(shift.sale_amount || 0);
-				acc.total_return_amount += parseFloat(shift.return_amount || 0);
-				acc.total_net_amount += parseFloat(shift.net_amount || 0);
-				acc.total_cash_amount += parseFloat(shift.cash_amount || 0);
-				acc.total_bank_amount += parseFloat(shift.bank_amount || 0);
-				acc.total_qrpay_amount += parseFloat(shift.qrpay_amount || 0);
-				acc.total_card_amount += parseFloat(shift.card_amount || 0);
-				acc.total_other_amount += parseFloat(shift.other_amount || 0);
-				acc.total_cash_submitted += parseFloat(shift.cash_submitted || 0);
-				acc.total_difference += parseFloat(shift.difference || 0);
-				return acc;
-			}, {
-				total_shifts: 0,
-				total_sale_invoices: 0,
-				total_return_invoices: 0,
-				total_sale_amount: 0,
-				total_return_amount: 0,
-				total_net_amount: 0,
-				total_cash_amount: 0,
-				total_bank_amount: 0,
-				total_qrpay_amount: 0,
-				total_card_amount: 0,
-				total_other_amount: 0,
-				total_cash_submitted: 0,
-				total_difference: 0
-			});
+			this.summary = this.shifts.reduce(
+				(acc, shift) => {
+					acc.total_shifts += 1;
+					acc.total_sale_invoices += parseInt(shift.sale_invoice_count || 0);
+					acc.total_return_invoices += parseInt(shift.return_invoice_count || 0);
+					acc.total_sale_amount += parseFloat(shift.sale_amount || 0);
+					acc.total_return_amount += parseFloat(shift.return_amount || 0);
+					acc.total_net_amount += parseFloat(shift.net_amount || 0);
+					acc.total_cash_amount += parseFloat(shift.cash_amount || 0);
+					acc.total_bank_amount += parseFloat(shift.bank_amount || 0);
+					acc.total_qrpay_amount += parseFloat(shift.qrpay_amount || 0);
+					acc.total_card_amount += parseFloat(shift.card_amount || 0);
+					acc.total_other_amount += parseFloat(shift.other_amount || 0);
+					acc.total_cash_submitted += parseFloat(shift.cash_submitted || 0);
+					acc.total_difference += parseFloat(shift.difference || 0);
+					return acc;
+				},
+				{
+					total_shifts: 0,
+					total_sale_invoices: 0,
+					total_return_invoices: 0,
+					total_sale_amount: 0,
+					total_return_amount: 0,
+					total_net_amount: 0,
+					total_cash_amount: 0,
+					total_bank_amount: 0,
+					total_qrpay_amount: 0,
+					total_card_amount: 0,
+					total_other_amount: 0,
+					total_cash_submitted: 0,
+					total_difference: 0,
+				},
+			);
 
 			console.log("[LIST_SHIFTS] Summary calculated:", this.summary);
 		},
@@ -530,21 +593,28 @@ export default {
 				total_card_amount: 0,
 				total_other_amount: 0,
 				total_cash_submitted: 0,
-				total_difference: 0
+				total_difference: 0,
 			};
 		},
 
 		getAmountClass(key) {
-			if (key.includes('sale') || key.includes('net') || key.includes('cash') || key.includes('bank') || key.includes('qrpay') || key.includes('card')) {
-				return 'text-success';
-			} else if (key.includes('return') || key.includes('other')) {
-				return 'text-error';
-			} else if (key.includes('submitted')) {
-				return 'text-info';
-			} else if (key.includes('difference')) {
-				return 'text-warning';
+			if (
+				key.includes("sale") ||
+				key.includes("net") ||
+				key.includes("cash") ||
+				key.includes("bank") ||
+				key.includes("qrpay") ||
+				key.includes("card")
+			) {
+				return "text-success";
+			} else if (key.includes("return") || key.includes("other")) {
+				return "text-error";
+			} else if (key.includes("submitted")) {
+				return "text-info";
+			} else if (key.includes("difference")) {
+				return "text-warning";
 			}
-			return '';
+			return "";
 		},
 
 		viewShiftDetails(shift) {
@@ -555,36 +625,36 @@ export default {
 
 		getStatusColor(status) {
 			const colors = {
-				'Open': 'warning',
-				'Closed': 'success',
-				'Verified': 'info',
-				'Pending': 'grey'
+				Open: "warning",
+				Closed: "success",
+				Verified: "info",
+				Pending: "grey",
 			};
-			return colors[status] || 'grey';
+			return colors[status] || "grey";
 		},
 
 		getStatusText(status) {
 			const texts = {
-				'Open': 'Open',
-				'Closed': 'Closed',
-				'Verified': 'Verified',
-				'Pending': 'Pending'
+				Open: "Open",
+				Closed: "Closed",
+				Verified: "Verified",
+				Pending: "Pending",
 			};
-			return texts[status] || status || 'Unknown';
+			return texts[status] || status || "Unknown";
 		},
 
 		formatCurrency(amount) {
 			try {
-				let currency = 'USD';
+				let currency = "USD";
 				if (this.posProfile?.currency) {
 					currency = this.posProfile.currency;
 				}
 
-				return new Intl.NumberFormat('en-US', {
-					style: 'currency',
+				return new Intl.NumberFormat("en-US", {
+					style: "currency",
 					currency: currency,
 					minimumFractionDigits: 2,
-					maximumFractionDigits: 2
+					maximumFractionDigits: 2,
 				}).format(amount || 0);
 			} catch (error) {
 				return `$${amount || 0}`;
@@ -592,33 +662,33 @@ export default {
 		},
 
 		formatDate(dateStr) {
-			if (!dateStr) return '';
+			if (!dateStr) return "";
 			try {
-				return new Date(dateStr).toLocaleDateString('vi-VN');
+				return new Date(dateStr).toLocaleDateString("vi-VN");
 			} catch (e) {
 				return dateStr;
 			}
 		},
 
 		formatDateTime(date, time) {
-			if (!date) return '-';
+			if (!date) return "-";
 
 			try {
 				let dateTimeStr = date;
 				if (time) {
-					dateTimeStr += ' ' + time;
+					dateTimeStr += " " + time;
 				}
 
 				if (window.frappe && frappe.datetime) {
 					const dateObj = frappe.datetime.str_to_obj(dateTimeStr);
-					return frappe.datetime.prettyDate(dateObj) + ' ' + frappe.datetime.get_time(dateObj);
+					return frappe.datetime.prettyDate(dateObj) + " " + frappe.datetime.get_time(dateObj);
 				}
 
 				const dateObj = new Date(dateTimeStr);
 				return dateObj.toLocaleString();
 			} catch (e) {
-				console.warn('Error formatting datetime:', e);
-				return date + (time ? ' ' + time : '');
+				console.warn("Error formatting datetime:", e);
+				return date + (time ? " " + time : "");
 			}
 		},
 
@@ -629,20 +699,20 @@ export default {
 					company: this.posProfile?.company || frappe.defaults.get_default("company"),
 					pos_profile: this.posProfile.name,
 					from_date: this.fromDate,
-					to_date: this.toDate
+					to_date: this.toDate,
 				};
 
 				if (this.selectedCashier) {
 					args.cashier = this.selectedCashier;
 				}
 
-				if (this.userRole === 'Sales Person') {
+				if (this.userRole === "Sales Person") {
 					args.user = frappe.session.user;
 				}
 
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.reports.export_shift_list_report",
-					args: args
+					args: args,
 				});
 
 				if (response.message?.file_url) {
@@ -661,7 +731,7 @@ export default {
 		async printReport() {
 			try {
 				const printContent = this.generatePrintContent();
-				const printWindow = window.open('', '_blank', 'width=800,height=600');
+				const printWindow = window.open("", "_blank", "width=800,height=600");
 				if (!printWindow) {
 					this.showError("Không thể mở cửa sổ in. Vui lòng kiểm tra chặn popup.");
 					return;
@@ -670,7 +740,7 @@ export default {
 				printWindow.document.write(printContent);
 				printWindow.document.close();
 
-				printWindow.onload = function() {
+				printWindow.onload = function () {
 					printWindow.print();
 					printWindow.close();
 				};
@@ -684,8 +754,8 @@ export default {
 
 		generatePrintContent() {
 			const now = new Date();
-			const printDate = now.toLocaleDateString('vi-VN');
-			const printTime = now.toLocaleTimeString('vi-VN');
+			const printDate = now.toLocaleDateString("vi-VN");
+			const printTime = now.toLocaleTimeString("vi-VN");
 
 			let content = `
 				<!DOCTYPE html>
@@ -711,8 +781,8 @@ export default {
 				<body>
 					<div class="header">
 						<h1>BÁO CÁO DANH SÁCH CA LÀM VIỆC</h1>
-						<p>Hồ sơ POS: ${this.posProfile?.name || 'N/A'}</p>
-						<p>Nhân viên: ${this.selectedCashier || 'Tất cả'}</p>
+						<p>Hồ sơ POS: ${this.posProfile?.name || "N/A"}</p>
+						<p>Nhân viên: ${this.selectedCashier || "Tất cả"}</p>
 						<p>Khoảng thời gian: ${this.formatDate(this.fromDate)} - ${this.formatDate(this.toDate)}</p>
 						<p>Ngày in: ${printDate} ${printTime}</p>
 					</div>
@@ -751,8 +821,8 @@ export default {
 							<thead>
 								<tr>`;
 
-			this.headers.forEach(header => {
-				if (header.key !== 'actions') {
+			this.headers.forEach((header) => {
+				if (header.key !== "actions") {
 					content += `<th>${header.title}</th>`;
 				}
 			});
@@ -761,28 +831,37 @@ export default {
 							</thead>
 							<tbody>`;
 
-			this.shiftsWithTotal.forEach(item => {
+			this.shiftsWithTotal.forEach((item) => {
 				const isTotalRow = item.isTotalRow;
-				const rowClass = isTotalRow ? 'total-row' : '';
+				const rowClass = isTotalRow ? "total-row" : "";
 				content += `<tr class="${rowClass}">`;
 
-				this.headers.forEach(header => {
-					if (header.key !== 'actions') {
-						let value = item[header.key] || '';
-						let cellClass = '';
+				this.headers.forEach((header) => {
+					if (header.key !== "actions") {
+						let value = item[header.key] || "";
+						let cellClass = "";
 
-						if (header.key.includes('amount') || header.key.includes('sale') || header.key.includes('return') ||
-							header.key.includes('net') || header.key.includes('cash') || header.key.includes('bank') ||
-							header.key.includes('qrpay') || header.key.includes('card') || header.key.includes('other') ||
-							header.key.includes('submitted') || header.key.includes('difference')) {
+						if (
+							header.key.includes("amount") ||
+							header.key.includes("sale") ||
+							header.key.includes("return") ||
+							header.key.includes("net") ||
+							header.key.includes("cash") ||
+							header.key.includes("bank") ||
+							header.key.includes("qrpay") ||
+							header.key.includes("card") ||
+							header.key.includes("other") ||
+							header.key.includes("submitted") ||
+							header.key.includes("difference")
+						) {
 							value = this.formatCurrency(value);
-							cellClass = 'amount';
-						} else if (header.key === 'date') {
+							cellClass = "amount";
+						} else if (header.key === "date") {
 							value = this.formatDate(value);
 						}
 
 						if (isTotalRow) {
-							cellClass += ' total-cell';
+							cellClass += " total-cell";
 						}
 
 						content += `<td class="${cellClass}">${value}</td>`;
@@ -808,13 +887,13 @@ export default {
 
 		showSuccess(message) {
 			if (window.frappe?.show_alert) {
-				frappe.show_alert({ message, indicator: 'green' });
+				frappe.show_alert({ message, indicator: "green" });
 			}
 		},
 
 		showError(message) {
 			if (window.frappe?.show_alert) {
-				frappe.show_alert({ message, indicator: 'red' });
+				frappe.show_alert({ message, indicator: "red" });
 			} else {
 				alert(`Error: ${message}`);
 			}
@@ -830,8 +909,8 @@ export default {
 			this.totalShifts = 0;
 			this.selectedCashier = null;
 			this.resetSummary();
-		}
-	}
+		},
+	},
 };
 </script>
 
@@ -874,7 +953,9 @@ export default {
 }
 
 /* Filter inputs */
-.date-filter, .search-filter, .status-filter {
+.date-filter,
+.search-filter,
+.status-filter {
 	margin-bottom: 8px;
 }
 
@@ -923,7 +1004,7 @@ export default {
 	font-size: 0.8rem;
 	font-weight: 500;
 	color: rgb(var(--v-theme-on-surface));
-	font-family: 'Courier New', monospace;
+	font-family: "Courier New", monospace;
 	background: rgba(var(--v-theme-primary), 0.1);
 	padding: 2px 6px;
 	border-radius: 4px;

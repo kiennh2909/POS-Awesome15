@@ -8,11 +8,7 @@
 			<v-card-title>
 				<span class="text-h6 text-primary">{{ __("Coupons") }}</span>
 				<v-spacer></v-spacer>
-				<v-btn
-					variant="text"
-					color="warning"
-					@click="back_to_invoice"
-				>
+				<v-btn variant="text" color="warning" @click="back_to_invoice">
 					<v-icon size="small" class="mr-1">mdi-arrow-left</v-icon>
 					{{ __("Back") }}
 				</v-btn>
@@ -71,11 +67,7 @@
 					<!-- Coupon Code with Type Icon -->
 					<template v-slot:item.coupon_code="{ item }">
 						<div class="d-flex align-center">
-							<v-icon
-								:color="getCouponTypeColor(item.type)"
-								size="small"
-								class="mr-1"
-							>
+							<v-icon :color="getCouponTypeColor(item.type)" size="small" class="mr-1">
 								{{ getCouponTypeIcon(item.type) }}
 							</v-icon>
 							<span class="font-weight-medium">{{ item.coupon_code }}</span>
@@ -96,17 +88,17 @@
 
 					<!-- Customer Name -->
 					<template v-slot:item.customer_name="{ item }">
-						<span class="text-caption">{{ item.customer_name || '-' }}</span>
+						<span class="text-caption">{{ item.customer_name || "-" }}</span>
 					</template>
 
 					<!-- Mobile Number -->
 					<template v-slot:item.mobile_no="{ item }">
-						<span class="text-caption">{{ item.mobile_no || '-' }}</span>
+						<span class="text-caption">{{ item.mobile_no || "-" }}</span>
 					</template>
 
 					<!-- POS Offer -->
 					<template v-slot:item.pos_offer="{ item }">
-						<span class="text-caption">{{ item.pos_offer || '-' }}</span>
+						<span class="text-caption">{{ item.pos_offer || "-" }}</span>
 					</template>
 
 					<!-- Use Per Customer -->
@@ -117,7 +109,7 @@
 							variant="outlined"
 							class="text-caption"
 						>
-							{{ item.one_use ? '1x' : 'Multi' }}
+							{{ item.one_use ? "1x" : "Multi" }}
 						</v-chip>
 					</template>
 
@@ -129,7 +121,7 @@
 							variant="flat"
 							class="text-caption"
 						>
-							{{ item.used || 0 }}/{{ item.maximum_use || '∞' }}
+							{{ item.used || 0 }}/{{ item.maximum_use || "∞" }}
 						</v-chip>
 					</template>
 
@@ -189,7 +181,7 @@ export default {
 	methods: {
 		// Debounce function for coupon input
 		debounceCouponInput(func, delay) {
-			return function(...args) {
+			return function (...args) {
 				const context = this;
 				clearTimeout(this.couponInputTimeout);
 				this.couponInputTimeout = setTimeout(() => func.apply(context, args), delay);
@@ -235,7 +227,7 @@ export default {
 				this.eventBus.emit("show_message", {
 					title: __("Invalid Coupon Code"),
 					message: validation.message,
-					color: "warning"
+					color: "warning",
 				});
 				return;
 			}
@@ -269,7 +261,7 @@ export default {
 				callback: function (r) {
 					console.log("🎫 [COUPON_API] API response received", {
 						has_coupon: !!r.message?.coupon,
-						message: r.message?.msg
+						message: r.message?.msg,
 					});
 
 					if (r.message) {
@@ -284,7 +276,7 @@ export default {
 						} else {
 							console.log("🎫 [COUPON_SUCCESS] Coupon added successfully", {
 								coupon_code: couponCode,
-								coupon_type: res.coupon.coupon_type
+								coupon_type: res.coupon.coupon_type,
 							});
 
 							vm.new_coupon = null;
@@ -296,20 +288,20 @@ export default {
 								applied: 0,
 								pos_offer: coupon.pos_offer,
 								customer: coupon.customer || vm.customer,
-								customer_name: coupon.customer_name || '',
-								mobile_no: coupon.mobile_no || '',
+								customer_name: coupon.customer_name || "",
+								mobile_no: coupon.mobile_no || "",
 								valid_from: coupon.valid_from,
 								valid_upto: coupon.valid_upto,
 								maximum_use: coupon.maximum_use,
 								used: coupon.used,
-								one_use: coupon.one_use
+								one_use: coupon.one_use,
 							});
 
 							vm.eventBus.emit("show_message", {
 								title: __("Coupon Added"),
 								message: __("Coupon {0} has been added successfully", [couponCode]),
 								color: "success",
-								timeout: 2000
+								timeout: 2000,
 							});
 						}
 					}
@@ -359,25 +351,25 @@ export default {
 				title: __("Coupon Removed"),
 				message: __("Coupon {0} has been removed", [coupon.coupon_code]),
 				color: "info",
-				timeout: 2000
+				timeout: 2000,
 			});
 		},
 
 		// Helper methods for UI
 		getCouponTypeColor(type) {
-			return type === 'Gift Card' ? 'success' : 'info';
+			return type === "Gift Card" ? "success" : "info";
 		},
 
 		getCouponTypeIcon(type) {
-			return type === 'Gift Card' ? 'mdi-gift' : 'mdi-ticket-percent';
+			return type === "Gift Card" ? "mdi-gift" : "mdi-ticket-percent";
 		},
 
 		getUsageColor(used, max) {
-			if (!max) return 'grey';
+			if (!max) return "grey";
 			const ratio = used / max;
-			if (ratio >= 1) return 'error';
-			if (ratio >= 0.8) return 'warning';
-			return 'success';
+			if (ratio >= 1) return "error";
+			if (ratio >= 0.8) return "warning";
+			return "success";
 		},
 		updateInvoice() {
 			this.eventBus.emit("update_invoice_coupons", this.posa_coupons);
@@ -403,12 +395,10 @@ export default {
 			}
 
 			// Delete key: Remove selected coupon
-			if (event.key === "Delete" && !event.target.matches('input, textarea')) {
+			if (event.key === "Delete" && !event.target.matches("input, textarea")) {
 				event.preventDefault();
 				if (this.expanded.length > 0) {
-					const selectedCoupon = this.posa_coupons.find(c =>
-						c.coupon === this.expanded[0]
-					);
+					const selectedCoupon = this.posa_coupons.find((c) => c.coupon === this.expanded[0]);
 					if (selectedCoupon) {
 						this.remove_coupon(selectedCoupon);
 					}
@@ -528,8 +518,18 @@ export default {
 
 @media (max-width: 480px) {
 	/* Show only essential columns on very small screens */
-	:deep(.v-data-table .v-data-table__th:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(8)):not(:nth-child(9))),
-	:deep(.v-data-table .v-data-table__td:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(8)):not(:nth-child(9))) {
+	:deep(
+		.v-data-table
+			.v-data-table__th:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(8)):not(
+				:nth-child(9)
+			)
+	),
+	:deep(
+		.v-data-table
+			.v-data-table__td:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(8)):not(
+				:nth-child(9)
+			)
+	) {
 		display: none;
 	}
 }

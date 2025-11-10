@@ -135,9 +135,12 @@
 												__("Cancel")
 											}}</v-btn>
 											<v-spacer></v-spacer>
-											<v-btn color="primary" variant="tonal" @click="applyItemSettings">{{
-												__("Apply")
-											}}</v-btn>
+											<v-btn
+												color="primary"
+												variant="tonal"
+												@click="applyItemSettings"
+												>{{ __("Apply") }}</v-btn
+											>
 										</v-card-actions>
 									</v-card>
 								</v-dialog>
@@ -185,8 +188,9 @@
 									<v-card-text class="text--primary pa-1">
 										<div class="text-caption text-primary truncate">
 											{{
-												currencySymbol(item.original_currency || pos_profile.currency) ||
-												""
+												currencySymbol(
+													item.original_currency || pos_profile.currency,
+												) || ""
 											}}
 											{{
 												format_currency(
@@ -213,7 +217,9 @@
 											}}
 										</div>
 										<div class="text-caption golden--text truncate">
-											{{ format_number(item.actual_qty, hide_qty_decimals ? 0 : 4) || 0 }}
+											{{
+												format_number(item.actual_qty, hide_qty_decimals ? 0 : 4) || 0
+											}}
 											{{ item.stock_uom || "" }}
 										</div>
 									</v-card-text>
@@ -232,7 +238,9 @@
 										<div>
 											<div class="text-primary">
 												{{
-													currencySymbol(item.original_currency || pos_profile.currency)
+													currencySymbol(
+														item.original_currency || pos_profile.currency,
+													)
 												}}
 												{{
 													format_currency(
@@ -275,7 +283,14 @@
 		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
 			<v-row no-gutters align="center" justify="space-between" class="dynamic-spacing-sm">
 				<v-col cols="3" class="dynamic-margin-xs">
-					<v-btn-toggle v-model="items_view" color="primary" group density="compact" rounded class="summary-btn">
+					<v-btn-toggle
+						v-model="items_view"
+						color="primary"
+						group
+						density="compact"
+						rounded
+						class="summary-btn"
+					>
 						<v-btn size="small" value="list" min-height="60">{{ __("List") }}</v-btn>
 						<v-btn size="small" value="card" min-height="60">{{ __("Card") }}</v-btn>
 					</v-btn-toggle>
@@ -292,7 +307,7 @@
 						class="standard-text-field"
 					></v-text-field>
 				</v-col>
-				<v-col cols="auto" class="d-flex justify-end align-center" style="gap: 5px;">
+				<v-col cols="auto" class="d-flex justify-end align-center" style="gap: 5px">
 					<v-btn
 						color="warning"
 						variant="text"
@@ -689,10 +704,10 @@ export default {
 	methods: {
 		// Helper nhận diện barcode (≥6–8 ký tự, tinh chỉnh theo chuẩn UPC/EAN)
 		looksLikeBarcode(code) {
-			if (!code || typeof code !== 'string') return false;
+			if (!code || typeof code !== "string") return false;
 			const cleanCode = code.trim();
 			// Barcode thường ≥6 ký tự, chứa số, có thể có ký tự đặc biệt
-			return cleanCode.length >= 6 && /^\d{6,}$/.test(cleanCode.replace(/[-\s]/g, ''));
+			return cleanCode.length >= 6 && /^\d{6,}$/.test(cleanCode.replace(/[-\s]/g, ""));
 		},
 
 		// Enhanced barcode validation to prevent malformed barcodes
@@ -700,13 +715,16 @@ export default {
 			if (!this.looksLikeBarcode(code)) return false;
 
 			// Additional validation: check for scale barcode format
-			if (this.pos_profile.posa_scale_barcode_start && code.startsWith(this.pos_profile.posa_scale_barcode_start)) {
+			if (
+				this.pos_profile.posa_scale_barcode_start &&
+				code.startsWith(this.pos_profile.posa_scale_barcode_start)
+			) {
 				// Scale barcode must have at least prefix + 5 digits for weight
 				return code.length >= this.pos_profile.posa_scale_barcode_start.length + 5;
 			}
 
 			// Standard barcode validation
-			const cleanCode = code.replace(/[-\s]/g, '');
+			const cleanCode = code.replace(/[-\s]/g, "");
 			// Must be numeric and reasonable length (6-18 digits for standard barcodes)
 			return /^\d{6,18}$/.test(cleanCode);
 		},
@@ -744,8 +762,8 @@ export default {
 		// Helper method để tiếp tục với local search logic
 		async continueWithLocalSearch(searchKey) {
 			// ƯU TIÊN 2: Exact Barcode trong local items (fallback nếu API fail)
-			let foundItem = this.items.find((item) =>
-				item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey)
+			let foundItem = this.items.find(
+				(item) => item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey),
 			);
 
 			if (foundItem) {
@@ -760,9 +778,7 @@ export default {
 			}
 
 			// ƯU TIÊN 3: Exact Item Code (case-insensitive)
-			foundItem = this.items.find((item) =>
-				item.item_code.toLowerCase() === searchKey.toLowerCase()
-			);
+			foundItem = this.items.find((item) => item.item_code.toLowerCase() === searchKey.toLowerCase());
 
 			if (foundItem) {
 				console.info("Found item by exact item code:", foundItem);
@@ -789,79 +805,97 @@ export default {
 		// ✅ ĐẢM BẢO: UOM và Price từ backend đã chính xác, không cần xử lý thêm
 		async fetchExactBarcodeAndAdd(rawCode) {
 			try {
-				console.info('[ItemsSelector] 🔍 Checking exact barcode match for:', rawCode);
+				console.info("[ItemsSelector] 🔍 Checking exact barcode match for:", rawCode);
 
 				const response = await frappe.call({
-					method: 'posawesome.posawesome.api.items.get_item_by_barcode_exact',
+					method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
 					args: {
 						barcode: rawCode,
 						pos_profile: JSON.stringify(this.pos_profile),
 						price_list: this.active_price_list,
-						customer: this.customer
+						customer: this.customer,
 					},
 					// Support for abort controller if available
-					signal: this.current_search_controller ? this.current_search_controller.signal : undefined
+					signal: this.current_search_controller
+						? this.current_search_controller.signal
+						: undefined,
 				});
 
 				// Check if search was cancelled after API call
 				if (this.current_search_controller && this.current_search_controller.signal.aborted) {
-					throw new Error('Search cancelled');
+					throw new Error("Search cancelled");
 				}
 
 				if (response.message) {
 					const item = response.message;
-					console.info('[ItemsSelector] ✅ Exact barcode match found:', item.item_code);
+					console.info("[ItemsSelector] ✅ Exact barcode match found:", item.item_code);
 
 					// ✅ ĐẢM BẢO UOM từ backend (đã validate và chính xác)
 					if (!item.uom) {
-						console.error('[ItemsSelector] ❌ Backend returned item without UOM:', item.item_code);
-						frappe.show_alert({
-							message: `Error: Item ${item.item_name} missing UOM`,
-							indicator: 'red'
-						}, 5);
+						console.error(
+							"[ItemsSelector] ❌ Backend returned item without UOM:",
+							item.item_code,
+						);
+						frappe.show_alert(
+							{
+								message: `Error: Item ${item.item_name} missing UOM`,
+								indicator: "red",
+							},
+							5,
+						);
 						return false;
 					}
 
 					// ✅ VALIDATE: Đảm bảo UOM tồn tại trong item_uoms
 					if (item.item_uoms && item.item_uoms.length > 0) {
-						const uomExists = item.item_uoms.some(uom => uom.uom === item.uom);
+						const uomExists = item.item_uoms.some((uom) => uom.uom === item.uom);
 						if (!uomExists) {
-							console.error('[ItemsSelector] ❌ UOM validation failed:', item.uom, 'not in item_uoms');
-							frappe.show_alert({
-								message: `Error: Invalid UOM for item ${item.item_name}`,
-								indicator: 'red'
-							}, 5);
+							console.error(
+								"[ItemsSelector] ❌ UOM validation failed:",
+								item.uom,
+								"not in item_uoms",
+							);
+							frappe.show_alert(
+								{
+									message: `Error: Invalid UOM for item ${item.item_name}`,
+									indicator: "red",
+								},
+								5,
+							);
 							return false;
 						}
 					}
 
 					// Check cancellation before adding item
 					if (this.current_search_controller && this.current_search_controller.signal.aborted) {
-						throw new Error('Search cancelled');
+						throw new Error("Search cancelled");
 					}
 
 					// ✅ Add item với UOM và Price đã được đảm bảo chính xác
 					await this.add_item(item);
 
 					// Show success message
-					frappe.show_alert({
-						message: `Added: ${item.item_name} (${item.uom})`,
-						indicator: 'green'
-					}, 3);
+					frappe.show_alert(
+						{
+							message: `Added: ${item.item_name} (${item.uom})`,
+							indicator: "green",
+						},
+						3,
+					);
 
 					// Clear search state
 					this.clearSearchState();
 
 					return true; // Match found and added
 				} else {
-					console.info('[ItemsSelector] ❌ No exact barcode match for:', rawCode);
+					console.info("[ItemsSelector] ❌ No exact barcode match for:", rawCode);
 					return false; // No match found
 				}
 			} catch (error) {
-				if (error.name === 'AbortError' || error.message === 'Search cancelled') {
+				if (error.name === "AbortError" || error.message === "Search cancelled") {
 					throw error; // Re-throw cancellation errors
 				}
-				console.error('[ItemsSelector] Error fetching exact barcode:', error);
+				console.error("[ItemsSelector] Error fetching exact barcode:", error);
 				// Don't show error alert here - let caller handle
 				return false;
 			}
@@ -1361,21 +1395,21 @@ export default {
 
 				// Highlight item in invoice table - chuyển màu xanh, font tăng 1.5 lần
 				setTimeout(() => {
-					console.log('[ItemsSelector] 🎯 Highlighting added item:', item.item_code);
-					console.log('[ItemsSelector] Scan mode:', this.scan_add_mode);
+					console.log("[ItemsSelector] 🎯 Highlighting added item:", item.item_code);
+					console.log("[ItemsSelector] Scan mode:", this.scan_add_mode);
 
 					// Emit to both event names for compatibility
 					this.eventBus.emit("highlight_invoice_item", {
 						itemRowId: item.item_code,
 						scanMode: this.scan_add_mode,
 						duration: 1000, // Changed from 2000 to 1000 ms
-						enlargeFont: true
+						enlargeFont: true,
 					});
 
 					// Also emit the old event name for backward compatibility
 					this.eventBus.emit("highlight_scanned_item", item.item_code);
 
-					console.log('[ItemsSelector] ✅ Highlight event emitted successfully');
+					console.log("[ItemsSelector] ✅ Highlight event emitted successfully");
 				}, 1000);
 			}
 		},
@@ -1387,7 +1421,7 @@ export default {
 
 			// If multiple items match, keep the list visible for user selection
 			if (this.filtered_items.length > 1) {
-				console.info('[ItemsSelector] Multiple items found, keeping list visible for user selection');
+				console.info("[ItemsSelector] Multiple items found, keeping list visible for user selection");
 				// Don't auto-add, let user click on the desired item from the visible list
 				return;
 			}
@@ -1446,20 +1480,20 @@ export default {
 
 			// Highlight item in invoice table for Enter/search flow
 			setTimeout(() => {
-				console.log('[ItemsSelector] 🎯 Highlighting item from Enter/search:', new_item.item_code);
+				console.log("[ItemsSelector] 🎯 Highlighting item from Enter/search:", new_item.item_code);
 
 				// Emit to both event names for compatibility
 				this.eventBus.emit("highlight_invoice_item", {
 					itemRowId: new_item.item_code,
 					scanMode: this.scan_add_mode,
 					duration: 1000, // 1 second highlight
-					enlargeFont: true
+					enlargeFont: true,
 				});
 
 				// Also emit the old event name for backward compatibility
 				this.eventBus.emit("highlight_scanned_item", new_item.item_code);
 
-				console.log('[ItemsSelector] ✅ Highlight event emitted for Enter/search successfully');
+				console.log("[ItemsSelector] ✅ Highlight event emitted for Enter/search successfully");
 			}, 1000);
 
 			// Clear search field after successfully adding an item
@@ -1474,7 +1508,7 @@ export default {
 			const fromScanner = vm.search_from_scanner;
 			vm.queueSearch(query, fromScanner);
 		}, 300),
-		
+
 		get_item_qty(first_search) {
 			// Simplified: Always return 1 for regular items, no scale weight parsing
 			// This prevents decimal quantities from appearing when scanning invalid barcodes
@@ -1744,17 +1778,19 @@ export default {
 				}
 
 				onScan.attachTo(document, {
-					suffixKeyCodes: [13],     // Enter
+					suffixKeyCodes: [13], // Enter
 					reactToPaste: false,
-					minLength: 6,             // tuỳ chuẩn UPC/EAN
-					timeBeforeScanTest: 20,   // giảm độ trễ phát hiện
+					minLength: 6, // tuỳ chuẩn UPC/EAN
+					timeBeforeScanTest: 20, // giảm độ trễ phát hiện
 					avgTimeByChar: 15,
 					keyCodeMapper: function (oEvent) {
 						oEvent.stopImmediatePropagation();
 						oEvent.preventDefault();
 						return onScan.decodeKeyEvent(oEvent);
 					},
-					onScan: (sCode) => { vm.trigger_onscan(sCode); }, // bỏ delay 300ms
+					onScan: (sCode) => {
+						vm.trigger_onscan(sCode);
+					}, // bỏ delay 300ms
 				});
 
 				// Mark document as having scanner attached
@@ -1773,8 +1809,8 @@ export default {
 			this.lastScanTime = now;
 
 			// Thay trigger_onscan để không đụng first_search/search, không gọi enter_event
-			this.search_from_scanner = true;            // chỉ để UI biết nguồn từ scanner
-			this.processScannedItem(sCode);             // pipeline duy nhất
+			this.search_from_scanner = true; // chỉ để UI biết nguồn từ scanner
+			this.processScannedItem(sCode); // pipeline duy nhất
 		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
@@ -1862,8 +1898,8 @@ export default {
 
 				await this.executeSearch(searchTerm, fromScanner, searchId);
 			} catch (error) {
-				if (error.name !== 'AbortError') {
-					console.error('[ItemsSelector] Search error:', error);
+				if (error.name !== "AbortError") {
+					console.error("[ItemsSelector] Search error:", error);
 				}
 			} finally {
 				this.processing_search = false;
@@ -1889,7 +1925,7 @@ export default {
 		async executeSearch(searchTerm, fromScanner, searchId) {
 			// Check if this search was cancelled
 			if (this.current_search_id !== searchId) {
-				throw new Error('Search cancelled');
+				throw new Error("Search cancelled");
 			}
 
 			const query = (searchTerm || "").trim();
@@ -1903,7 +1939,7 @@ export default {
 
 			// Check cancellation again
 			if (this.current_search_id !== searchId) {
-				throw new Error('Search cancelled');
+				throw new Error("Search cancelled");
 			}
 
 			// Priority: If search term is valid barcode, try exact match first
@@ -1911,8 +1947,8 @@ export default {
 				console.info(`[ItemsSelector] 🔍 Processing barcode search: ${query} (ID: ${searchId})`);
 
 				// Try local exact match first
-				const exactItem = this.items.find((item) =>
-					item.item_barcode && item.item_barcode.some((bc) => bc.barcode === query)
+				const exactItem = this.items.find(
+					(item) => item.item_barcode && item.item_barcode.some((bc) => bc.barcode === query),
 				);
 
 				if (exactItem) {
@@ -1926,7 +1962,7 @@ export default {
 
 					// Check cancellation before adding item
 					if (this.current_search_id !== searchId) {
-						throw new Error('Search cancelled');
+						throw new Error("Search cancelled");
 					}
 
 					await this.add_item(exactItem);
@@ -1942,7 +1978,7 @@ export default {
 						return;
 					}
 				} catch (apiError) {
-					if (apiError.name === 'AbortError') {
+					if (apiError.name === "AbortError") {
 						throw apiError; // Re-throw abort errors
 					}
 					console.warn(`[ItemsSelector] API search failed:`, apiError);
@@ -1968,7 +2004,8 @@ export default {
 				// Update item details after search
 				if (this.filtered_items && this.filtered_items.length > 0) {
 					setTimeout(() => {
-						if (this.current_search_id === searchId) { // Check if still valid
+						if (this.current_search_id === searchId) {
+							// Check if still valid
 							this.update_items_details(this.filtered_items);
 						}
 					}, 300);
@@ -2033,28 +2070,30 @@ export default {
 				this.processing_scan = true;
 
 				// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
-				let normalizedCode = scannedCode.trim().replace(/[-\s]/g, '');
+				let normalizedCode = scannedCode.trim().replace(/[-\s]/g, "");
 
 				// Simplified: Always use qty = 1, no scale weight parsing
 				let searchKey = normalizedCode;
 
 				// ƯU TIÊN 1: Gọi API exact barcode từ server trước
 				if (this.looksLikeBarcode(searchKey)) {
-					console.info('[ItemsSelector] 🔍 Trying exact barcode API first for:', searchKey);
+					console.info("[ItemsSelector] 🔍 Trying exact barcode API first for:", searchKey);
 					const exactMatch = await this.fetchExactBarcodeAndAdd(searchKey);
 					if (exactMatch) {
-						console.info('[ItemsSelector] ✅ Exact barcode API found and added item');
+						console.info("[ItemsSelector] ✅ Exact barcode API found and added item");
 						return; // Đã xử lý xong, không cần tìm tiếp
 					}
-					console.info('[ItemsSelector] ❌ Exact barcode API not found, falling back to local search');
+					console.info(
+						"[ItemsSelector] ❌ Exact barcode API not found, falling back to local search",
+					);
 					// Tiếp tục với logic local search
 					await this.continueWithLocalSearch(searchKey);
 					return;
 				}
 
 				// ƯU TIÊN 2: Exact Barcode trong local items (fallback nếu API fail)
-				let foundItem = this.items.find((item) =>
-					item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey)
+				let foundItem = this.items.find(
+					(item) => item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey),
 				);
 
 				if (foundItem) {
@@ -2069,8 +2108,8 @@ export default {
 				}
 
 				// ƯU TIÊN 3: Exact Item Code (case-insensitive)
-				foundItem = this.items.find((item) =>
-					item.item_code.toLowerCase() === searchKey.toLowerCase()
+				foundItem = this.items.find(
+					(item) => item.item_code.toLowerCase() === searchKey.toLowerCase(),
 				);
 
 				if (foundItem) {
@@ -2114,13 +2153,19 @@ export default {
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
 			const now = Date.now();
-			if (this._lastScanCode === scannedCode && (now - this._lastScanAt) < 400) {
+			if (this._lastScanCode === scannedCode && now - this._lastScanAt < 400) {
 				console.warn("Duplicate scan suppressed:", scannedCode);
 				return; // chống double-click <400ms
 			}
-			this._lastScanCode = scannedCode; this._lastScanAt = now;
+			this._lastScanCode = scannedCode;
+			this._lastScanAt = now;
 
-			console.info("[ItemsSelector] 🔄 Processing scanned item:", item.item_code, "with code:", scannedCode);
+			console.info(
+				"[ItemsSelector] 🔄 Processing scanned item:",
+				item.item_code,
+				"with code:",
+				scannedCode,
+			);
 			console.info("[ItemsSelector] Current scan mode:", this.scan_add_mode ? "Add" : "Remove");
 
 			try {
@@ -2139,7 +2184,10 @@ export default {
 					);
 				} else {
 					// Remove mode - emit event to remove item from invoice with scan mode
-					console.info("[ItemsSelector] ➖ Remove mode: Emitting remove_item_by_code for:", item.item_code);
+					console.info(
+						"[ItemsSelector] ➖ Remove mode: Emitting remove_item_by_code for:",
+						item.item_code,
+					);
 					this.eventBus.emit("remove_item_by_code", item.item_code, this.scan_add_mode);
 
 					// Show success message
@@ -2161,7 +2209,6 @@ export default {
 						this.$refs.debounce_search.focus();
 					}
 				}, 150);
-
 			} catch (error) {
 				console.error("[ItemsSelector] ❌ Error processing scanned item:", error);
 				const action = this.scan_add_mode ? "adding" : "removing";
@@ -2194,14 +2241,14 @@ export default {
 
 			// Add click handlers for item selection
 			setTimeout(() => {
-					items.forEach((item, index) => {
-						const button = dialog.$wrapper.find(`[data-item-index="${index}"]`);
-						button.on("click", () => {
-							this.addScannedItemToInvoice(item, scannedCode);
-							dialog.hide();
-						});
+				items.forEach((item, index) => {
+					const button = dialog.$wrapper.find(`[data-item-index="${index}"]`);
+					button.on("click", () => {
+						this.addScannedItemToInvoice(item, scannedCode);
+						dialog.hide();
 					});
-				}, 100);
+				});
+			}, 100);
 		},
 		generateItemSelectionHTML(items, scannedCode) {
 			let html = `<div class="mb-3"><strong>Scanned Code:</strong> ${scannedCode}</div>`;
@@ -2262,9 +2309,9 @@ export default {
 		},
 
 		setScanMode(isAddMode) {
-			console.info(`[ItemsSelector] User clicked ${isAddMode ? 'Add Mode' : 'Remove Mode'} button`);
-			console.info(`[ItemsSelector] Previous mode: ${this.scan_add_mode ? 'Add Mode' : 'Remove Mode'}`);
-			console.info(`[ItemsSelector] New mode: ${isAddMode ? 'Add Mode' : 'Remove Mode'}`);
+			console.info(`[ItemsSelector] User clicked ${isAddMode ? "Add Mode" : "Remove Mode"} button`);
+			console.info(`[ItemsSelector] Previous mode: ${this.scan_add_mode ? "Add Mode" : "Remove Mode"}`);
+			console.info(`[ItemsSelector] New mode: ${isAddMode ? "Add Mode" : "Remove Mode"}`);
 
 			this.scan_add_mode = isAddMode;
 
@@ -2281,8 +2328,6 @@ export default {
 
 			console.info(`[ItemsSelector] Scan mode change completed`);
 		},
-
-
 
 		currencySymbol(currency) {
 			return get_currency_symbol(currency);
@@ -2815,7 +2860,6 @@ export default {
 	font-weight: 600 !important;
 }
 
-
 /* Controls container for horizontal layout */
 .controls-container {
 	display: flex;
@@ -2865,45 +2909,45 @@ export default {
 
 /* Standard button styling - compact size */
 .summary-btn {
-    min-height: 60px !important;
-    font-size: 1.3rem !important;
-    font-weight: 600 !important;
-    text-transform: none;
-    margin: 1px;
-    border-radius: 6px;
-    padding: 6px 8px !important;
-    white-space: nowrap !important;
+	min-height: 60px !important;
+	font-size: 1.3rem !important;
+	font-weight: 600 !important;
+	text-transform: none;
+	margin: 1px;
+	border-radius: 6px;
+	padding: 6px 8px !important;
+	white-space: nowrap !important;
 }
 
 /* Icon link button styling */
 .icon-link-btn {
-    min-width: 60px !important;
-    min-height: 60px !important;
-    border-radius: 50% !important;
-    transition: all 0.3s ease !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+	min-width: 60px !important;
+	min-height: 60px !important;
+	border-radius: 50% !important;
+	transition: all 0.3s ease !important;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
 }
 
 .icon-link-btn:hover {
-    transform: scale(1.1) !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+	transform: scale(1.1) !important;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
 }
 
 .icon-link-btn .v-icon {
-    font-size: 28px !important;
+	font-size: 28px !important;
 }
 
 /* Standard text field styling - match InvoiceSummary */
 .standard-text-field :deep(.v-field__input) {
-    font-size: 1.4rem !important;
-    font-weight: 700 !important;
-    min-height: 60px !important;
+	font-size: 1.4rem !important;
+	font-weight: 700 !important;
+	min-height: 60px !important;
 }
 
 .standard-text-field :deep(.v-field__input input) {
-    font-size: 1.4rem !important;
-    font-weight: 700 !important;
-    min-height: 60px !important;
+	font-size: 1.4rem !important;
+	font-weight: 700 !important;
+	min-height: 60px !important;
 }
 
 /* ensure long button labels stay within the button */
@@ -2979,12 +3023,12 @@ export default {
 	.v-btn-toggle.summary-btn .v-btn {
 		flex: 1 !important;
 		min-height: 48px !important;
-		font-size: 1.0rem !important;
+		font-size: 1rem !important;
 	}
 
 	.summary-btn {
 		min-height: 48px !important;
-		font-size: 1.0rem !important;
+		font-size: 1rem !important;
 		padding: 4px 6px !important;
 	}
 

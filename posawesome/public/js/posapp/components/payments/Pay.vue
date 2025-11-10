@@ -20,7 +20,9 @@
 							<v-col cols="12">
 								<div class="d-flex align-center justify-space-between">
 									<div class="d-flex align-center">
-										<v-icon size="24" color="primary" class="mr-3">mdi-file-document-multiple</v-icon>
+										<v-icon size="24" color="primary" class="mr-3"
+											>mdi-file-document-multiple</v-icon
+										>
 										<div>
 											<h3 class="text-h6 font-weight-bold text-primary mb-1">
 												{{ __("Outstanding Invoices") }}
@@ -31,23 +33,23 @@
 										</div>
 									</div>
 									<div class="text-right">
-										<div v-if="total_outstanding_amount" class="text-h6 font-weight-bold text-success mb-1">
+										<div
+											v-if="total_outstanding_amount"
+											class="text-h6 font-weight-bold text-success mb-1"
+										>
 											{{ currencySymbol(pos_profile.currency) }}
 											{{ formatCurrency(total_outstanding_amount) }}
 										</div>
-										<div class="text-caption text-grey">{{ __("Total Outstanding") }}</div>
+										<div class="text-caption text-grey">
+											{{ __("Total Outstanding") }}
+										</div>
 									</div>
 								</div>
 							</v-col>
 						</v-row>
 						<v-row v-if="total_selected_invoices" dense class="mt-2">
 							<v-col cols="12">
-								<v-alert
-									type="info"
-									variant="tonal"
-									density="compact"
-									class="mb-0"
-								>
+								<v-alert type="info" variant="tonal" density="compact" class="mb-0">
 									<div class="d-flex align-center justify-space-between">
 										<span class="font-weight-medium">
 											{{ __("Selected for Payment:") }}
@@ -115,7 +117,10 @@
 								size="default"
 								prepend-icon="mdi-close-circle"
 								class="standard-btn"
-								@click="selected_invoices = []; $forceUpdate();"
+								@click="
+									selected_invoices = [];
+									$forceUpdate();
+								"
 							>
 								{{ __("Clear") }}
 							</v-btn>
@@ -532,7 +537,11 @@ export default {
 						vm.eventBus.emit("payments_register_pos_profile", r.message);
 						vm.eventBus.emit("set_company", r.message.company);
 						this.set_payment_methods();
-						try { setOpeningStorage(r.message); } catch (e) { console.error("Failed to cache opening data", e); }
+						try {
+							setOpeningStorage(r.message);
+						} catch (e) {
+							console.error("Failed to cache opening data", e);
+						}
 
 						// init search profile: keep empty by default
 						this.pos_profile_search = "";
@@ -542,7 +551,9 @@ export default {
 						}
 
 						this.payment_methods_list = [];
-						this.pos_profile.payments.forEach((el) => this.payment_methods_list.push(el.mode_of_payment));
+						this.pos_profile.payments.forEach((el) =>
+							this.payment_methods_list.push(el.mode_of_payment),
+						);
 						this.get_available_pos_profiles();
 						this.get_outstanding_invoices();
 						this.get_draft_mpesa_payments_register();
@@ -556,7 +567,9 @@ export default {
 							vm.eventBus.emit("set_company", data.company);
 							this.set_payment_methods();
 							this.payment_methods_list = [];
-							this.pos_profile.payments.forEach((el) => this.payment_methods_list.push(el.mode_of_payment));
+							this.pos_profile.payments.forEach((el) =>
+								this.payment_methods_list.push(el.mode_of_payment),
+							);
 							this.get_available_pos_profiles();
 							this.get_outstanding_invoices();
 							this.get_draft_mpesa_payments_register();
@@ -575,7 +588,9 @@ export default {
 						vm.eventBus.emit("set_company", data.company);
 						this.set_payment_methods();
 						this.payment_methods_list = [];
-						this.pos_profile.payments.forEach((el) => this.payment_methods_list.push(el.mode_of_payment));
+						this.pos_profile.payments.forEach((el) =>
+							this.payment_methods_list.push(el.mode_of_payment),
+						);
 						this.get_available_pos_profiles();
 						this.get_outstanding_invoices();
 						this.get_draft_mpesa_payments_register();
@@ -597,7 +612,9 @@ export default {
 					}
 				});
 		},
-		create_opening_voucher() { this.dialog = true; },
+		create_opening_voucher() {
+			this.dialog = true;
+		},
 
 		async fetch_customer_details() {
 			const vm = this;
@@ -627,33 +644,33 @@ export default {
 			// --- OFFLINE FIRST: thử lấy từ cache ---
 			if (isOffline()) {
 				try {
-				const cached =
-					(getCustomerStorage() || []).find(
-					(c) => c.name === vm.customer_name || c.customer_name === vm.customer_name
-					) || null;
+					const cached =
+						(getCustomerStorage() || []).find(
+							(c) => c.name === vm.customer_name || c.customer_name === vm.customer_name,
+						) || null;
 
-				if (cached) {
-					vm.customer_info = { ...cached };
-					console.log("[TRACE] customer_info from cache =", vm.customer_info);
-					attachTaxIdToInvoice(vm.customer_info.tax_id);
-					vm.set_mpesa_search_params();
-					vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
-					return;
-				}
+					if (cached) {
+						vm.customer_info = { ...cached };
+						console.log("[TRACE] customer_info from cache =", vm.customer_info);
+						attachTaxIdToInvoice(vm.customer_info.tax_id);
+						vm.set_mpesa_search_params();
+						vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
+						return;
+					}
 
-				const queued = (getOfflineCustomers() || [])
-					.map((e) => e.args)
-					.find((c) => c.customer_name === vm.customer_name);
+					const queued = (getOfflineCustomers() || [])
+						.map((e) => e.args)
+						.find((c) => c.customer_name === vm.customer_name);
 
-				if (queued) {
-					vm.customer_info = { ...queued, name: queued.customer_name };
-					console.log("[TRACE] customer_info from offline queue =", vm.customer_info);
-					attachTaxIdToInvoice(vm.customer_info.tax_id);
-					vm.set_mpesa_search_params();
-					vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
-				}
+					if (queued) {
+						vm.customer_info = { ...queued, name: queued.customer_name };
+						console.log("[TRACE] customer_info from offline queue =", vm.customer_info);
+						attachTaxIdToInvoice(vm.customer_info.tax_id);
+						vm.set_mpesa_search_params();
+						vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
+					}
 				} catch (error) {
-				console.error("Failed to fetch cached customer", error);
+					console.error("Failed to fetch cached customer", error);
 				}
 				return;
 			}
@@ -661,22 +678,22 @@ export default {
 			// --- ONLINE: gọi API ---
 			try {
 				const r = await frappe.call({
-				method: "posawesome.posawesome.api.posapp.get_customer_info",
-				args: { customer: vm.customer_name },
+					method: "posawesome.posawesome.api.posapp.get_customer_info",
+					args: { customer: vm.customer_name },
 				});
 
 				if (!r.exc && r.message) {
-				vm.customer_info = { ...r.message };
-				console.log("[TRACE] customer_info from server =", vm.customer_info);
+					vm.customer_info = { ...r.message };
+					console.log("[TRACE] customer_info from server =", vm.customer_info);
 
-				// GẮN TAX_ID NGAY TẠI ĐÂY
-				attachTaxIdToInvoice(vm.customer_info.tax_id);
+					// GẮN TAX_ID NGAY TẠI ĐÂY
+					attachTaxIdToInvoice(vm.customer_info.tax_id);
 
-				// phục vụ các UI khác
-				vm.set_mpesa_search_params();
-				vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
+					// phục vụ các UI khác
+					vm.set_mpesa_search_params();
+					vm.eventBus.emit("set_customer_info_to_edit", vm.customer_info);
 				} else {
-				console.warn("[TRACE] get_customer_info trả về rỗng hoặc có exc", r);
+					console.warn("[TRACE] get_customer_info trả về rỗng hoặc có exc", r);
 				}
 			} catch (error) {
 				console.error("Failed to fetch customer details", error);
@@ -752,7 +769,7 @@ export default {
 				pos_profile: this.pos_profile,
 				pos_profile_currency: this.pos_profile?.currency,
 				pos_profile_search: this.pos_profile_search,
-				isOffline: isOffline()
+				isOffline: isOffline(),
 			});
 
 			if (isOffline()) {
@@ -799,7 +816,11 @@ export default {
 					console.log("[DEBUG] API response received:", r);
 
 					if (r.message) {
-						console.log("[DEBUG] Setting outstanding_invoices with", Array.isArray(r.message) ? r.message.length : "non-array", "items");
+						console.log(
+							"[DEBUG] Setting outstanding_invoices with",
+							Array.isArray(r.message) ? r.message.length : "non-array",
+							"items",
+						);
 						this.outstanding_invoices = Array.isArray(r.message) ? r.message : [];
 						console.log("[DEBUG] outstanding_invoices set to:", this.outstanding_invoices);
 					} else {
@@ -810,7 +831,9 @@ export default {
 				.catch((error) => {
 					console.error("[DEBUG] API call failed:", error);
 					this.outstanding_invoices = [];
-					frappe.msgprint(__("Failed to load outstanding invoices: ") + (error.message || __("Unknown error")));
+					frappe.msgprint(
+						__("Failed to load outstanding invoices: ") + (error.message || __("Unknown error")),
+					);
 				})
 				.finally(() => {
 					console.log("[DEBUG] get_outstanding_invoices completed, setting loading to false");
@@ -907,7 +930,11 @@ export default {
 			if (!this.pos_profile.posa_allow_make_new_payments) return;
 			this.payment_methods = [];
 			this.pos_profile.payments.forEach((method) => {
-				this.payment_methods.push({ mode_of_payment: method.mode_of_payment, amount: 0, row_id: method.name });
+				this.payment_methods.push({
+					mode_of_payment: method.mode_of_payment,
+					amount: 0,
+					row_id: method.name,
+				});
 			});
 		},
 		clear_all(with_customer_info = true) {
@@ -941,14 +968,19 @@ export default {
 				return;
 			}
 
-			let total_payments = this.total_selected_payments + this.total_selected_mpesa_payments + this.total_payment_methods;
+			let total_payments =
+				this.total_selected_payments +
+				this.total_selected_mpesa_payments +
+				this.total_payment_methods;
 			if (total_payments <= 0) {
 				this.isSubmitting = false;
 				frappe.throw(__("Please make a payment or select an payment"));
 				return;
 			}
 
-			this.payment_methods.forEach((payment) => { payment.amount = this.flt(payment.amount); });
+			this.payment_methods.forEach((payment) => {
+				payment.amount = this.flt(payment.amount);
+			});
 
 			const payload = {
 				customer,
@@ -970,7 +1002,10 @@ export default {
 			if (isOffline()) {
 				try {
 					saveOfflinePayment({ args: { payload } });
-					vm.eventBus.emit("show_message", { title: __("Payment saved offline"), color: "warning" });
+					vm.eventBus.emit("show_message", {
+						title: __("Payment saved offline"),
+						color: "warning",
+					});
 					vm.clear_all(false);
 					vm.customer_name = customer;
 					vm.get_outstanding_invoices();
@@ -978,7 +1013,9 @@ export default {
 					vm.set_mpesa_search_params();
 					vm.get_draft_mpesa_payments_register();
 				} catch (error) {
-					frappe.msgprint(__("Cannot Save Offline Payment: ") + (error.message || __("Unknown error")));
+					frappe.msgprint(
+						__("Cannot Save Offline Payment: ") + (error.message || __("Unknown error")),
+					);
 				}
 				vm.isSubmitting = false;
 				return;
@@ -1001,7 +1038,9 @@ export default {
 						vm.get_draft_mpesa_payments_register();
 					}
 				},
-				error: function () { vm.isSubmitting = false; },
+				error: function () {
+					vm.isSubmitting = false;
+				},
 			});
 		},
 		submit_and_print() {
@@ -1020,14 +1059,19 @@ export default {
 				return;
 			}
 
-			let total_payments = this.total_selected_payments + this.total_selected_mpesa_payments + this.total_payment_methods;
+			let total_payments =
+				this.total_selected_payments +
+				this.total_selected_mpesa_payments +
+				this.total_payment_methods;
 			if (total_payments <= 0) {
 				this.isSubmitting = false;
 				frappe.throw(__("Please make a payment or select an payment"));
 				return;
 			}
 
-			this.payment_methods.forEach((payment) => { payment.amount = this.flt(payment.amount); });
+			this.payment_methods.forEach((payment) => {
+				payment.amount = this.flt(payment.amount);
+			});
 
 			const payload = {
 				customer,
@@ -1049,7 +1093,10 @@ export default {
 			if (isOffline()) {
 				try {
 					saveOfflinePayment({ args: { payload } });
-					vm.eventBus.emit("show_message", { title: __("Payment saved offline"), color: "warning" });
+					vm.eventBus.emit("show_message", {
+						title: __("Payment saved offline"),
+						color: "warning",
+					});
 					vm.clear_all(false);
 					vm.customer_name = customer;
 					vm.get_outstanding_invoices();
@@ -1057,7 +1104,9 @@ export default {
 					vm.set_mpesa_search_params();
 					vm.get_draft_mpesa_payments_register();
 				} catch (error) {
-					frappe.msgprint(__("Cannot Save Offline Payment: ") + (error.message || __("Unknown error")));
+					frappe.msgprint(
+						__("Cannot Save Offline Payment: ") + (error.message || __("Unknown error")),
+					);
 				}
 				vm.isSubmitting = false;
 				return;
@@ -1081,7 +1130,9 @@ export default {
 							vm.load_print_page(payment_name);
 						} else {
 							frappe.msgprint(
-								__("Payment submitted but print function could not be executed. Payment name not found."),
+								__(
+									"Payment submitted but print function could not be executed. Payment name not found.",
+								),
 							);
 						}
 						vm.clear_all(false);
@@ -1092,7 +1143,9 @@ export default {
 						vm.get_draft_mpesa_payments_register();
 					}
 				},
-				error: function () { vm.isSubmitting = false; },
+				error: function () {
+					vm.isSubmitting = false;
+				},
 			});
 		},
 		selectSingleInvoice(item) {
@@ -1106,7 +1159,9 @@ export default {
 		},
 		toggleInvoiceSelection(item) {
 			if (this.isInvoiceSelected(item)) {
-				this.selected_invoices = this.selected_invoices.filter((i) => i.voucher_no !== item.voucher_no);
+				this.selected_invoices = this.selected_invoices.filter(
+					(i) => i.voucher_no !== item.voucher_no,
+				);
 			} else {
 				this.selected_invoices.push(item);
 				if (item.customer && !this.customer_name) {
@@ -1159,19 +1214,31 @@ export default {
 	computed: {
 		total_outstanding_amount() {
 			if (!this.outstanding_invoices || !this.outstanding_invoices.length) return 0;
-			return this.outstanding_invoices.reduce((acc, cur) => acc + this.flt(cur?.outstanding_amount || 0), 0);
+			return this.outstanding_invoices.reduce(
+				(acc, cur) => acc + this.flt(cur?.outstanding_amount || 0),
+				0,
+			);
 		},
 		total_unallocated_amount() {
 			if (!this.unallocated_payments || !this.unallocated_payments.length) return 0;
-			return this.unallocated_payments.reduce((acc, cur) => acc + this.flt(cur?.unallocated_amount || 0), 0);
+			return this.unallocated_payments.reduce(
+				(acc, cur) => acc + this.flt(cur?.unallocated_amount || 0),
+				0,
+			);
 		},
 		total_selected_invoices() {
 			if (!this.selected_invoices || !this.selected_invoices.length) return 0;
-			return this.selected_invoices.reduce((acc, cur) => acc + this.flt(cur?.outstanding_amount || 0), 0);
+			return this.selected_invoices.reduce(
+				(acc, cur) => acc + this.flt(cur?.outstanding_amount || 0),
+				0,
+			);
 		},
 		total_selected_payments() {
 			if (!this.selected_payments || !this.selected_payments.length) return 0;
-			return this.selected_payments.reduce((acc, cur) => acc + this.flt(cur?.unallocated_amount || 0), 0);
+			return this.selected_payments.reduce(
+				(acc, cur) => acc + this.flt(cur?.unallocated_amount || 0),
+				0,
+			);
 		},
 		total_selected_mpesa_payments() {
 			if (!this.selected_mpesa_payments || !this.selected_mpesa_payments.length) return 0;
@@ -1187,10 +1254,15 @@ export default {
 		},
 		total_of_diff() {
 			const invoiceTotal = this.total_selected_invoices || 0;
-			const paymentTotal = (this.total_selected_payments || 0) + (this.total_selected_mpesa_payments || 0) + (this.total_payment_methods || 0);
+			const paymentTotal =
+				(this.total_selected_payments || 0) +
+				(this.total_selected_mpesa_payments || 0) +
+				(this.total_payment_methods || 0);
 			return this.flt(invoiceTotal - paymentTotal);
 		},
-		isDarkTheme() { return this.$theme.current === "dark"; },
+		isDarkTheme() {
+			return this.$theme.current === "dark";
+		},
 	},
 
 	created() {
@@ -1210,7 +1282,9 @@ export default {
 				this.get_unallocated_payments();
 				this.get_draft_mpesa_payments_register();
 			});
-			this.eventBus.on("fetch_customer_details", () => { this.fetch_customer_details(); });
+			this.eventBus.on("fetch_customer_details", () => {
+				this.fetch_customer_details();
+			});
 		});
 	},
 	beforeUnmount() {
@@ -1253,68 +1327,80 @@ export default {
 	background-color: #1e1e1e !important;
 }
 
-input[total_of_diff] { text-align: right; }
-input[payments_methods] { text-align: right; }
-input[total_selected_payments] { text-align: right; }
-input[total_selected_invoices] { text-align: right; }
-input[total_selected_mpesa_payments] { text-align: right; }
+input[total_of_diff] {
+	text-align: right;
+}
+input[payments_methods] {
+	text-align: right;
+}
+input[total_selected_payments] {
+	text-align: right;
+}
+input[total_selected_invoices] {
+	text-align: right;
+}
+input[total_selected_mpesa_payments] {
+	text-align: right;
+}
 
-.selected-row { background-color: #e3f2fd !important; }
+.selected-row {
+	background-color: #e3f2fd !important;
+}
 
 /* Standard Button Styling - matching InvoiceSummary.vue */
 .standard-btn {
-    min-height: 60px !important;
-    font-size: 1.3rem !important;
-    font-weight: 600 !important;
-    text-transform: none;
-    margin: 1px;
-    border-radius: 6px;
-    padding: 6px 8px !important;
-    white-space: nowrap !important;
+	min-height: 60px !important;
+	font-size: 1.3rem !important;
+	font-weight: 600 !important;
+	text-transform: none;
+	margin: 1px;
+	border-radius: 6px;
+	padding: 6px 8px !important;
+	white-space: nowrap !important;
 }
 
 /* Section Header Styling */
 .section-header {
-    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 16px;
-    border: 1px solid #e0e0e0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+	background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+	border-radius: 12px;
+	padding: 16px;
+	margin-bottom: 16px;
+	border: 1px solid #e0e0e0;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Dark theme for section header */
 :deep(.dark-theme) .section-header,
 :deep(.v-theme--dark) .section-header {
-    background: linear-gradient(135deg, #1e1e1e 0%, #2a2a2a 100%);
-    border-color: #333;
-    color: #fff;
+	background: linear-gradient(135deg, #1e1e1e 0%, #2a2a2a 100%);
+	border-color: #333;
+	color: #fff;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-    .standard-btn {
-        min-height: 50px !important;
-        font-size: 1.1rem !important;
-        padding: 4px 6px !important;
-    }
+	.standard-btn {
+		min-height: 50px !important;
+		font-size: 1.1rem !important;
+		padding: 4px 6px !important;
+	}
 
-    .section-header {
-        padding: 12px;
-        margin-bottom: 12px;
-    }
+	.section-header {
+		padding: 12px;
+		margin-bottom: 12px;
+	}
 }
 
 @media (max-width: 480px) {
-    .standard-btn {
-        min-height: 48px !important;
-        font-size: 1.0rem !important;
-        padding: 4px 6px !important;
-    }
+	.standard-btn {
+		min-height: 48px !important;
+		font-size: 1rem !important;
+		padding: 4px 6px !important;
+	}
 
-    .section-header {
-        padding: 8px;
-        margin-bottom: 8px;
-    }
+	.section-header {
+		padding: 8px;
+		margin-bottom: 8px;
+	}
 }
 </style>

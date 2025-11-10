@@ -296,12 +296,12 @@ export default {
 		console.log("Clearing all Item Price offers for consistency");
 
 		// Find all Item Price offers currently applied
-		const itemPriceOffers = this.posa_offers.filter(offer => offer.offer === "Item Price");
+		const itemPriceOffers = this.posa_offers.filter((offer) => offer.offer === "Item Price");
 
 		// Remove each Item Price offer
-		itemPriceOffers.forEach(offer => {
+		itemPriceOffers.forEach((offer) => {
 			this.RemoveOnPrice(offer);
-			const index = this.posa_offers.findIndex(el => el.row_id === offer.row_id);
+			const index = this.posa_offers.findIndex((el) => el.row_id === offer.row_id);
 			if (index >= 0) {
 				this.posa_offers.splice(index, 1);
 			}
@@ -314,12 +314,16 @@ export default {
 	},
 
 	updateInvoiceOffers(offers) {
-		console.log("🔄 [UPDATE_INVOICE_OFFERS] Starting updateInvoiceOffers with offers:", offers?.length || 0, "offers");
+		console.log(
+			"🔄 [UPDATE_INVOICE_OFFERS] Starting updateInvoiceOffers with offers:",
+			offers?.length || 0,
+			"offers",
+		);
 		console.log("🔄 [UPDATE_INVOICE_OFFERS] Current invoice state:", {
 			items_count: this.items.length,
 			current_offers_count: this.posa_offers.length,
 			customer: this.customer,
-			pos_profile: this.pos_profile?.name
+			pos_profile: this.pos_profile?.name,
 		});
 
 		// Clear all existing Item Price offers first for consistency
@@ -441,7 +445,7 @@ export default {
 		console.log("✅ [UPDATE_INVOICE_OFFERS] Completed - Final state:", {
 			items_count: this.items.length,
 			applied_offers_count: this.posa_offers.length,
-			applied_offer_names: this.posa_offers.map(o => o.name)
+			applied_offer_names: this.posa_offers.map((o) => o.name),
 		});
 	},
 
@@ -1096,17 +1100,17 @@ export default {
 			posa_row_id: item.posa_row_id,
 			current_offers: item.posa_offers,
 			posa_offer_applied: item.posa_offer_applied,
-			timestamp: new Date().toISOString()
+			timestamp: new Date().toISOString(),
 		});
 
 		this.$nextTick(() => {
 			// Chỉ lấy danh sách Item Codes từ giỏ hàng, không thực hiện thay đổi gì
-			const itemCodes = this.items.map(i => i.item_code).filter(code => code);
+			const itemCodes = this.items.map((i) => i.item_code).filter((code) => code);
 
 			console.log("📋 [TOGGLE_OFFER] Collected item codes from cart:", {
 				total_items: this.items.length,
 				item_codes: itemCodes,
-				unique_codes: [...new Set(itemCodes)]
+				unique_codes: [...new Set(itemCodes)],
 			});
 
 			// Gọi API để lấy và áp dụng offers
@@ -1132,14 +1136,14 @@ export default {
 				items: this.items,
 				customer: this.customer,
 				pos_profile: this.pos_profile.name,
-				coupons: this.posa_coupons || []
+				coupons: this.posa_coupons || [],
 			};
 
 			console.log("📤 [FETCH_OFFERS] Sending invoice data to API:", {
 				customer: invoice_data.customer,
 				pos_profile: invoice_data.pos_profile,
 				items_count: invoice_data.items.length,
-				coupons_count: invoice_data.coupons.length
+				coupons_count: invoice_data.coupons.length,
 			});
 
 			// Gọi API discount_calculator
@@ -1153,7 +1157,7 @@ export default {
 			console.log("📥 [FETCH_OFFERS] API response received:", {
 				status: response.message?.status,
 				has_updated_items: !!response.message?.updated_items,
-				applied_offers_count: response.message?.applied_offers?.length || 0
+				applied_offers_count: response.message?.applied_offers?.length || 0,
 			});
 
 			if (response.message && response.message.status === "success") {
@@ -1166,15 +1170,14 @@ export default {
 
 				console.log("✅ [FETCH_OFFERS] Successfully updated items and offers:", {
 					items_count: this.items.length,
-					offers_count: this.posa_offers.length
+					offers_count: this.posa_offers.length,
 				});
 
 				// Emit event để UI cập nhật
 				this.eventBus.emit("offers_updated", {
 					applied_offers: this.posa_offers,
-					items: this.items
+					items: this.items,
 				});
-
 			} else {
 				console.error("❌ [FETCH_OFFERS] API returned error:", response.message);
 				this.eventBus.emit("show_message", {
@@ -1183,7 +1186,6 @@ export default {
 					message: response.message?.message || "Unknown error",
 				});
 			}
-
 		} catch (error) {
 			console.error("❌ [FETCH_OFFERS] API call failed:", error);
 			this.eventBus.emit("show_message", {
@@ -1206,14 +1208,17 @@ export default {
 			return;
 		}
 
-		console.log("📋 [DISPLAY_OFFERS] Applied offers:", appliedOffers.map(o => ({
-			name: o.name,
-			offer_type: o.offer,
-			applied: o.offer_applied
-		})));
+		console.log(
+			"📋 [DISPLAY_OFFERS] Applied offers:",
+			appliedOffers.map((o) => ({
+				name: o.name,
+				offer_type: o.offer,
+				applied: o.offer_applied,
+			})),
+		);
 
 		// Hiển thị thông tin offers
-		const offerNames = appliedOffers.map(o => `${o.name} (${o.offer})`).join(", ");
+		const offerNames = appliedOffers.map((o) => `${o.name} (${o.offer})`).join(", ");
 		this.eventBus.emit("show_message", {
 			title: __("Offers Applied"),
 			color: "success",
@@ -1221,12 +1226,12 @@ export default {
 		});
 
 		// Log chi tiết từng offer
-		appliedOffers.forEach(offer => {
+		appliedOffers.forEach((offer) => {
 			console.log(`🎁 [OFFER_DETAIL] ${offer.name}:`, {
 				type: offer.offer,
 				applied: offer.offer_applied,
 				coupon_based: offer.coupon_based,
-				coupon: offer.coupon
+				coupon: offer.coupon,
 			});
 		});
 	}, // Added missing comma here

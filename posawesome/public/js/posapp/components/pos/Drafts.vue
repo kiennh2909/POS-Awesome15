@@ -12,12 +12,7 @@
 							<h3 class="header-title">{{ __("Load Sales Invoice") }}</h3>
 							<p class="header-subtitle">{{ __("Load previously saved invoices") }}</p>
 							<div class="header-stats" v-if="dialog_data && dialog_data.length > 0">
-								<v-chip
-									color="primary"
-									variant="tonal"
-									size="small"
-									class="status-chip"
-								>
+								<v-chip color="primary" variant="tonal" size="small" class="status-chip">
 									<v-icon start size="14">mdi-file-document-outline</v-icon>
 									{{ dialog_data.length }} {{ __("Drafts") }}
 								</v-chip>
@@ -39,9 +34,14 @@
 				<v-card-text class="pa-0 white-background">
 					<div class="content-container">
 						<!-- Empty State -->
-						<div v-if="!dialog_data || dialog_data.length === 0" class="empty-state text-center py-12">
+						<div
+							v-if="!dialog_data || dialog_data.length === 0"
+							class="empty-state text-center py-12"
+						>
 							<div class="empty-icon-wrapper mb-4">
-								<v-icon size="80" color="grey" class="empty-icon">mdi-file-document-outline</v-icon>
+								<v-icon size="80" color="grey" class="empty-icon"
+									>mdi-file-document-outline</v-icon
+								>
 							</div>
 							<h3 class="text-h5 mb-3 text-grey-darken-2 font-weight-medium">
 								{{ __("No Draft Invoices") }}

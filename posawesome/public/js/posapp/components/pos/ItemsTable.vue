@@ -36,7 +36,10 @@
 			<!-- Rate column -->
 			<template v-slot:item.rate="{ item }">
 				<div class="currency-display">
-					<span v-if="item.is_free_item || (item.posa_is_offer && item.rate === 0)" class="free-badge">
+					<span
+						v-if="item.is_free_item || (item.posa_is_offer && item.rate === 0)"
+						class="free-badge"
+					>
 						<v-chip size="small" color="success" variant="flat" class="free-chip">
 							<v-icon size="small" class="mr-1">mdi-gift</v-icon>
 							FREE
@@ -613,19 +616,22 @@ export default {
 	watch: {
 		items: {
 			handler(newItems) {
-				console.log("[ItemsTable] Items updated - checking rates:", newItems.map(item => ({
-					Item_code: item.item_code,
-					Price: item.rate,
-					Uom: item.uom,
-					qty: item.qty,
-					amount: item.qty * item.rate,
-					base_rate: item.base_rate,
-					conversion_factor: item.conversion_factor,
-					expected_price: item.base_rate * (item.conversion_factor || 1)
-				})));
+				console.log(
+					"[ItemsTable] Items updated - checking rates:",
+					newItems.map((item) => ({
+						Item_code: item.item_code,
+						Price: item.rate,
+						Uom: item.uom,
+						qty: item.qty,
+						amount: item.qty * item.rate,
+						base_rate: item.base_rate,
+						conversion_factor: item.conversion_factor,
+						expected_price: item.base_rate * (item.conversion_factor || 1),
+					})),
+				);
 
 				// Check if any item has wrong price (should be base_rate * conversion_factor for UOM items)
-				newItems.forEach(item => {
+				newItems.forEach((item) => {
 					let expectedPrice = item.base_rate;
 					let shouldConvert = false;
 
@@ -636,21 +642,31 @@ export default {
 						stock_uom: item.stock_uom,
 						conversion_factor: item.conversion_factor,
 						base_rate: item.base_rate,
-						current_rate: item.rate
+						current_rate: item.rate,
 					});
 
 					// If UOM is different from stock UOM and conversion_factor > 1, expect converted price
-					if (item.uom && item.uom !== item.stock_uom && item.conversion_factor && item.conversion_factor > 1) {
+					if (
+						item.uom &&
+						item.uom !== item.stock_uom &&
+						item.conversion_factor &&
+						item.conversion_factor > 1
+					) {
 						expectedPrice = item.base_rate * item.conversion_factor;
 						shouldConvert = true;
 						console.log("[ItemsTable] SHOULD CONVERT detected:", {
 							Item_code: item.item_code,
 							expectedPrice: expectedPrice,
-							conversion_factor: item.conversion_factor
+							conversion_factor: item.conversion_factor,
 						});
 					}
 
-					if (item.rate !== expectedPrice && shouldConvert && !item.posa_offer_applied && item.discount_amount <= 0) {
+					if (
+						item.rate !== expectedPrice &&
+						shouldConvert &&
+						!item.posa_offer_applied &&
+						item.discount_amount <= 0
+					) {
 						console.error("[ItemsTable] ❌ PRICE MISMATCH DETECTED - AUTO FIXING:", {
 							Item_code: item.item_code,
 							current_price: item.rate,
@@ -660,7 +676,7 @@ export default {
 							uom: item.uom,
 							stock_uom: item.stock_uom,
 							should_convert: shouldConvert,
-							posa_offer_applied: item.posa_offer_applied
+							posa_offer_applied: item.posa_offer_applied,
 						});
 
 						// AUTO FIX: Update the rate to expected price
@@ -671,14 +687,14 @@ export default {
 						console.log("[ItemsTable] ✅ PRICE FIXED:", {
 							Item_code: item.item_code,
 							new_rate: item.rate,
-							new_amount: item.amount
+							new_amount: item.amount,
 						});
 					} else if (item.posa_offer_applied) {
 						console.log("[ItemsTable] ✅ Skipping auto-fix for offer-applied item:", {
 							Item_code: item.item_code,
 							current_price: item.rate,
 							expected_price: expectedPrice,
-							posa_offer_applied: item.posa_offer_applied
+							posa_offer_applied: item.posa_offer_applied,
 						});
 					} else {
 						console.log("[ItemsTable] ✅ Price status:", {
@@ -686,21 +702,21 @@ export default {
 							current_price: item.rate,
 							expected_price: expectedPrice,
 							should_convert: shouldConvert,
-							status: item.rate === expectedPrice ? "CORRECT" : "WAITING_FOR_UPDATE"
+							status: item.rate === expectedPrice ? "CORRECT" : "WAITING_FOR_UPDATE",
 						});
 					}
 				});
 			},
 			deep: true,
-			immediate: true
-		}
+			immediate: true,
+		},
 	},
 	mounted() {
 		console.log("[ItemsTable] ✅ Mounted successfully, setting up listeners");
 		console.log("[ItemsTable] 📋 Props received:", {
-			hasToggleOffer: typeof this.toggleOffer === 'function',
+			hasToggleOffer: typeof this.toggleOffer === "function",
 			itemsCount: this.items?.length || 0,
-			headersCount: this.headers?.length || 0
+			headersCount: this.headers?.length || 0,
 		});
 
 		// Listen for force update events
@@ -730,12 +746,12 @@ export default {
 	},
 	methods: {
 		getRowClass(item) {
-			return this.highlightedRowId === item.posa_row_id ? 'row-highlight' : '';
+			return this.highlightedRowId === item.posa_row_id ? "row-highlight" : "";
 		},
 		getItemProps(item) {
 			return {
-				'data-row-id': item.posa_row_id,
-				'data-item-code': item.item_code,
+				"data-row-id": item.posa_row_id,
+				"data-item-code": item.item_code,
 			};
 		},
 		onUomChange(item, value) {
@@ -779,9 +795,7 @@ export default {
 		},
 
 		highlightItem(key) {
-			const idx = this.items.findIndex(it =>
-				it.posa_row_id === key || it.item_code === key
-			);
+			const idx = this.items.findIndex((it) => it.posa_row_id === key || it.item_code === key);
 			if (idx < 0) return;
 
 			this.highlightedRowId = this.items[idx].posa_row_id;
@@ -790,14 +804,15 @@ export default {
 				// Tìm chính <tr> theo data-row-id đã gắn từ getItemProps
 				const rowEl = this.$el.querySelector(`[data-row-id="${this.highlightedRowId}"]`);
 				if (rowEl && rowEl.scrollIntoView) {
-					rowEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+					rowEl.scrollIntoView({ block: "center", behavior: "smooth" });
 				} else {
 					// Fallback: scroll container của virtual table nếu cần
 					const scroller =
-						this.$el.querySelector('.v-data-table__wrapper') ||
-						this.$el.querySelector('.v-table__wrapper') ||
-						this.$el.querySelector('.v-virtual-scroll');
-					if (scroller) scroller.scrollTop = Math.max(0, rowEl?.offsetTop - scroller.clientHeight / 2 || 0);
+						this.$el.querySelector(".v-data-table__wrapper") ||
+						this.$el.querySelector(".v-table__wrapper") ||
+						this.$el.querySelector(".v-virtual-scroll");
+					if (scroller)
+						scroller.scrollTop = Math.max(0, rowEl?.offsetTop - scroller.clientHeight / 2 || 0);
 				}
 
 				setTimeout(() => (this.highlightedRowId = null), 1200);
@@ -810,7 +825,7 @@ export default {
 				item_code: item.item_code,
 				posa_row_id: item.posa_row_id,
 				current_posa_is_offer: item.posa_is_offer,
-				timestamp: new Date().toISOString()
+				timestamp: new Date().toISOString(),
 			});
 
 			// Call the parent toggleOffer method
@@ -819,10 +834,17 @@ export default {
 
 		// Handle quantity change from direct input
 		onQtyChange(item, value) {
-			console.log("📝 [QTY_CHANGE] Direct qty input for item:", item.item_code, "from:", item.qty, "to:", value);
+			console.log(
+				"📝 [QTY_CHANGE] Direct qty input for item:",
+				item.item_code,
+				"from:",
+				item.qty,
+				"to:",
+				value,
+			);
 
 			// Update qty using setFormatedQty
-			this.setFormatedQty(item, 'qty', null, false, value);
+			this.setFormatedQty(item, "qty", null, false, value);
 
 			// Calculate stock qty
 			this.calcStockQty(item, item.qty);
@@ -833,7 +855,9 @@ export default {
 				this.$parent.$nextTick(() => {
 					setTimeout(() => {
 						this.$parent.calculateDiscountsDebounced();
-						console.log("✅ [QTY_CHANGE] calculateDiscountsDebounced() called for direct qty input");
+						console.log(
+							"✅ [QTY_CHANGE] calculateDiscountsDebounced() called for direct qty input",
+						);
 					}, 10);
 				});
 			} else {
@@ -847,31 +871,31 @@ export default {
 		// Get pack information for display
 		getPackInfo(item) {
 			// Check if item is part of a pack based on UOM (dynamic)
-			if (item.uom && item.uom.includes('THÙNG')) {
+			if (item.uom && item.uom.includes("THÙNG")) {
 				// Extract pack size from UOM (e.g., 'THÙNG-24' -> 24)
 				const packSizeMatch = item.uom.match(/THÙNG-(\d+)/);
 				if (packSizeMatch) {
 					const packSize = parseInt(packSizeMatch[1]);
 					// Dynamic pack display based on size
-					let color = 'info';
-					let icon = 'mdi-package-variant';
+					let color = "info";
+					let icon = "mdi-package-variant";
 
 					// Color coding based on pack size (can be customized)
 					if (packSize >= 20) {
-						color = 'success';
-						icon = 'mdi-package-variant-closed';
+						color = "success";
+						icon = "mdi-package-variant-closed";
 					} else if (packSize >= 10) {
-						color = 'primary';
-						icon = 'mdi-package-variant';
+						color = "primary";
+						icon = "mdi-package-variant";
 					} else if (packSize >= 5) {
-						color = 'secondary';
-						icon = 'mdi-package-variant';
+						color = "secondary";
+						icon = "mdi-package-variant";
 					}
 
 					return {
 						text: `${packSize} Pack`,
 						icon: icon,
-						color: color
+						color: color,
 					};
 				}
 			}
@@ -879,9 +903,9 @@ export default {
 			// Check if item has offer applied (combo discount)
 			if (item.posa_offer_applied) {
 				return {
-					text: 'Combo',
-					icon: 'mdi-percent',
-					color: 'warning'
+					text: "Combo",
+					icon: "mdi-percent",
+					color: "warning",
 				};
 			}
 
@@ -1176,7 +1200,6 @@ export default {
 	transition: font-size 0.3s ease;
 }
 
-
 /* Drag and drop styles */
 .draggable-row {
 	transition: all 0.2s ease;
@@ -1244,7 +1267,6 @@ export default {
 	background-color: var(--surface-secondary);
 }
 
-
 /* Row highlight styling */
 :deep(.row-highlight) {
 	animation: flashRow 1.2s ease;
@@ -1252,8 +1274,12 @@ export default {
 }
 
 @keyframes flashRow {
-	from { background-color: #c8e6c9; }
-	to   { background-color: transparent; }
+	from {
+		background-color: #c8e6c9;
+	}
+	to {
+		background-color: transparent;
+	}
 }
 
 :deep(.row-highlight) .amount-value {
@@ -1297,8 +1323,14 @@ export default {
 }
 
 @keyframes pulse {
-	0% { transform: scale(1); }
-	50% { transform: scale(1.05); }
-	100% { transform: scale(1); }
+	0% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.05);
+	}
+	100% {
+		transform: scale(1);
+	}
 }
 </style>

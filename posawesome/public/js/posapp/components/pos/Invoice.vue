@@ -5,7 +5,7 @@
 		<CancelSaleDialog v-model="cancel_dialog" @confirm="cancel_invoice" />
 
 		<!-- Main Invoice Card (contains all invoice content) -->
-		 
+
 		<v-card
 			ref="invoiceCard"
 			:style="{
@@ -224,7 +224,9 @@
 		>
 			<!-- Add Print and Tax Print Buttons here -->
 			<template #actions>
+				<!-- Submit Button (hidden for Vietnam) -->
 				<v-btn
+					v-if="!isVietnamCountry"
 					color="success"
 					@click="submit_invoice"
 					:disabled="!can_print"
@@ -233,7 +235,7 @@
 					{{ __("Submit") }}
 				</v-btn>
 
-				<!-- Tax Print Button -->
+				<!-- Tax Print Button (hidden for Vietnam) -->
 				<v-btn
 					v-if="show_tax_print_button"
 					color="primary"
@@ -244,6 +246,18 @@
 				>
 					<v-icon left>mdi-receipt</v-icon>
 					{{ __("In Thuế") }}
+				</v-btn>
+
+				<!-- Vietnam Payment Button -->
+				<v-btn
+					v-if="isVietnamCountry"
+					color="success"
+					@click="print_tax_invoice_vietnam"
+					:disabled="!can_print || tax_print_loading"
+					:loading="tax_print_loading"
+				>
+					<v-icon left>mdi-credit-card</v-icon>
+					{{ __("Thanh toán VN") }}
 				</v-btn>
 			</template>
 		</InvoiceSummary>
@@ -345,12 +359,17 @@ export default {
 		isDarkTheme() {
 			return this.$theme.current === "dark";
 		},
-		// Show tax print button if POS profile allows and invoice is not a return
+		// Check if POS profile country is Vietnam
+		isVietnamCountry() {
+			return this.pos_profile && this.pos_profile.country === "Vietnam";
+		},
+		// Show tax print button if POS profile allows and invoice is not a return (only for non-Vietnam countries)
 		show_tax_print_button() {
 			return (
 				this.pos_profile &&
 				this.pos_profile.posa_enable_tax_print &&
-				!this.isReturnInvoice
+				!this.isReturnInvoice &&
+				!this.isVietnamCountry
 			);
 		},
 		// Check if the invoice can be printed (e.g., has items, is not a return unless specifically allowed)
@@ -380,7 +399,7 @@ export default {
 				items_count: this.items.length,
 				customer: this.customer,
 				coupons_count: this.posa_coupons?.length || 0,
-				pos_profile: this.pos_profile?.name
+				pos_profile: this.pos_profile?.name,
 			});
 
 			if (!this.items.length) {
@@ -415,7 +434,7 @@ export default {
 					items_count: invoice_data.items.length,
 					customer: invoice_data.customer,
 					pos_profile: invoice_data.pos_profile,
-					coupons_count: invoice_data.coupons?.length || 0
+					coupons_count: invoice_data.coupons?.length || 0,
 				});
 
 				const response = await frappe.call({
@@ -427,15 +446,21 @@ export default {
 				console.log("💰 [DISCOUNT_CALC] API response received", {
 					status: response.message?.status,
 					has_updated_items: !!response.message?.updated_items,
-					applied_offers_count: response.message?.applied_offers?.length || 0
+					applied_offers_count: response.message?.applied_offers?.length || 0,
 				});
 
 				if (response.message && response.message.status === "success") {
 					// Directly replace items with the processed list from backend
 					console.log("💰 [DISCOUNT_CALC] API success, updating items and offers");
-					console.log("📦 [DISCOUNT_CALC] Items before backend update:", this.items.length, "items");
+					console.log(
+						"📦 [DISCOUNT_CALC] Items before backend update:",
+						this.items.length,
+						"items",
+					);
 					this.items.forEach((item, index) => {
-						console.log(`📦 [BEFORE] Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}`);
+						console.log(
+							`📦 [BEFORE] Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}`,
+						);
 					});
 
 					this.items = response.message.updated_items;
@@ -443,22 +468,26 @@ export default {
 
 					console.log("💰 [DISCOUNT_CALC] Items and offers updated successfully", {
 						items_count: this.items.length,
-						offers_count: this.posa_offers.length
+						offers_count: this.posa_offers.length,
 					});
 
 					console.log("📦 [DISCOUNT_CALC] Items after backend update:");
 					this.items.forEach((item, index) => {
-						console.log(`📦 [AFTER] Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}, discount: ${item.discount_amount}`);
+						console.log(
+							`📦 [AFTER] Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}, discount: ${item.discount_amount}`,
+						);
 					});
 
-					console.log("🎁 [DISCOUNT_CALC] Applied offers:", this.posa_offers.map(o => `${o.name} (${o.offer})`));
+					console.log(
+						"🎁 [DISCOUNT_CALC] Applied offers:",
+						this.posa_offers.map((o) => `${o.name} (${o.offer})`),
+					);
 
 					// Bro đi việc - Comment out để Cashier làm việc nhanh chóng hơn
 					// this.eventBus.emit("applicable_offers_result", {
 					// 	applied_offers: this.posa_offers,
 					// 	updated_items: this.items
 					// });
-
 				} else {
 					console.log("💰 [DISCOUNT_CALC] API returned error status");
 					this.eventBus.emit("show_message", {
@@ -1152,11 +1181,13 @@ export default {
 
 				// Trigger discount calculation after qty change (if not already applying)
 				if (!this.isApplyingDiscount) {
-					console.log("➕ [ADD_ONE] Triggering discount calculation via calculateDiscountsDebounced");
+					console.log(
+						"➕ [ADD_ONE] Triggering discount calculation via calculateDiscountsDebounced",
+					);
 					console.log("➕ [ADD_ONE] Current cart state before discount calc:", {
 						items_count: this.items.length,
 						customer: this.customer,
-						pos_profile: this.pos_profile?.name
+						pos_profile: this.pos_profile?.name,
 					});
 
 					this.$nextTick(() => {
@@ -1190,22 +1221,28 @@ export default {
 
 				// Trigger discount calculation after qty change (if not already applying)
 				if (!this.isApplyingDiscount) {
-					console.log("➖ [SUBTRACT_ONE] Triggering discount calculation via calculateDiscountsDebounced");
+					console.log(
+						"➖ [SUBTRACT_ONE] Triggering discount calculation via calculateDiscountsDebounced",
+					);
 					console.log("➖ [SUBTRACT_ONE] Current cart state before discount calc:", {
 						items_count: this.items.length,
 						customer: this.customer,
-						pos_profile: this.pos_profile?.name
+						pos_profile: this.pos_profile?.name,
 					});
 
 					this.$nextTick(() => {
 						setTimeout(() => {
 							console.log("⏱️ [SUBTRACT_ONE] Calling calculateDiscountsDebounced() now...");
 							this.calculateDiscountsDebounced();
-							console.log("✅ [SUBTRACT_ONE] calculateDiscountsDebounced() called successfully");
+							console.log(
+								"✅ [SUBTRACT_ONE] calculateDiscountsDebounced() called successfully",
+							);
 						}, 10);
 					});
 				} else {
-					console.log("➖ [SUBTRACT_ONE] Skipping discount calculation - isApplyingDiscount is true");
+					console.log(
+						"➖ [SUBTRACT_ONE] Skipping discount calculation - isApplyingDiscount is true",
+					);
 				}
 			}
 		},
@@ -1269,8 +1306,8 @@ export default {
 						updateHeaderTaxDisplay(result.nextDisplay);
 
 						// Update local POS profile state with the new counter
-						this.$store.commit('updatePosProfile', {
-							tax_current_counter: result.newCounter
+						this.$store.commit("updatePosProfile", {
+							tax_current_counter: result.newCounter,
 						});
 
 						this.eventBus.emit("show_message", {
@@ -1287,10 +1324,61 @@ export default {
 							color: "error",
 						});
 						this.tax_print_loading = false;
-					}
+					},
 				);
 			} catch (e) {
 				console.error("Unexpected error in print_tax_invoice:", e);
+				this.eventBus.emit("show_message", {
+					title: __("An unexpected error occurred."),
+					color: "error",
+				});
+				this.tax_print_loading = false;
+			}
+		},
+
+		async print_tax_invoice_vietnam() {
+			if (!this.invoice_doc || !this.pos_profile) {
+				this.eventBus.emit("show_message", {
+					title: __("Missing invoice data or POS profile."),
+					color: "error",
+				});
+				return;
+			}
+
+			if (!this.pos_profile.posa_enable_tax_print) {
+				this.eventBus.emit("show_message", {
+					title: __("Tax printing is not enabled in POS Profile."),
+					color: "warning",
+				});
+				return;
+			}
+
+			this.tax_print_loading = true;
+
+			try {
+				await handleVietnamTaxPrint(
+					this.invoice_doc,
+					this.pos_profile,
+					// onSuccess callback
+					(result) => {
+						this.eventBus.emit("show_message", {
+							title: __("Vietnam tax invoice processed successfully."),
+							color: "success",
+						});
+						this.tax_print_loading = false;
+					},
+					// onError callback
+					(error) => {
+						console.error("Error processing Vietnam tax invoice:", error);
+						this.eventBus.emit("show_message", {
+							title: error.message || __("Failed to process Vietnam tax invoice."),
+							color: "error",
+						});
+						this.tax_print_loading = false;
+					},
+				);
+			} catch (e) {
+				console.error("Unexpected error in print_tax_invoice_vietnam:", e);
 				this.eventBus.emit("show_message", {
 					title: __("An unexpected error occurred."),
 					color: "error",
@@ -1332,8 +1420,8 @@ export default {
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.shift_reports.get_shift_report",
 					args: {
-						shift_report_id: this.pos_shift_report
-					}
+						shift_report_id: this.pos_shift_report,
+					},
 				});
 
 				if (response.message && response.message.success) {
@@ -1350,9 +1438,9 @@ export default {
 	mounted() {
 		console.log("🎯 [INVOICE] Invoice component mounted successfully");
 		console.log("🎯 [INVOICE] Available methods:", {
-			hasToggleOffer: typeof this.toggleOffer === 'function',
-			hasFetchOffersForItems: typeof this.fetchOffersForItems === 'function',
-			hasCalculateDiscountsAPI: typeof this.calculateDiscountsAPI === 'function'
+			hasToggleOffer: typeof this.toggleOffer === "function",
+			hasFetchOffersForItems: typeof this.fetchOffersForItems === "function",
+			hasCalculateDiscountsAPI: typeof this.calculateDiscountsAPI === "function",
 		});
 
 		// Setup discount calculation debounced function
@@ -1386,23 +1474,32 @@ export default {
 		// Listen for remove item by code event
 		this.eventBus.on("remove_item_by_code", (itemCode) => {
 			console.log("Received remove_item_by_code event for:", itemCode);
-			console.log("Current items in invoice:", this.items.map(i => i.item_code));
-			
-			const itemToRemove = this.items.find(item => item.item_code === itemCode);
+			console.log(
+				"Current items in invoice:",
+				this.items.map((i) => i.item_code),
+			);
+
+			const itemToRemove = this.items.find((item) => item.item_code === itemCode);
 			if (itemToRemove) {
 				console.log("Found item to remove:", itemToRemove.item_name);
 				this.remove_item(itemToRemove);
 				console.log("Successfully removed item:", itemCode);
-				frappe.show_alert({
-					message: `Removed: ${itemToRemove.item_name}`,
-					indicator: "success",
-				}, 3);
+				frappe.show_alert(
+					{
+						message: `Removed: ${itemToRemove.item_name}`,
+						indicator: "success",
+					},
+					3,
+				);
 			} else {
 				console.log("Item not found in invoice:", itemCode);
-				frappe.show_alert({
-					message: `Item ${itemCode} not found in invoice`,
-					indicator: "warning",
-				}, 3);
+				frappe.show_alert(
+					{
+						message: `Item ${itemCode} not found in invoice`,
+						indicator: "warning",
+					},
+					3,
+				);
 			}
 		});
 
@@ -1413,7 +1510,7 @@ export default {
 			this.customer = data.pos_profile.customer;
 			this.pos_opening_shift = data.pos_opening_shift;
 			this.stock_settings = data.stock_settings;
-			
+
 			// Set default customer when POS profile is registered
 			this.$nextTick(() => {
 				this.setDefaultCustomerAfterClear();
@@ -1480,7 +1577,9 @@ export default {
 			// Log current items before applying offers
 			console.log("📦 [INVOICE] Items before applying offers:");
 			this.items.forEach((item, index) => {
-				console.log(`📦 [INVOICE]   Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}, discount: ${item.discount_amount}`);
+				console.log(
+					`📦 [INVOICE]   Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}, discount: ${item.discount_amount}`,
+				);
 			});
 
 			this.updateInvoiceOffers(data);
@@ -1490,7 +1589,9 @@ export default {
 			// Log items after applying offers
 			console.log("📦 [INVOICE] Items after applying offers:");
 			this.items.forEach((item, index) => {
-				console.log(`📦 [INVOICE]   Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}, discount: ${item.discount_amount}`);
+				console.log(
+					`📦 [INVOICE]   Item ${index + 1}: ${item.item_code} - qty: ${item.qty}, rate: ${item.rate}, amount: ${item.amount}, discount: ${item.discount_amount}`,
+				);
 			});
 		});
 		this.eventBus.on("update_invoice_coupons", (data) => {
@@ -1505,7 +1606,7 @@ export default {
 					items_count: this.items.length,
 					customer: this.customer,
 					pos_profile: this.pos_profile?.name,
-					coupons_count: this.posa_coupons.length
+					coupons_count: this.posa_coupons.length,
 				});
 
 				this.calculateDiscountsDebounced();
@@ -1580,27 +1681,29 @@ export default {
 		this.eventBus.on("reset_posting_date", () => {
 			this.posting_date = frappe.datetime.nowdate();
 		});
-        this.eventBus.on("calc_uom", this.calc_uom);
-        this.eventBus.on("uom_changed", (item, value) => {
-            this.calculateDiscountsDebounced();
-        });
-        this.eventBus.on("item-drag-start", (item) => {
-        	this.showDropFeedback(true);
-        });
-        this.eventBus.on("item-drag-end", () => {
-        	this.showDropFeedback(false);
-        });
+		this.eventBus.on("calc_uom", this.calc_uom);
+		this.eventBus.on("uom_changed", (item, value) => {
+			this.calculateDiscountsDebounced();
+		});
+		this.eventBus.on("item-drag-start", (item) => {
+			this.showDropFeedback(true);
+		});
+		this.eventBus.on("item-drag-end", () => {
+			this.showDropFeedback(false);
+		});
 
-        // Listen for shift verification status changes
-        this.eventBus.on("shift_verification_changed", (status) => {
-        	this.shiftVerificationStatus = status;
-        });
+		// Listen for shift verification status changes
+		this.eventBus.on("shift_verification_changed", (status) => {
+			this.shiftVerificationStatus = status;
+		});
 
-        // Listen for check applicable offers request from PosOffers dialog
-        this.eventBus.on("check_applicable_offers", () => {
-            console.log("🔍 [INVOICE] Received check_applicable_offers event - calculating offers for current cart");
-            this.calculateDiscountsDebounced();
-        });
+		// Listen for check applicable offers request from PosOffers dialog
+		this.eventBus.on("check_applicable_offers", () => {
+			console.log(
+				"🔍 [INVOICE] Received check_applicable_offers event - calculating offers for current cart",
+			);
+			this.calculateDiscountsDebounced();
+		});
 	},
 	// Cleanup event listeners before component is destroyed
 	beforeUnmount() {
@@ -1638,7 +1741,7 @@ export default {
 		customer(newVal) {
 			console.log("👤 [INVOICE] Customer changed, emitting update_customer:", newVal);
 			this.eventBus.emit("update_customer", newVal);
-		}
+		},
 	},
 };
 </script>
@@ -1646,9 +1749,9 @@ export default {
 <style scoped>
 /* Page content adjustments */
 .page-content[data-v-528f966a] {
-    flex: 1;
-    overflow-y: auto;
-    padding-top: 1px;
+	flex: 1;
+	overflow-y: auto;
+	padding-top: 1px;
 }
 
 /* Card background adjustments */
@@ -1830,7 +1933,8 @@ export default {
 }
 
 /* Override dense row column padding */
-:deep(.v-row--dense>.v-col), :deep(.v-row--dense>[class*=v-col-]) {
+:deep(.v-row--dense > .v-col),
+:deep(.v-row--dense > [class*="v-col-"]) {
 	padding: 10px;
 }
 

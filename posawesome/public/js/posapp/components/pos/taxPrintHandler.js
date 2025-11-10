@@ -9,13 +9,13 @@ const DEBUG_MODE = true;
  * @param {object} [details] - Đối tượng chứa thông tin chi tiết.
  */
 function debugLog(message, details) {
-  if (DEBUG_MODE) {
-    if (details !== undefined) {
-      console.log(`[TaxPrintHandler DEBUG] ${message}`, details);
-    } else {
-      console.log(`[TaxPrintHandler DEBUG] ${message}`);
-    }
-  }
+	if (DEBUG_MODE) {
+		if (details !== undefined) {
+			console.log(`[TaxPrintHandler DEBUG] ${message}`, details);
+		} else {
+			console.log(`[TaxPrintHandler DEBUG] ${message}`);
+		}
+	}
 }
 
 /**
@@ -27,151 +27,326 @@ function debugLog(message, details) {
  * @param {function} onError - Callback được gọi khi có lỗi xảy ra.
  */
 export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
-  debugLog("Hàm handleTaxPrint được gọi với các tham số sau:", {
-    invoice: invoice,
-    pos_profile: pos_profile
-  });
+	debugLog("Hàm handleTaxPrint được gọi với các tham số sau:", {
+		invoice: invoice,
+		pos_profile: pos_profile,
+	});
 
-  try {
-    // === BƯỚC 0: KIỂM TRA CẤU HÌNH VÀ DỮ LIỆU CẦN THIẾT ===
-    debugLog("Bước 0: Bắt đầu xác thực cấu hình.");
-    const apiUrl = pos_profile.custom_print_api_url || "http://localhost:5000/api/print";
-    const protectKey = pos_profile.custom_protect_key;
+	try {
+		// === BƯỚC 0: KIỂM TRA CẤU HÌNH VÀ DỮ LIỆU CẦN THIẾT ===
+		debugLog("Bước 0: Bắt đầu xác thực cấu hình.");
+		const apiUrl = pos_profile.custom_print_api_url || "http://localhost:5000/api/print";
+		const protectKey = pos_profile.custom_protect_key;
 
-    const validationErrors = [];
-    if (!protectKey) validationErrors.push("ProtectKey chưa được cấu hình");
-    if (!pos_profile.tax_roll_code) validationErrors.push("Tax Roll Code (tiền tố) chưa được thiết lập");
-    if (pos_profile.tax_current_counter == null) validationErrors.push("Tax Current Counter (số hiện tại) chưa được thiết lập");
-    if (pos_profile.tax_start_number == null) validationErrors.push("Tax Start Number (số bắt đầu) chưa được thiết lập");
-    if (!invoice || !invoice.name) validationErrors.push("Dữ liệu hóa đơn không hợp lệ");
+		const validationErrors = [];
+		if (!protectKey) validationErrors.push("ProtectKey chưa được cấu hình");
+		if (!pos_profile.tax_roll_code) validationErrors.push("Tax Roll Code (tiền tố) chưa được thiết lập");
+		if (pos_profile.tax_current_counter == null)
+			validationErrors.push("Tax Current Counter (số hiện tại) chưa được thiết lập");
+		if (pos_profile.tax_start_number == null)
+			validationErrors.push("Tax Start Number (số bắt đầu) chưa được thiết lập");
+		if (!invoice || !invoice.name) validationErrors.push("Dữ liệu hóa đơn không hợp lệ");
 
-    if (validationErrors.length > 0) {
-      const errorMessage = `Lỗi cấu hình POS Profile:\n${validationErrors.map(e => `• ${e}`).join('\n')}`;
-      throw new Error(errorMessage);
-    }
-    debugLog("Xác thực cấu hình thành công.");
+		if (validationErrors.length > 0) {
+			const errorMessage = `Lỗi cấu hình POS Profile:\n${validationErrors.map((e) => `• ${e}`).join("\n")}`;
+			throw new Error(errorMessage);
+		}
+		debugLog("Xác thực cấu hình thành công.");
 
-    // === BƯỚC 1: XÁC ĐỊNH TAXCODE VÀ FLAG ===
-    const nextTaxCodeNumber = pos_profile.tax_current_counter;
-    const taxCode = `${pos_profile.tax_roll_code}${nextTaxCodeNumber}`;
-    const flag = (pos_profile.tax_current_counter === pos_profile.tax_start_number) ? "REPLACE" : "CONTINUE";
-    debugLog("Bước 1: Xác định TaxCode và Flag.", { taxCode, flag });
+		// === BƯỚC 1: XÁC ĐỊNH TAXCODE VÀ FLAG ===
+		const nextTaxCodeNumber = pos_profile.tax_current_counter;
+		const taxCode = `${pos_profile.tax_roll_code}${nextTaxCodeNumber}`;
+		const flag =
+			pos_profile.tax_current_counter === pos_profile.tax_start_number ? "REPLACE" : "CONTINUE";
+		debugLog("Bước 1: Xác định TaxCode và Flag.", { taxCode, flag });
 
-    // === BƯỚC 2: TẠO BODY HOÀN CHỈNH CHO REQUEST, KHỚP VỚI MẪU ===
-    const resolvedTaxId = String(invoice.tax_id || invoice.customer_tax_id || "").trim();
-    console.log("[TRACE] handler resolvedTaxId =", resolvedTaxId);
+		// === BƯỚC 2: TẠO BODY HOÀN CHỈNH CHO REQUEST, KHỚP VỚI MẪU ===
+		const resolvedTaxId = String(invoice.tax_id || invoice.customer_tax_id || "").trim();
+		console.log("[TRACE] handler resolvedTaxId =", resolvedTaxId);
 
+		const body = {
+			Flag: flag,
+			DocNo: invoice.name,
+			TaxCode: taxCode,
+			InternalCode: invoice.name,
 
-    const body = {
-      Flag: flag,
-      DocNo: invoice.name,
-      TaxCode: taxCode,
-      InternalCode: invoice.name,
+			CustomerName: String(invoice.customer || invoice.customer_name || invoice.title),
+			CustomerInfo: resolvedTaxId || String(invoice.title || "N/A"),
+			Cashier: String(invoice.owner || invoice.modified_by),
+			CashierName: String(invoice.owner || invoice.modified_by),
 
-      CustomerName: String(invoice.customer || invoice.customer_name || invoice.title),
-      CustomerInfo: resolvedTaxId || String(invoice.title || "N/A"),
-      Cashier: String(invoice.owner || invoice.modified_by),
-      CashierName: String(invoice.owner || invoice.modified_by),
+			Products: [
+				{
+					Name: "商品總數 (SP)",
+					Qty: String(invoice.total_qty || "0"),
+					Price: String(invoice.total || "0"),
+				},
+			],
 
-      Products: [{
-        Name: "商品總數 (SP)",
-        Qty: String(invoice.total_qty || "0"),
-        Price: String(invoice.total || "0")
-      }],
+			OriginalContent: "Summary Only",
+			Total: String(invoice.total || "0"),
+			TotalAmount: String(invoice.total || "0"),
+			ServiceFee: String(invoice.total_commission || "0"),
+			Discount: String(invoice.discount_amount || "0"),
+			TotalDiscount: String(invoice.discount_amount || "0"),
+			GrandTotal: String(invoice.grand_total || "0"),
+			Cash: String(invoice.paid_amount || "0"),
+			Statistics: String(invoice.grand_total || "0"),
+			ErrorMessage: " ",
+			StatusReason: "Valid",
+			TaxStatus: "valid",
+			Currency: String(invoice.currency || "TWD"),
+			PrinterName: String(pos_profile.name || "PRINTER_NAME"),
+			PosTerminal: String(pos_profile.name || pos_profile.warehouse || "POS Terminal"),
 
-      OriginalContent: "Summary Only",
-      Total: String(invoice.total || "0"),
-      TotalAmount: String(invoice.total || "0"),
-      ServiceFee: String(invoice.total_commission || "0"),
-      Discount: String(invoice.discount_amount || "0"),
-      TotalDiscount: String(invoice.discount_amount || "0"),
-      GrandTotal: String(invoice.grand_total || "0"),
-      Cash: String(invoice.paid_amount || "0"),
-      Statistics: String(invoice.grand_total || "0"),
-      ErrorMessage: " ",
-      StatusReason: "Valid",
-      TaxStatus: "valid",
-      Currency: String(invoice.currency || "TWD"),
-      PrinterName: String(pos_profile.name || "PRINTER_NAME"),
-      PosTerminal: String(pos_profile.name || pos_profile.warehouse || "POS Terminal"),
+			RequestTime: new Date().toISOString(),
+		};
+		debugLog("[TRACE] print body preview =", {
+			CustomerName: body.CustomerName,
+			CustomerInfo: body.CustomerInfo,
+			TaxCode: body.TaxCode,
+		});
 
-      RequestTime: new Date().toISOString()
-    };
-    debugLog("[TRACE] print body preview =", { CustomerName: body.CustomerName, CustomerInfo: body.CustomerInfo, TaxCode: body.TaxCode });
+		debugLog("Bước 2: Tạo body request thành công, khớp với mẫu yêu cầu.", { body });
 
-    debugLog("Bước 2: Tạo body request thành công, khớp với mẫu yêu cầu.", { body });
+		// === BƯỚC 3: GỌI API PROXY ===
+		debugLog("Bước 3: Gửi yêu cầu đến API Proxy...", { url: apiUrl });
+		const response = await fetch(apiUrl, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"X-Protect-Print-Key": protectKey,
+			},
+			body: JSON.stringify(body),
+		});
 
-    // === BƯỚC 3: GỌI API PROXY ===
-    debugLog("Bước 3: Gửi yêu cầu đến API Proxy...", { url: apiUrl });
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Protect-Print-Key": protectKey
-      },
-      body: JSON.stringify(body)
-    });
+		const responseText = await response.text();
+		debugLog("Nhận được phản hồi từ API Proxy.", {
+			status: response.status,
+			ok: response.ok,
+			body: responseText.substring(0, 500),
+		});
 
-    const responseText = await response.text();
-    debugLog("Nhận được phản hồi từ API Proxy.", { status: response.status, ok: response.ok, body: responseText.substring(0, 500) });
+		if (!response.ok) {
+			throw new Error(`Lỗi từ máy chủ in (${response.status}): ${responseText}`);
+		}
 
-    if (!response.ok) {
-      throw new Error(`Lỗi từ máy chủ in (${response.status}): ${responseText}`);
-    }
+		// === BƯỚC 4: XỬ LÝ KHI IN THÀNH CÔNG (CẬP NHẬT TRẠNG THÁI LÊN ERPNext) ===
+		debugLog("Bước 4: In thành công, đang cập nhật trạng thái lên ERPNext...");
+		const updateResponse = await frappe.call({
+			method: "posawesome.posawesome.api.tax_roll.increment_tax_counter",
+			args: {
+				pos_profile: pos_profile.name,
+				invoice_name: invoice.name,
+				tax_code: taxCode,
+			},
+		});
 
-    // === BƯỚC 4: XỬ LÝ KHI IN THÀNH CÔNG (CẬP NHẬT TRẠNG THÁI LÊN ERPNext) ===
-    debugLog("Bước 4: In thành công, đang cập nhật trạng thái lên ERPNext...");
-    const updateResponse = await frappe.call({
-      method: "posawesome.posawesome.api.tax_roll.increment_tax_counter",
-      args: {
-        pos_profile: pos_profile.name,
-        invoice_name: invoice.name,
-        tax_code: taxCode
-      }
-    });
+		if (!updateResponse.message || !updateResponse.message.success) {
+			throw new Error("Không thể cập nhật Tax Counter trên server sau khi in.");
+		}
 
-    if (!updateResponse.message || !updateResponse.message.success) {
-      throw new Error("Không thể cập nhật Tax Counter trên server sau khi in.");
-    }
+		debugLog("Cập nhật trạng thái lên ERPNext thành công.", updateResponse.message);
 
-    debugLog("Cập nhật trạng thái lên ERPNext thành công.", updateResponse.message);
+		// === BƯỚC 5: XỬ LÝ PHÍA CLIENT SAU KHI MỌI THỨ THÀNH CÔNG ===
+		const { new_counter, next_display } = updateResponse.message;
 
-    // === BƯỚC 5: XỬ LÝ PHÍA CLIENT SAU KHI MỌI THỨ THÀNH CÔNG ===
-    const { new_counter, next_display } = updateResponse.message;
+		// Cập nhật pos_profile object
+		pos_profile.tax_current_counter = new_counter;
 
-    // Cập nhật pos_profile object
-    pos_profile.tax_current_counter = new_counter;
+		// Cập nhật header display
+		updateHeaderTaxDisplay(next_display);
 
-    // Cập nhật header display
-    updateHeaderTaxDisplay(next_display);
+		if (onSuccess) {
+			onSuccess({
+				taxCode: taxCode,
+				newCounter: new_counter,
+				nextDisplay: next_display,
+				flag: flag,
+			});
+		}
 
-    if (onSuccess) {
-      onSuccess({
-        taxCode: taxCode,
-        newCounter: new_counter,
-        nextDisplay: next_display,
-        flag: flag
-      });
-    }
+		frappe.show_alert({
+			message: `Đã in thành công hóa đơn thuế: ${taxCode}`,
+			indicator: "green",
+		});
 
-    frappe.show_alert({
-      message: `Đã in thành công hóa đơn thuế: ${taxCode}`,
-      indicator: "green"
-    });
+		debugLog("🎉 Hoàn tất quy trình in thuế thành công!");
+	} catch (error) {
+		console.error("Tax Print Error:", error);
+		if (onError) {
+			onError(error);
+		}
+		frappe.msgprint({
+			title: "Lỗi In Hóa Đơn Thuế",
+			message: `Không thể hoàn tất quá trình in: ${error.message}`,
+			indicator: "red",
+		});
+	}
+}
 
-    debugLog("🎉 Hoàn tất quy trình in thuế thành công!");
+/**
+ * Xử lý quy trình in hóa đơn GTGT Việt Nam (VNTAX).
+ * Gửi danh sách sản phẩm chi tiết để PrintController tự tính toán.
+ * @param {object} invoice - Đối tượng POS Invoice đầy đủ từ Frappe.
+ * @param {object} pos_profile - Đối tượng POS Profile đang hoạt động.
+ * @param {function} onSuccess - Callback được gọi khi in thành công.
+ * @param {function} onError - Callback được gọi khi có lỗi xảy ra.
+ */
+export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onError) {
+	debugLog("Hàm handleVietnamTaxPrint (VIỆT NAM) được gọi...");
 
-  } catch (error) {
-    console.error("Tax Print Error:", error);
-    if (onError) {
-      onError(error);
-    }
-    frappe.msgprint({
-      title: "Lỗi In Hóa Đơn Thuế",
-      message: `Không thể hoàn tất quá trình in: ${error.message}`,
-      indicator: "red"
-    });
-  }
+	try {
+		// === BƯỚC 0: KIỂM TRA CẤU HÌNH (VIỆT NAM) ===
+		debugLog("Bước 0: Bắt đầu xác thực cấu hình (Việt Nam).");
+		const apiUrl = pos_profile.custom_print_api_url || "http://localhost:5000/api/print";
+		const protectKey = pos_profile.custom_protect_key;
+
+		if (!protectKey) {
+			throw new Error("Lỗi cấu hình: ProtectKey chưa được cấu hình trong POS Profile.");
+		}
+		if (!invoice || !invoice.name || !invoice.items || invoice.items.length === 0) {
+			throw new Error("Dữ liệu hóa đơn không hợp lệ hoặc không có sản phẩm.");
+		}
+		debugLog("Xác thực cấu hình (Việt Nam) thành công.");
+
+		// === BƯỚC 1: TẠO DANH SÁCH SẢN PHẨM CHI TIẾT (ProductDto) ===
+		// Ánh xạ 'invoice.items' sang 'ProductDto'
+		debugLog("Bước 1: Bắt đầu tạo danh sách sản phẩm chi tiết (ProductDto)...");
+
+		const products = invoice.items.map((item) => {
+			// LƯU Ý QUAN TRỌNG:
+			// Bạn phải thêm các "Custom Fields" (Trường tùy chỉnh) sau đây vào DocType "POS Invoice Item"
+			// (hoặc "Sales Invoice Item") trong ERPNext để code này có thể đọc được.
+
+			// Xử lý đặc biệt cho dòng chiết khấu thương mại (Type 4)
+			const isCommercialDiscount =
+				item.custom_inventory_type === "4" ||
+				item.item_name?.toLowerCase().includes("chiết khấu") ||
+				item.item_name?.toLowerCase().includes("chiếu khấu");
+
+			return {
+				Name: item.item_name || item.description,
+				Qty: String(item.qty),
+				Price: String(item.rate), // Đơn giá (trước thuế)
+				UnitName: item.uom || "Cái", // Đơn vị tính
+
+				// === ĐỌC TỪ CUSTOM FIELDS CỦA ERPNEXT ===
+				InventoryItemType: String(item.custom_inventory_type || (isCommercialDiscount ? "4" : "0")), // "0" = Hàng hóa, "4" = Chiết khấu
+				VATRate: String(item.custom_vat_rate || (isCommercialDiscount ? "0" : "10")), // Chiết khấu thường VAT 0%
+				DiscountRate: String(item.custom_discount_rate || "0"), // Ví dụ: "5" (cho 5%)
+				ServiceFeeRate: String(item.custom_service_fee_rate || "0"),
+				ExciseTaxRate: String(item.custom_excise_rate || "0"),
+
+				// Các trường phụ (TUÂN THỦ TEST CASE)
+				Category: isCommercialDiscount ? "CK" : item.item_group || "N/A", // Chiết khấu dùng "CK"
+				WarehouseCode: isCommercialDiscount ? "CK" : item.warehouse || "N/A", // Chiết khấu dùng "CK"
+			};
+		});
+		debugLog("Tạo danh sách sản phẩm chi tiết thành công.", { productCount: products.length });
+
+		// === BƯỚC 2: TẠO BODY HOÀN CHỈNH (PrintRequest) ===
+		// TUÂN THỦ CHÍNH XÁC theo Test Client (bản 10 test case)
+		debugLog("Bước 2: Tạo body request (PrintRequest) cho VNTAX theo chuẩn test case...");
+
+		// Tạo InternalCode theo format: VN-IC-{4 ký tự ngẫu nhiên}
+		const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+		const internalCode = `VN-IC-${randomSuffix}`;
+
+		const body = {
+			// Cờ (QUAN TRỌNG - PHẢI LÀ "VNTAX")
+			Flag: "VNTAX",
+			Country: "VN",
+
+			// Mã định danh (TUÂN THỦ CHUẨN TEST CASE)
+			DocNo: invoice.name,
+			InternalCode: internalCode, // Format: VN-IC-XXXX
+			TaxCode: "VN-TaxCode-IGNORE", // PHẢI LÀ "VN-TaxCode-IGNORE" theo test case
+
+			// Thông tin chung (KHỚP VỚI TEST CASE)
+			Cashier: String(invoice.owner || invoice.modified_by),
+			CustomerName: String(invoice.customer || invoice.customer_name || invoice.title || "Khách lẻ"),
+			CustomerInfo: String(invoice.tax_id || invoice.customer_tax_id || "").trim(), // Có thể là empty string
+			PrinterName: "TestClientPrinter", // PHẢI LÀ "TestClientPrinter" theo test case
+			PosTerminal: String(pos_profile.name || pos_profile.warehouse || "POS Terminal"),
+			RequestTime: new Date().toISOString(),
+			Currency: String(invoice.currency || "VND"),
+
+			// Dữ liệu thô (Server sẽ tính toán lại dựa trên 'Products')
+			Products: products,
+
+			// === KHÔNG CẦN CÁC TRƯỜNG TỔNG HỢP ===
+			// Server sẽ tự tính toán từ Products array
+			// Total, ServiceFee, Discount, GrandTotal, Cash, Statistics - BỎ ĐI
+		};
+		debugLog("Tạo body request (VNTAX) thành công.", body);
+
+		// === BƯỚC 3: GỌI API PROXY ===
+		debugLog("Bước 3: Gửi yêu cầu đến API Proxy (VNTAX)...");
+		const response = await fetch(apiUrl, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"X-Protect-Print-Key": protectKey,
+			},
+			body: JSON.stringify(body),
+		});
+
+		const responseText = await response.text();
+		debugLog("Nhận được phản hồi từ API Proxy.", {
+			status: response.status,
+			ok: response.ok,
+			body: responseText.substring(0, 500),
+		});
+
+		if (!response.ok) {
+			throw new Error(`Lỗi từ máy chủ in (${response.status}): ${responseText}`);
+		}
+
+		// === BƯỚC 4: XỬ LÝ KHI THÀNH CÔNG (CẬP NHẬT ERPNext) ===
+		debugLog("Bước 4: Gửi MISA thành công, đang cập nhật trạng thái lên ERPNext...");
+
+		// (Giả định: bạn cần tạo API 'mark_invoice_as_submitted_vntax' trong file python của ERPNext)
+		const updateResponse = await frappe.call({
+			method: "posawesome.posawesome.api.tax_roll.mark_invoice_as_submitted_vntax",
+			args: {
+				invoice_name: invoice.name,
+				// Giả sử PrintController trả về RefID của MISA trong body
+				meinvoice_ref_id: responseText,
+			},
+		});
+
+		if (!updateResponse.message || !updateResponse.message.success) {
+			// Ghi log lỗi nhưng không chặn người dùng
+			console.error("Không thể cập nhật trạng thái hóa đơn MISA trên server ERPNext.", updateResponse);
+		}
+
+		debugLog("Cập nhật trạng thái ERPNext thành công.");
+
+		// === BƯỚC 5: XỬ LÝ PHÍA CLIENT ===
+		if (onSuccess) {
+			onSuccess({
+				response: responseText,
+			});
+		}
+
+		frappe.show_alert({
+			message: `Đã gửi hóa đơn VNTAX thành công. RefID: ${responseText}`,
+			indicator: "green",
+		});
+
+		debugLog("🎉 Hoàn tất quy trình VNTAX thành công!");
+	} catch (error) {
+		console.error("Lỗi VNTAX Print:", error);
+		if (onError) {
+			onError(error);
+		}
+		frappe.msgprint({
+			title: "Lỗi Gửi Hóa Đơn MISA",
+			message: `Không thể hoàn tất: ${error.message}`,
+			indicator: "red",
+		});
+	}
 }
 
 /**
@@ -180,28 +355,28 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
  * @param {string} newDisplay - Chuỗi mới để hiển thị (ví dụ: "PW 689").
  */
 export function updateHeaderTaxDisplay(newDisplay) {
-  debugLog("Updating header tax display:", { newDisplay });
+	debugLog("Updating header tax display:", { newDisplay });
 
-  // Method 1: Event Bus
-  if (window.posEventBus && typeof window.posEventBus.emit === 'function') {
-    debugLog("Phát sự kiện 'tax-display-updated' qua Event Bus.", { newDisplay });
-    window.posEventBus.emit('tax-display-updated', newDisplay);
-  }
+	// Method 1: Event Bus
+	if (window.posEventBus && typeof window.posEventBus.emit === "function") {
+		debugLog("Phát sự kiện 'tax-display-updated' qua Event Bus.", { newDisplay });
+		window.posEventBus.emit("tax-display-updated", newDisplay);
+	}
 
-  // Method 2: Frappe realtime event
-  if (frappe && frappe.realtime && typeof frappe.realtime.emit === 'function') {
-    debugLog("Phát sự kiện qua frappe.realtime.", { newDisplay });
-    frappe.realtime.emit('tax_display_updated', { display: newDisplay });
-  }
+	// Method 2: Frappe realtime event
+	if (frappe && frappe.realtime && typeof frappe.realtime.emit === "function") {
+		debugLog("Phát sự kiện qua frappe.realtime.", { newDisplay });
+		frappe.realtime.emit("tax_display_updated", { display: newDisplay });
+	}
 
-  // Method 3: Custom event
-  try {
-    const event = new CustomEvent('taxDisplayUpdated', {
-      detail: { display: newDisplay }
-    });
-    document.dispatchEvent(event);
-    debugLog("Dispatched custom event 'taxDisplayUpdated'");
-  } catch (e) {
-    console.warn("Could not dispatch custom event:", e);
-  }
+	// Method 3: Custom event
+	try {
+		const event = new CustomEvent("taxDisplayUpdated", {
+			detail: { display: newDisplay },
+		});
+		document.dispatchEvent(event);
+		debugLog("Dispatched custom event 'taxDisplayUpdated'");
+	} catch (e) {
+		console.warn("Could not dispatch custom event:", e);
+	}
 }

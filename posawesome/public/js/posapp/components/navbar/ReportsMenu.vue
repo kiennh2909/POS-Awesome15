@@ -22,8 +22,12 @@
 						</div>
 					</template>
 					<div class="reports-content">
-						<v-list-item-title class="reports-item-title">{{ __("Báo cáo toàn ca") }}</v-list-item-title>
-						<v-list-item-subtitle class="reports-item-subtitle">{{ __("Danh sách các báo cáo toàn ca làm việc") }}</v-list-item-subtitle>
+						<v-list-item-title class="reports-item-title">{{
+							__("Báo cáo toàn ca")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="reports-item-subtitle">{{
+							__("Danh sách các báo cáo toàn ca làm việc")
+						}}</v-list-item-subtitle>
 					</div>
 				</v-list-item>
 
@@ -35,8 +39,12 @@
 						</div>
 					</template>
 					<div class="reports-content">
-						<v-list-item-title class="reports-item-title">{{ __("Báo cáo mặt hàng") }}</v-list-item-title>
-						<v-list-item-subtitle class="reports-item-subtitle">{{ __("Báo cáo mặt hàng theo danh mục") }}</v-list-item-subtitle>
+						<v-list-item-title class="reports-item-title">{{
+							__("Báo cáo mặt hàng")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="reports-item-subtitle">{{
+							__("Báo cáo mặt hàng theo danh mục")
+						}}</v-list-item-subtitle>
 					</div>
 				</v-list-item>
 
@@ -48,8 +56,12 @@
 						</div>
 					</template>
 					<div class="reports-content">
-						<v-list-item-title class="reports-item-title">{{ __("Báo cáo thuế") }}</v-list-item-title>
-						<v-list-item-subtitle class="reports-item-subtitle">{{ __("Báo cáo thuế") }}</v-list-item-subtitle>
+						<v-list-item-title class="reports-item-title">{{
+							__("Báo cáo thuế")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="reports-item-subtitle">{{
+							__("Báo cáo thuế")
+						}}</v-list-item-subtitle>
 					</div>
 				</v-list-item>
 
@@ -61,8 +73,12 @@
 						</div>
 					</template>
 					<div class="reports-content">
-						<v-list-item-title class="reports-item-title">{{ __("Báo cáo hàng hóa") }}</v-list-item-title>
-						<v-list-item-subtitle class="reports-item-subtitle">{{ __("Danh mục hàng hóa") }}</v-list-item-subtitle>
+						<v-list-item-title class="reports-item-title">{{
+							__("Báo cáo hàng hóa")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="reports-item-subtitle">{{
+							__("Danh mục hàng hóa")
+						}}</v-list-item-subtitle>
 					</div>
 				</v-list-item>
 
@@ -74,8 +90,12 @@
 						</div>
 					</template>
 					<div class="reports-content">
-						<v-list-item-title class="reports-item-title">{{ __("Báo cáo bảng giá") }}</v-list-item-title>
-						<v-list-item-subtitle class="reports-item-subtitle">{{ __("Danh mục sản phẩm có giá thay đổi trong ngày") }}</v-list-item-subtitle>
+						<v-list-item-title class="reports-item-title">{{
+							__("Báo cáo bảng giá")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="reports-item-subtitle">{{
+							__("Danh mục sản phẩm có giá thay đổi trong ngày")
+						}}</v-list-item-subtitle>
 					</div>
 				</v-list-item>
 
@@ -87,8 +107,12 @@
 						</div>
 					</template>
 					<div class="reports-content">
-						<v-list-item-title class="reports-item-title">{{ __("Báo cáo nhân viên") }}</v-list-item-title>
-						<v-list-item-subtitle class="reports-item-subtitle">{{ __("Hiệu suất nhân viên trong 1 tháng") }}</v-list-item-subtitle>
+						<v-list-item-title class="reports-item-title">{{
+							__("Báo cáo nhân viên")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="reports-item-subtitle">{{
+							__("Hiệu suất nhân viên trong 1 tháng")
+						}}</v-list-item-subtitle>
 					</div>
 				</v-list-item>
 
@@ -100,8 +124,12 @@
 						</div>
 					</template>
 					<div class="reports-content">
-						<v-list-item-title class="reports-item-title">{{ __("Báo cáo hàng khuyến mại") }}</v-list-item-title>
-						<v-list-item-subtitle class="reports-item-subtitle">{{ __("Danh mục hàng khuyến mại") }}</v-list-item-subtitle>
+						<v-list-item-title class="reports-item-title">{{
+							__("Báo cáo hàng khuyến mại")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="reports-item-subtitle">{{
+							__("Danh mục hàng khuyến mại")
+						}}</v-list-item-subtitle>
 					</div>
 				</v-list-item>
 			</v-list>

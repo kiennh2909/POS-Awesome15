@@ -103,8 +103,8 @@ frappe.PosApp.posapp = class {
 			const response = await frappe.call({
 				method: "posawesome.posawesome.api.tax_roll.get_current_tax_info",
 				args: {
-					pos_profile: this.pos_profile.name
-				}
+					pos_profile: this.pos_profile.name,
+				},
 			});
 
 			if (response.message) {
@@ -113,7 +113,7 @@ frappe.PosApp.posapp = class {
 					tax_roll_code: response.message.tax_roll_code,
 					tax_start_number: response.message.tax_start_number,
 					tax_current_counter: response.message.tax_current_counter,
-					tax_roll_status: response.message.tax_roll_status
+					tax_roll_status: response.message.tax_roll_status,
 				});
 
 				console.log("Tax info loaded:", response.message.current_display);

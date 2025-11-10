@@ -646,7 +646,7 @@ export default {
 				if (window.indexedDB) {
 					const dbs = await window.indexedDB.databases();
 					for (const db of dbs) {
-						if (db.name && db.name.includes('posawesome')) {
+						if (db.name && db.name.includes("posawesome")) {
 							window.indexedDB.deleteDatabase(db.name);
 						}
 					}
@@ -656,11 +656,11 @@ export default {
 				const keysToRemove = [];
 				for (let i = 0; i < localStorage.length; i++) {
 					const key = localStorage.key(i);
-					if (key && (key.startsWith('posa_') || key.includes('posawesome'))) {
+					if (key && (key.startsWith("posa_") || key.includes("posawesome"))) {
 						keysToRemove.push(key);
 					}
 				}
-				keysToRemove.forEach(key => localStorage.removeItem(key));
+				keysToRemove.forEach((key) => localStorage.removeItem(key));
 
 				// Clear sessionStorage
 				sessionStorage.clear();

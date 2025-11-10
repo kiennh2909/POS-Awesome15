@@ -96,36 +96,16 @@
 		/>
 
 		<!-- Reports Dialogs -->
-		<ReportsDialog
-			v-model="showShiftReportsDialog"
-			report-type="shift"
-			:pos-profile="posProfile"
-		/>
-		<ReportsDialog
-			v-model="showItemReportsDialog"
-			report-type="item"
-			:pos-profile="posProfile"
-		/>
-		<ReportsDialog
-			v-model="showTaxReportsDialog"
-			report-type="tax"
-			:pos-profile="posProfile"
-		/>
+		<ReportsDialog v-model="showShiftReportsDialog" report-type="shift" :pos-profile="posProfile" />
+		<ReportsDialog v-model="showItemReportsDialog" report-type="item" :pos-profile="posProfile" />
+		<ReportsDialog v-model="showTaxReportsDialog" report-type="tax" :pos-profile="posProfile" />
 		<ReportsDialog
 			v-model="showInventoryReportsDialog"
 			report-type="inventory"
 			:pos-profile="posProfile"
 		/>
-		<ReportsDialog
-			v-model="showPriceReportsDialog"
-			report-type="price"
-			:pos-profile="posProfile"
-		/>
-		<ReportsDialog
-			v-model="showEmployeeReportsDialog"
-			report-type="employee"
-			:pos-profile="posProfile"
-		/>
+		<ReportsDialog v-model="showPriceReportsDialog" report-type="price" :pos-profile="posProfile" />
+		<ReportsDialog v-model="showEmployeeReportsDialog" report-type="employee" :pos-profile="posProfile" />
 		<ReportsDialog
 			v-model="showPromotionReportsDialog"
 			report-type="promotion"
@@ -156,10 +136,7 @@
 
 				<v-card-text class="pa-0">
 					<div class="offer-content-container">
-						<div
-							v-html="snackText"
-							class="offer-notification-content"
-						></div>
+						<div v-html="snackText" class="offer-notification-content"></div>
 					</div>
 				</v-card-text>
 
@@ -279,7 +256,7 @@ export default {
 		this.initializeNavbar();
 
 		// Listen for fullscreen changes
-		document.addEventListener('fullscreenchange', () => {
+		document.addEventListener("fullscreenchange", () => {
 			this.isFullscreen = !!document.fullscreenElement;
 		});
 
@@ -292,7 +269,7 @@ export default {
 	},
 	unmounted() {
 		// Remove fullscreen event listener
-		document.removeEventListener('fullscreenchange', () => {
+		document.removeEventListener("fullscreenchange", () => {
 			this.isFullscreen = !!document.fullscreenElement;
 		});
 
@@ -376,17 +353,23 @@ export default {
 		},
 		toggleFullscreen() {
 			if (!document.fullscreenElement) {
-				document.documentElement.requestFullscreen().then(() => {
-					this.isFullscreen = true;
-				}).catch(err => {
-					console.error("Error attempting to enable fullscreen:", err);
-				});
+				document.documentElement
+					.requestFullscreen()
+					.then(() => {
+						this.isFullscreen = true;
+					})
+					.catch((err) => {
+						console.error("Error attempting to enable fullscreen:", err);
+					});
 			} else {
-				document.exitFullscreen().then(() => {
-					this.isFullscreen = false;
-				}).catch(err => {
-					console.error("Error attempting to exit fullscreen:", err);
-				});
+				document
+					.exitFullscreen()
+					.then(() => {
+						this.isFullscreen = false;
+					})
+					.catch((err) => {
+						console.error("Error attempting to exit fullscreen:", err);
+					});
 			}
 		},
 		logOut() {
@@ -446,19 +429,19 @@ export default {
 		},
 
 		getOfferDialogSpecificDetails(offer) {
-			let details = '';
+			let details = "";
 
 			switch (offer.offer) {
-				case 'Give Product':
+				case "Give Product":
 					details += this.formatGiveProductDialogDetails(offer);
 					break;
-				case 'Item Price':
+				case "Item Price":
 					details += this.formatItemPriceDialogDetails(offer);
 					break;
-				case 'Grand Total':
+				case "Grand Total":
 					details += this.formatGrandTotalDialogDetails(offer);
 					break;
-				case 'Loyalty Point':
+				case "Loyalty Point":
 					details += this.formatLoyaltyPointDialogDetails(offer);
 					break;
 				default:
@@ -469,7 +452,7 @@ export default {
 		},
 
 		formatGiveProductDialogDetails(offer) {
-			let details = '';
+			let details = "";
 
 			// Loại khuyến mại
 			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 8px;">`;
@@ -519,7 +502,7 @@ export default {
 		},
 
 		formatItemPriceDialogDetails(offer) {
-			let details = '';
+			let details = "";
 
 			// Loại khuyến mại
 			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 8px;">`;
@@ -570,7 +553,7 @@ export default {
 		},
 
 		formatGrandTotalDialogDetails(offer) {
-			let details = '';
+			let details = "";
 
 			// Loại khuyến mại
 			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 8px;">`;
@@ -610,7 +593,7 @@ export default {
 		},
 
 		formatLoyaltyPointDialogDetails(offer) {
-			let details = '';
+			let details = "";
 
 			// Loại khuyến mại
 			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 8px;">`;
@@ -649,7 +632,7 @@ export default {
 		},
 
 		formatDefaultOfferDialogDetails(offer) {
-			let details = '';
+			let details = "";
 
 			// Loại khuyến mại
 			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 8px;">`;
@@ -667,13 +650,13 @@ export default {
 		},
 
 		formatDate(dateStr) {
-			if (!dateStr) return '';
+			if (!dateStr) return "";
 			try {
 				const date = new Date(dateStr);
-				return date.toLocaleDateString('vi-VN', {
-					day: '2-digit',
-					month: '2-digit',
-					year: 'numeric'
+				return date.toLocaleDateString("vi-VN", {
+					day: "2-digit",
+					month: "2-digit",
+					year: "numeric",
 				});
 			} catch (e) {
 				return dateStr;
@@ -682,10 +665,10 @@ export default {
 
 		getOfferTypeText(offerType) {
 			const types = {
-				'Item Price': 'Giảm giá sản phẩm',
-				'Give Product': 'Tặng sản phẩm',
-				'Grand Total': 'Giảm giá hóa đơn',
-				'Loyalty Point': 'Tích điểm thưởng'
+				"Item Price": "Giảm giá sản phẩm",
+				"Give Product": "Tặng sản phẩm",
+				"Grand Total": "Giảm giá hóa đơn",
+				"Loyalty Point": "Tích điểm thưởng",
 			};
 			return types[offerType] || offerType;
 		},
@@ -694,11 +677,11 @@ export default {
 			if (!offer.discount_type) return null;
 
 			switch (offer.discount_type) {
-				case 'Rate':
+				case "Rate":
 					return `Giá: ${this.formatCurrency(offer.rate)}`;
-				case 'Discount Percentage':
+				case "Discount Percentage":
 					return `Giảm: ${offer.discount_percentage}%`;
-				case 'Discount Amount':
+				case "Discount Amount":
 					return `Giảm: ${this.formatCurrency(offer.discount_amount)}`;
 				default:
 					return null;
@@ -706,11 +689,11 @@ export default {
 		},
 
 		formatCurrency(value) {
-			if (!value) return '0';
+			if (!value) return "0";
 			// Simple currency formatting - you can enhance this
-			return new Intl.NumberFormat('vi-VN', {
-				style: 'currency',
-				currency: 'VND'
+			return new Intl.NumberFormat("vi-VN", {
+				style: "currency",
+				currency: "VND",
 			}).format(value);
 		},
 		handleFreeze(data) {
@@ -866,7 +849,7 @@ nav {
 }
 
 .offer-notification-content {
-	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+	font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif !important;
 	color: #000000 !important;
 	line-height: 1.6;
 }

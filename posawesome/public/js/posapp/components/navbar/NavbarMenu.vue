@@ -52,7 +52,7 @@
 						}}</v-list-item-subtitle>
 					</div>
 				</v-list-item>
-				
+
 				<v-list-item
 					v-if="posProfile.posa_allow_print_last_invoice"
 					@click="$emit('print-last-invoice_tax')"

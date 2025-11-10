@@ -14,16 +14,15 @@
 
 			<v-card-text class="pa-4">
 				<!-- Shift Report Summary -->
-				<v-alert
-					variant="tonal"
-					:color="actionColor"
-					class="mb-4"
-				>
+				<v-alert variant="tonal" :color="actionColor" class="mb-4">
 					<div class="d-flex align-center">
 						<v-icon class="me-2">{{ actionIcon }}</v-icon>
 						<div>
 							<div class="font-weight-bold">{{ shiftReportData.shift_report_id }}</div>
-							<div class="text-body-2">{{ formatDate(shiftReportData.opening_date) }} - {{ shiftReportData.opened_by }}</div>
+							<div class="text-body-2">
+								{{ formatDate(shiftReportData.opening_date) }} -
+								{{ shiftReportData.opened_by }}
+							</div>
 						</div>
 					</div>
 				</v-alert>
@@ -34,7 +33,9 @@
 					<v-row dense>
 						<v-col cols="12" md="4">
 							<v-card variant="outlined" class="pa-3 text-center">
-								<div class="text-caption text-medium-emphasis">{{ __("Opening Amount") }}</div>
+								<div class="text-caption text-medium-emphasis">
+									{{ __("Opening Amount") }}
+								</div>
 								<div class="text-h6 font-weight-bold text-primary">
 									{{ formatCurrency(shiftReportData.total_opening_amount || 0) }}
 								</div>
@@ -42,7 +43,9 @@
 						</v-col>
 						<v-col cols="12" md="4">
 							<v-card variant="outlined" class="pa-3 text-center">
-								<div class="text-caption text-medium-emphasis">{{ __("Expected Closing") }}</div>
+								<div class="text-caption text-medium-emphasis">
+									{{ __("Expected Closing") }}
+								</div>
 								<div class="text-h6 font-weight-bold text-info">
 									{{ formatCurrency(shiftReportData.total_expected_closing || 0) }}
 								</div>
@@ -50,7 +53,9 @@
 						</v-col>
 						<v-col cols="12" md="4">
 							<v-card variant="outlined" class="pa-3 text-center">
-								<div class="text-caption text-medium-emphasis">{{ __("Actual Closing") }}</div>
+								<div class="text-caption text-medium-emphasis">
+									{{ __("Actual Closing") }}
+								</div>
 								<div class="text-h6 font-weight-bold text-success">
 									{{ formatCurrency(shiftReportData.total_actual_closing || 0) }}
 								</div>
@@ -60,11 +65,7 @@
 				</div>
 
 				<!-- Difference Highlight -->
-				<v-alert
-					variant="tonal"
-					:color="differenceColor"
-					class="mb-4"
-				>
+				<v-alert variant="tonal" :color="differenceColor" class="mb-4">
 					<div class="d-flex align-center justify-space-between">
 						<div class="d-flex align-center">
 							<v-icon class="me-2">{{ differenceIcon }}</v-icon>
@@ -88,8 +89,12 @@
 								<div class="d-flex align-center">
 									<v-icon color="primary" class="me-2">mdi-receipt-text</v-icon>
 									<div>
-										<div class="text-caption text-medium-emphasis">{{ __("Total Invoices") }}</div>
-										<div class="text-h6 font-weight-bold">{{ shiftReportData.invoice_count || 0 }}</div>
+										<div class="text-caption text-medium-emphasis">
+											{{ __("Total Invoices") }}
+										</div>
+										<div class="text-h6 font-weight-bold">
+											{{ shiftReportData.invoice_count || 0 }}
+										</div>
 									</div>
 								</div>
 							</v-card>
@@ -99,7 +104,9 @@
 								<div class="d-flex align-center">
 									<v-icon color="success" class="me-2">mdi-cash-plus</v-icon>
 									<div>
-										<div class="text-caption text-medium-emphasis">{{ __("Total Sales") }}</div>
+										<div class="text-caption text-medium-emphasis">
+											{{ __("Total Sales") }}
+										</div>
 										<div class="text-h6 font-weight-bold text-success">
 											{{ formatCurrency(shiftReportData.total_sales || 0) }}
 										</div>
@@ -112,7 +119,9 @@
 								<div class="d-flex align-center">
 									<v-icon color="error" class="me-2">mdi-cash-minus</v-icon>
 									<div>
-										<div class="text-caption text-medium-emphasis">{{ __("Total Returns") }}</div>
+										<div class="text-caption text-medium-emphasis">
+											{{ __("Total Returns") }}
+										</div>
 										<div class="text-h6 font-weight-bold text-error">
 											{{ formatCurrency(shiftReportData.total_returns || 0) }}
 										</div>
@@ -137,17 +146,18 @@
 				</div>
 
 				<!-- Action Warning -->
-				<v-alert
-					variant="tonal"
-					color="warning"
-					v-if="action === 'reject'"
-					class="mb-4"
-				>
+				<v-alert variant="tonal" color="warning" v-if="action === 'reject'" class="mb-4">
 					<div class="d-flex align-center">
 						<v-icon class="me-2">mdi-alert</v-icon>
 						<div>
 							<div class="font-weight-bold">{{ __("Rejection Notice") }}</div>
-							<div class="text-body-2">{{ __("This action will reset the verification status and require re-verification.") }}</div>
+							<div class="text-body-2">
+								{{
+									__(
+										"This action will reset the verification status and require re-verification.",
+									)
+								}}
+							</div>
 						</div>
 					</div>
 				</v-alert>
@@ -191,23 +201,23 @@ export default {
 	props: {
 		modelValue: {
 			type: Boolean,
-			default: false
+			default: false,
 		},
 		action: {
 			type: String,
 			default: "verify", // "verify", "confirm", "reject"
-			validator: (value) => ["verify", "confirm", "reject"].includes(value)
+			validator: (value) => ["verify", "confirm", "reject"].includes(value),
 		},
 		shiftReportData: {
 			type: Object,
-			default: () => ({})
-		}
+			default: () => ({}),
+		},
 	},
 	emits: ["update:modelValue", "confirmed"],
 	data() {
 		return {
 			processing: false,
-			notes: ""
+			notes: "",
 		};
 	},
 	computed: {
@@ -217,37 +227,37 @@ export default {
 			},
 			set(value) {
 				this.$emit("update:modelValue", value);
-			}
+			},
 		},
 		dialogTitle() {
 			const titles = {
-				"verify": this.__("Verify Shift Report"),
-				"confirm": this.__("Confirm Shift Report"),
-				"reject": this.__("Reject Shift Report")
+				verify: this.__("Verify Shift Report"),
+				confirm: this.__("Confirm Shift Report"),
+				reject: this.__("Reject Shift Report"),
 			};
 			return titles[this.action] || this.__("Shift Report Action");
 		},
 		actionIcon() {
 			const icons = {
-				"verify": "mdi-check-circle-outline",
-				"confirm": "mdi-check-all",
-				"reject": "mdi-close-circle-outline"
+				verify: "mdi-check-circle-outline",
+				confirm: "mdi-check-all",
+				reject: "mdi-close-circle-outline",
 			};
 			return icons[this.action] || "mdi-information";
 		},
 		actionColor() {
 			const colors = {
-				"verify": "info",
-				"confirm": "success",
-				"reject": "error"
+				verify: "info",
+				confirm: "success",
+				reject: "error",
 			};
 			return colors[this.action] || "primary";
 		},
 		actionButtonText() {
 			const texts = {
-				"verify": this.__("Verify Report"),
-				"confirm": this.__("Confirm Report"),
-				"reject": this.__("Reject Report")
+				verify: this.__("Verify Report"),
+				confirm: this.__("Confirm Report"),
+				reject: this.__("Reject Report"),
 			};
 			return texts[this.action] || this.__("Confirm Action");
 		},
@@ -275,14 +285,14 @@ export default {
 			} else {
 				return this.__("Actual amount is lower than expected");
 			}
-		}
+		},
 	},
 	watch: {
 		modelValue(newVal) {
 			if (newVal) {
 				this.resetForm();
 			}
-		}
+		},
 	},
 	methods: {
 		resetForm() {
@@ -300,19 +310,18 @@ export default {
 
 			try {
 				// Mock API call - will be replaced with real implementation
-				await new Promise(resolve => setTimeout(resolve, 1500));
+				await new Promise((resolve) => setTimeout(resolve, 1500));
 
 				const result = {
 					action: this.action,
 					shift_report_id: this.shiftReportData.shift_report_id,
 					notes: this.notes,
-					timestamp: new Date().toISOString()
+					timestamp: new Date().toISOString(),
 				};
 
 				this.showSuccess(this.getSuccessMessage());
 				this.$emit("confirmed", result);
 				this.close();
-
 			} catch (error) {
 				console.error("Error processing shift report action:", error);
 				this.showError(this.getErrorMessage());
@@ -323,18 +332,18 @@ export default {
 
 		getSuccessMessage() {
 			const messages = {
-				"verify": this.__("Shift report verified successfully"),
-				"confirm": this.__("Shift report confirmed successfully"),
-				"reject": this.__("Shift report rejected successfully")
+				verify: this.__("Shift report verified successfully"),
+				confirm: this.__("Shift report confirmed successfully"),
+				reject: this.__("Shift report rejected successfully"),
 			};
 			return messages[this.action] || this.__("Action completed successfully");
 		},
 
 		getErrorMessage() {
 			const messages = {
-				"verify": this.__("Failed to verify shift report"),
-				"confirm": this.__("Failed to confirm shift report"),
-				"reject": this.__("Failed to reject shift report")
+				verify: this.__("Failed to verify shift report"),
+				confirm: this.__("Failed to confirm shift report"),
+				reject: this.__("Failed to reject shift report"),
 			};
 			return messages[this.action] || this.__("Action failed");
 		},
@@ -345,15 +354,15 @@ export default {
 		},
 
 		formatCurrency(amount) {
-			return new Intl.NumberFormat('en-US', {
-				style: 'currency',
-				currency: 'USD'
+			return new Intl.NumberFormat("en-US", {
+				style: "currency",
+				currency: "USD",
 			}).format(amount);
 		},
 
 		showSuccess(message) {
 			if (window.frappe && frappe.show_alert) {
-				frappe.show_alert({ message, indicator: 'green' });
+				frappe.show_alert({ message, indicator: "green" });
 			} else {
 				alert(message);
 			}
@@ -361,7 +370,7 @@ export default {
 
 		showError(message) {
 			if (window.frappe && frappe.show_alert) {
-				frappe.show_alert({ message, indicator: 'red' });
+				frappe.show_alert({ message, indicator: "red" });
 			} else {
 				alert(message);
 			}
@@ -369,8 +378,8 @@ export default {
 
 		close() {
 			this.show = false;
-		}
-	}
+		},
+	},
 };
 </script>
 

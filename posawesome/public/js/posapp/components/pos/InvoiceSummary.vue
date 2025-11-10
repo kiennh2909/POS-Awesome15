@@ -1,6 +1,9 @@
 <template>
 	<v-card
-		:class="['cards mb-0 mt-2 py-3 px-3 rounded-lg resizable sticky-invoice-summary fixed-spacing', isDarkTheme ? '' : 'bg-grey-lighten-4']"
+		:class="[
+			'cards mb-0 mt-2 py-3 px-3 rounded-lg resizable sticky-invoice-summary fixed-spacing',
+			isDarkTheme ? '' : 'bg-grey-lighten-4',
+		]"
 		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
 	>
 		<!-- Row 1: All numeric fields - Total Qty, Additional Discount, Items Discount, Total -->
@@ -240,7 +243,11 @@
 		<v-row dense>
 			<v-col cols="12">
 				<v-row dense>
-					<v-col cols="3" v-if="pos_profile.posa_allow_print_draft_invoices" class="button-col pa-1">
+					<v-col
+						cols="3"
+						v-if="pos_profile.posa_allow_print_draft_invoices"
+						class="button-col pa-1"
+					>
 						<v-tooltip
 							v-if="isShiftVerified"
 							text="Cannot print draft - Shift report has been verified"
@@ -277,7 +284,10 @@
 							{{ __("DRAFT") }}
 						</v-btn>
 					</v-col>
-					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? 3 : 4" class="button-col pa-1">
+					<v-col
+						:cols="pos_profile.posa_allow_print_draft_invoices ? 3 : 4"
+						class="button-col pa-1"
+					>
 						<v-tooltip
 							v-if="isShiftVerified"
 							text="Cannot process payment - Shift report has been verified"
@@ -314,7 +324,11 @@
 							{{ __("PAY") }}
 						</v-btn>
 					</v-col>
-					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? 3 : 4" v-if="pos_profile.posa_allow_return == 1" class="button-col pa-1">
+					<v-col
+						:cols="pos_profile.posa_allow_print_draft_invoices ? 3 : 4"
+						v-if="pos_profile.posa_allow_return == 1"
+						class="button-col pa-1"
+					>
 						<v-tooltip
 							v-if="isShiftVerified"
 							text="Cannot process returns - Shift report has been verified"
@@ -351,7 +365,18 @@
 							{{ __("RETURN") }}
 						</v-btn>
 					</v-col>
-					<v-col :cols="pos_profile.posa_allow_print_draft_invoices ? (pos_profile.posa_allow_return == 1 ? 3 : 6) : (pos_profile.posa_allow_return == 1 ? 4 : 8)" class="button-col pa-1">
+					<v-col
+						:cols="
+							pos_profile.posa_allow_print_draft_invoices
+								? pos_profile.posa_allow_return == 1
+									? 3
+									: 6
+								: pos_profile.posa_allow_return == 1
+									? 4
+									: 8
+						"
+						class="button-col pa-1"
+					>
 						<v-btn
 							block
 							color="secondary"
@@ -388,7 +413,7 @@ export default {
 		isNumber: Function,
 		shiftVerificationStatus: {
 			type: String,
-			default: null
+			default: null,
 		},
 	},
 	emits: [
@@ -423,100 +448,101 @@ export default {
 			return false;
 		},
 		isShiftVerified() {
-			return this.shiftVerificationStatus === 'Verified';
+			return this.shiftVerificationStatus === "Verified";
 		},
 	},
 
 	methods: {
 		setupKeyboardShortcuts() {
 			// Keyboard shortcuts for invoice actions
-			document.addEventListener('keydown', this.handleKeyboardShortcuts);
+			document.addEventListener("keydown", this.handleKeyboardShortcuts);
 		},
 
 		handleKeyboardShortcuts(event) {
 			// Only handle shortcuts when not typing in input fields
-			if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+			if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA") {
 				return;
 			}
 
 			// Prevent default browser behavior for our shortcuts
 			const key = event.key.toLowerCase();
 
-			switch(key) {
-				case 's':
+			switch (key) {
+				case "s":
 					if (event.ctrlKey || event.metaKey) {
 						event.preventDefault();
-						this.$emit('save-and-clear');
-						console.log('Shortcut: Ctrl+S - Save and Clear');
+						this.$emit("save-and-clear");
+						console.log("Shortcut: Ctrl+S - Save and Clear");
 
 						// Focus back to search input after save
 						this.$nextTick(() => {
 							// Try multiple selectors to find the search input
-							let searchInput = document.querySelector('input[placeholder*="Search"]') ||
-											document.querySelector('.v-text-field input') ||
-											document.querySelector('input[autofocus]');
+							let searchInput =
+								document.querySelector('input[placeholder*="Search"]') ||
+								document.querySelector(".v-text-field input") ||
+								document.querySelector("input[autofocus]");
 
 							if (searchInput) {
 								searchInput.focus();
 								searchInput.select(); // Select all text for easy replacement
-								console.log('Focused back to search input after save');
+								console.log("Focused back to search input after save");
 							} else {
-								console.warn('Could not find search input to focus');
+								console.warn("Could not find search input to focus");
 							}
 						});
 					}
 					break;
-				case 'p':
+				case "p":
 					if (event.ctrlKey || event.metaKey) {
 						event.preventDefault();
-						this.$emit('show-payment');
-						console.log('Shortcut: Ctrl+P - Payment');
+						this.$emit("show-payment");
+						console.log("Shortcut: Ctrl+P - Payment");
 					}
 					break;
-				case 'l':
+				case "l":
 					if (event.ctrlKey || event.metaKey) {
 						event.preventDefault();
-						this.$emit('load-drafts');
-						console.log('Shortcut: Ctrl+L - Load Drafts');
+						this.$emit("load-drafts");
+						console.log("Shortcut: Ctrl+L - Load Drafts");
 					}
 					break;
-				case 'c':
+				case "c":
 					if (event.ctrlKey || event.metaKey) {
 						event.preventDefault();
-						this.$emit('cancel-sale');
-						console.log('Shortcut: Ctrl+C - Cancel Sale');
+						this.$emit("cancel-sale");
+						console.log("Shortcut: Ctrl+C - Cancel Sale");
 					}
 					break;
-				case 'r':
+				case "r":
 					if (event.ctrlKey || event.metaKey) {
 						event.preventDefault();
 						if (this.pos_profile.posa_allow_return == 1) {
-							this.$emit('open-returns');
-							console.log('Shortcut: Ctrl+R - Return');
+							this.$emit("open-returns");
+							console.log("Shortcut: Ctrl+R - Return");
 						}
 					}
 					break;
-				case 'd':
+				case "d":
 					if (event.ctrlKey || event.metaKey) {
 						event.preventDefault();
 						if (this.pos_profile.posa_allow_print_draft_invoices) {
-							this.$emit('print-draft');
-							console.log('Shortcut: Ctrl+D - Draft Invoice');
+							this.$emit("print-draft");
+							console.log("Shortcut: Ctrl+D - Draft Invoice");
 						}
 					}
 					break;
-				case 'a':
+				case "a":
 					if (event.ctrlKey || event.metaKey) {
 						event.preventDefault();
-						this.$emit('add-customer');
-						console.log('Shortcut: Ctrl+A - Add Customer');
+						this.$emit("add-customer");
+						console.log("Shortcut: Ctrl+A - Add Customer");
 					}
 					break;
-				case 'i':
+				case "i":
 					if (event.ctrlKey || event.metaKey) {
 						event.preventDefault();
-						this.$emit('list-invoices');
-						console.log('Shortcut: Ctrl+I - List Invoices');
+						this.$emit("list-invoices");
+						console.log("Shortcut: Ctrl+I - List Invoices");
 					}
 					break;
 			}
@@ -530,7 +556,7 @@ export default {
 
 	beforeUnmount() {
 		// Clean up keyboard event listener
-		document.removeEventListener('keydown', this.handleKeyboardShortcuts);
+		document.removeEventListener("keydown", this.handleKeyboardShortcuts);
 	},
 };
 </script>
@@ -589,7 +615,8 @@ export default {
 }
 
 /* Dense row styling */
-.v-row--dense>.v-col, .v-row--dense>[class*=v-col-] {
+.v-row--dense > .v-col,
+.v-row--dense > [class*="v-col-"] {
 	padding: 1px;
 }
 
@@ -645,25 +672,25 @@ export default {
 
 /* Custom column width for 4-column layout */
 .v-col-3 {
-    flex: 0 0 24% !important;
-    max-width: 24% !important;
+	flex: 0 0 24% !important;
+	max-width: 24% !important;
 }
 
 .v-col-4 {
-    flex: 0 0 32.3333333333% !important;
-    max-width: 33.3333333333% !important;
+	flex: 0 0 32.3333333333% !important;
+	max-width: 33.3333333333% !important;
 }
 
 /* Standard button styling - compact size */
 .summary-btn {
-    min-height: 60px !important;
-    font-size: 1.3rem !important;
-    font-weight: 600 !important;
-    text-transform: none;
-    margin: 1px;
-    border-radius: 6px;
-    padding: 6px 8px !important;
-    white-space: nowrap !important;
+	min-height: 60px !important;
+	font-size: 1.3rem !important;
+	font-weight: 600 !important;
+	text-transform: none;
+	margin: 1px;
+	border-radius: 6px;
+	padding: 6px 8px !important;
+	white-space: nowrap !important;
 }
 
 /* Large button styling for PRINT DRAFT */
@@ -678,7 +705,7 @@ export default {
 /* Extra large PAY button */
 .pay-btn {
 	min-height: 60px !important;
-	font-size: 1.0rem !important;
+	font-size: 1rem !important;
 	font-weight: 700 !important;
 	text-transform: uppercase;
 	letter-spacing: 1px;
@@ -762,8 +789,8 @@ export default {
 .v-input--density-compact .v-field--variant-solo,
 .v-input--density-compact .v-field--variant-solo-filled,
 .v-input--density-compact .v-field--variant-solo-inverted {
-    --v-input-control-height: 50px;
-    --v-field-padding-bottom: 0px;
+	--v-input-control-height: 50px;
+	--v-field-padding-bottom: 0px;
 }
 
 /* Prevent button text wrapping */
@@ -814,7 +841,6 @@ export default {
 	/* background: blueviolet !important; */
 }
 
-
 /* Mobile responsive adjustments for sticky */
 @media (max-width: 768px) {
 	.sticky-invoice-summary {
@@ -833,7 +859,8 @@ export default {
 		min-height: 50px !important;
 	}
 
-	.add-customer-btn, .list-invoices-btn {
+	.add-customer-btn,
+	.list-invoices-btn {
 		font-size: 0.9rem !important;
 		min-height: 50px !important;
 	}
@@ -865,7 +892,8 @@ export default {
 		min-height: 48px !important;
 	}
 
-	.add-customer-btn, .list-invoices-btn {
+	.add-customer-btn,
+	.list-invoices-btn {
 		font-size: 0.8rem !important;
 		min-height: 48px !important;
 	}
@@ -880,5 +908,4 @@ export default {
 		min-height: 48px !important;
 	}
 }
-
 </style>

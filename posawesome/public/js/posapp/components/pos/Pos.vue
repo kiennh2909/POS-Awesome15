@@ -17,10 +17,7 @@
 			:shift-report-id="pos_shift_report || pos_opening_shift"
 			:pos-profile="pos_profile"
 		></ListInvoicesDialog>
-		<ListShiftsDialog
-			v-model="showListShiftsDialog"
-			:pos-profile="pos_profile"
-		></ListShiftsDialog>
+		<ListShiftsDialog v-model="showListShiftsDialog" :pos-profile="pos_profile"></ListShiftsDialog>
 		<OpeningDialog v-if="dialog" :dialog="dialog"></OpeningDialog>
 		<v-row v-show="!dialog" dense class="ma-0 dynamic-main-row">
 			<v-col
@@ -142,7 +139,10 @@ export default {
 
 						// Load Shift Report data nếu có
 						if (r.message.pos_opening_shift && r.message.pos_opening_shift.shift_report) {
-							console.info("Found shift report in opening shift:", r.message.pos_opening_shift.shift_report);
+							console.info(
+								"Found shift report in opening shift:",
+								r.message.pos_opening_shift.shift_report,
+							);
 							this.pos_shift_report = r.message.pos_opening_shift.shift_report;
 							this.load_shift_report_data();
 						} else {
@@ -202,7 +202,7 @@ export default {
 						if (window.frappe && frappe.show_alert) {
 							frappe.show_alert({
 								message: error.message,
-								indicator: 'red'
+								indicator: "red",
 							});
 						} else {
 							alert(error.message);
@@ -225,7 +225,7 @@ export default {
 						return;
 					}
 					this.create_opening_voucher();
-				}
+				},
 			});
 		},
 		create_opening_voucher() {
@@ -234,7 +234,9 @@ export default {
 
 		clearBrowserCache() {
 			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Clear Browser Cache Start
-			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE_START - Clearing browser cache and storage`);
+			console.log(
+				`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE_START - Clearing browser cache and storage`,
+			);
 
 			try {
 				// Clear localStorage
@@ -248,38 +250,57 @@ export default {
 				// Clear IndexedDB databases (if any POS-related)
 				if (window.indexedDB) {
 					// Clear specific POS databases
-					const dbNames = ['pos_offline_db', 'pos_cache', 'posawesome_offline'];
-					dbNames.forEach(dbName => {
+					const dbNames = ["pos_offline_db", "pos_cache", "posawesome_offline"];
+					dbNames.forEach((dbName) => {
 						try {
 							const deleteRequest = window.indexedDB.deleteDatabase(dbName);
 							deleteRequest.onsuccess = () => {
-								console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Cleared IndexedDB: ${dbName}`);
+								console.log(
+									`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Cleared IndexedDB: ${dbName}`,
+								);
 							};
 							deleteRequest.onerror = () => {
-								console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Failed to clear IndexedDB: ${dbName}`);
+								console.warn(
+									`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Failed to clear IndexedDB: ${dbName}`,
+								);
 							};
 						} catch (e) {
-							console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Error clearing IndexedDB ${dbName}:`, e);
+							console.warn(
+								`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Error clearing IndexedDB ${dbName}:`,
+								e,
+							);
 						}
 					});
 				}
 
 				// Clear cache storage (if supported)
-				if ('caches' in window) {
-					caches.keys().then(names => {
-						names.forEach(name => {
-							caches.delete(name);
-							console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Cleared cache: ${name}`);
+				if ("caches" in window) {
+					caches
+						.keys()
+						.then((names) => {
+							names.forEach((name) => {
+								caches.delete(name);
+								console.log(
+									`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Cleared cache: ${name}`,
+								);
+							});
+						})
+						.catch((e) => {
+							console.warn(
+								`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Error clearing caches:`,
+								e,
+							);
 						});
-					}).catch(e => {
-						console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE - Error clearing caches:`, e);
-					});
 				}
 
-				console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE_COMPLETED - Browser cache cleared successfully`);
-
+				console.log(
+					`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE_COMPLETED - Browser cache cleared successfully`,
+				);
 			} catch (error) {
-				console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE_ERROR - Error clearing browser cache:`, error);
+				console.error(
+					`[SHIFT_CLOSE_WORKFLOW] VUE_CLEAR_BROWSER_CACHE_ERROR - Error clearing browser cache:`,
+					error,
+				);
 			}
 		},
 
@@ -298,23 +319,29 @@ export default {
 					frappe.call({
 						method: "logout",
 						callback: () => {
-							console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT - Logout API called successfully`);
-						}
+							console.log(
+								`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT - Logout API called successfully`,
+							);
+						},
 					});
 				} else {
 					// Last resort: Redirect to login page
 					console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT - Redirecting to login page`);
-					window.location.href = '/login';
+					window.location.href = "/login";
 				}
 
-				console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT_COMPLETED - Logout initiated successfully`);
-
+				console.log(
+					`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT_COMPLETED - Logout initiated successfully`,
+				);
 			} catch (error) {
-				console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT_ERROR - Error performing logout:`, error);
+				console.error(
+					`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT_ERROR - Error performing logout:`,
+					error,
+				);
 
 				// Fallback: Force redirect to login
 				console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_PERFORM_LOGOUT_FALLBACK - Force redirect to login`);
-				window.location.href = '/login';
+				window.location.href = "/login";
 			}
 		},
 		get_offers(pos_profile) {
@@ -344,7 +371,7 @@ export default {
 					if (cached.length) {
 						this.eventBus.emit("set_offers", cached);
 					}
-				}
+				},
 			});
 		},
 		get_pos_setting() {
@@ -355,10 +382,14 @@ export default {
 
 		load_shift_report_data() {
 			// [SHIFT_CLOSE_WORKFLOW] Vue Component - Load Shift Report Data Start
-			console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_START - Shift report: ${this.pos_shift_report}, User: ${frappe.session.user}`);
+			console.log(
+				`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_START - Shift report: ${this.pos_shift_report}, User: ${frappe.session.user}`,
+			);
 
 			if (!this.pos_shift_report) {
-				console.warn(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_WARNING - No shift report ID to load`);
+				console.warn(
+					`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_WARNING - No shift report ID to load`,
+				);
 				return;
 			}
 
@@ -367,7 +398,7 @@ export default {
 			frappe.call({
 				method: "posawesome.posawesome.api.shift_reports.get_shift_report",
 				args: {
-					shift_report_id: this.pos_shift_report
+					shift_report_id: this.pos_shift_report,
 				},
 				callback: (r) => {
 					const processingTime = Date.now() - startTime;
@@ -375,24 +406,34 @@ export default {
 					if (r.message && r.message.success) {
 						this.shift_report_data = r.message.data;
 						this.eventBus.emit("register_shift_report", this.shift_report_data);
-						console.log(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_SUCCESS - Shift Report data loaded successfully - Processing time: ${processingTime}ms`);
+						console.log(
+							`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_SUCCESS - Shift Report data loaded successfully - Processing time: ${processingTime}ms`,
+						);
 					} else {
-						console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_ERROR - API returned unsuccessful response - Processing time: ${processingTime}ms - Response:`, r.message);
+						console.error(
+							`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_ERROR - API returned unsuccessful response - Processing time: ${processingTime}ms - Response:`,
+							r.message,
+						);
 					}
 				},
 				error: (err) => {
 					const processingTime = Date.now() - startTime;
 
-					console.error(`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_ERROR - Failed to load shift report data - Processing time: ${processingTime}ms - Error:`, err);
+					console.error(
+						`[SHIFT_CLOSE_WORKFLOW] VUE_LOAD_SHIFT_REPORT_ERROR - Failed to load shift report data - Processing time: ${processingTime}ms - Error:`,
+						err,
+					);
 
 					// Hiển thị cảnh báo nếu load shift report thất bại
 					if (window.frappe && frappe.show_alert) {
 						frappe.show_alert({
-							message: __("Warning: Failed to load Shift Report data. Some features may not work properly."),
-							indicator: 'orange'
+							message: __(
+								"Warning: Failed to load Shift Report data. Some features may not work properly.",
+							),
+							indicator: "orange",
 						});
 					}
-				}
+				},
 			});
 		},
 	},
@@ -424,13 +465,27 @@ export default {
 			});
 			this.eventBus.on("show_offers", (data) => {
 				console.log("🎯 [POS_MAIN] Received 'show_offers' event with data:", data);
-				console.log("🎯 [POS_MAIN] Previous state - offers:", this.offers, "payment:", this.payment, "coupons:", this.coupons);
+				console.log(
+					"🎯 [POS_MAIN] Previous state - offers:",
+					this.offers,
+					"payment:",
+					this.payment,
+					"coupons:",
+					this.coupons,
+				);
 
 				this.offers = true ? data === "true" : false;
 				this.payment = false ? data === "true" : false;
 				this.coupons = false ? data === "true" : false;
 
-				console.log("🎯 [POS_MAIN] New state - offers:", this.offers, "payment:", this.payment, "coupons:", this.coupons);
+				console.log(
+					"🎯 [POS_MAIN] New state - offers:",
+					this.offers,
+					"payment:",
+					this.payment,
+					"coupons:",
+					this.coupons,
+				);
 				console.log("🎯 [POS_MAIN] PosOffers component should now be visible:", this.offers);
 			});
 			this.eventBus.on("show_coupons", (data) => {

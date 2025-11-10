@@ -107,7 +107,11 @@
 						<v-card-title class="offer-dialog-header pa-4 d-flex align-center">
 							<div class="d-flex align-center">
 								<v-icon color="primary" class="mr-2">mdi-gift</v-icon>
-								<span class="offer-dialog-title">{{ selectedOffer.title || selectedOffer.name || 'Chi tiết chương trình khuyến mại' }}</span>
+								<span class="offer-dialog-title">{{
+									selectedOffer.title ||
+									selectedOffer.name ||
+									"Chi tiết chương trình khuyến mại"
+								}}</span>
 							</div>
 							<v-spacer></v-spacer>
 							<v-btn
@@ -124,13 +128,16 @@
 							<div class="offer-dialog-body">
 								<!-- Hiển thị loading nếu chưa có dữ liệu -->
 								<div v-if="!formattedOfferContent" class="text-center py-8">
-									<v-progress-circular indeterminate color="primary" size="32"></v-progress-circular>
+									<v-progress-circular
+										indeterminate
+										color="primary"
+										size="32"
+									></v-progress-circular>
 									<div class="mt-2 text-caption text-grey-600">Đang tải thông tin...</div>
 								</div>
 
 								<!-- Hiển thị nội dung chi tiết -->
 								<div v-else class="offer-dialog-content" v-html="formattedOfferContent"></div>
-
 							</div>
 						</v-card-text>
 						<v-card-actions class="offer-dialog-footer pa-4">
@@ -142,7 +149,7 @@
 								class="debug-toggle-btn"
 							>
 								<v-icon size="small" class="mr-1">mdi-bug</v-icon>
-								{{ showDebugInfo ? 'Ẩn Debug' : 'Hiện Debug' }}
+								{{ showDebugInfo ? "Ẩn Debug" : "Hiện Debug" }}
 							</v-btn>
 							<v-spacer></v-spacer>
 							<v-btn
@@ -240,7 +247,12 @@ export default {
 			{ title: __("Loại khuyến mại"), value: "offer", align: "start", width: "10%" },
 			{ title: __("Item Code"), value: "item", align: "start", width: "10%" },
 			{ title: __("Mua theo Block"), value: "block_display", align: "center", width: "8%" },
-			{ title: __("Số tiền giảm (%giảm giá)"), value: "discount_display", align: "start", width: "15%" },
+			{
+				title: __("Số tiền giảm (%giảm giá)"),
+				value: "discount_display",
+				align: "start",
+				width: "15%",
+			},
 			{ title: __("Điều kiện"), value: "conditions_display", align: "start", width: "15%" },
 			{ title: __("Ngày hết hạn"), value: "valid_upto", align: "start", width: "10%" },
 			{ title: __("Hàng tặng"), value: "gift_display", align: "center", width: "8%" },
@@ -262,27 +274,27 @@ export default {
 		displayedOffers() {
 			// Return filtered offers based on show_only_applicable flag
 			let offers = this.show_only_applicable
-				? this.pos_offers.filter(offer => offer.is_applicable)
+				? this.pos_offers.filter((offer) => offer.is_applicable)
 				: this.pos_offers;
 
 			// Add computed display fields for each offer
-			return offers.map(offer => ({
+			return offers.map((offer) => ({
 				...offer,
 				discount_display: this.getDiscountDisplay(offer),
 				conditions_display: this.getConditionsDisplay(offer),
 				block_display: this.getBlockDisplay(offer),
-				gift_display: this.getGiftDisplay(offer)
+				gift_display: this.getGiftDisplay(offer),
 			}));
 		},
 		formattedOfferContent() {
-			if (!this.selectedOffer) return '';
+			if (!this.selectedOffer) return "";
 
 			try {
 				const content = this.formatOfferDetails(this.selectedOffer);
-				console.log('Computed formatted content:', content);
+				console.log("Computed formatted content:", content);
 				return content || this.getFallbackContent();
 			} catch (error) {
-				console.error('Error formatting offer details:', error);
+				console.error("Error formatting offer details:", error);
 				return this.getFallbackContent();
 			}
 		},
@@ -317,7 +329,7 @@ export default {
 					title: __("Đang kiểm tra offers..."),
 					message: __("Đang tính toán các chương trình khuyến mại phù hợp với giỏ hàng hiện tại."),
 					color: "info",
-					timeout: 2000
+					timeout: 2000,
 				});
 
 				console.log("🔍 [POS_OFFERS] Check offers request sent");
@@ -326,13 +338,18 @@ export default {
 				this.eventBus.emit("show_message", {
 					title: __("Lỗi kiểm tra offers"),
 					message: error.message || __("Không thể kiểm tra chương trình khuyến mại."),
-					color: "error"
+					color: "error",
 				});
 			}
 		},
 
 		async loadOffers(itemCode = null, offerTitle = null) {
-			console.log("📋 [POS_OFFERS] Loading offers for POS Profile:", this.pos_profile?.name, "with filters:", { itemCode, offerTitle });
+			console.log(
+				"📋 [POS_OFFERS] Loading offers for POS Profile:",
+				this.pos_profile?.name,
+				"with filters:",
+				{ itemCode, offerTitle },
+			);
 
 			if (!this.pos_profile?.name) {
 				console.warn("📋 [POS_OFFERS] No POS Profile available");
@@ -343,7 +360,7 @@ export default {
 				this.loading = true;
 
 				const args = {
-					profile: this.pos_profile.name
+					profile: this.pos_profile.name,
 				};
 
 				// Add search parameters if provided
@@ -356,15 +373,15 @@ export default {
 
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.offers.get_offers",
-					args: args
+					args: args,
 				});
 
 				if (response.message) {
 					// Reset tất cả offers về không áp dụng
-					this.pos_offers = response.message.map(offer => ({
+					this.pos_offers = response.message.map((offer) => ({
 						...offer,
 						offer_applied: false,
-						is_applicable: false // Flag for applicable offers
+						is_applicable: false, // Flag for applicable offers
 					}));
 
 					// Store all offers for filtering
@@ -378,19 +395,20 @@ export default {
 						const searchType = itemCode ? `Item Code: ${itemCode}` : `Tên: ${offerTitle}`;
 						this.eventBus.emit("show_message", {
 							title: __("Kết quả tìm kiếm"),
-							message: __(`Tìm thấy ${this.pos_offers.length} chương trình khuyến mại cho ${searchType}.`),
+							message: __(
+								`Tìm thấy ${this.pos_offers.length} chương trình khuyến mại cho ${searchType}.`,
+							),
 							color: "success",
-							timeout: 3000
+							timeout: 3000,
 						});
 					}
 				}
-
 			} catch (error) {
 				console.error("📋 [POS_OFFERS] Error loading offers:", error);
 				this.eventBus.emit("show_message", {
 					title: __("Lỗi tải offers"),
 					message: __("Không thể tải danh sách chương trình khuyến mại."),
-					color: "error"
+					color: "error",
 				});
 			} finally {
 				this.loading = false;
@@ -400,7 +418,7 @@ export default {
 		async searchOffers() {
 			console.log("🔍 [POS_OFFERS] Search button clicked with:", {
 				itemCode: this.searchItemCode,
-				offerTitle: this.searchOfferTitle
+				offerTitle: this.searchOfferTitle,
 			});
 
 			// Validate search inputs
@@ -408,7 +426,7 @@ export default {
 				this.eventBus.emit("show_message", {
 					title: __("Thiếu thông tin tìm kiếm"),
 					message: __("Vui lòng nhập Item Code hoặc Tên khuyến mại để tìm kiếm."),
-					color: "warning"
+					color: "warning",
 				});
 				return;
 			}
@@ -457,36 +475,35 @@ export default {
 			// Không còn gọi updatePosCoupuns() vì không áp dụng offers trong dialog
 		},
 
-
 		openOfferDialog(item) {
 			// Mở dialog hiển thị chi tiết offer
-			console.log('Opening offer dialog for item:', item);
-			console.log('Item keys:', Object.keys(item));
-			console.log('Item values:', Object.values(item));
+			console.log("Opening offer dialog for item:", item);
+			console.log("Item keys:", Object.keys(item));
+			console.log("Item values:", Object.values(item));
 
 			// Kiểm tra xem item có phải là offer thực tế không
-			if (!item || typeof item !== 'object') {
-				console.error('Invalid item passed to openOfferDialog:', item);
+			if (!item || typeof item !== "object") {
+				console.error("Invalid item passed to openOfferDialog:", item);
 				return;
 			}
 
 			// Copy object an toàn hơn
 			try {
 				this.selectedOffer = JSON.parse(JSON.stringify(item));
-				console.log('Selected offer after copy:', this.selectedOffer);
-				console.log('Selected offer type:', typeof this.selectedOffer);
-				console.log('Selected offer keys:', Object.keys(this.selectedOffer));
+				console.log("Selected offer after copy:", this.selectedOffer);
+				console.log("Selected offer type:", typeof this.selectedOffer);
+				console.log("Selected offer keys:", Object.keys(this.selectedOffer));
 			} catch (error) {
-				console.error('Error copying offer object:', error);
+				console.error("Error copying offer object:", error);
 				this.selectedOffer = item; // Fallback
 			}
 
 			// Test formatOfferDetails
 			try {
 				const formattedDetails = this.formatOfferDetails(this.selectedOffer);
-				console.log('Formatted details:', formattedDetails);
+				console.log("Formatted details:", formattedDetails);
 			} catch (error) {
-				console.error('Error formatting offer details:', error);
+				console.error("Error formatting offer details:", error);
 			}
 
 			this.offerDialog = true;
@@ -495,7 +512,9 @@ export default {
 		closeOfferDialog() {
 			// Cập nhật lại offer trong danh sách chính nếu có thay đổi
 			if (this.selectedOffer) {
-				const originalOffer = this.pos_offers.find(offer => offer.row_id === this.selectedOffer.row_id);
+				const originalOffer = this.pos_offers.find(
+					(offer) => offer.row_id === this.selectedOffer.row_id,
+				);
 				if (originalOffer) {
 					// Cập nhật give_item nếu có thay đổi
 					if (originalOffer.give_item !== this.selectedOffer.give_item) {
@@ -529,20 +548,20 @@ export default {
 			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Xác định loại điều kiện áp dụng khuyến mãi — ở đây là theo ${offer.apply_on}.</td></tr>`;
 
 			// Apply Rule On Item Code/Item Group/Brand
-			let applyField = '';
-			let applyValue = '';
-			if (offer.apply_on === 'Item Code') {
-				applyField = 'Apply Rule On Item Code';
-				applyValue = offer.item || 'N/A';
-			} else if (offer.apply_on === 'Item Group') {
-				applyField = 'Apply Rule On Item Group';
-				applyValue = offer.item_group || 'N/A';
-			} else if (offer.apply_on === 'Brand') {
-				applyField = 'Apply Rule On Brand';
-				applyValue = offer.brand || 'N/A';
-			} else if (offer.apply_on === 'Transaction') {
-				applyField = 'Apply Rule On Transaction';
-				applyValue = 'Toàn bộ hóa đơn';
+			let applyField = "";
+			let applyValue = "";
+			if (offer.apply_on === "Item Code") {
+				applyField = "Apply Rule On Item Code";
+				applyValue = offer.item || "N/A";
+			} else if (offer.apply_on === "Item Group") {
+				applyField = "Apply Rule On Item Group";
+				applyValue = offer.item_group || "N/A";
+			} else if (offer.apply_on === "Brand") {
+				applyField = "Apply Rule On Brand";
+				applyValue = offer.brand || "N/A";
+			} else if (offer.apply_on === "Transaction") {
+				applyField = "Apply Rule On Transaction";
+				applyValue = "Toàn bộ hóa đơn";
 			}
 			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">${applyField}</td>`;
 			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${applyValue}</td></tr>`;
@@ -552,7 +571,7 @@ export default {
 			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Loại khuyến mãi — ở đây là ${offer.offer}, nghĩa là ${this.getOfferTypeDescription(offer.offer)}.</td></tr>`;
 
 			// Valid From / Valid Upto
-			let dateRange = 'N/A';
+			let dateRange = "N/A";
 			if (offer.valid_from || offer.valid_upto) {
 				if (offer.valid_from && offer.valid_upto) {
 					dateRange = `${this.formatDate(offer.valid_from)} → ${this.formatDate(offer.valid_upto)}`;
@@ -567,19 +586,19 @@ export default {
 
 			// Company
 			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Company</td>`;
-			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Công ty áp dụng (${offer.company || 'N/A'}).</td></tr>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Công ty áp dụng (${offer.company || "N/A"}).</td></tr>`;
 
 			// POS Profile
 			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">POS Profile</td>`;
-			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Hồ sơ POS cụ thể được áp dụng (${offer.pos_profile || 'Tất cả'}).</td></tr>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Hồ sơ POS cụ thể được áp dụng (${offer.pos_profile || "Tất cả"}).</td></tr>`;
 
 			// Coupon Code Based
 			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Coupon Code Based</td>`;
-			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.coupon_based ? '✅ Bật — yêu cầu nhập mã coupon mới được giảm.' : '❌ Tắt — giảm tự động khi đủ điều kiện.'}</td></tr>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.coupon_based ? "✅ Bật — yêu cầu nhập mã coupon mới được giảm." : "❌ Tắt — giảm tự động khi đủ điều kiện."}</td></tr>`;
 
 			// Auto Apply
 			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">Auto Apply</td>`;
-			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.auto ? '✅ Bật — khuyến mãi sẽ tự động áp dụng khi đủ điều kiện, không cần chọn thủ công.' : '❌ Tắt — cần chọn thủ công.'}</td></tr>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.auto ? "✅ Bật — khuyến mãi sẽ tự động áp dụng khi đủ điều kiện, không cần chọn thủ công." : "❌ Tắt — cần chọn thủ công."}</td></tr>`;
 
 			details += `</table>`;
 			details += `</div>`;
@@ -591,7 +610,7 @@ export default {
 			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold; width: 30%;">Trường</td><td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">Giải thích</td></tr>`;
 
 			// Min Quantity / Max Quantity
-			let qtyRange = 'N/A';
+			let qtyRange = "N/A";
 			if (offer.min_qty || offer.max_qty) {
 				if (offer.min_qty && offer.max_qty) {
 					qtyRange = `${offer.min_qty} → ${offer.max_qty} sản phẩm`;
@@ -605,7 +624,7 @@ export default {
 			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Số lượng mua tối thiểu & tối đa được áp dụng khuyến mãi (${qtyRange}).</td></tr>`;
 
 			// Min Amount / Max Amount
-			let amtRange = '0 (không giới hạn)';
+			let amtRange = "0 (không giới hạn)";
 			if (offer.min_amt || offer.max_amt) {
 				if (offer.min_amt && offer.max_amt) {
 					amtRange = `${this.formatCurrency(offer.min_amt)} → ${this.formatCurrency(offer.max_amt)}`;
@@ -629,11 +648,11 @@ export default {
 
 			// Enable Block-based Discount
 			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Enable Block-based Discount</td>`;
-			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.is_used_block ? '✅ Bật — kích hoạt kiểu giảm giá theo từng "block" sản phẩm.' : '❌ Chưa bật'}</td></tr>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.is_used_block ? '✅ Bật — kích hoạt kiểu giảm giá theo từng "block" sản phẩm.' : "❌ Chưa bật"}</td></tr>`;
 
 			// Block UOM Reference
 			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">Block UOM Reference</td>`;
-			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Đơn vị quy đổi block (${offer.uom_ref || 'N/A'}).</td></tr>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Đơn vị quy đổi block (${offer.uom_ref || "N/A"}).</td></tr>`;
 
 			// Items per Block
 			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Items per Block</td>`;
@@ -653,7 +672,7 @@ export default {
 
 			// Enable Block-based Gift
 			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Enable Block-based Gift</td>`;
-			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.is_used_gift_block ? '✅ Bật — tặng quà theo block.' : '❌ Chưa bật'}</td></tr>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.is_used_gift_block ? "✅ Bật — tặng quà theo block." : "❌ Chưa bật"}</td></tr>`;
 
 			// Gifts per Block
 			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">Gifts per Block</td>`;
@@ -661,11 +680,11 @@ export default {
 
 			// Gift Item Code
 			details += `<tr><td style="padding: 8px; border: 1px solid #dee2e6;">Gift Item Code</td>`;
-			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Mã sản phẩm quà tặng — ${offer.gift_item_code || 'N/A'}.</td></tr>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">Mã sản phẩm quà tặng — ${offer.gift_item_code || "N/A"}.</td></tr>`;
 
 			// Enable Tiered Pricing
 			details += `<tr style="background: #f8f9fa;"><td style="padding: 8px; border: 1px solid #dee2e6;">Enable Tiered Pricing</td>`;
-			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.is_used_tiered_pricing ? '✅ Bật — tính giá theo bậc.' : '❌ Chưa bật'}</td></tr>`;
+			details += `<td style="padding: 8px; border: 1px solid #dee2e6;">${offer.is_used_tiered_pricing ? "✅ Bật — tính giá theo bậc." : "❌ Chưa bật"}</td></tr>`;
 
 			details += `</table>`;
 			details += `</div>`;
@@ -675,19 +694,19 @@ export default {
 		},
 
 		getOfferSpecificDetails(offer) {
-			let details = '';
+			let details = "";
 
 			switch (offer.offer) {
-				case 'Give Product':
+				case "Give Product":
 					details += this.formatGiveProductDetails(offer);
 					break;
-				case 'Item Price':
+				case "Item Price":
 					details += this.formatItemPriceDetails(offer);
 					break;
-				case 'Grand Total':
+				case "Grand Total":
 					details += this.formatGrandTotalDetails(offer);
 					break;
-				case 'Loyalty Point':
+				case "Loyalty Point":
 					details += this.formatLoyaltyPointDetails(offer);
 					break;
 				default:
@@ -698,7 +717,7 @@ export default {
 		},
 
 		formatGiveProductDetails(offer) {
-			let details = '';
+			let details = "";
 
 			// Loại khuyến mại
 			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
@@ -748,7 +767,7 @@ export default {
 		},
 
 		formatItemPriceDetails(offer) {
-			let details = '';
+			let details = "";
 
 			// Loại khuyến mại
 			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
@@ -799,7 +818,7 @@ export default {
 		},
 
 		formatGrandTotalDetails(offer) {
-			let details = '';
+			let details = "";
 
 			// Loại khuyến mại
 			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
@@ -839,7 +858,7 @@ export default {
 		},
 
 		formatLoyaltyPointDetails(offer) {
-			let details = '';
+			let details = "";
 
 			// Loại khuyến mại
 			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
@@ -878,7 +897,7 @@ export default {
 		},
 
 		formatDefaultOfferDetails(offer) {
-			let details = '';
+			let details = "";
 
 			// Loại khuyến mại
 			details += `<div style="font-size: 14px; color: #000000; margin-bottom: 6px;">`;
@@ -895,13 +914,13 @@ export default {
 			return details;
 		},
 		formatDate(dateStr) {
-			if (!dateStr) return '';
+			if (!dateStr) return "";
 			try {
 				const date = new Date(dateStr);
-				return date.toLocaleDateString('vi-VN', {
-					day: '2-digit',
-					month: '2-digit',
-					year: 'numeric'
+				return date.toLocaleDateString("vi-VN", {
+					day: "2-digit",
+					month: "2-digit",
+					year: "numeric",
 				});
 			} catch (e) {
 				return dateStr;
@@ -909,32 +928,32 @@ export default {
 		},
 		getOfferTypeText(offerType) {
 			const types = {
-				'Item Price': 'Giảm giá sản phẩm',
-				'Give Product': 'Tặng sản phẩm',
-				'Grand Total': 'Giảm giá hóa đơn',
-				'Loyalty Point': 'Tích điểm thưởng'
+				"Item Price": "Giảm giá sản phẩm",
+				"Give Product": "Tặng sản phẩm",
+				"Grand Total": "Giảm giá hóa đơn",
+				"Loyalty Point": "Tích điểm thưởng",
 			};
 			return types[offerType] || offerType;
 		},
 
 		getOfferTypeDescription(offerType) {
 			const descriptions = {
-				'Item Price': 'giảm trực tiếp theo giá sản phẩm',
-				'Give Product': 'tặng sản phẩm miễn phí',
-				'Grand Total': 'giảm giá trên tổng hóa đơn',
-				'Loyalty Point': 'tích điểm thưởng cho khách hàng'
+				"Item Price": "giảm trực tiếp theo giá sản phẩm",
+				"Give Product": "tặng sản phẩm miễn phí",
+				"Grand Total": "giảm giá trên tổng hóa đơn",
+				"Loyalty Point": "tích điểm thưởng cho khách hàng",
 			};
 			return descriptions[offerType] || offerType.toLowerCase();
 		},
 
 		formatDate(dateString) {
-			if (!dateString) return 'N/A';
+			if (!dateString) return "N/A";
 			try {
 				const date = new Date(dateString);
-				return date.toLocaleDateString('vi-VN', {
-					day: '2-digit',
-					month: '2-digit',
-					year: 'numeric'
+				return date.toLocaleDateString("vi-VN", {
+					day: "2-digit",
+					month: "2-digit",
+					year: "numeric",
 				});
 			} catch (e) {
 				return dateString;
@@ -944,11 +963,11 @@ export default {
 			if (!offer.discount_type) return null;
 
 			switch (offer.discount_type) {
-				case 'Rate':
+				case "Rate":
 					return `Giá: ${this.formatCurrency(offer.rate)}`;
-				case 'Discount Percentage':
+				case "Discount Percentage":
 					return `Giảm: ${offer.discount_percentage}%`;
-				case 'Discount Amount':
+				case "Discount Amount":
 					return `Giảm: ${this.formatCurrency(offer.discount_amount)}`;
 				default:
 					return null;
@@ -998,17 +1017,17 @@ export default {
 			}
 
 			// Regular discount types
-			if (!offer.discount_type) return '-';
+			if (!offer.discount_type) return "-";
 
 			switch (offer.discount_type) {
-				case 'Rate':
+				case "Rate":
 					return `${this.formatCurrency(offer.rate)}`;
-				case 'Discount Percentage':
+				case "Discount Percentage":
 					return `${offer.discount_percentage}%`;
-				case 'Discount Amount':
+				case "Discount Amount":
 					return `${this.formatCurrency(offer.discount_amount)}`;
 				default:
-					return '-';
+					return "-";
 			}
 		},
 
@@ -1025,7 +1044,7 @@ export default {
 				if (offer.total_items_in_block_qty && offer.total_items_in_block_qty > 0) {
 					blockConditions.push(`${offer.total_items_in_block_qty} sp/block`);
 				}
-				return blockConditions.length > 0 ? blockConditions.join(', ') : 'Không có điều kiện';
+				return blockConditions.length > 0 ? blockConditions.join(", ") : "Không có điều kiện";
 			}
 
 			// Regular conditions
@@ -1044,25 +1063,25 @@ export default {
 				conditions.push(`≤${this.formatCurrency(offer.max_amt)}`);
 			}
 
-			return conditions.length > 0 ? conditions.join(', ') : 'Không có điều kiện';
+			return conditions.length > 0 ? conditions.join(", ") : "Không có điều kiện";
 		},
 
 		getBlockDisplay(offer) {
-			return offer.is_used_block ? '✓' : '-';
+			return offer.is_used_block ? "✓" : "-";
 		},
 
 		getGiftDisplay(offer) {
-			return offer.is_used_gift_block ? '✓' : '-';
+			return offer.is_used_gift_block ? "✓" : "-";
 		},
 
 		getFallbackContent() {
-			if (!this.selectedOffer) return '';
+			if (!this.selectedOffer) return "";
 
 			let content = `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;">`;
 
 			// Tên offer
 			content += `<div style="font-size: 18px; font-weight: bold; color: #000000; margin-bottom: 12px;">`;
-			content += `📋 ${this.selectedOffer.title || this.selectedOffer.name || 'Chương trình khuyến mại'}`;
+			content += `📋 ${this.selectedOffer.title || this.selectedOffer.name || "Chương trình khuyến mại"}`;
 			content += `</div>`;
 
 			// Thông tin cơ bản
@@ -1162,7 +1181,7 @@ export default {
 .offer-dialog-content {
 	line-height: 1.8;
 	font-size: 15px;
-	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+	font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .offer-dialog-content table {
@@ -1211,7 +1230,7 @@ export default {
 }
 
 .offer-dialog-content div:before {
-	content: '';
+	content: "";
 	position: absolute;
 	top: 0;
 	left: 0;

@@ -14,7 +14,9 @@
 							</div>
 							<div class="shift-info-item" v-if="shiftReportData.created">
 								<span class="shift-info-label">{{ __("Started:") }}</span>
-								<span class="shift-info-value">{{ formatDateTime(shiftReportData.created) }}</span>
+								<span class="shift-info-value">{{
+									formatDateTime(shiftReportData.created)
+								}}</span>
 							</div>
 						</div>
 					</div>
@@ -45,7 +47,7 @@
 								<v-icon size="16" class="me-1">
 									{{ getVerificationIcon(shiftReportData.verification_status) }}
 								</v-icon>
-								{{ shiftReportData.verification_status || 'Pending' }}
+								{{ shiftReportData.verification_status || "Pending" }}
 							</v-chip>
 						</div>
 
@@ -99,11 +101,7 @@
 							>
 								{{ __("Export") }}
 							</v-btn>
-							<v-btn
-								variant="text"
-								@click="close"
-								class="action-btn"
-							>
+							<v-btn variant="text" @click="close" class="action-btn">
 								{{ __("Close") }}
 							</v-btn>
 						</div>
@@ -125,39 +123,65 @@
 						class="elevation-0 payment-summary-table"
 					>
 						<template #item.payment_method="{ item }">
-							<span :class="item.isTotalRow ? 'font-weight-bold text-primary' : ''">{{ item.payment_method }}</span>
+							<span :class="item.isTotalRow ? 'font-weight-bold text-primary' : ''">{{
+								item.payment_method
+							}}</span>
 						</template>
 
 						<template #item.opening_amount="{ item }">
-							<span :class="item.isTotalRow ? 'font-weight-bold currency-amount' : 'font-weight-bold currency-amount'">
+							<span
+								:class="
+									item.isTotalRow
+										? 'font-weight-bold currency-amount'
+										: 'font-weight-bold currency-amount'
+								"
+							>
 								{{ formatCurrency(item.opening_amount || 0) }}
 							</span>
 						</template>
 
 						<template #item.sales_amount="{ item }">
-							<span :class="item.isTotalRow ? 'font-weight-bold currency-amount text-success' : 'currency-amount text-success'">
+							<span
+								:class="
+									item.isTotalRow
+										? 'font-weight-bold currency-amount text-success'
+										: 'currency-amount text-success'
+								"
+							>
 								{{ formatCurrency(item.sales_amount || 0) }}
 							</span>
 						</template>
 
 						<template #item.returns_amount="{ item }">
-							<span :class="item.isTotalRow ? 'font-weight-bold currency-amount text-error' : 'currency-amount text-error'">
+							<span
+								:class="
+									item.isTotalRow
+										? 'font-weight-bold currency-amount text-error'
+										: 'currency-amount text-error'
+								"
+							>
 								{{ formatCurrency(item.returns_amount || 0) }}
 							</span>
 						</template>
 
 						<template #item.transaction_amount="{ item }">
-							<span :class="[
-								'currency-amount',
-								item.isTotalRow ? 'font-weight-bold' : '',
-								item.transaction_amount >= 0 ? 'text-success' : 'text-error'
-							]">
+							<span
+								:class="[
+									'currency-amount',
+									item.isTotalRow ? 'font-weight-bold' : '',
+									item.transaction_amount >= 0 ? 'text-success' : 'text-error',
+								]"
+							>
 								{{ formatCurrency(item.transaction_amount || 0) }}
 							</span>
 						</template>
 
 						<template #item.expected_closing_amount="{ item }">
-							<span :class="item.isTotalRow ? 'font-weight-bold currency-amount' : 'currency-amount'">
+							<span
+								:class="
+									item.isTotalRow ? 'font-weight-bold currency-amount' : 'currency-amount'
+								"
+							>
 								{{ formatCurrency(item.expected_closing_amount || 0) }}
 							</span>
 						</template>
@@ -194,7 +218,9 @@
 						<v-card variant="outlined" class="pa-3">
 							<div class="text-caption text-medium-emphasis">{{ __("Net Amount") }}</div>
 							<div class="text-h6 font-weight-bold text-primary">
-								{{ formatCurrency((summary.total_sales || 0) + (summary.total_returns || 0)) }}
+								{{
+									formatCurrency((summary.total_sales || 0) + (summary.total_returns || 0))
+								}}
 							</div>
 						</v-card>
 					</v-col>
@@ -239,18 +265,14 @@
 						</div>
 					</template>
 					<template #item.invoice_no="{ item }">
-						<v-chip
-							variant="outlined"
-							size="small"
-							:color="item.is_return ? 'error' : 'primary'"
-						>
+						<v-chip variant="outlined" size="small" :color="item.is_return ? 'error' : 'primary'">
 							{{ item.invoice_no }}
 						</v-chip>
 					</template>
 
 					<template #item.customer="{ item }">
-						<div class="text-truncate" style="max-width: 150px;">
-							{{ item.customer || '-' }}
+						<div class="text-truncate" style="max-width: 150px">
+							{{ item.customer || "-" }}
 						</div>
 					</template>
 
@@ -261,12 +283,8 @@
 					</template>
 
 					<template #item.payment_method="{ item }">
-						<v-chip
-							variant="flat"
-							size="small"
-							:color="getPaymentColor(item.payment_method)"
-						>
-							{{ item.payment_method || 'Cash' }}
+						<v-chip variant="flat" size="small" :color="getPaymentColor(item.payment_method)">
+							{{ item.payment_method || "Cash" }}
 						</v-chip>
 					</template>
 
@@ -300,7 +318,6 @@
 			</v-card-text>
 
 			<v-divider></v-divider>
-
 		</v-card>
 	</v-dialog>
 </template>
@@ -311,16 +328,16 @@ export default {
 	props: {
 		modelValue: {
 			type: Boolean,
-			default: false
+			default: false,
 		},
 		shiftReportId: {
 			type: String,
-			default: ""
+			default: "",
 		},
 		posProfile: {
 			type: Object,
-			default: () => ({})
-		}
+			default: () => ({}),
+		},
 	},
 	emits: ["update:modelValue"],
 	data() {
@@ -336,7 +353,7 @@ export default {
 			summary: {
 				total_invoices: 0,
 				total_sales: 0,
-				total_returns: 0
+				total_returns: 0,
 			},
 			// Payment Summary Data
 			loadingSummary: false,
@@ -353,16 +370,16 @@ export default {
 				{ title: this.__("Amount"), key: "total_amount", width: "120px", align: "end" },
 				{ title: this.__("Payment"), key: "payment_method", width: "100px" },
 				{ title: this.__("Status"), key: "status", width: "100px" },
-				{ title: this.__("Actions"), key: "actions", width: "120px", sortable: false }
+				{ title: this.__("Actions"), key: "actions", width: "120px", sortable: false },
 			],
 			statusOptions: [
 				{ title: this.__("Submitted"), value: "Submitted" },
-				{ title: this.__("Cancelled"), value: "Cancelled" }
+				{ title: this.__("Cancelled"), value: "Cancelled" },
 			],
 			paymentOptions: [
 				{ title: this.__("Cash"), value: "Cash" },
 				{ title: this.__("Card"), value: "Card" },
-				{ title: this.__("M-Pesa"), value: "M-Pesa" }
+				{ title: this.__("M-Pesa"), value: "M-Pesa" },
 			],
 			paymentSummaryHeaders: [
 				{ title: this.__("Payment Method"), key: "payment_method", width: "140px" },
@@ -370,8 +387,13 @@ export default {
 				{ title: this.__("Sales Amount"), key: "sales_amount", width: "100px", align: "end" },
 				{ title: this.__("Returns Amount"), key: "returns_amount", width: "100px", align: "end" },
 				{ title: this.__("Transactions"), key: "transaction_amount", width: "100px", align: "end" },
-				{ title: this.__("Expected Closing"), key: "expected_closing_amount", width: "100px", align: "end" }
-			]
+				{
+					title: this.__("Expected Closing"),
+					key: "expected_closing_amount",
+					width: "100px",
+					align: "end",
+				},
+			],
 		};
 	},
 	computed: {
@@ -381,10 +403,10 @@ export default {
 			},
 			set(value) {
 				this.$emit("update:modelValue", value);
-			}
+			},
 		},
 		displayShiftReportId() {
-			return this.shiftReportData?.shift_report_id || this.shiftReportData?.name || 'Loading...';
+			return this.shiftReportData?.shift_report_id || this.shiftReportData?.name || "Loading...";
 		},
 		filteredInvoices() {
 			let filtered = [...this.invoices];
@@ -392,20 +414,21 @@ export default {
 			// Search filter
 			if (this.searchQuery) {
 				const query = this.searchQuery.toLowerCase();
-				filtered = filtered.filter(item =>
-					item.invoice_no?.toLowerCase().includes(query) ||
-					item.customer?.toLowerCase().includes(query)
+				filtered = filtered.filter(
+					(item) =>
+						item.invoice_no?.toLowerCase().includes(query) ||
+						item.customer?.toLowerCase().includes(query),
 				);
 			}
 
 			// Status filter
 			if (this.statusFilter) {
-				filtered = filtered.filter(item => item.status === this.statusFilter);
+				filtered = filtered.filter((item) => item.status === this.statusFilter);
 			}
 
 			// Payment filter
 			if (this.paymentFilter) {
-				filtered = filtered.filter(item => item.payment_method === this.paymentFilter);
+				filtered = filtered.filter((item) => item.payment_method === this.paymentFilter);
 			}
 
 			return filtered;
@@ -416,14 +439,14 @@ export default {
 
 			// Add total row
 			dataWithTotal.push({
-				payment_method: 'TOTAL',
+				payment_method: "TOTAL",
 				opening_amount: this.totalOpeningAmount,
 				sales_amount: this.totalSalesAmount,
 				returns_amount: this.totalReturnsAmount,
 				transaction_amount: this.totalTransactionAmount,
 				expected_closing_amount: this.totalExpectedClosingAmount,
 				transaction_count: null, // Not applicable for total
-				isTotalRow: true // Flag to identify total row
+				isTotalRow: true, // Flag to identify total row
 			});
 
 			return dataWithTotal;
@@ -433,7 +456,10 @@ export default {
 			return this.paymentSummaryData.reduce((sum, item) => sum + (item.opening_amount || 0), 0);
 		},
 		totalExpectedClosingAmount() {
-			return this.paymentSummaryData.reduce((sum, item) => sum + (item.expected_closing_amount || 0), 0);
+			return this.paymentSummaryData.reduce(
+				(sum, item) => sum + (item.expected_closing_amount || 0),
+				0,
+			);
 		},
 		totalTransactionAmount() {
 			return this.paymentSummaryData.reduce((sum, item) => sum + (item.transaction_amount || 0), 0);
@@ -452,16 +478,18 @@ export default {
 		},
 		// Verification Computed Properties
 		isVerifiedOrConfirmed() {
-			return this.shiftReportData?.verification_status === 'Verified' ||
-				   this.shiftReportData?.verification_status === 'Confirmed';
-		}
+			return (
+				this.shiftReportData?.verification_status === "Verified" ||
+				this.shiftReportData?.verification_status === "Confirmed"
+			);
+		},
 	},
 	watch: {
 		modelValue(newVal) {
 			if (newVal && this.shiftReportId) {
 				console.log("Dialog opened with shiftReportId:", this.shiftReportId);
 				console.log("shiftReportId type:", typeof this.shiftReportId);
-				if (typeof this.shiftReportId === 'object') {
+				if (typeof this.shiftReportId === "object") {
 					console.log("shiftReportId object keys:", Object.keys(this.shiftReportId));
 					console.log("shiftReportId doctype:", this.shiftReportId.doctype);
 					console.log("shiftReportId name:", this.shiftReportId.name);
@@ -477,440 +505,517 @@ export default {
 				console.log("shiftReportId changed from", oldVal, "to", newVal);
 				this.loadInvoices();
 			}
-		}
+		},
 	},
 	mounted() {
 		this.debouncedSearch = this.debounce(this.applyFilters, 300);
 		console.log("ListInvoicesDialog mounted, shiftReportId:", this.shiftReportId);
 	},
 	methods: {
-	async loadInvoices() {
-		if (!this.shiftReportId) {
-			console.log("No shiftReportId provided, skipping load");
-			return;
-		}
-
-		this.loading = true;
-		try {
-			console.log("Loading invoices for shift:", this.shiftReportId);
-
-			// ✅ DETERMINE THE CORRECT SHIFT REPORT ID
-			let actualShiftReportId = this.shiftReportId;
-
-			// If shiftReportId is an object (POS Opening Shift), find the associated shift report
-			if (typeof this.shiftReportId === 'object' && this.shiftReportId !== null) {
-				console.log("[LOAD_INVOICES] 📋 shiftReportId is an object, extracting shift report ID...");
-
-				if (this.shiftReportId.doctype === "POS Opening Shift") {
-					try {
-						const shiftReports = await frappe.call({
-							method: "frappe.client.get_list",
-							args: {
-								doctype: "POS Shift Report",
-								filters: {
-									pos_opening_shift: this.shiftReportId.name
-								},
-								fields: ["name", "shift_report_id"],
-								limit: 1
-							}
-						});
-
-						if (shiftReports.message && shiftReports.message.length > 0) {
-							const shiftReport = shiftReports.message[0];
-							actualShiftReportId = shiftReport.name; // Use the actual name
-							console.log("[LOAD_INVOICES] ✅ Found associated shift report:", actualShiftReportId);
-						} else {
-							console.error("[LOAD_INVOICES] ❌ No shift report found for opening shift:", this.shiftReportId.name);
-							this.showError("No shift report found for this opening shift. Please create a shift report first.");
-							return;
-						}
-					} catch (error) {
-						console.error("[LOAD_INVOICES] ❌ Error finding shift report:", error);
-						this.showError("Error finding shift report for this opening shift.");
-						return;
-					}
-				} else if (this.shiftReportId.doctype === "POS Shift Report") {
-					actualShiftReportId = this.shiftReportId.name;
-					console.log("[LOAD_INVOICES] ✅ Using shift report name directly:", actualShiftReportId);
-				}
-			}
-
-			console.log("[LOAD_INVOICES] Using shift report ID:", actualShiftReportId);
-
-			// ✅ REAL API CALL - Sử dụng API mới với payment summary
-			const response = await frappe.call({
-				method: "posawesome.posawesome.api.shift_reports.get_shift_report_readonly",
-				args: {
-					shift_report_id: actualShiftReportId
-				}
-			});
-
-			console.log("🔍 FULL API Response:", response);
-			console.log("🔍 Response.message structure:", response.message);
-			console.log("🔍 Response.message keys:", Object.keys(response.message || {}));
-			console.log("🔍 Response.message.success:", response.message?.success);
-			console.log("🔍 Response.message.data:", response.message?.data);
-			console.log("🔍 Response.message.data keys:", Object.keys(response.message?.data || {}));
-			console.log("🔍 Response.message.data.payment_summaries:", response.message?.data?.payment_summaries);
-			console.log("🔍 Response.message.payment_summaries (root level):", response.message?.payment_summaries);
-
-			if (response.message && response.message.success && response.message.data && response.message.data.invoices) {
-				// ✅ HANDLE SHIFT REPORT DATA - API trả về object với invoices array
-				const shiftReportData = response.message.data;
-
-				console.log("Shift Report Data:", shiftReportData);
-
-				// ✅ SET INVOICES DIRECTLY FROM SHIFT REPORT
-				this.invoices = shiftReportData.invoices || [];
-
-				// ✅ SORT BY NEWEST FIRST (descending order)
-				this.invoices = this.invoices.sort((a, b) => {
-					// First sort by invoice_date (newest first)
-					const dateA = new Date(a.invoice_date + ' ' + (a.invoice_time || '00:00:00'));
-					const dateB = new Date(b.invoice_date + ' ' + (b.invoice_time || '00:00:00'));
-
-					// If dates are the same, sort by invoice_no
-					if (dateA.getTime() === dateB.getTime()) {
-						return b.invoice_no.localeCompare(a.invoice_no);
-					}
-
-					return dateB.getTime() - dateA.getTime();
-				});
-
-				// ✅ SET SUMMARY DATA FROM SHIFT REPORT
-				this.summary = {
-					total_invoices: shiftReportData.invoice_count || 0,
-					total_sales: shiftReportData.total_sales || 0,
-					total_returns: shiftReportData.total_returns || 0
-				};
-
-				this.totalInvoices = this.invoices.length;
-
-				console.log(`Loaded ${this.invoices.length} invoices for shift ${actualShiftReportId}`);
-				console.log("Summary:", this.summary);
-
-				// ✅ LOAD PAYMENT SUMMARY FROM API RESPONSE
-				if (response.message.data.payment_summaries && response.message.data.payment_summaries.length > 0) {
-					console.log("🔍 USING PAYMENT SUMMARIES FROM API:", response.message.data.payment_summaries);
-					// Use data directly from API
-					this.paymentSummaryData = response.message.data.payment_summaries.map(item => ({
-						payment_method: item.payment_method,
-						opening_amount: item.opening_amount || 0,
-						sales_amount: item.sales_amount || 0,
-						returns_amount: item.returns_amount || 0,
-						transaction_amount: item.transaction_amount || 0,
-						expected_closing_amount: item.expected_closing_amount || 0,
-						closing_amount: item.closing_amount || 0,
-						difference: item.difference || 0,
-						transaction_count: item.transaction_count || 0
-					}));
-					console.log("✅ Payment summary loaded directly from API:", this.paymentSummaryData);
-				} else {
-					// Fallback to calculation method if payment_summaries not available
-					console.log("⚠️ No payment summaries from API, using fallback calculation");
-					this.loadPaymentSummaryFromShiftReport(shiftReportData);
-				}
-
-				// Store shift report data for verification status
-				this.shiftReportData = shiftReportData;
-				console.log("[LOAD_INVOICES] ✅ Shift report data set:", {
-					shift_report_id: shiftReportData.shift_report_id,
-					name: shiftReportData.name,
-					status: shiftReportData.status
-				});
-
-				// Load shift report data for footer status bar
-				await this.loadShiftReportData();
-
-			} else {
-				console.warn("No shift report data found or invalid response format");
-				console.log("Response structure:", response);
-				if (response.message && !response.message.success) {
-					this.showError(response.message.message || "Failed to load shift report data");
-				}
-				this.invoices = [];
-				this.totalInvoices = 0;
-				this.summary = {
-					total_invoices: 0,
-					total_sales: 0,
-					total_returns: 0
-				};
-			}
-
-		} catch (error) {
-			console.error("Error loading invoices:", error);
-			this.showError("Failed to load invoices from database");
-			// Fallback to empty state
-			this.invoices = [];
-			this.totalInvoices = 0;
-		} finally {
-			this.loading = false;
-		}
-	},
-
-	// ✅ LOAD SHIFT REPORT DATA FOR FOOTER STATUS BAR
-	async loadShiftReportData() {
-		if (!this.shiftReportId) {
-			console.warn("[SHIFT_REPORT] No shiftReportId provided");
-			return;
-		}
-
-		try {
-			console.log("[SHIFT_REPORT] Loading shift report data for footer:", this.shiftReportId);
-			console.log("[SHIFT_REPORT] shiftReportId type:", typeof this.shiftReportId);
-
-			// ✅ DETECT IF shiftReportId IS AN OBJECT INSTEAD OF STRING
-			let actualShiftReportId = this.shiftReportId;
-
-			if (typeof this.shiftReportId === 'object' && this.shiftReportId !== null) {
-				console.log("[SHIFT_REPORT] 📋 shiftReportId is an object, extracting ID...");
-				console.log("[SHIFT_REPORT] Object keys:", Object.keys(this.shiftReportId));
-				console.log("[SHIFT_REPORT] Object doctype:", this.shiftReportId.doctype);
-
-				// ✅ CHECK IF THIS IS POS OPENING SHIFT (wrong object type)
-				if (this.shiftReportId.doctype === "POS Opening Shift") {
-					console.log("[SHIFT_REPORT] ⚠️  Received POS Opening Shift object, need to get associated shift report");
-
-					// Find shift report by pos_opening_shift field
-					try {
-						const shiftReports = await frappe.call({
-							method: "frappe.client.get_list",
-							args: {
-								doctype: "POS Shift Report",
-								filters: {
-									pos_opening_shift: this.shiftReportId.name
-								},
-								fields: ["name", "shift_report_id"],
-								limit: 1
-							}
-						});
-
-						if (shiftReports.message && shiftReports.message.length > 0) {
-							const shiftReport = shiftReports.message[0];
-							console.log("[SHIFT_REPORT] ✅ Found associated shift report:", shiftReport.name, "ID:", shiftReport.shift_report_id);
-							actualShiftReportId = shiftReport.name; // Use the actual name, not shift_report_id
-						} else {
-							console.error("[SHIFT_REPORT] ❌ No shift report found for opening shift:", this.shiftReportId.name);
-							console.error("[SHIFT_REPORT] Opening shift details:", {
-								name: this.shiftReportId.name,
-								status: this.shiftReportId.status,
-								user: this.shiftReportId.user
-							});
-							this.showError("No shift report found for this opening shift. Please create a shift report first.");
-							return;
-						}
-					} catch (error) {
-						console.error("[SHIFT_REPORT] ❌ Error finding shift report for opening shift:", error);
-						this.showError("Error finding shift report for this opening shift.");
-						return;
-					}
-				}
-				// ✅ THIS IS ALREADY A POS SHIFT REPORT OBJECT
-				else if (this.shiftReportId.doctype === "POS Shift Report") {
-					console.log("[SHIFT_REPORT] ✅ Received POS Shift Report object directly");
-
-					// Use the name field as the ID
-					if (this.shiftReportId.name) {
-						actualShiftReportId = this.shiftReportId.name;
-						console.log("[SHIFT_REPORT] ✅ Using shift report name:", actualShiftReportId);
-					} else {
-						console.error("[SHIFT_REPORT] ❌ POS Shift Report object missing name field");
-						this.showError("Invalid shift report object - missing name field");
-						return;
-					}
-				}
-				// ✅ UNKNOWN OBJECT TYPE - Try to extract any valid ID
-				else {
-					console.log("[SHIFT_REPORT] ⚠️  Unknown object type, trying to extract ID...");
-
-					// Priority: name > shift_report_id > any string field
-					if (this.shiftReportId.name) {
-						actualShiftReportId = this.shiftReportId.name;
-						console.log("[SHIFT_REPORT] ✅ Using name field:", actualShiftReportId);
-					} else if (this.shiftReportId.shift_report_id) {
-						actualShiftReportId = this.shiftReportId.shift_report_id;
-						console.log("[SHIFT_REPORT] ✅ Using shift_report_id field:", actualShiftReportId);
-					} else {
-						// Try any string field
-						let foundId = null;
-						for (const [key, value] of Object.entries(this.shiftReportId)) {
-							if (typeof value === 'string' && value && value.trim().length > 0 && value.length < 50) {
-								console.log(`[SHIFT_REPORT] ⚠️  Found potential ID in '${key}': ${value}`);
-								foundId = value.trim();
-								break;
-							}
-						}
-
-						if (foundId) {
-							actualShiftReportId = foundId;
-							console.log("[SHIFT_REPORT] ✅ Using found field as ID:", actualShiftReportId);
-						} else {
-							console.error("[SHIFT_REPORT] ❌ Cannot extract valid ID from unknown object");
-							console.error("[SHIFT_REPORT] Object details:", JSON.stringify(this.shiftReportId, null, 2));
-							this.showError("Cannot identify shift report from the provided data");
-							return;
-						}
-					}
-				}
-			}
-
-			// ✅ VALIDATE FINAL ID
-			if (!actualShiftReportId || actualShiftReportId.trim() === '') {
-				console.error("[SHIFT_REPORT] ❌ Final shiftReportId is empty or invalid:", actualShiftReportId);
+		async loadInvoices() {
+			if (!this.shiftReportId) {
+				console.log("No shiftReportId provided, skipping load");
 				return;
 			}
 
-			console.log("[SHIFT_REPORT] ✅ Final shiftReportId to use:", actualShiftReportId);
+			this.loading = true;
+			try {
+				console.log("Loading invoices for shift:", this.shiftReportId);
 
-			console.log("[SHIFT_REPORT] Using existing shift report data from loadInvoices() for footer");
+				// ✅ DETERMINE THE CORRECT SHIFT REPORT ID
+				let actualShiftReportId = this.shiftReportId;
 
-			// ✅ USE DATA ALREADY LOADED IN loadInvoices() INSTEAD OF CALLING DELETED API
-			if (this.shiftReportData) {
-				const shiftReportData = this.shiftReportData;
+				// If shiftReportId is an object (POS Opening Shift), find the associated shift report
+				if (typeof this.shiftReportId === "object" && this.shiftReportId !== null) {
+					console.log(
+						"[LOAD_INVOICES] 📋 shiftReportId is an object, extracting shift report ID...",
+					);
 
-				// Emit event to update footer status bar
-				if (this.eventBus) {
-					this.eventBus.emit("register_shift_report", {
-						shift_report_id: shiftReportData.shift_report_id,
+					if (this.shiftReportId.doctype === "POS Opening Shift") {
+						try {
+							const shiftReports = await frappe.call({
+								method: "frappe.client.get_list",
+								args: {
+									doctype: "POS Shift Report",
+									filters: {
+										pos_opening_shift: this.shiftReportId.name,
+									},
+									fields: ["name", "shift_report_id"],
+									limit: 1,
+								},
+							});
+
+							if (shiftReports.message && shiftReports.message.length > 0) {
+								const shiftReport = shiftReports.message[0];
+								actualShiftReportId = shiftReport.name; // Use the actual name
+								console.log(
+									"[LOAD_INVOICES] ✅ Found associated shift report:",
+									actualShiftReportId,
+								);
+							} else {
+								console.error(
+									"[LOAD_INVOICES] ❌ No shift report found for opening shift:",
+									this.shiftReportId.name,
+								);
+								this.showError(
+									"No shift report found for this opening shift. Please create a shift report first.",
+								);
+								return;
+							}
+						} catch (error) {
+							console.error("[LOAD_INVOICES] ❌ Error finding shift report:", error);
+							this.showError("Error finding shift report for this opening shift.");
+							return;
+						}
+					} else if (this.shiftReportId.doctype === "POS Shift Report") {
+						actualShiftReportId = this.shiftReportId.name;
+						console.log(
+							"[LOAD_INVOICES] ✅ Using shift report name directly:",
+							actualShiftReportId,
+						);
+					}
+				}
+
+				console.log("[LOAD_INVOICES] Using shift report ID:", actualShiftReportId);
+
+				// ✅ REAL API CALL - Sử dụng API mới với payment summary
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.shift_reports.get_shift_report_readonly",
+					args: {
+						shift_report_id: actualShiftReportId,
+					},
+				});
+
+				console.log("🔍 FULL API Response:", response);
+				console.log("🔍 Response.message structure:", response.message);
+				console.log("🔍 Response.message keys:", Object.keys(response.message || {}));
+				console.log("🔍 Response.message.success:", response.message?.success);
+				console.log("🔍 Response.message.data:", response.message?.data);
+				console.log("🔍 Response.message.data keys:", Object.keys(response.message?.data || {}));
+				console.log(
+					"🔍 Response.message.data.payment_summaries:",
+					response.message?.data?.payment_summaries,
+				);
+				console.log(
+					"🔍 Response.message.payment_summaries (root level):",
+					response.message?.payment_summaries,
+				);
+
+				if (
+					response.message &&
+					response.message.success &&
+					response.message.data &&
+					response.message.data.invoices
+				) {
+					// ✅ HANDLE SHIFT REPORT DATA - API trả về object với invoices array
+					const shiftReportData = response.message.data;
+
+					console.log("Shift Report Data:", shiftReportData);
+
+					// ✅ SET INVOICES DIRECTLY FROM SHIFT REPORT
+					this.invoices = shiftReportData.invoices || [];
+
+					// ✅ SORT BY NEWEST FIRST (descending order)
+					this.invoices = this.invoices.sort((a, b) => {
+						// First sort by invoice_date (newest first)
+						const dateA = new Date(a.invoice_date + " " + (a.invoice_time || "00:00:00"));
+						const dateB = new Date(b.invoice_date + " " + (b.invoice_time || "00:00:00"));
+
+						// If dates are the same, sort by invoice_no
+						if (dateA.getTime() === dateB.getTime()) {
+							return b.invoice_no.localeCompare(a.invoice_no);
+						}
+
+						return dateB.getTime() - dateA.getTime();
+					});
+
+					// ✅ SET SUMMARY DATA FROM SHIFT REPORT
+					this.summary = {
+						total_invoices: shiftReportData.invoice_count || 0,
 						total_sales: shiftReportData.total_sales || 0,
 						total_returns: shiftReportData.total_returns || 0,
-						total_invoices: shiftReportData.invoice_count || 0,
-						total_revenue: (shiftReportData.total_sales || 0) + (shiftReportData.total_returns || 0),
-						last_invoice: shiftReportData.invoices && shiftReportData.invoices.length > 0 ?
-							shiftReportData.invoices[shiftReportData.invoices.length - 1].invoice_no : "",
-						invoices: shiftReportData.invoices || []
-					});
-				}
+					};
 
-				console.log("[SHIFT_REPORT] Shift report data used for footer:", shiftReportData.shift_report_id);
-			} else {
-				console.error("[SHIFT_REPORT] No shift report data available for footer");
-			}
-		} catch (error) {
-			console.error("[SHIFT_REPORT] Error loading shift report data for footer:", error);
+					this.totalInvoices = this.invoices.length;
 
-			// ✅ FALLBACK: Try to emit with default values
-			if (this.eventBus) {
-				this.eventBus.emit("register_shift_report", {
-					shift_report_id: this.shiftReportId,
-					total_sales: 0,
-					total_returns: 0,
-					total_invoices: 0,
-					total_revenue: 0,
-					last_invoice: "",
-					invoices: []
-				});
-			}
-		}
-	},
+					console.log(`Loaded ${this.invoices.length} invoices for shift ${actualShiftReportId}`);
+					console.log("Summary:", this.summary);
 
-	// ✅ LOAD PAYMENT SUMMARY FROM SHIFT REPORT DATA (FALLBACK METHOD)
-	loadPaymentSummaryFromShiftReport(shiftReportData) {
-		try {
-			console.log("Loading payment summary from shift report data (fallback method)");
-
-			// First try: Use payment_breakdown from shift report
-			if (shiftReportData && shiftReportData.payment_breakdown) {
-				console.log("Using payment_breakdown from shift report");
-				const paymentMethods = [];
-				const breakdown = shiftReportData.payment_breakdown;
-				const openingAmounts = shiftReportData.opening_amounts || {};
-				const expectedClosing = shiftReportData.expected_closing_amounts || {};
-
-				Object.keys(breakdown).forEach(method => {
-					const transactionAmount = breakdown[method] || 0;
-					const openingAmount = openingAmounts[method] || 0;
-					const expectedAmount = openingAmount + transactionAmount;
-					let actualClosingAmount = expectedClosing[method];
-					if (actualClosingAmount === undefined || actualClosingAmount === null) {
-						actualClosingAmount = 0;
+					// ✅ LOAD PAYMENT SUMMARY FROM API RESPONSE
+					if (
+						response.message.data.payment_summaries &&
+						response.message.data.payment_summaries.length > 0
+					) {
+						console.log(
+							"🔍 USING PAYMENT SUMMARIES FROM API:",
+							response.message.data.payment_summaries,
+						);
+						// Use data directly from API
+						this.paymentSummaryData = response.message.data.payment_summaries.map((item) => ({
+							payment_method: item.payment_method,
+							opening_amount: item.opening_amount || 0,
+							sales_amount: item.sales_amount || 0,
+							returns_amount: item.returns_amount || 0,
+							transaction_amount: item.transaction_amount || 0,
+							expected_closing_amount: item.expected_closing_amount || 0,
+							closing_amount: item.closing_amount || 0,
+							difference: item.difference || 0,
+							transaction_count: item.transaction_count || 0,
+						}));
+						console.log("✅ Payment summary loaded directly from API:", this.paymentSummaryData);
+					} else {
+						// Fallback to calculation method if payment_summaries not available
+						console.log("⚠️ No payment summaries from API, using fallback calculation");
+						this.loadPaymentSummaryFromShiftReport(shiftReportData);
 					}
 
-					paymentMethods.push({
-						payment_method: method,
-						opening_amount: openingAmount,
-						transaction_amount: transactionAmount,
-						expected_closing_amount: expectedAmount,
-						closing_amount: actualClosingAmount,
-						difference: actualClosingAmount - expectedAmount
+					// Store shift report data for verification status
+					this.shiftReportData = shiftReportData;
+					console.log("[LOAD_INVOICES] ✅ Shift report data set:", {
+						shift_report_id: shiftReportData.shift_report_id,
+						name: shiftReportData.name,
+						status: shiftReportData.status,
 					});
-				});
 
-				this.paymentSummaryData = paymentMethods.sort((a, b) => a.payment_method.localeCompare(b.payment_method));
-				console.log("Payment summary loaded from payment_breakdown:", this.paymentSummaryData);
+					// Load shift report data for footer status bar
+					await this.loadShiftReportData();
+				} else {
+					console.warn("No shift report data found or invalid response format");
+					console.log("Response structure:", response);
+					if (response.message && !response.message.success) {
+						this.showError(response.message.message || "Failed to load shift report data");
+					}
+					this.invoices = [];
+					this.totalInvoices = 0;
+					this.summary = {
+						total_invoices: 0,
+						total_sales: 0,
+						total_returns: 0,
+					};
+				}
+			} catch (error) {
+				console.error("Error loading invoices:", error);
+				this.showError("Failed to load invoices from database");
+				// Fallback to empty state
+				this.invoices = [];
+				this.totalInvoices = 0;
+			} finally {
+				this.loading = false;
+			}
+		},
+
+		// ✅ LOAD SHIFT REPORT DATA FOR FOOTER STATUS BAR
+		async loadShiftReportData() {
+			if (!this.shiftReportId) {
+				console.warn("[SHIFT_REPORT] No shiftReportId provided");
 				return;
 			}
 
-			// Second try: Calculate from invoices data
-			console.log("No payment_breakdown found, calculating from invoices");
-			this.calculatePaymentSummaryFromInvoices();
+			try {
+				console.log("[SHIFT_REPORT] Loading shift report data for footer:", this.shiftReportId);
+				console.log("[SHIFT_REPORT] shiftReportId type:", typeof this.shiftReportId);
 
-		} catch (error) {
-			console.error("Error loading payment summary from shift report:", error);
-			this.paymentSummaryData = [];
-		}
-	},
+				// ✅ DETECT IF shiftReportId IS AN OBJECT INSTEAD OF STRING
+				let actualShiftReportId = this.shiftReportId;
 
-	// Fallback method to calculate payment summary from invoices only
-	calculatePaymentSummaryFromInvoices() {
-		console.log("Using fallback payment summary calculation");
+				if (typeof this.shiftReportId === "object" && this.shiftReportId !== null) {
+					console.log("[SHIFT_REPORT] 📋 shiftReportId is an object, extracting ID...");
+					console.log("[SHIFT_REPORT] Object keys:", Object.keys(this.shiftReportId));
+					console.log("[SHIFT_REPORT] Object doctype:", this.shiftReportId.doctype);
 
-		const paymentMethods = {};
-		this.invoices.forEach(invoice => {
-			const method = invoice.payment_method || "Cash";
-			const amount = parseFloat(invoice.total_amount) || 0;
+					// ✅ CHECK IF THIS IS POS OPENING SHIFT (wrong object type)
+					if (this.shiftReportId.doctype === "POS Opening Shift") {
+						console.log(
+							"[SHIFT_REPORT] ⚠️  Received POS Opening Shift object, need to get associated shift report",
+						);
 
-			if (!paymentMethods[method]) {
-				paymentMethods[method] = {
-					payment_method: method,
-					opening_amount: 0, // Unknown without opening shift data
-					transaction_amount: 0,
-					closing_amount: 0
-				};
+						// Find shift report by pos_opening_shift field
+						try {
+							const shiftReports = await frappe.call({
+								method: "frappe.client.get_list",
+								args: {
+									doctype: "POS Shift Report",
+									filters: {
+										pos_opening_shift: this.shiftReportId.name,
+									},
+									fields: ["name", "shift_report_id"],
+									limit: 1,
+								},
+							});
+
+							if (shiftReports.message && shiftReports.message.length > 0) {
+								const shiftReport = shiftReports.message[0];
+								console.log(
+									"[SHIFT_REPORT] ✅ Found associated shift report:",
+									shiftReport.name,
+									"ID:",
+									shiftReport.shift_report_id,
+								);
+								actualShiftReportId = shiftReport.name; // Use the actual name, not shift_report_id
+							} else {
+								console.error(
+									"[SHIFT_REPORT] ❌ No shift report found for opening shift:",
+									this.shiftReportId.name,
+								);
+								console.error("[SHIFT_REPORT] Opening shift details:", {
+									name: this.shiftReportId.name,
+									status: this.shiftReportId.status,
+									user: this.shiftReportId.user,
+								});
+								this.showError(
+									"No shift report found for this opening shift. Please create a shift report first.",
+								);
+								return;
+							}
+						} catch (error) {
+							console.error(
+								"[SHIFT_REPORT] ❌ Error finding shift report for opening shift:",
+								error,
+							);
+							this.showError("Error finding shift report for this opening shift.");
+							return;
+						}
+					}
+					// ✅ THIS IS ALREADY A POS SHIFT REPORT OBJECT
+					else if (this.shiftReportId.doctype === "POS Shift Report") {
+						console.log("[SHIFT_REPORT] ✅ Received POS Shift Report object directly");
+
+						// Use the name field as the ID
+						if (this.shiftReportId.name) {
+							actualShiftReportId = this.shiftReportId.name;
+							console.log("[SHIFT_REPORT] ✅ Using shift report name:", actualShiftReportId);
+						} else {
+							console.error("[SHIFT_REPORT] ❌ POS Shift Report object missing name field");
+							this.showError("Invalid shift report object - missing name field");
+							return;
+						}
+					}
+					// ✅ UNKNOWN OBJECT TYPE - Try to extract any valid ID
+					else {
+						console.log("[SHIFT_REPORT] ⚠️  Unknown object type, trying to extract ID...");
+
+						// Priority: name > shift_report_id > any string field
+						if (this.shiftReportId.name) {
+							actualShiftReportId = this.shiftReportId.name;
+							console.log("[SHIFT_REPORT] ✅ Using name field:", actualShiftReportId);
+						} else if (this.shiftReportId.shift_report_id) {
+							actualShiftReportId = this.shiftReportId.shift_report_id;
+							console.log(
+								"[SHIFT_REPORT] ✅ Using shift_report_id field:",
+								actualShiftReportId,
+							);
+						} else {
+							// Try any string field
+							let foundId = null;
+							for (const [key, value] of Object.entries(this.shiftReportId)) {
+								if (
+									typeof value === "string" &&
+									value &&
+									value.trim().length > 0 &&
+									value.length < 50
+								) {
+									console.log(
+										`[SHIFT_REPORT] ⚠️  Found potential ID in '${key}': ${value}`,
+									);
+									foundId = value.trim();
+									break;
+								}
+							}
+
+							if (foundId) {
+								actualShiftReportId = foundId;
+								console.log(
+									"[SHIFT_REPORT] ✅ Using found field as ID:",
+									actualShiftReportId,
+								);
+							} else {
+								console.error(
+									"[SHIFT_REPORT] ❌ Cannot extract valid ID from unknown object",
+								);
+								console.error(
+									"[SHIFT_REPORT] Object details:",
+									JSON.stringify(this.shiftReportId, null, 2),
+								);
+								this.showError("Cannot identify shift report from the provided data");
+								return;
+							}
+						}
+					}
+				}
+
+				// ✅ VALIDATE FINAL ID
+				if (!actualShiftReportId || actualShiftReportId.trim() === "") {
+					console.error(
+						"[SHIFT_REPORT] ❌ Final shiftReportId is empty or invalid:",
+						actualShiftReportId,
+					);
+					return;
+				}
+
+				console.log("[SHIFT_REPORT] ✅ Final shiftReportId to use:", actualShiftReportId);
+
+				console.log("[SHIFT_REPORT] Using existing shift report data from loadInvoices() for footer");
+
+				// ✅ USE DATA ALREADY LOADED IN loadInvoices() INSTEAD OF CALLING DELETED API
+				if (this.shiftReportData) {
+					const shiftReportData = this.shiftReportData;
+
+					// Emit event to update footer status bar
+					if (this.eventBus) {
+						this.eventBus.emit("register_shift_report", {
+							shift_report_id: shiftReportData.shift_report_id,
+							total_sales: shiftReportData.total_sales || 0,
+							total_returns: shiftReportData.total_returns || 0,
+							total_invoices: shiftReportData.invoice_count || 0,
+							total_revenue:
+								(shiftReportData.total_sales || 0) + (shiftReportData.total_returns || 0),
+							last_invoice:
+								shiftReportData.invoices && shiftReportData.invoices.length > 0
+									? shiftReportData.invoices[shiftReportData.invoices.length - 1].invoice_no
+									: "",
+							invoices: shiftReportData.invoices || [],
+						});
+					}
+
+					console.log(
+						"[SHIFT_REPORT] Shift report data used for footer:",
+						shiftReportData.shift_report_id,
+					);
+				} else {
+					console.error("[SHIFT_REPORT] No shift report data available for footer");
+				}
+			} catch (error) {
+				console.error("[SHIFT_REPORT] Error loading shift report data for footer:", error);
+
+				// ✅ FALLBACK: Try to emit with default values
+				if (this.eventBus) {
+					this.eventBus.emit("register_shift_report", {
+						shift_report_id: this.shiftReportId,
+						total_sales: 0,
+						total_returns: 0,
+						total_invoices: 0,
+						total_revenue: 0,
+						last_invoice: "",
+						invoices: [],
+					});
+				}
 			}
+		},
 
-			paymentMethods[method].transaction_amount += invoice.is_return ? -amount : amount;
-			paymentMethods[method].closing_amount = paymentMethods[method].opening_amount + paymentMethods[method].transaction_amount;
-		});
+		// ✅ LOAD PAYMENT SUMMARY FROM SHIFT REPORT DATA (FALLBACK METHOD)
+		loadPaymentSummaryFromShiftReport(shiftReportData) {
+			try {
+				console.log("Loading payment summary from shift report data (fallback method)");
 
-		this.paymentSummaryData = Object.values(paymentMethods).sort((a, b) =>
-			a.payment_method.localeCompare(b.payment_method)
-		);
-	},
+				// First try: Use payment_breakdown from shift report
+				if (shiftReportData && shiftReportData.payment_breakdown) {
+					console.log("Using payment_breakdown from shift report");
+					const paymentMethods = [];
+					const breakdown = shiftReportData.payment_breakdown;
+					const openingAmounts = shiftReportData.opening_amounts || {};
+					const expectedClosing = shiftReportData.expected_closing_amounts || {};
+
+					Object.keys(breakdown).forEach((method) => {
+						const transactionAmount = breakdown[method] || 0;
+						const openingAmount = openingAmounts[method] || 0;
+						const expectedAmount = openingAmount + transactionAmount;
+						let actualClosingAmount = expectedClosing[method];
+						if (actualClosingAmount === undefined || actualClosingAmount === null) {
+							actualClosingAmount = 0;
+						}
+
+						paymentMethods.push({
+							payment_method: method,
+							opening_amount: openingAmount,
+							transaction_amount: transactionAmount,
+							expected_closing_amount: expectedAmount,
+							closing_amount: actualClosingAmount,
+							difference: actualClosingAmount - expectedAmount,
+						});
+					});
+
+					this.paymentSummaryData = paymentMethods.sort((a, b) =>
+						a.payment_method.localeCompare(b.payment_method),
+					);
+					console.log("Payment summary loaded from payment_breakdown:", this.paymentSummaryData);
+					return;
+				}
+
+				// Second try: Calculate from invoices data
+				console.log("No payment_breakdown found, calculating from invoices");
+				this.calculatePaymentSummaryFromInvoices();
+			} catch (error) {
+				console.error("Error loading payment summary from shift report:", error);
+				this.paymentSummaryData = [];
+			}
+		},
+
+		// Fallback method to calculate payment summary from invoices only
+		calculatePaymentSummaryFromInvoices() {
+			console.log("Using fallback payment summary calculation");
+
+			const paymentMethods = {};
+			this.invoices.forEach((invoice) => {
+				const method = invoice.payment_method || "Cash";
+				const amount = parseFloat(invoice.total_amount) || 0;
+
+				if (!paymentMethods[method]) {
+					paymentMethods[method] = {
+						payment_method: method,
+						opening_amount: 0, // Unknown without opening shift data
+						transaction_amount: 0,
+						closing_amount: 0,
+					};
+				}
+
+				paymentMethods[method].transaction_amount += invoice.is_return ? -amount : amount;
+				paymentMethods[method].closing_amount =
+					paymentMethods[method].opening_amount + paymentMethods[method].transaction_amount;
+			});
+
+			this.paymentSummaryData = Object.values(paymentMethods).sort((a, b) =>
+				a.payment_method.localeCompare(b.payment_method),
+			);
+		},
 
 		calculateSummary() {
 			try {
 				console.log("Calculating summary for", this.invoices.length, "invoices");
 
 				// ✅ ENHANCED SUMMARY CALCULATION với validation
-				const salesInvoices = this.invoices.filter(inv => !inv.is_return && inv.status === 'Submitted');
-				const returnInvoices = this.invoices.filter(inv => inv.is_return && inv.status === 'Submitted');
+				const salesInvoices = this.invoices.filter(
+					(inv) => !inv.is_return && inv.status === "Submitted",
+				);
+				const returnInvoices = this.invoices.filter(
+					(inv) => inv.is_return && inv.status === "Submitted",
+				);
 
 				const totalSales = salesInvoices.reduce((sum, inv) => {
 					const amount = parseFloat(inv.total_amount) || 0;
 					return sum + amount;
 				}, 0);
 
-				const totalReturns = Math.abs(returnInvoices.reduce((sum, inv) => {
-					const amount = parseFloat(inv.total_amount) || 0;
-					return sum + amount;
-				}, 0));
+				const totalReturns = Math.abs(
+					returnInvoices.reduce((sum, inv) => {
+						const amount = parseFloat(inv.total_amount) || 0;
+						return sum + amount;
+					}, 0),
+				);
 
 				this.summary = {
 					total_invoices: this.invoices.length,
 					total_sales: totalSales,
-					total_returns: totalReturns
+					total_returns: totalReturns,
 				};
 
 				console.log("Summary calculated:", this.summary);
-
 			} catch (error) {
 				console.error("Error calculating summary:", error);
 				// Fallback to safe values
 				this.summary = {
 					total_invoices: this.invoices.length || 0,
 					total_sales: 0,
-					total_returns: 0
+					total_returns: 0,
 				};
 			}
 		},
@@ -947,14 +1052,14 @@ export default {
 				if (!postingTime) return "00:00:00";
 
 				// If posting_time is already in HH:MM:SS format, return as is
-				if (typeof postingTime === 'string' && postingTime.match(/^\d{2}:\d{2}:\d{2}$/)) {
+				if (typeof postingTime === "string" && postingTime.match(/^\d{2}:\d{2}:\d{2}$/)) {
 					return postingTime;
 				}
 
 				// If it's a Date object or timestamp, format it
 				const date = new Date(postingTime);
 				if (!isNaN(date.getTime())) {
-					return date.toTimeString().split(' ')[0];
+					return date.toTimeString().split(" ")[0];
 				}
 
 				return "00:00:00";
@@ -966,9 +1071,9 @@ export default {
 
 		getPaymentColor(paymentMethod) {
 			const colors = {
-				"Cash": "success",
-				"Card": "primary",
-				"M-Pesa": "info"
+				Cash: "success",
+				Card: "primary",
+				"M-Pesa": "info",
 			};
 			return colors[paymentMethod] || "grey";
 		},
@@ -976,16 +1081,16 @@ export default {
 		formatCurrency(amount) {
 			try {
 				// Get currency from POS Profile or default to USD
-				let currency = 'USD';
+				let currency = "USD";
 				if (this.posProfile && this.posProfile.currency) {
 					currency = this.posProfile.currency;
 				}
 
-				return new Intl.NumberFormat('en-US', {
-					style: 'currency',
+				return new Intl.NumberFormat("en-US", {
+					style: "currency",
 					currency: currency,
 					minimumFractionDigits: 2,
-					maximumFractionDigits: 2
+					maximumFractionDigits: 2,
 				}).format(amount || 0);
 			} catch (error) {
 				console.warn("Error formatting currency:", error);
@@ -996,13 +1101,13 @@ export default {
 		viewInvoice(invoice) {
 			// Open invoice in new window/tab
 			const url = `/app/sales-invoice/${invoice.invoice_no}`;
-			window.open(url, '_blank');
+			window.open(url, "_blank");
 		},
 
 		printInvoice(invoice) {
 			// Print invoice
 			const url = `/app/print/Sales%20Invoice/${invoice.invoice_no}`;
-			window.open(url, '_blank');
+			window.open(url, "_blank");
 		},
 
 		async exportData() {
@@ -1010,96 +1115,101 @@ export default {
 				console.log("Exporting data for shift:", this.shiftReportId);
 
 				// ✅ ENHANCED EXPORT: Include invoices and payment summary
-				const invoiceData = this.invoices.map(item => ({
-					"Type": "Invoice",
+				const invoiceData = this.invoices.map((item) => ({
+					Type: "Invoice",
 					"Invoice No": item.invoice_no,
-					"Date": item.invoice_date,
-					"Time": item.invoice_time,
-					"Customer": item.customer || "N/A",
+					Date: item.invoice_date,
+					Time: item.invoice_time,
+					Customer: item.customer || "N/A",
 					"Total Amount": item.total_amount || 0,
-					"Tax": item.tax_amount || 0,
+					Tax: item.tax_amount || 0,
 					"Payment Method": item.payment_method || "Cash",
-					"Status": item.status || "Unknown",
-					"Return": item.is_return ? "Yes" : "No"
+					Status: item.status || "Unknown",
+					Return: item.is_return ? "Yes" : "No",
 				}));
 
 				// Add payment summary data (direct from POS Payment Summary table)
-				const paymentSummaryData = this.paymentSummaryDataWithTotal.map(item => ({
-					"Type": "Payment Summary",
+				const paymentSummaryData = this.paymentSummaryDataWithTotal.map((item) => ({
+					Type: "Payment Summary",
 					"Invoice No": item.payment_method,
-					"Date": "",
-					"Time": "",
-					"Customer": "",
+					Date: "",
+					Time: "",
+					Customer: "",
 					"Total Amount": "",
-					"Tax": "",
+					Tax: "",
 					"Payment Method": item.payment_method,
-					"Status": "",
-					"Return": "",
+					Status: "",
+					Return: "",
 					"Opening Amount": item.opening_amount || 0,
 					"Sales Amount": item.sales_amount || 0,
 					"Returns Amount": item.returns_amount || 0,
 					"Transaction Amount": item.transaction_amount || 0,
-					"Expected Closing Amount": item.expected_closing_amount || 0
+					"Expected Closing Amount": item.expected_closing_amount || 0,
 				}));
 
 				// Add summary cards data
-				const summaryData = [{
-					"Type": "Summary",
-					"Invoice No": `Total Invoices: ${this.summary.total_invoices || 0}`,
-					"Date": "",
-					"Time": "",
-					"Customer": "",
-					"Total Amount": "",
-					"Tax": "",
-					"Payment Method": "",
-					"Status": "",
-					"Return": "",
-					"Opening Amount": "",
-					"Transaction Amount": "",
-					"Closing Amount": ""
-				}, {
-					"Type": "Summary",
-					"Invoice No": `Total Sales: ${this.formatCurrency(this.summary.total_sales || 0)}`,
-					"Date": "",
-					"Time": "",
-					"Customer": "",
-					"Total Amount": "",
-					"Tax": "",
-					"Payment Method": "",
-					"Status": "",
-					"Return": "",
-					"Opening Amount": "",
-					"Transaction Amount": "",
-					"Closing Amount": ""
-				}, {
-					"Type": "Summary",
-					"Invoice No": `Total Returns: ${this.formatCurrency(this.summary.total_returns || 0)}`,
-					"Date": "",
-					"Time": "",
-					"Customer": "",
-					"Total Amount": "",
-					"Tax": "",
-					"Payment Method": "",
-					"Status": "",
-					"Return": "",
-					"Opening Amount": "",
-					"Transaction Amount": "",
-					"Closing Amount": ""
-				}, {
-					"Type": "Summary",
-					"Invoice No": `Net Amount: ${this.formatCurrency((this.summary.total_sales || 0) + (this.summary.total_returns || 0))}`,
-					"Date": "",
-					"Time": "",
-					"Customer": "",
-					"Total Amount": "",
-					"Tax": "",
-					"Payment Method": "",
-					"Status": "",
-					"Return": "",
-					"Opening Amount": "",
-					"Transaction Amount": "",
-					"Closing Amount": ""
-				}];
+				const summaryData = [
+					{
+						Type: "Summary",
+						"Invoice No": `Total Invoices: ${this.summary.total_invoices || 0}`,
+						Date: "",
+						Time: "",
+						Customer: "",
+						"Total Amount": "",
+						Tax: "",
+						"Payment Method": "",
+						Status: "",
+						Return: "",
+						"Opening Amount": "",
+						"Transaction Amount": "",
+						"Closing Amount": "",
+					},
+					{
+						Type: "Summary",
+						"Invoice No": `Total Sales: ${this.formatCurrency(this.summary.total_sales || 0)}`,
+						Date: "",
+						Time: "",
+						Customer: "",
+						"Total Amount": "",
+						Tax: "",
+						"Payment Method": "",
+						Status: "",
+						Return: "",
+						"Opening Amount": "",
+						"Transaction Amount": "",
+						"Closing Amount": "",
+					},
+					{
+						Type: "Summary",
+						"Invoice No": `Total Returns: ${this.formatCurrency(this.summary.total_returns || 0)}`,
+						Date: "",
+						Time: "",
+						Customer: "",
+						"Total Amount": "",
+						Tax: "",
+						"Payment Method": "",
+						Status: "",
+						Return: "",
+						"Opening Amount": "",
+						"Transaction Amount": "",
+						"Closing Amount": "",
+					},
+					{
+						Type: "Summary",
+						"Invoice No": `Net Amount: ${this.formatCurrency((this.summary.total_sales || 0) + (this.summary.total_returns || 0))}`,
+						Date: "",
+						Time: "",
+						Customer: "",
+						"Total Amount": "",
+						Tax: "",
+						"Payment Method": "",
+						Status: "",
+						Return: "",
+						"Opening Amount": "",
+						"Transaction Amount": "",
+						"Closing Amount": "",
+					},
+				];
 
 				const data = [...invoiceData, {}, ...summaryData, {}, ...paymentSummaryData];
 
@@ -1110,44 +1220,50 @@ export default {
 
 				// ✅ GENERATE FILE NAME: Time + date_POS Profile name_CashierName
 				const now = new Date();
-				const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, ''); // HHMMSS
-				const dateStr = now.toISOString().split('T')[0].replace(/-/g, '_'); // YYYY_MM_DD
-				const posProfileName = (this.posProfile && this.posProfile.name) ? this.posProfile.name.replace(/\s+/g, '_') : 'Unknown_POS';
-				const cashierName = frappe.session.user || 'Unknown_User';
+				const timeStr = now.toTimeString().split(" ")[0].replace(/:/g, ""); // HHMMSS
+				const dateStr = now.toISOString().split("T")[0].replace(/-/g, "_"); // YYYY_MM_DD
+				const posProfileName =
+					this.posProfile && this.posProfile.name
+						? this.posProfile.name.replace(/\s+/g, "_")
+						: "Unknown_POS";
+				const cashierName = frappe.session.user || "Unknown_User";
 
 				const fileName = `${timeStr}_${dateStr}_${posProfileName}_${cashierName}_Shift_Report.xlsx`;
 
 				// Create Excel content with Unicode support
 				const headers = Object.keys(data[0]);
 				const excelContent = [
-					headers.join('\t'), // Tab-separated for Excel
-					...data.map(row =>
-						headers.map(header => {
-							const value = row[header];
-							// Handle numbers and strings properly for Excel
-							if (typeof value === 'number') {
-								return value.toString();
-							}
-							if (typeof value === 'string') {
-								// Escape quotes and wrap in quotes for Excel
-								return `"${value.replace(/"/g, '""')}"`;
-							}
-							return value || '';
-						}).join('\t')
-					)
-				].join('\n');
+					headers.join("\t"), // Tab-separated for Excel
+					...data.map((row) =>
+						headers
+							.map((header) => {
+								const value = row[header];
+								// Handle numbers and strings properly for Excel
+								if (typeof value === "number") {
+									return value.toString();
+								}
+								if (typeof value === "string") {
+									// Escape quotes and wrap in quotes for Excel
+									return `"${value.replace(/"/g, '""')}"`;
+								}
+								return value || "";
+							})
+							.join("\t"),
+					),
+				].join("\n");
 
 				// Download as Excel file (.xlsx extension but tab-separated content)
-				const blob = new Blob(['\ufeff', excelContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+				const blob = new Blob(["\ufeff", excelContent], {
+					type: "application/vnd.ms-excel;charset=utf-8;",
+				});
 				const url = window.URL.createObjectURL(blob);
-				const a = document.createElement('a');
+				const a = document.createElement("a");
 				a.href = url;
 				a.download = fileName;
 				a.click();
 				window.URL.revokeObjectURL(url);
 
 				this.showSuccess(`Successfully exported ${data.length} records`);
-
 			} catch (error) {
 				console.error("Error exporting data:", error);
 				this.showError("Failed to export data");
@@ -1167,7 +1283,7 @@ export default {
 				const printContent = this.generatePrintContent();
 
 				// Open print window
-				const printWindow = window.open('', '_blank', 'width=800,height=600');
+				const printWindow = window.open("", "_blank", "width=800,height=600");
 				if (!printWindow) {
 					this.showError("Unable to open print window. Please check popup blocker.");
 					return;
@@ -1177,13 +1293,12 @@ export default {
 				printWindow.document.close();
 
 				// Wait for content to load then print
-				printWindow.onload = function() {
+				printWindow.onload = function () {
 					printWindow.print();
 					printWindow.close();
 				};
 
 				this.showSuccess("Print job sent successfully");
-
 			} catch (error) {
 				console.error("Error printing report:", error);
 				this.showError("Failed to print report");
@@ -1193,8 +1308,8 @@ export default {
 		// Generate HTML content for printing
 		generatePrintContent() {
 			const now = new Date();
-			const printDate = now.toLocaleDateString('vi-VN');
-			const printTime = now.toLocaleTimeString('vi-VN');
+			const printDate = now.toLocaleDateString("vi-VN");
+			const printTime = now.toLocaleTimeString("vi-VN");
 
 			let content = `
 				<!DOCTYPE html>
@@ -1306,8 +1421,8 @@ export default {
 				<body>
 					<div class="header">
 						<h1>SHIFT REPORT</h1>
-						<p>POS Profile: ${this.posProfile?.name || 'N/A'}</p>
-						<p>Cashier: ${frappe.session?.user_fullname || frappe.session?.user || 'N/A'}</p>
+						<p>POS Profile: ${this.posProfile?.name || "N/A"}</p>
+						<p>Cashier: ${frappe.session?.user_fullname || frappe.session?.user || "N/A"}</p>
 						<p>Print Date: ${printDate} ${printTime}</p>
 					</div>
 
@@ -1350,12 +1465,12 @@ export default {
 			`;
 
 			// Add payment summary rows (direct from POS Payment Summary table)
-			this.paymentSummaryDataWithTotal.forEach(item => {
-				const transactionClass = item.transaction_amount >= 0 ? 'positive' : 'negative';
+			this.paymentSummaryDataWithTotal.forEach((item) => {
+				const transactionClass = item.transaction_amount >= 0 ? "positive" : "negative";
 				const isTotalRow = item.isTotalRow;
-				const rowClass = isTotalRow ? 'total-row' : '';
-				const totalPrefix = isTotalRow ? '<strong>' : '';
-				const totalSuffix = isTotalRow ? '</strong>' : '';
+				const rowClass = isTotalRow ? "total-row" : "";
+				const totalPrefix = isTotalRow ? "<strong>" : "";
+				const totalSuffix = isTotalRow ? "</strong>" : "";
 
 				content += `
 					<tr class="${rowClass}">
@@ -1391,13 +1506,13 @@ export default {
 			if (window.frappe && frappe.show_alert) {
 				frappe.show_alert({
 					message: message,
-					indicator: 'red'
+					indicator: "red",
 				});
 			} else if (window.frappe && frappe.msgprint) {
 				frappe.msgprint({
-					title: __('Error'),
+					title: __("Error"),
 					message: message,
-					indicator: 'red'
+					indicator: "red",
 				});
 			} else {
 				alert(`Error: ${message}`);
@@ -1411,26 +1526,26 @@ export default {
 			if (window.frappe && frappe.show_alert) {
 				frappe.show_alert({
 					message: message,
-					indicator: 'green'
+					indicator: "green",
 				});
 			}
 		},
 
 		formatDateTime(dateTimeStr) {
-			if (!dateTimeStr) return '';
+			if (!dateTimeStr) return "";
 
 			try {
 				// Use frappe's datetime formatting if available
 				if (window.frappe && frappe.datetime) {
 					const dateObj = frappe.datetime.str_to_obj(dateTimeStr);
-					return frappe.datetime.prettyDate(dateObj) + ' ' + frappe.datetime.get_time(dateObj);
+					return frappe.datetime.prettyDate(dateObj) + " " + frappe.datetime.get_time(dateObj);
 				}
 
 				// Fallback to basic formatting
 				const dateObj = new Date(dateTimeStr);
 				return dateObj.toLocaleString();
 			} catch (e) {
-				console.warn('Error formatting datetime:', e);
+				console.warn("Error formatting datetime:", e);
 				return dateTimeStr;
 			}
 		},
@@ -1438,35 +1553,35 @@ export default {
 		// ✅ VERIFICATION METHODS
 		getVerificationColor(status) {
 			const colors = {
-				'Pending': 'warning',
-				'Verified': 'success',
-				'Confirmed': 'info'
+				Pending: "warning",
+				Verified: "success",
+				Confirmed: "info",
 			};
-			return colors[status] || 'grey';
+			return colors[status] || "grey";
 		},
 
 		getVerificationIcon(status) {
 			const icons = {
-				'Pending': 'mdi-clock-outline',
-				'Verified': 'mdi-check-circle',
-				'Confirmed': 'mdi-check-circle-outline'
+				Pending: "mdi-clock-outline",
+				Verified: "mdi-check-circle",
+				Confirmed: "mdi-check-circle-outline",
 			};
-			return icons[status] || 'mdi-help-circle';
+			return icons[status] || "mdi-help-circle";
 		},
 
 		getVerificationStatusText(status) {
 			// Handle case where status might be an object or undefined
-			if (typeof status === 'object' && status !== null) {
+			if (typeof status === "object" && status !== null) {
 				// If status is an object, try to extract the status value
-				status = status.verification_status || status.status || 'Pending';
+				status = status.verification_status || status.status || "Pending";
 			}
 
 			const statusTexts = {
-				'Pending': 'Chưa xác minh',
-				'Verified': 'Đã xác minh',
-				'Confirmed': 'Đã xác nhận'
+				Pending: "Chưa xác minh",
+				Verified: "Đã xác minh",
+				Confirmed: "Đã xác nhận",
 			};
-			return statusTexts[status] || status || 'Chưa xác minh';
+			return statusTexts[status] || status || "Chưa xác minh";
 		},
 
 		async verifyShiftReport() {
@@ -1486,7 +1601,7 @@ export default {
 
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.shift_reports.verify_shift_report",
-					args: { shift_report_id: shiftReportId }
+					args: { shift_report_id: shiftReportId },
 				});
 
 				if (response.message?.success) {
@@ -1497,7 +1612,7 @@ export default {
 						this.eventBus.emit("shift_report_verified", {
 							shift_report_id: shiftReportId,
 							verification_status: "Verified",
-							disable_transaction_buttons: true
+							disable_transaction_buttons: true,
 						});
 						this.eventBus.emit("shift_verification_changed", "Verified");
 					}
@@ -1531,11 +1646,11 @@ export default {
 			this.summary = {
 				total_invoices: 0,
 				total_sales: 0,
-				total_returns: 0
+				total_returns: 0,
 			};
 			this.resetFilters();
-		}
-	}
+		},
+	},
 };
 </script>
 
@@ -1584,7 +1699,6 @@ export default {
 	padding: 8px 12px;
 	font-size: 0.85rem;
 }
-
 
 /* Responsive Design for 13-inch screens */
 @media (max-width: 1366px) {
@@ -1674,14 +1788,18 @@ export default {
 
 /* Enhanced currency display */
 .currency-amount {
-	font-family: 'Roboto Mono', monospace;
+	font-family: "Roboto Mono", monospace;
 	font-weight: 500;
 	letter-spacing: 0.5px;
 }
 
 /* Table Total Row Styling */
 :deep(.payment-summary-table .v-data-table__tbody tr:last-child) {
-	background: linear-gradient(135deg, rgb(var(--v-theme-primary)) 0%, rgb(var(--v-theme-primary-variant)) 100%);
+	background: linear-gradient(
+		135deg,
+		rgb(var(--v-theme-primary)) 0%,
+		rgb(var(--v-theme-primary-variant)) 100%
+	);
 	color: rgb(var(--v-theme-on-primary));
 	border-top: 2px solid rgb(var(--v-theme-primary-variant));
 }
@@ -1724,20 +1842,24 @@ export default {
 	font-size: 0.8rem;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
-	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	transition: all 0.3s ease;
 }
 
 .verification-status-chip:hover {
 	transform: translateY(-1px);
-	box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* Dark theme adjustments */
 
 :deep(.dark-theme) .payment-summary-table .v-data-table__tbody tr:last-child,
 :deep(.v-theme--dark) .payment-summary-table .v-data-table__tbody tr:last-child {
-	background: linear-gradient(135deg, rgb(var(--v-theme-primary)) 0%, rgb(var(--v-theme-primary-variant)) 100%);
+	background: linear-gradient(
+		135deg,
+		rgb(var(--v-theme-primary)) 0%,
+		rgb(var(--v-theme-primary-variant)) 100%
+	);
 }
 
 :deep(.dark-theme) .v-data-table :deep(.v-data-table__th),
@@ -1791,7 +1913,7 @@ export default {
 	font-size: 0.8rem;
 	font-weight: 500;
 	color: rgb(var(--v-theme-on-surface));
-	font-family: 'Courier New', monospace;
+	font-family: "Courier New", monospace;
 	background: rgba(var(--v-theme-primary), 0.1);
 	padding: 2px 6px;
 	border-radius: 4px;

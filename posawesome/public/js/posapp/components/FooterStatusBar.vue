@@ -65,16 +65,16 @@ export default {
 			lastInvoice: "",
 			todaySales: 0,
 			netAmount: 0,
-			currency: "VND",  // Add currency property
+			currency: "VND", // Add currency property
 			timeInterval: null,
-			shiftReportData: null
+			shiftReportData: null,
 		};
 	},
 	computed: {
 		userStatusColor() {
 			// You can make this dynamic based on user status
 			return "success";
-		}
+		},
 	},
 	mounted() {
 		this.updateDateTime();
@@ -106,16 +106,16 @@ export default {
 	methods: {
 		updateDateTime() {
 			const now = new Date();
-			this.currentDate = now.toLocaleDateString('en-US', {
-				year: 'numeric',
-				month: '2-digit',
-				day: '2-digit'
+			this.currentDate = now.toLocaleDateString("en-US", {
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
 			});
-			this.currentTime = now.toLocaleTimeString('en-US', {
+			this.currentTime = now.toLocaleTimeString("en-US", {
 				hour12: false,
-				hour: '2-digit',
-				minute: '2-digit',
-				second: '2-digit'
+				hour: "2-digit",
+				minute: "2-digit",
+				second: "2-digit",
 			});
 		},
 
@@ -126,7 +126,6 @@ export default {
 
 				// Load shift report data
 				await this.loadShiftReportData();
-
 			} catch (error) {
 				console.error("Error loading initial data:", error);
 			}
@@ -135,7 +134,9 @@ export default {
 		async loadShiftReportData() {
 			try {
 				// Get footer status data from new API
-				const result = await frappe.call("posawesome.posawesome.api.shift_reports.get_footer_status_data");
+				const result = await frappe.call(
+					"posawesome.posawesome.api.shift_reports.get_footer_status_data",
+				);
 
 				if (result.message && result.message.success) {
 					const data = result.message.data;
@@ -170,15 +171,15 @@ export default {
 				this.cashBalance = data.cash_balance || 0;
 				this.lastInvoice = data.last_invoice || "";
 				this.todaySales = data.today_sales || 0;
-				this.netAmount = data.total_revenue || 0;  // Net Amount from API
-				this.currency = data.currency || "VND";  // Add currency from API
+				this.netAmount = data.total_revenue || 0; // Net Amount from API
+				this.currency = data.currency || "VND"; // Add currency from API
 			}
 		},
 
 		updateShiftReportData(data) {
 			this.shiftReportData = data;
 			this.todaySales = data.total_sales || 0;
-			this.netAmount = (data.total_sales || 0) + (data.total_returns || 0);  // Calculate Net Amount
+			this.netAmount = (data.total_sales || 0) + (data.total_returns || 0); // Calculate Net Amount
 
 			// Update last invoice from shift report data
 			if (data.invoices && data.invoices.length > 0) {
@@ -202,24 +203,24 @@ export default {
 			if (value === null || value === undefined) return `${this.currency}0`;
 
 			// Use different formatting based on currency
-			if (this.currency === 'USD' || this.currency === '$') {
-				return new Intl.NumberFormat('en-US', {
-					style: 'currency',
-					currency: 'USD',
-					minimumFractionDigits: 2
+			if (this.currency === "USD" || this.currency === "$") {
+				return new Intl.NumberFormat("en-US", {
+					style: "currency",
+					currency: "USD",
+					minimumFractionDigits: 2,
 				}).format(value);
-			} else if (this.currency === 'VND' || this.currency === '₫') {
-				return new Intl.NumberFormat('vi-VN', {
-					style: 'currency',
-					currency: 'VND',
-					minimumFractionDigits: 0
+			} else if (this.currency === "VND" || this.currency === "₫") {
+				return new Intl.NumberFormat("vi-VN", {
+					style: "currency",
+					currency: "VND",
+					minimumFractionDigits: 0,
 				}).format(value);
 			} else {
 				// Generic formatting for other currencies
 				return `${this.currency}${value.toLocaleString()}`;
 			}
-		}
-	}
+		},
+	},
 };
 </script>
 

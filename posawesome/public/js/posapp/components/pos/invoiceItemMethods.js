@@ -29,6 +29,15 @@ function formatCurrency(value, precision = 2) {
 }
 
 export default {
+	// Helper method to get tax info from backend
+	async getItemTaxInfo(item_code, price_list) {
+		// Call backend API to get tax info
+		const response = await frappe.call({
+			method: "posawesome.posawesome.api.items.get_item_tax_info",
+			args: { item_code, price_list },
+		});
+		return response.message;
+	},
 	// Helper: Merge new item with existing item in cart
 	mergeWithExistingItem(existingItem, newItem) {
 		this.update_items_details([existingItem]);
@@ -89,7 +98,7 @@ export default {
 			console.log("Additional force update after barcode scan", {
 				Item_code: item.item_code,
 				final_rate: item.rate,
-				final_uom: item.uom
+				final_uom: item.uom,
 			});
 		}, 200);
 
@@ -102,7 +111,7 @@ export default {
 			conversion_factor: item.conversion_factor,
 			stock_uom: item.stock_uom,
 			base_rate: item.base_rate,
-			expected_display_rate: item.base_rate * item.conversion_factor
+			expected_display_rate: item.base_rate * item.conversion_factor,
 		});
 
 		// Expand new item if it has batch or serial number
@@ -121,7 +130,7 @@ export default {
 				Item_code: item.item_code,
 				uom: item.uom,
 				stock_uom: item.stock_uom,
-				rate: item.rate
+				rate: item.rate,
 			});
 			return;
 		}
@@ -131,7 +140,7 @@ export default {
 			current_uom: item.uom,
 			stock_uom: item.stock_uom,
 			base_rate_before: item.base_rate,
-			rate_before: item.rate
+			rate_before: item.rate,
 		});
 
 		// CRITICAL: Apply immediate UOM conversion to ensure rate is correct before ItemsTable renders
@@ -143,7 +152,7 @@ export default {
 			console.log("UOM data found for immediate conversion", {
 				Item_code: item.item_code,
 				uom: item.uom,
-				conversion_factor: item.conversion_factor
+				conversion_factor: item.conversion_factor,
 			});
 
 			// Ensure base_rate is set before conversion
@@ -152,7 +161,7 @@ export default {
 				console.log("Setting base_rate for immediate conversion", {
 					Item_code: item.item_code,
 					base_rate: item.base_rate,
-					original_rate: item.rate
+					original_rate: item.rate,
 				});
 			}
 
@@ -165,14 +174,14 @@ export default {
 					Item_code: item.item_code,
 					base_rate: item.base_rate,
 					conversion_factor: item.conversion_factor,
-					converted_rate: convertedRate
+					converted_rate: convertedRate,
 				});
 			}
 		} else {
 			console.log("No UOM data found for immediate conversion", {
 				Item_code: item.item_code,
 				uom: item.uom,
-				stock_uom: item.stock_uom
+				stock_uom: item.stock_uom,
 			});
 		}
 
@@ -185,7 +194,7 @@ export default {
 			final_uom: item.uom,
 			base_rate_after: item.base_rate,
 			rate_after: item.rate,
-			conversion_factor: item.conversion_factor
+			conversion_factor: item.conversion_factor,
 		});
 
 		// CRITICAL: Force update ItemsTable after calc_uom completes
@@ -194,7 +203,7 @@ export default {
 			console.log("Force update after calc_uom completion", {
 				Item_code: item.item_code,
 				rate_after_force_update: item.rate,
-				conversion_factor: item.conversion_factor
+				conversion_factor: item.conversion_factor,
 			});
 		}, 50);
 
@@ -206,7 +215,7 @@ export default {
 			console.log("Force update after calc_uom completion", {
 				Item_code: item.item_code,
 				rate_after_force_update: item.rate,
-				conversion_factor: item.conversion_factor
+				conversion_factor: item.conversion_factor,
 			});
 		}, 100);
 	},
@@ -231,11 +240,11 @@ export default {
 				has_batch_no: newItem.has_batch_no,
 				batch_no: newItem.batch_no,
 				posa_is_offer: newItem.posa_is_offer,
-				posa_is_replace: newItem.posa_is_replace
+				posa_is_replace: newItem.posa_is_replace,
 			},
 			posa_auto_set_batch: this.pos_profile.posa_auto_set_batch,
 			items_count: this.items.length,
-			found_index: index
+			found_index: index,
 		});
 
 		// Log existing items for comparison
@@ -249,7 +258,7 @@ export default {
 					batch_no: existing.batch_no,
 					posa_is_offer: existing.posa_is_offer,
 					posa_is_replace: existing.posa_is_replace,
-					posa_row_id: existing.posa_row_id
+					posa_row_id: existing.posa_row_id,
 				});
 			});
 		}
@@ -275,20 +284,20 @@ export default {
 		}
 	},
 
-       add_item(item) {
-               console.log("Invoice.add_item received", {
-                       code: item.item_code,
-                       rate: item.rate,
-               });
+	async add_item(item) {
+		console.log("Invoice.add_item received", {
+			code: item.item_code,
+			rate: item.rate,
+		});
 
-               // Ensure UOM is set
-               item.uom = item.uom || item.stock_uom;
+		// Ensure UOM is set
+		item.uom = item.uom || item.stock_uom;
 
-               // Check if pack optimization should be applied
-               if (this.shouldOptimizePacks(item)) {
-                       console.log('[PACK_OPTIMIZER] Applying pack optimization for:', item.item_code);
-                       return this.add_item_with_pack_optimization(item);
-               }
+		// Check if pack optimization should be applied
+		if (this.shouldOptimizePacks(item)) {
+			console.log("[PACK_OPTIMIZER] Applying pack optimization for:", item.item_code);
+			return this.add_item_with_pack_optimization(item);
+		}
 		let index = -1;
 		if (!this.new_line) {
 			index = this.findExistingItemIndex(item);
@@ -315,36 +324,68 @@ export default {
 				new_item.qty = -Math.abs(new_item.qty || 1);
 			}
 
-                       // Add item to end of array to maintain order (push instead of unshift)
-                       this.items.push(new_item);
-                       console.log("Item inserted at", this.items.length - 1, {
-                               code: new_item.item_code,
-                               rate: new_item.rate,
-                       });
-                       // Force update of item rates when item is first added
-                       console.log("Before update_item_detail - Initial item state", {
-                               Item_code: new_item.item_code,
-                               Price: new_item.rate,
-                               Uom: new_item.uom,
-                               base_rate: new_item.base_rate,
-                               stock_uom: new_item.stock_uom,
-                               conversion_factor: new_item.conversion_factor
-                       });
-                       this.update_item_detail(new_item, true);
-                       console.log("After update_item_detail - Item state after server call", {
-                               Item_code: new_item.item_code,
-                               Price: new_item.rate,
-                               Uom: new_item.uom,
-                               base_rate: new_item.base_rate,
-                               base_price_list_rate: new_item.base_price_list_rate,
-                               stock_uom: new_item.stock_uom,
-                               conversion_factor: new_item.conversion_factor
-                       });
-                       // Apply UOM conversion if needed
-                       this.applyImmediateUomConversion(new_item);
+			// === THÊM THÔNG TIN THUẾ CHO MISA ===
+			// Copy tax information từ Item + Item Price vào Invoice Item
+			try {
+				const tax_info = await this.getItemTaxInfo(
+					item.item_code,
+					this.selected_price_list || this.pos_profile.selling_price_list,
+				);
 
-   // Finalize new item setup
-   this.finalizeNewItem(new_item);
+				new_item.custom_inventory_type = tax_info.custom_inventory_type;
+				new_item.custom_vat_rate = tax_info.vat_rate;
+				new_item.custom_excise_rate = tax_info.custom_excise_rate;
+				new_item.custom_service_fee_rate = tax_info.custom_service_fee_rate;
+				new_item.custom_discount_rate = tax_info.custom_discount_rate;
+				new_item.item_group = tax_info.item_group;
+
+				console.log("Tax info copied to new item:", {
+					item_code: new_item.item_code,
+					custom_inventory_type: new_item.custom_inventory_type,
+					custom_vat_rate: new_item.custom_vat_rate,
+					custom_excise_rate: new_item.custom_excise_rate,
+				});
+			} catch (error) {
+				console.error("Failed to get tax info for item:", item.item_code, error);
+				// Set default values if API fails
+				new_item.custom_inventory_type = "0";
+				new_item.custom_vat_rate = "10";
+				new_item.custom_excise_rate = "0";
+				new_item.custom_service_fee_rate = "0";
+				new_item.custom_discount_rate = "0";
+				new_item.item_group = "";
+			}
+
+			// Add item to end of array to maintain order (push instead of unshift)
+			this.items.push(new_item);
+			console.log("Item inserted at", this.items.length - 1, {
+				code: new_item.item_code,
+				rate: new_item.rate,
+			});
+			// Force update of item rates when item is first added
+			console.log("Before update_item_detail - Initial item state", {
+				Item_code: new_item.item_code,
+				Price: new_item.rate,
+				Uom: new_item.uom,
+				base_rate: new_item.base_rate,
+				stock_uom: new_item.stock_uom,
+				conversion_factor: new_item.conversion_factor,
+			});
+			this.update_item_detail(new_item, true);
+			console.log("After update_item_detail - Item state after server call", {
+				Item_code: new_item.item_code,
+				Price: new_item.rate,
+				Uom: new_item.uom,
+				base_rate: new_item.base_rate,
+				base_price_list_rate: new_item.base_price_list_rate,
+				stock_uom: new_item.stock_uom,
+				conversion_factor: new_item.conversion_factor,
+			});
+			// Apply UOM conversion if needed
+			this.applyImmediateUomConversion(new_item);
+
+			// Finalize new item setup
+			this.finalizeNewItem(new_item);
 		} else {
 			this.mergeWithExistingItem(this.items[index], item);
 		}
@@ -410,7 +451,7 @@ export default {
 			console.log("Setting base_rate in get_new_item", {
 				Item_code: new_item.item_code,
 				base_rate: new_item.base_rate,
-				original_rate: item.rate
+				original_rate: item.rate,
 			});
 		}
 
@@ -478,13 +519,13 @@ export default {
 	setDefaultCustomerAfterClear() {
 		console.log("=== setDefaultCustomerAfterClear() called ===");
 		console.log("POS Profile:", this.pos_profile);
-		
+
 		// Priority 1: Check for default_customer field
 		if (this.pos_profile && this.pos_profile.default_customer) {
 			console.log("✅ Using default_customer:", this.pos_profile.default_customer);
 			this.customer = this.pos_profile.default_customer;
 		}
-		// Priority 2: Fallback to customer field 
+		// Priority 2: Fallback to customer field
 		else if (this.pos_profile && this.pos_profile.customer) {
 			console.log("✅ Using fallback customer:", this.pos_profile.customer);
 			this.customer = this.pos_profile.customer;
@@ -494,15 +535,15 @@ export default {
 			console.log("❌ No default customer found, clearing");
 			this.customer = "";
 		}
-		
+
 		this.eventBus.emit("set_customer_readonly", false);
-		
+
 		// Only fetch details if customer is set
 		if (this.customer) {
 			this.fetch_customer_details();
 			this.fetch_customer_balance();
 		}
-		
+
 		console.log("=== Final customer set to:", this.customer, "===");
 	},
 
@@ -763,7 +804,7 @@ export default {
 			this.additional_discount_percentage = 0;
 			this.invoiceType = "Invoice";
 			this.invoiceTypes = ["Invoice", "Order"];
-			
+
 			// Set default customer after clearing
 			this.setDefaultCustomerAfterClear();
 		} else {
@@ -862,17 +903,20 @@ export default {
 
 		// Inject preserve flags into the final items array (by posa_row_id)
 		const flagsById = Object.fromEntries(
-			this.items.map(it => [it.posa_row_id, {
-				_preserve_rate_on_load: !!it._preserve_rate_on_load || !!it._manual_rate_set,
-				_manual_rate_set: !!it._manual_rate_set
-			}])
+			this.items.map((it) => [
+				it.posa_row_id,
+				{
+					_preserve_rate_on_load: !!it._preserve_rate_on_load || !!it._manual_rate_set,
+					_manual_rate_set: !!it._manual_rate_set,
+				},
+			]),
 		);
 
-		items.forEach(it => {
+		items.forEach((it) => {
 			const f = flagsById[it.posa_row_id];
 			if (f && f._preserve_rate_on_load) {
 				it._preserve_rate_on_load = true;
-				it._manual_rate_set = true;   // lock against recalc on server
+				it._manual_rate_set = true; // lock against recalc on server
 			}
 		});
 
@@ -1114,7 +1158,10 @@ export default {
 			if (updatedData) {
 				item.item_code = updatedData.item_code;
 				item.posa_row_id = updatedData.posa_row_id;
-				item.posa_offers = typeof updatedData.posa_offers === 'string' ? updatedData.posa_offers : JSON.stringify(updatedData.posa_offers || []);
+				item.posa_offers =
+					typeof updatedData.posa_offers === "string"
+						? updatedData.posa_offers
+						: JSON.stringify(updatedData.posa_offers || []);
 				item.posa_offer_applied = updatedData.posa_offer_applied;
 				item.posa_is_offer = updatedData.posa_is_offer;
 				item.posa_is_replace = updatedData.posa_is_replace;
@@ -1824,16 +1871,16 @@ export default {
 	},
 
 	// Update details for a single item (fetch from backend)
-       update_item_detail(item, force_update = false) {
-               console.log("update_item_detail request", {
-                       Item_code: item.item_code,
-                       Price: item.rate,
-                       Uom: item.uom,
-                       force_update,
-               });
-               if (!item.item_code) {
-                       return;
-               }
+	update_item_detail(item, force_update = false) {
+		console.log("update_item_detail request", {
+			Item_code: item.item_code,
+			Price: item.rate,
+			Uom: item.uom,
+			force_update,
+		});
+		if (!item.item_code) {
+			return;
+		}
 		var vm = this;
 
 		// Remove this block which was causing the issue - rates should persist regardless of currency
@@ -1895,7 +1942,7 @@ export default {
 							server_price: data.price_list_rate,
 							saved_rate: item.rate,
 							base_rate: item.base_rate,
-							price_list_rate: item.price_list_rate
+							price_list_rate: item.price_list_rate,
 						});
 						// Retain existing rate, don't overwrite with 0
 						if (item.rate && item.rate > 0) {
@@ -1904,7 +1951,8 @@ export default {
 							data.price_list_rate = item.base_rate;
 						} else {
 							// Fallback to base_price_list_rate * conversion_factor
-							const fallback_rate = (item.base_price_list_rate || 0) * (item.conversion_factor || 1);
+							const fallback_rate =
+								(item.base_price_list_rate || 0) * (item.conversion_factor || 1);
 							if (fallback_rate > 0) {
 								data.price_list_rate = fallback_rate;
 								console.log("fallback rate applied", fallback_rate);
@@ -1936,19 +1984,24 @@ export default {
 							item_uom: item.uom,
 							stock_uom: item.stock_uom,
 							conversion_factor: item.conversion_factor,
-							has_uom_conversion: item.uom !== item.stock_uom
+							has_uom_conversion: item.uom !== item.stock_uom,
 						});
 
 						// If server returns UOM-specific price but item has different UOM, convert back to stock UOM
 						let stockUOMPrice = data.price_list_rate;
-						if (item.uom && item.uom !== item.stock_uom && item.conversion_factor && item.conversion_factor !== 1) {
+						if (
+							item.uom &&
+							item.uom !== item.stock_uom &&
+							item.conversion_factor &&
+							item.conversion_factor !== 1
+						) {
 							// Convert UOM price back to stock UOM price
 							stockUOMPrice = data.price_list_rate / item.conversion_factor;
 							console.log("update_item_detail: converted UOM price back to stock UOM", {
 								Item_code: item.item_code,
 								uom_price: data.price_list_rate,
 								conversion_factor: item.conversion_factor,
-								stock_uom_price: stockUOMPrice
+								stock_uom_price: stockUOMPrice,
 							});
 						}
 
@@ -1961,7 +2014,7 @@ export default {
 							console.log("update_item_detail: base rates set to stock UOM", {
 								Item_code: item.item_code,
 								base_rate: item.base_rate,
-								base_price_list_rate: item.base_price_list_rate
+								base_price_list_rate: item.base_price_list_rate,
 							});
 						}
 					}
@@ -1972,7 +2025,8 @@ export default {
 						const baseCurrency = companyCurrency;
 
 						// Check if rate has been modified by UOM conversion (different from base_rate)
-						const rateModifiedByUOM = item.rate && item.rate !== item.base_rate && item.uom !== item.stock_uom;
+						const rateModifiedByUOM =
+							item.rate && item.rate !== item.base_rate && item.uom !== item.stock_uom;
 
 						console.log("Rate modification check:", {
 							Item_code: item.item_code,
@@ -1981,7 +2035,7 @@ export default {
 							uom: item.uom,
 							stock_uom: item.stock_uom,
 							rateModifiedByUOM: rateModifiedByUOM,
-							preserve_rate_on_load: item._preserve_rate_on_load
+							preserve_rate_on_load: item._preserve_rate_on_load,
 						});
 
 						// Preserve rate when loading saved invoice
@@ -2114,7 +2168,7 @@ export default {
 						console.log("cf<=0 → set to 1", {
 							item_code: item.item_code,
 							server_cf: data.conversion_factor,
-							set_to: 1
+							set_to: 1,
 						});
 						data.conversion_factor = 1;
 					}
@@ -2144,7 +2198,7 @@ export default {
 						default_currency: vm.pos_profile.currency,
 						stock_uom: item.stock_uom,
 						conversion_factor: item.conversion_factor,
-						needs_uom_conversion: item.uom !== item.stock_uom
+						needs_uom_conversion: item.uom !== item.stock_uom,
 					});
 
 					// CRITICAL: Do NOT override rate if it was already set by UOM conversion
@@ -2154,7 +2208,7 @@ export default {
 						Item_code: item.item_code,
 						current_rate: item.rate,
 						base_rate: item.base_rate,
-						shouldUpdateRate: shouldUpdateRate
+						shouldUpdateRate: shouldUpdateRate,
 					});
 
 					// If item has different UOM than stock UOM, ensure UOM conversion is applied (only once)
@@ -2165,7 +2219,7 @@ export default {
 							stock_uom: item.stock_uom,
 							base_rate: item.base_rate,
 							rate_before_conversion: item.rate,
-							force_update: force_update
+							force_update: force_update,
 						});
 						// Mark as converted to prevent double conversion
 						item._converted_once = true;
@@ -2178,7 +2232,7 @@ export default {
 								console.log("Force update after UOM conversion", {
 									Item_code: item.item_code,
 									final_rate: item.rate,
-									final_uom: item.uom
+									final_uom: item.uom,
 								});
 							}, 50);
 						}, 100);
@@ -2464,8 +2518,14 @@ export default {
 					item.rate = this.flt(item.price_list_rate - newValue, this.currency_precision);
 
 					// base currency
-					item.base_discount_amount = this.flt(newValue * this.exchange_rate, this.currency_precision);
-					item.base_rate = this.flt(item.base_price_list_rate - item.base_discount_amount, this.currency_precision);
+					item.base_discount_amount = this.flt(
+						newValue * this.exchange_rate,
+						this.currency_precision,
+					);
+					item.base_rate = this.flt(
+						item.base_price_list_rate - item.base_discount_amount,
+						this.currency_precision,
+					);
 
 					console.log("[calc_prices] Updated item.discount_amount:", item.discount_amount);
 					console.log(
@@ -2531,7 +2591,6 @@ export default {
 
 			// Use async flow to avoid race conditions
 			await this.updateItemCalculations(item);
-
 		} catch (error) {
 			console.error("Error calculating prices:", error);
 			this.eventBus.emit("show_message", {
@@ -2643,7 +2702,7 @@ export default {
 		console.log("calc_uom: initial UOM search", {
 			item_code: item.item_code,
 			searched_uom: value,
-			item_uoms_count: item.item_uoms?.length || 0
+			item_uoms_count: item.item_uoms?.length || 0,
 		});
 
 		// Try item UOMs first
@@ -2655,7 +2714,7 @@ export default {
 			console.log("calc_uom: checking cached UOMs", {
 				item_code: item.item_code,
 				cached_uoms_count: cached.length,
-				searched_uom: value
+				searched_uom: value,
 			});
 			if (cached.length) {
 				item.item_uoms = cached;
@@ -2663,7 +2722,7 @@ export default {
 				console.log("calc_uom: UOM found in cache", {
 					item_code: item.item_code,
 					found_uom: new_uom ? "YES" : "NO",
-					uom_data: new_uom
+					uom_data: new_uom,
 				});
 			}
 		}
@@ -2676,7 +2735,7 @@ export default {
 			console.log("calc_uom: fallback to stock UOM", {
 				item_code: item.item_code,
 				stock_uom: item.stock_uom,
-				conversion_factor: 1
+				conversion_factor: 1,
 			});
 		}
 
@@ -2684,7 +2743,7 @@ export default {
 			console.log("calc_uom: UOM not found - ERROR", {
 				item_code: item.item_code,
 				searched_uom: value,
-				available_uoms: item.item_uoms?.map(u => u.uom) || []
+				available_uoms: item.item_uoms?.map((u) => u.uom) || [],
 			});
 			this.eventBus.emit("show_message", {
 				title: __("UOM not found"),
@@ -2705,7 +2764,7 @@ export default {
 			item_code: item.item_code,
 			price_list: priceList,
 			uom: new_uom.uom,
-			conversion_factor: new_uom.conversion_factor
+			conversion_factor: new_uom.conversion_factor,
 		});
 
 		// Check cache first
@@ -2714,7 +2773,7 @@ export default {
 			console.log("calc_uom: checking cached price list", {
 				price_list: priceList,
 				cached_items_count: cached.length,
-				searching_for: `${item.item_code} + ${new_uom.uom}`
+				searching_for: `${item.item_code} + ${new_uom.uom}`,
 			});
 			const match = cached.find((p) => p.item_code === item.item_code && p.uom === new_uom.uom);
 			if (match) {
@@ -2723,7 +2782,7 @@ export default {
 					item_code: item.item_code,
 					uom: new_uom.uom,
 					uom_rate: uomRate,
-					source: "cache"
+					source: "cache",
 				});
 			}
 		}
@@ -2733,7 +2792,7 @@ export default {
 			console.log("calc_uom: fetching UOM price from server", {
 				item_code: item.item_code,
 				price_list: priceList,
-				uom: new_uom.uom
+				uom: new_uom.uom,
 			});
 			try {
 				const r = await frappe.call({
@@ -2750,19 +2809,19 @@ export default {
 						item_code: item.item_code,
 						uom: new_uom.uom,
 						uom_rate: uomRate,
-						source: "server"
+						source: "server",
 					});
 				} else {
 					console.log("calc_uom: no UOM price found on server", {
 						item_code: item.item_code,
-						uom: new_uom.uom
+						uom: new_uom.uom,
 					});
 				}
 			} catch (e) {
 				console.error("calc_uom: failed to fetch UOM price from server", {
 					item_code: item.item_code,
 					uom: new_uom.uom,
-					error: e.message
+					error: e.message,
 				});
 			}
 		}
@@ -2778,7 +2837,7 @@ export default {
 			uom_rate: uomRate,
 			has_offer: item.posa_offer_applied,
 			selected_currency: this.selected_currency,
-			base_currency: baseCurrency
+			base_currency: baseCurrency,
 		});
 
 		// Base rates luôn theo stock UOM (chai) - không phụ thuộc UOM hiển thị
@@ -2799,7 +2858,7 @@ export default {
 				display_price_list_rate: item.price_list_rate,
 				display_rate: item.rate,
 				base_rate: item.base_rate,
-				exchange_rate: this.exchange_rate
+				exchange_rate: this.exchange_rate,
 			});
 		} else {
 			item.price_list_rate = uomRate; // Hiển thị theo UOM-price
@@ -2808,7 +2867,7 @@ export default {
 				item_code: item.item_code,
 				display_price_list_rate: item.price_list_rate,
 				display_rate: item.rate,
-				base_rate: item.base_rate
+				base_rate: item.base_rate,
 			});
 		}
 
@@ -2818,7 +2877,7 @@ export default {
 			item_code: item.item_code,
 			display_rate: item.rate,
 			base_rate: item.base_rate,
-			final_uom: item.uom
+			final_uom: item.uom,
 		});
 	},
 
@@ -2828,23 +2887,24 @@ export default {
 			item_code: item.item_code,
 			uom: new_uom.uom,
 			conversion_factor: item.conversion_factor,
-			posa_offer_applied: item.posa_offer_applied
+			posa_offer_applied: item.posa_offer_applied,
 		});
 
-		const offer = this.posOffers && Array.isArray(this.posOffers)
-			? this.posOffers.find((o) => {
-					if (!o || !o.items) return false;
-					const items = typeof o.items === "string" ? JSON.parse(o.items) : o.items;
-					return Array.isArray(items) && items.includes(item.posa_row_id);
-				})
-			: null;
+		const offer =
+			this.posOffers && Array.isArray(this.posOffers)
+				? this.posOffers.find((o) => {
+						if (!o || !o.items) return false;
+						const items = typeof o.items === "string" ? JSON.parse(o.items) : o.items;
+						return Array.isArray(items) && items.includes(item.posa_row_id);
+					})
+				: null;
 
 		console.log("calc_uom: found offer for item", {
 			item_code: item.item_code,
 			offer_found: offer ? "YES" : "NO",
 			offer_type: offer?.discount_type,
 			offer_rate: offer?.rate,
-			offer_percentage: offer?.discount_percentage
+			offer_percentage: offer?.discount_percentage,
 		});
 
 		if (offer && offer.discount_type === "Rate") {
@@ -2859,7 +2919,7 @@ export default {
 		console.log("calc_uom: applying rate offer", {
 			item_code: item.item_code,
 			original_offer_rate: offer.rate,
-			conversion_factor: item.conversion_factor
+			conversion_factor: item.conversion_factor,
 		});
 
 		// Base rates luôn theo stock UOM
@@ -2878,7 +2938,7 @@ export default {
 				display_rate: displayRate,
 				final_rate: item.rate,
 				base_rate: item.base_rate,
-				exchange_rate: this.exchange_rate
+				exchange_rate: this.exchange_rate,
 			});
 		} else {
 			item.rate = displayRate;
@@ -2886,7 +2946,7 @@ export default {
 			console.log("calc_uom: rate offer in base currency", {
 				item_code: item.item_code,
 				display_rate: displayRate,
-				base_rate: item.base_rate
+				base_rate: item.base_rate,
 			});
 		}
 	},
@@ -2897,7 +2957,7 @@ export default {
 			item_code: item.item_code,
 			offer_percentage: offer.discount_percentage,
 			original_base_price: item.original_base_price_list_rate,
-			conversion_factor: item.conversion_factor
+			conversion_factor: item.conversion_factor,
 		});
 
 		// Base rates luôn theo stock UOM
@@ -2920,18 +2980,24 @@ export default {
 			item_code: item.item_code,
 			base_discount: baseDiscount,
 			base_rate_after_discount: item.base_rate,
-			display_rate: displayRate
+			display_rate: displayRate,
 		});
 
 		if (this.selected_currency !== baseCurrency) {
-			item.price_list_rate = this.flt(displayPriceListRate * this.exchange_rate, this.currency_precision);
-			item.discount_amount = this.flt(displayDiscountAmount * this.exchange_rate, this.currency_precision);
+			item.price_list_rate = this.flt(
+				displayPriceListRate * this.exchange_rate,
+				this.currency_precision,
+			);
+			item.discount_amount = this.flt(
+				displayDiscountAmount * this.exchange_rate,
+				this.currency_precision,
+			);
 			item.rate = this.flt(displayRate * this.exchange_rate, this.currency_precision);
 			console.log("calc_uom: percentage offer converted to selected currency", {
 				item_code: item.item_code,
 				display_price_list_rate: item.price_list_rate,
 				display_discount_amount: item.discount_amount,
-				display_rate: item.rate
+				display_rate: item.rate,
 			});
 		} else {
 			item.price_list_rate = displayPriceListRate;
@@ -2941,7 +3007,7 @@ export default {
 				item_code: item.item_code,
 				display_price_list_rate: item.price_list_rate,
 				display_discount_amount: item.discount_amount,
-				display_rate: item.rate
+				display_rate: item.rate,
 			});
 		}
 	},
@@ -2955,7 +3021,7 @@ export default {
 			has_batch_price: !!item.batch_price,
 			has_original_base_rate: !!item.original_base_rate,
 			base_price_list_rate_before: item.base_price_list_rate,
-			base_rate_before: item.base_rate
+			base_rate_before: item.base_rate,
 		});
 
 		// Base rates luôn theo stock UOM (chai) - không phụ thuộc UOM hiển thị
@@ -2966,7 +3032,7 @@ export default {
 			base_price_list_rate: item.base_price_list_rate,
 			base_rate: item.base_rate,
 			stockUOMBaseRate: stockUOMBaseRate,
-			conversion_factor: item.conversion_factor
+			conversion_factor: item.conversion_factor,
 		});
 
 		// Đảm bảo base rates được set đúng theo stock UOM
@@ -2986,7 +3052,7 @@ export default {
 			stockUOMBaseRate: stockUOMBaseRate,
 			conversion_factor: item.conversion_factor,
 			displayRate: displayRate,
-			displayPriceListRate: displayPriceListRate
+			displayPriceListRate: displayPriceListRate,
 		});
 
 		if (this.selected_currency !== baseCurrency) {
@@ -2994,15 +3060,18 @@ export default {
 				item_code: item.item_code,
 				base_rate: item.base_rate,
 				display_rate_before_convert: displayRate,
-				exchange_rate: this.exchange_rate
+				exchange_rate: this.exchange_rate,
 			});
 			item.rate = this.flt(displayRate * this.exchange_rate, this.currency_precision);
-			item.price_list_rate = this.flt(displayPriceListRate * this.exchange_rate, this.currency_precision);
+			item.price_list_rate = this.flt(
+				displayPriceListRate * this.exchange_rate,
+				this.currency_precision,
+			);
 		} else {
 			console.log("calc_uom: using base currency for regular item", {
 				item_code: item.item_code,
 				display_rate: displayRate,
-				base_rate: item.base_rate
+				base_rate: item.base_rate,
 			});
 			item.rate = displayRate;
 			item.price_list_rate = displayPriceListRate;
@@ -3014,7 +3083,7 @@ export default {
 			Uom: item.uom,
 			base_rate: item.base_rate,
 			display_rate: item.rate,
-			conversion_factor: item.conversion_factor
+			conversion_factor: item.conversion_factor,
 		});
 	},
 
@@ -3026,7 +3095,7 @@ export default {
 			new_uom_value: value,
 			stock_uom: item.stock_uom,
 			has_offer: item.posa_offer_applied,
-			price_list: this.get_price_list()
+			price_list: this.get_price_list(),
 		});
 
 		const baseCurrency = this.price_list_currency || this.pos_profile.currency;
@@ -3058,7 +3127,7 @@ export default {
 			item_code: item.item_code,
 			uom: new_uom.uom,
 			conversion_factor: new_uom.conversion_factor,
-			has_offer: item.posa_offer_applied
+			has_offer: item.posa_offer_applied,
 		});
 
 		// Reset discount if not offer
@@ -3085,11 +3154,15 @@ export default {
 		this.$forceUpdate();
 
 		// Trigger discount calculation after UOM changes (if not already applying)
-		console.log(`[UOM_CHANGE] 🎯 UOM changed for item ${item.item_code}: ${item.uom} - triggering discount calculation`);
+		console.log(
+			`[UOM_CHANGE] 🎯 UOM changed for item ${item.item_code}: ${item.uom} - triggering discount calculation`,
+		);
 		if (!this.isApplyingDiscount) {
 			this.$nextTick(() => {
 				setTimeout(() => {
-					console.log(`[UOM_CHANGE] 📊 Calling calculateDiscountsDebounced() after UOM change for ${item.item_code}`);
+					console.log(
+						`[UOM_CHANGE] 📊 Calling calculateDiscountsDebounced() after UOM change for ${item.item_code}`,
+					);
 					this.calculateDiscountsDebounced();
 				}, 10);
 			});
@@ -3106,7 +3179,7 @@ export default {
 			conversion_factor: item.conversion_factor,
 			stock_uom: item.stock_uom,
 			final_rate: item.rate,
-			final_price_list_rate: item.price_list_rate
+			final_price_list_rate: item.price_list_rate,
 		});
 	},
 
@@ -3321,11 +3394,12 @@ export default {
 		const packs = [];
 
 		// Lấy thông tin item để biết stock UOM
-		const item = this.items.find(i => i.item_code === item_code) ||
-					this.allItems?.find(i => i.item_code === item_code);
+		const item =
+			this.items.find((i) => i.item_code === item_code) ||
+			this.allItems?.find((i) => i.item_code === item_code);
 
 		if (!item) {
-			console.warn('[PACK_OPTIMIZER] Item not found:', item_code);
+			console.warn("[PACK_OPTIMIZER] Item not found:", item_code);
 			return packs;
 		}
 
@@ -3337,17 +3411,20 @@ export default {
 			size: 1,
 			uom: stockUOM,
 			price: basePrice,
-			is_offer: false
+			is_offer: false,
 		});
 
 		// Lấy packs từ POS Offers đang active
 		if (this.posa_offers && Array.isArray(this.posa_offers)) {
-			this.posa_offers.forEach(offer => {
+			this.posa_offers.forEach((offer) => {
 				if (offer.is_used_block && offer.uom_ref && offer.total_items_in_block_qty) {
 					// Kiểm tra offer có áp dụng cho item này không
 					if (this.isOfferApplicableToItem(offer, item_code)) {
 						// Tính giá pack sau KM
-						const originalPrice = this.getPackOriginalPrice(offer.total_items_in_block_qty, item_code);
+						const originalPrice = this.getPackOriginalPrice(
+							offer.total_items_in_block_qty,
+							item_code,
+						);
 						const discountAmount = offer.total_discount_amount_per_block || 0;
 						const packPrice = Math.max(0, originalPrice - discountAmount); // Đảm bảo không âm
 
@@ -3356,7 +3433,7 @@ export default {
 							uom: offer.uom_ref,
 							price: packPrice,
 							is_offer: true,
-							offer: offer
+							offer: offer,
 						});
 					}
 				}
@@ -3381,11 +3458,12 @@ export default {
 	// Tính giá gốc của pack (trước KM)
 	getPackOriginalPrice(packSize, item_code) {
 		// Lấy thông tin item
-		const item = this.items.find(i => i.item_code === item_code) ||
-					this.allItems?.find(i => i.item_code === item_code);
+		const item =
+			this.items.find((i) => i.item_code === item_code) ||
+			this.allItems?.find((i) => i.item_code === item_code);
 
 		if (!item) {
-			console.warn('[PACK_OPTIMIZER] Item not found for price calculation:', item_code);
+			console.warn("[PACK_OPTIMIZER] Item not found for price calculation:", item_code);
 			return 0;
 		}
 
@@ -3398,7 +3476,7 @@ export default {
 	findOptimalPackCombination(totalQty, packs) {
 		if (!packs || packs.length === 0) {
 			const unitPrice = packs.length > 0 ? packs[0].price / packs[0].size : 0;
-			return {1: totalQty, total: totalQty * unitPrice};
+			return { 1: totalQty, total: totalQty * unitPrice };
 		}
 
 		// DP algorithm for optimal pack combination
@@ -3411,13 +3489,13 @@ export default {
 			for (const pack of packs) {
 				if (qty >= pack.size && dp[qty - pack.size] + pack.price < dp[qty]) {
 					dp[qty] = dp[qty - pack.size] + pack.price;
-					choices[qty] = {pack: pack, prev: qty - pack.size};
+					choices[qty] = { pack: pack, prev: qty - pack.size };
 				}
 			}
 		}
 
 		// Reconstruct optimal combination
-		const result = {total: dp[totalQty]};
+		const result = { total: dp[totalQty] };
 		let current = totalQty;
 
 		while (current > 0 && choices[current]) {
@@ -3429,7 +3507,7 @@ export default {
 
 		// Handle remainder with smallest pack
 		if (current > 0) {
-			const smallestPack = Math.min(...packs.map(p => p.size));
+			const smallestPack = Math.min(...packs.map((p) => p.size));
 			result[smallestPack] = (result[smallestPack] || 0) + Math.ceil(current / smallestPack);
 		}
 
@@ -3438,22 +3516,22 @@ export default {
 
 	// Tách item thành multiple lines theo combo tối ưu
 	splitItemIntoOptimalPacks(item, optimalCombo, availablePacks) {
-		console.log('[PACK_SPLITTER] Splitting item into optimal packs:', item.item_code, optimalCombo);
+		console.log("[PACK_SPLITTER] Splitting item into optimal packs:", item.item_code, optimalCombo);
 
 		const newItems = [];
-		const baseItem = {...item};
+		const baseItem = { ...item };
 
 		// Tạo line cho từng loại pack trong optimalCombo
-		Object.keys(optimalCombo).forEach(packSizeStr => {
+		Object.keys(optimalCombo).forEach((packSizeStr) => {
 			const qty = optimalCombo[packSizeStr];
-			if (qty > 0 && packSizeStr !== 'total') {
+			if (qty > 0 && packSizeStr !== "total") {
 				const packSize = parseInt(packSizeStr);
-				const packItem = {...baseItem};
+				const packItem = { ...baseItem };
 				packItem.posa_row_id = this.makeid(20);
 				packItem.qty = qty;
 
 				// Tìm pack tương ứng để lấy UOM và giá
-				const packInfo = availablePacks.find(p => p.size === packSize);
+				const packInfo = availablePacks.find((p) => p.size === packSize);
 				if (packInfo) {
 					packItem.uom = packInfo.uom;
 					packItem.rate = packInfo.price / packInfo.size; // Giá per unit
@@ -3467,7 +3545,16 @@ export default {
 					this.calc_stock_qty(packItem, packItem.qty);
 
 					newItems.push(packItem);
-					console.log('[PACK_SPLITTER] Created pack line:', packSize, 'qty:', qty, 'rate:', packItem.rate, 'uom:', packItem.uom);
+					console.log(
+						"[PACK_SPLITTER] Created pack line:",
+						packSize,
+						"qty:",
+						qty,
+						"rate:",
+						packItem.rate,
+						"uom:",
+						packItem.uom,
+					);
 				}
 			}
 		});
@@ -3475,10 +3562,9 @@ export default {
 		return newItems;
 	},
 
-
 	// Tích hợp pack optimization vào add_item
 	add_item_with_pack_optimization(item) {
-		console.log('[PACK_OPTIMIZER] Starting pack optimization for:', item.item_code, 'qty:', item.qty);
+		console.log("[PACK_OPTIMIZER] Starting pack optimization for:", item.item_code, "qty:", item.qty);
 
 		// Set flag to prevent recursive pack optimization during add process
 		this._is_adding_pack = true;
@@ -3497,7 +3583,7 @@ export default {
 			const packItems = this.splitItemIntoOptimalPacks(item, optimalCombo, availablePacks);
 
 			// Add pack items to invoice (disable discount calc to prevent recursion)
-			packItems.forEach(packItem => {
+			packItems.forEach((packItem) => {
 				this.items.push(packItem);
 				const originalIsApplying = this.isApplyingDiscount;
 				this.isApplyingDiscount = true;
@@ -3509,7 +3595,7 @@ export default {
 			this.$forceUpdate();
 			this.showPackOptimizationMessage(optimalCombo, availablePacks);
 
-			console.log('[PACK_OPTIMIZER] Completed pack optimization for:', item.item_code);
+			console.log("[PACK_OPTIMIZER] Completed pack optimization for:", item.item_code);
 		} finally {
 			this._is_adding_pack = false;
 		}
@@ -3519,17 +3605,23 @@ export default {
 	shouldOptimizePacks(item) {
 		// Pack optimizer guard: đừng chạy sau Load (hoặc chạy nhưng không đụng rate nếu preserve_rates)
 		if (item && item._preserve_rate_on_load) {
-			console.log('[PACK_OPTIMIZER] Skipping pack optimization for loaded item:', item.item_code);
+			console.log("[PACK_OPTIMIZER] Skipping pack optimization for loaded item:", item.item_code);
 			return false;
 		}
 		// Prevent recursive pack optimization during pack addition
 		if (this._is_adding_pack) {
-			console.log('[PACK_OPTIMIZER] Skipping pack optimization - currently adding pack items:', item.item_code);
+			console.log(
+				"[PACK_OPTIMIZER] Skipping pack optimization - currently adding pack items:",
+				item.item_code,
+			);
 			return false;
 		}
 		// Tối ưu cho tất cả items có POS offers với block discounts
-		return this.posa_offers && this.posa_offers.some(offer =>
-			offer.is_used_block && offer.uom_ref && offer.total_items_in_block_qty
+		return (
+			this.posa_offers &&
+			this.posa_offers.some(
+				(offer) => offer.is_used_block && offer.uom_ref && offer.total_items_in_block_qty,
+			)
 		);
 	},
 
@@ -3549,13 +3641,13 @@ export default {
 	// Tính số tiền tiết kiệm
 	calculateSavings(optimalCombo, availablePacks) {
 		// Tìm pack lẻ để tính giá gốc
-		const unitPack = availablePacks.find(p => p.size === 1);
+		const unitPack = availablePacks.find((p) => p.size === 1);
 		if (!unitPack) return 0;
 
 		// Tính tổng số lượng từ optimalCombo
 		let totalQty = 0;
-		Object.keys(optimalCombo).forEach(packSize => {
-			if (packSize !== 'total') {
+		Object.keys(optimalCombo).forEach((packSize) => {
+			if (packSize !== "total") {
 				totalQty += parseInt(packSize) * optimalCombo[packSize];
 			}
 		});

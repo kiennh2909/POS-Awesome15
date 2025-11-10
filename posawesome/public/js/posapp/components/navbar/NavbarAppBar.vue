@@ -25,61 +25,59 @@
 		</v-toolbar-title>
 
 		<!-- Tax Code Display Section -->
-        <div v-if="tax_code_display || can_manage_tax_roll" class="tax-section mx-2 d-flex align-center">
-          <!-- Tax Code Display -->
-          <v-chip
-            v-if="tax_code_display"
-            color="success"
-            variant="elevated"
-            size="small"
-            class="tax-chip mr-2"
-          >
-            <v-icon start size="small">mdi-receipt-text</v-icon>
-            <span class="font-weight-bold">{{ tax_code_display }}</span>
-          </v-chip>
+		<div v-if="tax_code_display || can_manage_tax_roll" class="tax-section mx-2 d-flex align-center">
+			<!-- Tax Code Display -->
+			<v-chip
+				v-if="tax_code_display"
+				color="success"
+				variant="elevated"
+				size="small"
+				class="tax-chip mr-2"
+			>
+				<v-icon start size="small">mdi-receipt-text</v-icon>
+				<span class="font-weight-bold">{{ tax_code_display }}</span>
+			</v-chip>
 
-          <!-- No Tax Code Warning (only show if management allowed but no tax code) -->
-          <v-chip
-            v-else-if="can_manage_tax_roll && !tax_code_display"
-            color="warning"
-            variant="outlined"
-            size="small"
-            class="tax-chip mr-2"
-          >
-            <v-icon start size="small">mdi-alert</v-icon>
-            <span class="font-weight-bold">Chưa thiết lập</span>
-          </v-chip>
+			<!-- No Tax Code Warning (only show if management allowed but no tax code) -->
+			<v-chip
+				v-else-if="can_manage_tax_roll && !tax_code_display"
+				color="warning"
+				variant="outlined"
+				size="small"
+				class="tax-chip mr-2"
+			>
+				<v-icon start size="small">mdi-alert</v-icon>
+				<span class="font-weight-bold">Chưa thiết lập</span>
+			</v-chip>
 
-          <!-- Tax Status Indicator -->
-          <v-chip
-            v-if="tax_code_display"
-            color="green"
-            variant="outlined"
-            size="x-small"
-            class="status-chip mr-2"
-          >
-            <v-icon start size="x-small">mdi-check-circle</v-icon>
-            Hoạt động
-          </v-chip>
+			<!-- Tax Status Indicator -->
+			<v-chip
+				v-if="tax_code_display"
+				color="green"
+				variant="outlined"
+				size="x-small"
+				class="status-chip mr-2"
+			>
+				<v-icon start size="x-small">mdi-check-circle</v-icon>
+				Hoạt động
+			</v-chip>
 
-          <!-- Tax Roll Management Button -->
-          <v-btn
-            v-if="can_manage_tax_roll"
-            icon
-            size="small"
-            variant="outlined"
-            color="primary"
-            @click="show_tax_roll_dialog = true"
-            class="tax-management-btn"
-          >
-            <v-icon size="small">mdi-cog</v-icon>
-            <v-tooltip activator="parent" location="bottom">
-              Quản lý cuộn hóa đơn thuế
-            </v-tooltip>
-          </v-btn>
-        </div>
+			<!-- Tax Roll Management Button -->
+			<v-btn
+				v-if="can_manage_tax_roll"
+				icon
+				size="small"
+				variant="outlined"
+				color="primary"
+				@click="show_tax_roll_dialog = true"
+				class="tax-management-btn"
+			>
+				<v-icon size="small">mdi-cog</v-icon>
+				<v-tooltip activator="parent" location="bottom"> Quản lý cuộn hóa đơn thuế </v-tooltip>
+			</v-btn>
+		</div>
 
-        <v-spacer></v-spacer>
+		<v-spacer></v-spacer>
 
 		<!-- Enhanced connectivity status indicator - Always visible -->
 		<slot name="status-indicator"></slot>
@@ -126,13 +124,13 @@
 </template>
 
 <script>
-import { useNavbar } from '../../composables/useNavbar'
-import TaxRollDialog from '../pos/TaxRollDialog.vue'
+import { useNavbar } from "../../composables/useNavbar";
+import TaxRollDialog from "../pos/TaxRollDialog.vue";
 
 export default {
 	name: "NavbarAppBar",
 	components: {
-		TaxRollDialog
+		TaxRollDialog,
 	},
 	props: {
 		posProfile: {
@@ -150,7 +148,7 @@ export default {
 			show_tax_roll_dialog: false,
 			tax_code_display: "",
 			tax_refresh_interval: null,
-		}
+		};
 	},
 	computed: {
 		appBarColor() {
@@ -176,8 +174,7 @@ export default {
 		},
 		can_manage_tax_roll() {
 			// Chỉ cho phép user có quyền System Manager hoặc POS Manager
-			return frappe.user_roles.includes('System Manager') ||
-				   frappe.user_roles.includes('POS Manager');
+			return frappe.user_roles.includes("System Manager") || frappe.user_roles.includes("POS Manager");
 		},
 		pos_profile() {
 			// Thử nhiều cách để lấy pos_profile name
@@ -219,11 +216,11 @@ export default {
 			if (this.pos_profile && this.pos_profile.tax_roll_code && this.pos_profile.tax_current_counter) {
 				return `${this.pos_profile.tax_roll_code} ${this.pos_profile.tax_current_counter}`;
 			}
-			return '';
+			return "";
 		},
 		show_tax_management() {
 			return this.can_manage_tax_roll && this.pos_profile;
-		}
+		},
 	},
 	async mounted() {
 		// Chờ một chút để đảm bảo store đã load
@@ -245,8 +242,8 @@ export default {
 		});
 
 		// Listen for tax display updates
-		if (window.posEventBus && typeof window.posEventBus.on === 'function') {
-			window.posEventBus.on('tax-display-updated', (newDisplay) => {
+		if (window.posEventBus && typeof window.posEventBus.on === "function") {
+			window.posEventBus.on("tax-display-updated", (newDisplay) => {
 				console.log("Received tax display update:", newDisplay);
 				this.tax_code_display = newDisplay;
 			});
@@ -261,7 +258,7 @@ export default {
 		});
 
 		// Listen for custom DOM events
-		document.addEventListener('taxDisplayUpdated', (event) => {
+		document.addEventListener("taxDisplayUpdated", (event) => {
 			if (event.detail && event.detail.display) {
 				console.log("Received custom tax display update:", event.detail.display);
 				this.tax_code_display = event.detail.display;
@@ -280,14 +277,14 @@ export default {
 					this.load_tax_code_display();
 				}
 			},
-			immediate: true
+			immediate: true,
 		},
-		'$store.state.pos_profile': {
+		"$store.state.pos_profile": {
 			handler() {
 				this.load_tax_code_display();
 			},
-			deep: true
-		}
+			deep: true,
+		},
 	},
 	methods: {
 		async load_tax_code_display() {
@@ -298,7 +295,7 @@ export default {
 				console.log("No pos_profile found, trying to fetch from ensurePosProfile");
 				// Thử load từ utils
 				try {
-					const { ensurePosProfile } = await import('../../utils/pos_profile.js');
+					const { ensurePosProfile } = await import("../../utils/pos_profile.js");
 					const profile = await ensurePosProfile();
 					if (profile?.name) {
 						console.log("Loaded profile from ensurePosProfile:", profile.name);
@@ -319,8 +316,8 @@ export default {
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.tax_roll.get_current_tax_info",
 					args: {
-						pos_profile: profile_name
-					}
+						pos_profile: profile_name,
+					},
 				});
 
 				console.log("Tax info response:", response.message);
@@ -332,9 +329,12 @@ export default {
 					if (info.current_display) {
 						this.tax_code_display = info.current_display;
 						console.log("Tax display from current_display:", this.tax_code_display);
-					} 
+					}
 					// Tạo từ các trường riêng lẻ
-					else if (info.tax_roll_code && (info.tax_current_counter || info.tax_current_counter === 0)) {
+					else if (
+						info.tax_roll_code &&
+						(info.tax_current_counter || info.tax_current_counter === 0)
+					) {
 						this.tax_code_display = `${info.tax_roll_code} ${info.tax_current_counter}`;
 						console.log("Tax display created manually:", this.tax_code_display);
 					}
@@ -342,8 +342,7 @@ export default {
 					else if (info.tax_roll_code) {
 						this.tax_code_display = `${info.tax_roll_code} 1`;
 						console.log("Tax display fallback:", this.tax_code_display);
-					}
-					else {
+					} else {
 						console.log("No tax info available");
 						this.tax_code_display = "";
 					}
@@ -369,7 +368,7 @@ export default {
 					tax_roll_code: data.taxRollCode,
 					tax_start_number: data.taxStartNumber,
 					tax_current_counter: data.taxCurrentCounter,
-					tax_roll_status: data.taxRollStatus
+					tax_roll_status: data.taxRollStatus,
 				});
 				console.log("Updated this.posProfile:", this.posProfile);
 			}
@@ -380,7 +379,7 @@ export default {
 					tax_roll_code: data.taxRollCode,
 					tax_start_number: data.taxStartNumber,
 					tax_current_counter: data.taxCurrentCounter,
-					tax_roll_status: data.taxRollStatus
+					tax_roll_status: data.taxRollStatus,
 				});
 			}
 
@@ -390,7 +389,7 @@ export default {
 					tax_roll_code: data.taxRollCode,
 					tax_start_number: data.taxStartNumber,
 					tax_current_counter: data.taxCurrentCounter,
-					tax_roll_status: data.taxRollStatus
+					tax_roll_status: data.taxRollStatus,
 				});
 			}
 
@@ -404,8 +403,6 @@ export default {
 		open_tax_roll_dialog() {
 			this.show_tax_roll_dialog = true;
 		},
-
-
 	},
 	emits: ["nav-click", "go-desk", "show-offline-invoices"],
 };
@@ -515,8 +512,8 @@ export default {
 .status-chip {
 	font-size: 0.625rem !important;
 	height: 20px !important;
-	border-color: #4CAF50 !important;
-	color: #4CAF50 !important;
+	border-color: #4caf50 !important;
+	color: #4caf50 !important;
 }
 
 .tax-management-btn {
@@ -526,7 +523,7 @@ export default {
 
 .tax-management-btn:hover {
 	background-color: rgba(25, 118, 210, 0.1) !important;
-	border-color: #1976D2 !important;
+	border-color: #1976d2 !important;
 	transform: scale(1.05);
 }
 

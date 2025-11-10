@@ -10,14 +10,11 @@
 						</div>
 						<div class="header-text">
 							<h3 class="header-title">{{ __("Customer Details") }}</h3>
-							<p class="header-subtitle">{{ __("Complete customer information and analytics") }}</p>
+							<p class="header-subtitle">
+								{{ __("Complete customer information and analytics") }}
+							</p>
 							<div class="header-stats" v-if="customerData">
-								<v-chip
-									color="primary"
-									variant="tonal"
-									size="small"
-									class="status-chip"
-								>
+								<v-chip color="primary" variant="tonal" size="small" class="status-chip">
 									<v-icon start size="14">mdi-account</v-icon>
 									{{ customerData.basic_info.customer_name }}
 								</v-chip>
@@ -41,7 +38,9 @@
 						<!-- Customer Information Table -->
 						<div class="table-container">
 							<div class="table-header mb-4">
-								<h4 class="text-h6 text-grey-darken-2 mb-1">{{ __("Customer Information") }}</h4>
+								<h4 class="text-h6 text-grey-darken-2 mb-1">
+									{{ __("Customer Information") }}
+								</h4>
 								<p class="text-body-2 text-grey">
 									{{ __("Detailed customer profile and transaction history") }}
 								</p>
@@ -55,17 +54,27 @@
 								hide-default-footer
 							>
 								<template v-slot:item.section="{ item }">
-									<div class="section-header" :class="{ 'section-title': item.section && !item.section.startsWith('   ') }">
+									<div
+										class="section-header"
+										:class="{
+											'section-title': item.section && !item.section.startsWith('   '),
+										}"
+									>
 										<v-icon
 											v-if="item.icon"
 											:color="item.iconColor"
 											size="20"
 											class="mr-2"
-										>{{ item.icon }}</v-icon>
+											>{{ item.icon }}</v-icon
+										>
 										<span
 											class="section-text"
-											:class="{ 'section-title-text': item.section && !item.section.startsWith('   ') }"
-										>{{ item.section }}</span>
+											:class="{
+												'section-title-text':
+													item.section && !item.section.startsWith('   '),
+											}"
+											>{{ item.section }}</span
+										>
 									</div>
 								</template>
 
@@ -89,7 +98,12 @@
 						<p class="text-body-1 text-grey-darken-1 mb-0">
 							{{ __("Please wait while we fetch customer information...") }}
 						</p>
-						<v-progress-circular indeterminate color="primary" size="48" class="mt-4"></v-progress-circular>
+						<v-progress-circular
+							indeterminate
+							color="primary"
+							size="48"
+							class="mt-4"
+						></v-progress-circular>
 					</div>
 				</v-card-text>
 
@@ -251,7 +265,10 @@ export default {
 				value: this.formatCurrency(this.customerData.credit_info.credit_balance),
 				icon: "",
 				iconColor: "",
-				valueClass: this.customerData.credit_info.credit_balance >= 0 ? "text-success font-weight-bold" : "text-error font-weight-bold",
+				valueClass:
+					this.customerData.credit_info.credit_balance >= 0
+						? "text-success font-weight-bold"
+						: "text-error font-weight-bold",
 			});
 			items.push({
 				section: "",
@@ -361,7 +378,10 @@ export default {
 				value: this.formatCurrency(this.customerData.debt_info.remaining_debt),
 				icon: "",
 				iconColor: "",
-				valueClass: this.customerData.debt_info.remaining_debt > 0 ? "text-error font-weight-bold" : "text-success font-weight-bold",
+				valueClass:
+					this.customerData.debt_info.remaining_debt > 0
+						? "text-error font-weight-bold"
+						: "text-success font-weight-bold",
 			});
 
 			// ===== THỐNG KÊ KHÁCH HÀNG =====
@@ -450,33 +470,33 @@ export default {
 	watch: {
 		modelValue: {
 			handler(val) {
-				console.log('[CustomerDetail] modelValue changed:', val, 'customerId:', this.customerId);
+				console.log("[CustomerDetail] modelValue changed:", val, "customerId:", this.customerId);
 				this.dialog = val;
 				if (val && this.customerId) {
-					console.log('[CustomerDetail] Loading customer details for:', this.customerId);
+					console.log("[CustomerDetail] Loading customer details for:", this.customerId);
 					this.$nextTick(() => {
 						this.loadCustomerDetails();
 					});
 				} else if (!val) {
-					console.log('[CustomerDetail] Dialog closed, resetting state');
+					console.log("[CustomerDetail] Dialog closed, resetting state");
 					// Reset state when dialog closes
 					this.customerData = null;
 					this.loading = false;
 				}
 			},
-			immediate: true
+			immediate: true,
 		},
 		customerId: {
 			handler(val) {
-				console.log('[CustomerDetail] customerId changed:', val, 'dialog:', this.dialog);
+				console.log("[CustomerDetail] customerId changed:", val, "dialog:", this.dialog);
 				if (val && this.dialog) {
-					console.log('[CustomerDetail] Loading customer details for new customerId:', val);
+					console.log("[CustomerDetail] Loading customer details for new customerId:", val);
 					this.$nextTick(() => {
 						this.loadCustomerDetails();
 					});
 				}
 			},
-			immediate: true
+			immediate: true,
 		},
 	},
 	methods: {
@@ -508,14 +528,14 @@ export default {
 		},
 
 		closeDialog() {
-			console.log('[CustomerDetail] closeDialog called');
-			console.log('[CustomerDetail] Current dialog state:', this.dialog);
-			console.log('[CustomerDetail] Emitting update:modelValue with false');
+			console.log("[CustomerDetail] closeDialog called");
+			console.log("[CustomerDetail] Current dialog state:", this.dialog);
+			console.log("[CustomerDetail] Emitting update:modelValue with false");
 
 			this.dialog = false;
-			this.$emit('update:modelValue', false);
+			this.$emit("update:modelValue", false);
 
-			console.log('[CustomerDetail] After close - dialog:', this.dialog);
+			console.log("[CustomerDetail] After close - dialog:", this.dialog);
 		},
 	},
 };

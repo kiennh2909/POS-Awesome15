@@ -13,7 +13,9 @@
 							</div>
 							<div class="shift-info-item">
 								<span class="shift-info-label">{{ __("Opened:") }}</span>
-								<span class="shift-info-value">{{ formatDateTime(shiftReportData.opening_date, shiftReportData.opening_time) }}</span>
+								<span class="shift-info-value">{{
+									formatDateTime(shiftReportData.opening_date, shiftReportData.opening_time)
+								}}</span>
 							</div>
 							<div class="shift-info-item">
 								<span class="shift-info-label">{{ __("Status:") }}</span>
@@ -27,9 +29,12 @@
 										<v-icon size="14" class="me-1">
 											{{ getVerificationIcon(shiftReportData.verification_status) }}
 										</v-icon>
-										{{ shiftReportData.verification_status || 'Pending' }}
+										{{ shiftReportData.verification_status || "Pending" }}
 									</v-chip>
-									<span v-if="shiftReportData.verification_status === 'Pending'" class="verification-warning-text">
+									<span
+										v-if="shiftReportData.verification_status === 'Pending'"
+										class="verification-warning-text"
+									>
 										{{ __("Need to Verify before Close Shift") }}
 									</span>
 								</div>
@@ -123,7 +128,7 @@ export default {
 	props: {
 		modelValue: { type: Boolean, default: false },
 		shiftReportId: { type: String, default: "" },
-		posProfile: { type: Object, default: () => ({}) }
+		posProfile: { type: Object, default: () => ({}) },
 	},
 	emits: ["update:modelValue"],
 	data() {
@@ -139,42 +144,62 @@ export default {
 				{ title: this.__("Sales Amount"), key: "sales_amount", width: "100px", align: "end" },
 				{ title: this.__("Returns Amount"), key: "returns_amount", width: "100px", align: "end" },
 				{ title: this.__("Transactions"), key: "transaction_amount", width: "100px", align: "end" },
-				{ title: this.__("Expected Closing"), key: "expected_closing_amount", width: "100px", align: "end" },
-				{ title: this.__("Actual Closing"), key: "actual_closing_amount", width: "120px", align: "end" },
-				{ title: this.__("Difference"), key: "difference", width: "100px", align: "end" }
+				{
+					title: this.__("Expected Closing"),
+					key: "expected_closing_amount",
+					width: "100px",
+					align: "end",
+				},
+				{
+					title: this.__("Actual Closing"),
+					key: "actual_closing_amount",
+					width: "120px",
+					align: "end",
+				},
+				{ title: this.__("Difference"), key: "difference", width: "100px", align: "end" },
 			],
-			isNumber: (v) => !isNaN(v) || "Must be a number"
+			isNumber: (v) => !isNaN(v) || "Must be a number",
 		};
 	},
 	computed: {
 		show: {
-			get() { return this.modelValue; },
-			set(value) { this.$emit("update:modelValue", value); }
+			get() {
+				return this.modelValue;
+			},
+			set(value) {
+				this.$emit("update:modelValue", value);
+			},
 		},
 		displayShiftReportId() {
-			return this.shiftReportData?.shift_report_id || this.shiftReportData?.name || 'Loading...';
+			return this.shiftReportData?.shift_report_id || this.shiftReportData?.name || "Loading...";
 		},
 		paymentSummaryDataWithTotal() {
 			const dataWithTotal = [...this.paymentSummaryData];
-			const totalActual = this.paymentSummaryData.reduce((sum, item) => sum + (parseFloat(item.actual_closing_amount) || 0), 0);
-			const totalDifference = this.paymentSummaryData.reduce((sum, item) => sum + (parseFloat(item.difference) || 0), 0);
+			const totalActual = this.paymentSummaryData.reduce(
+				(sum, item) => sum + (parseFloat(item.actual_closing_amount) || 0),
+				0,
+			);
+			const totalDifference = this.paymentSummaryData.reduce(
+				(sum, item) => sum + (parseFloat(item.difference) || 0),
+				0,
+			);
 
 			dataWithTotal.push({
-				payment_method: 'TOTAL',
+				payment_method: "TOTAL",
 				actual_closing_amount: totalActual,
 				difference: totalDifference,
-				isTotalRow: true
+				isTotalRow: true,
 			});
 
 			return dataWithTotal;
-		}
+		},
 	},
 	watch: {
 		modelValue(newVal) {
 			if (newVal && this.shiftReportId) {
 				this.loadShiftData();
 			}
-		}
+		},
 	},
 	methods: {
 		async loadShiftData() {
@@ -182,15 +207,18 @@ export default {
 			try {
 				let actualShiftReportId = this.shiftReportId;
 
-				if (typeof this.shiftReportId === 'object' && this.shiftReportId?.doctype === "POS Opening Shift") {
+				if (
+					typeof this.shiftReportId === "object" &&
+					this.shiftReportId?.doctype === "POS Opening Shift"
+				) {
 					const shiftReports = await frappe.call({
 						method: "frappe.client.get_list",
 						args: {
 							doctype: "POS Shift Report",
 							filters: { pos_opening_shift: this.shiftReportId.name },
 							fields: ["name"],
-							limit: 1
-						}
+							limit: 1,
+						},
 					});
 
 					if (shiftReports.message?.length > 0) {
@@ -200,14 +228,14 @@ export default {
 
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.shift_reports.get_shift_report_readonly",
-					args: { shift_report_id: actualShiftReportId }
+					args: { shift_report_id: actualShiftReportId },
 				});
 
 				if (response.message?.data) {
 					const shiftReportData = response.message.data;
 
 					if (response.message.data.payment_summaries?.length > 0) {
-						this.paymentSummaryData = response.message.data.payment_summaries.map(item => ({
+						this.paymentSummaryData = response.message.data.payment_summaries.map((item) => ({
 							payment_method: item.payment_method,
 							opening_amount: item.opening_amount || 0,
 							sales_amount: item.sales_amount || 0,
@@ -215,7 +243,7 @@ export default {
 							transaction_amount: item.transaction_amount || 0,
 							expected_closing_amount: item.expected_closing_amount || 0,
 							actual_closing_amount: item.expected_closing_amount || 0,
-							difference: 0
+							difference: 0,
 						}));
 					}
 
@@ -237,9 +265,9 @@ export default {
 
 		async closeShift() {
 			// Validate that all actual closing amounts are valid numbers
-			const invalidAmounts = this.paymentSummaryData.filter(item => {
+			const invalidAmounts = this.paymentSummaryData.filter((item) => {
 				const value = item.actual_closing_amount;
-				if (value === undefined || value === null || value === '') {
+				if (value === undefined || value === null || value === "") {
 					return false; // Empty is allowed, will default to 0
 				}
 				const numValue = parseFloat(value);
@@ -257,7 +285,8 @@ export default {
 				// Use POS Opening Shift from shift report data, or fallback to shiftReportId if it's already an opening shift
 				let posOpeningShift = this.shiftReportData?.pos_opening_shift;
 				if (!posOpeningShift) {
-					posOpeningShift = typeof this.shiftReportId === 'object' ? this.shiftReportId.name : this.shiftReportId;
+					posOpeningShift =
+						typeof this.shiftReportId === "object" ? this.shiftReportId.name : this.shiftReportId;
 				}
 
 				const closingShiftData = {
@@ -267,15 +296,15 @@ export default {
 					company: this.posProfile.company,
 					period_start_date: this.shiftReportData?.opening_date,
 					period_start_time: this.shiftReportData?.opening_time,
-					balance_details: this.paymentSummaryData.map(item => ({
+					balance_details: this.paymentSummaryData.map((item) => ({
 						mode_of_payment: item.payment_method,
-						amount: item.opening_amount || 0
+						amount: item.opening_amount || 0,
 					})),
-					payment_reconciliation: this.paymentSummaryData.map(item => {
+					payment_reconciliation: this.paymentSummaryData.map((item) => {
 						const actualClosing = item.actual_closing_amount;
 						let closingAmount = 0;
 
-						if (actualClosing !== '' && actualClosing !== null && actualClosing !== undefined) {
+						if (actualClosing !== "" && actualClosing !== null && actualClosing !== undefined) {
 							const parsed = parseFloat(actualClosing);
 							if (!isNaN(parsed)) {
 								closingAmount = parsed;
@@ -287,16 +316,16 @@ export default {
 							opening_amount: parseFloat(item.opening_amount) || 0,
 							expected_amount: parseFloat(item.expected_closing_amount) || 0,
 							closing_amount: closingAmount,
-							difference: parseFloat(item.difference) || 0
+							difference: parseFloat(item.difference) || 0,
 						};
-					})
+					}),
 				};
 
 				const response = await frappe.call({
 					method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift_v2",
 					args: {
-						closing_shift: JSON.stringify(closingShiftData)
-					}
+						closing_shift: JSON.stringify(closingShiftData),
+					},
 				});
 
 				if (response.message?.success) {
@@ -326,7 +355,7 @@ export default {
 
 		showError(message) {
 			if (window.frappe?.show_alert) {
-				frappe.show_alert({ message, indicator: 'red' });
+				frappe.show_alert({ message, indicator: "red" });
 			} else {
 				alert(`Error: ${message}`);
 			}
@@ -334,21 +363,21 @@ export default {
 
 		showSuccess(message) {
 			if (window.frappe?.show_alert) {
-				frappe.show_alert({ message, indicator: 'green' });
+				frappe.show_alert({ message, indicator: "green" });
 			}
 		},
 
 		formatCurrency(amount) {
 			try {
-				let currency = 'USD';
+				let currency = "USD";
 				if (this.posProfile?.currency) {
 					currency = this.posProfile.currency;
 				}
-				return new Intl.NumberFormat('en-US', {
-					style: 'currency',
+				return new Intl.NumberFormat("en-US", {
+					style: "currency",
 					currency: currency,
 					minimumFractionDigits: 2,
-					maximumFractionDigits: 2
+					maximumFractionDigits: 2,
 				}).format(amount || 0);
 			} catch (error) {
 				return `$${amount || 0}`;
@@ -356,52 +385,51 @@ export default {
 		},
 
 		currencySymbol(currency) {
-			const symbols = { 'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'KES': 'KSh' };
-			return symbols[currency] || currency || '$';
+			const symbols = { USD: "$", EUR: "€", GBP: "£", JPY: "¥", KES: "KSh" };
+			return symbols[currency] || currency || "$";
 		},
 
 		formatDateTime(date, time) {
-			if (!date) return 'N/A';
+			if (!date) return "N/A";
 
 			try {
 				let dateTimeStr = date;
 				if (time) {
-					dateTimeStr += ' ' + time;
+					dateTimeStr += " " + time;
 				}
 
 				// Use frappe's datetime formatting if available
 				if (window.frappe && frappe.datetime) {
 					const dateObj = frappe.datetime.str_to_obj(dateTimeStr);
-					return frappe.datetime.prettyDate(dateObj) + ' ' + frappe.datetime.get_time(dateObj);
+					return frappe.datetime.prettyDate(dateObj) + " " + frappe.datetime.get_time(dateObj);
 				}
 
 				// Fallback to basic formatting
 				const dateObj = new Date(dateTimeStr);
 				return dateObj.toLocaleString();
 			} catch (e) {
-				console.warn('Error formatting datetime:', e);
-				return date + (time ? ' ' + time : '');
+				console.warn("Error formatting datetime:", e);
+				return date + (time ? " " + time : "");
 			}
 		},
 
 		getVerificationColor(status) {
 			const colors = {
-				'Pending': 'warning',
-				'Verified': 'success',
-				'Confirmed': 'info'
+				Pending: "warning",
+				Verified: "success",
+				Confirmed: "info",
 			};
-			return colors[status] || 'grey';
+			return colors[status] || "grey";
 		},
 
 		getVerificationIcon(status) {
 			const icons = {
-				'Pending': 'mdi-clock-outline',
-				'Verified': 'mdi-check-circle',
-				'Confirmed': 'mdi-check-circle-outline'
+				Pending: "mdi-clock-outline",
+				Verified: "mdi-check-circle",
+				Confirmed: "mdi-check-circle-outline",
 			};
-			return icons[status] || 'mdi-help-circle';
+			return icons[status] || "mdi-help-circle";
 		},
-
 
 		async printShiftSummary() {
 			try {
@@ -411,7 +439,7 @@ export default {
 				const printContent = this.generatePrintContent();
 
 				// Mở cửa sổ in
-				const printWindow = window.open('', '_blank', 'width=800,height=600');
+				const printWindow = window.open("", "_blank", "width=800,height=600");
 				if (!printWindow) {
 					this.showError("Không thể mở cửa sổ in. Vui lòng kiểm tra chặn popup.");
 					return;
@@ -421,13 +449,12 @@ export default {
 				printWindow.document.close();
 
 				// Đợi nội dung load xong thì in
-				printWindow.onload = function() {
+				printWindow.onload = function () {
 					printWindow.print();
 					printWindow.close();
 				};
 
 				this.showSuccess("Đã gửi lệnh in thành công");
-
 			} catch (error) {
 				console.error("[PRINT_SHIFT_SUMMARY] Lỗi khi in tổng kết ca:", error);
 				this.showError("Lỗi khi in tổng kết ca");
@@ -436,8 +463,8 @@ export default {
 
 		generatePrintContent() {
 			const now = new Date();
-			const printDate = now.toLocaleDateString('vi-VN');
-			const printTime = now.toLocaleTimeString('vi-VN');
+			const printDate = now.toLocaleDateString("vi-VN");
+			const printTime = now.toLocaleTimeString("vi-VN");
 
 			let content = `
 				<!DOCTYPE html>
@@ -567,8 +594,8 @@ export default {
 				<body>
 					<div class="header">
 						<h1>TỔNG KẾT CA LÀM VIỆC</h1>
-						<p>Hồ sơ POS: ${this.posProfile?.name || 'N/A'}</p>
-						<p>Nhân viên: ${frappe.session?.user_fullname || frappe.session?.user || 'N/A'}</p>
+						<p>Hồ sơ POS: ${this.posProfile?.name || "N/A"}</p>
+						<p>Nhân viên: ${frappe.session?.user_fullname || frappe.session?.user || "N/A"}</p>
 						<p>Ngày in: ${printDate} ${printTime}</p>
 					</div>
 
@@ -576,8 +603,8 @@ export default {
 						<h2>THÔNG TIN CA LÀM VIỆC</h2>
 						<table>
 							<tr><td><strong>Mã ca:</strong></td><td>${this.displayShiftReportId}</td></tr>
-							<tr><td><strong>Thời gian mở ca:</strong></td><td>${this.formatDateTime(this.shiftReportData?.opening_date, this.shiftReportData?.opening_time)} (${this.shiftReportData?.opening_date || 'N/A'} ${this.shiftReportData?.opening_time || ''})</td></tr>
-							<tr><td><strong>Trạng thái xác minh:</strong></td><td>${this.shiftReportData?.verification_status || 'Chưa xác minh'}</td></tr>
+							<tr><td><strong>Thời gian mở ca:</strong></td><td>${this.formatDateTime(this.shiftReportData?.opening_date, this.shiftReportData?.opening_time)} (${this.shiftReportData?.opening_date || "N/A"} ${this.shiftReportData?.opening_time || ""})</td></tr>
+							<tr><td><strong>Trạng thái xác minh:</strong></td><td>${this.shiftReportData?.verification_status || "Chưa xác minh"}</td></tr>
 						</table>
 					</div>
 
@@ -622,10 +649,10 @@ export default {
 			`;
 
 			// Thêm các hàng payment summary
-			this.paymentSummaryDataWithTotal.forEach(item => {
-				const transactionClass = item.transaction_amount >= 0 ? 'positive' : 'negative';
+			this.paymentSummaryDataWithTotal.forEach((item) => {
+				const transactionClass = item.transaction_amount >= 0 ? "positive" : "negative";
 				const isTotalRow = item.isTotalRow;
-				const rowClass = isTotalRow ? 'total-row' : '';
+				const rowClass = isTotalRow ? "total-row" : "";
 
 				content += `
 					<tr class="${rowClass}">
@@ -657,7 +684,9 @@ export default {
 		},
 
 		async handlePostShiftClose() {
-			console.log("[SHIFT_CLOSE_SUCCESS] Starting post-shift-close cleanup: logout, clear cache, refresh");
+			console.log(
+				"[SHIFT_CLOSE_SUCCESS] Starting post-shift-close cleanup: logout, clear cache, refresh",
+			);
 
 			try {
 				// Step 1: Clear browser cache/storage
@@ -674,7 +703,6 @@ export default {
 					console.log("[SHIFT_CLOSE_SUCCESS] Refreshing page");
 					window.location.reload();
 				}, 2500);
-
 			} catch (error) {
 				console.error("[SHIFT_CLOSE_SUCCESS] Error during post-shift-close cleanup:", error);
 				// Fallback: Force refresh after error
@@ -698,8 +726,8 @@ export default {
 
 				// Clear IndexedDB databases (if any POS-related)
 				if (window.indexedDB) {
-					const dbNames = ['pos_offline_db', 'pos_cache', 'posawesome_offline'];
-					const clearPromises = dbNames.map(dbName => {
+					const dbNames = ["pos_offline_db", "pos_cache", "posawesome_offline"];
+					const clearPromises = dbNames.map((dbName) => {
 						return new Promise((resolve) => {
 							try {
 								const deleteRequest = window.indexedDB.deleteDatabase(dbName);
@@ -708,7 +736,9 @@ export default {
 									resolve();
 								};
 								deleteRequest.onerror = () => {
-									console.warn(`[SHIFT_CLOSE_SUCCESS] Failed to clear IndexedDB: ${dbName}`);
+									console.warn(
+										`[SHIFT_CLOSE_SUCCESS] Failed to clear IndexedDB: ${dbName}`,
+									);
 									resolve();
 								};
 							} catch (e) {
@@ -721,14 +751,13 @@ export default {
 				}
 
 				// Clear cache storage (if supported)
-				if ('caches' in window) {
+				if ("caches" in window) {
 					const cacheNames = await caches.keys();
-					await Promise.all(cacheNames.map(name => caches.delete(name)));
+					await Promise.all(cacheNames.map((name) => caches.delete(name)));
 					console.log("[SHIFT_CLOSE_SUCCESS] Cleared cache storage");
 				}
 
 				console.log("[SHIFT_CLOSE_SUCCESS] Browser cache cleared successfully");
-
 			} catch (error) {
 				console.error("[SHIFT_CLOSE_SUCCESS] Error clearing browser cache:", error);
 			}
@@ -749,31 +778,37 @@ export default {
 						method: "logout",
 						callback: () => {
 							console.log("[SHIFT_CLOSE_SUCCESS] Logout API called successfully");
-						}
+						},
 					});
 				} else {
 					// Last resort: Redirect to login page
 					console.log("[SHIFT_CLOSE_SUCCESS] Redirecting to login page");
-					window.location.href = '/login';
+					window.location.href = "/login";
 				}
 
 				console.log("[SHIFT_CLOSE_SUCCESS] Logout initiated successfully");
-
 			} catch (error) {
 				console.error("[SHIFT_CLOSE_SUCCESS] Error performing logout:", error);
 
 				// Fallback: Force redirect to login
 				console.log("[SHIFT_CLOSE_SUCCESS] Force redirect to login");
-				window.location.href = '/login';
+				window.location.href = "/login";
 			}
-		}
-	}
+		},
+	},
 };
 </script>
 
 <style scoped>
-.v-dialog { max-height: 90vh; }
-@media (max-width: 1366px) { .v-dialog { max-width: 95vw; max-height: 85vh; } }
+.v-dialog {
+	max-height: 90vh;
+}
+@media (max-width: 1366px) {
+	.v-dialog {
+		max-width: 95vw;
+		max-height: 85vh;
+	}
+}
 
 .payment-summary-table :deep(.v-data-table__th) {
 	background-color: rgb(var(--v-theme-primary));
@@ -783,8 +818,13 @@ export default {
 	padding: 8px 12px;
 }
 
-.actual-closing-input { min-width: 120px; }
-.actual-closing-input :deep(.v-field__input) { text-align: right; font-family: 'Courier New', monospace; }
+.actual-closing-input {
+	min-width: 120px;
+}
+.actual-closing-input :deep(.v-field__input) {
+	text-align: right;
+	font-family: "Courier New", monospace;
+}
 
 .action-buttons-section {
 	background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -794,10 +834,18 @@ export default {
 	z-index: 10;
 }
 
-.currency-amount { font-family: 'Roboto Mono', monospace; font-weight: 500; letter-spacing: 0.5px; }
+.currency-amount {
+	font-family: "Roboto Mono", monospace;
+	font-weight: 500;
+	letter-spacing: 0.5px;
+}
 
 :deep(.payment-summary-table .v-data-table__tbody tr:last-child) {
-	background: linear-gradient(135deg, rgb(var(--v-theme-primary)) 0%, rgb(var(--v-theme-primary-variant)) 100%);
+	background: linear-gradient(
+		135deg,
+		rgb(var(--v-theme-primary)) 0%,
+		rgb(var(--v-theme-primary-variant)) 100%
+	);
 	color: rgb(var(--v-theme-on-primary));
 	border-top: 2px solid rgb(var(--v-theme-primary-variant));
 }
@@ -817,17 +865,43 @@ export default {
 	font-weight: 500 !important;
 }
 
-.header-content { display: flex; flex-direction: column; gap: 8px; }
-.header-title { margin: 0; font-size: 1.25rem; font-weight: 600; color: rgb(var(--v-theme-on-surface)); }
+.header-content {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.header-title {
+	margin: 0;
+	font-size: 1.25rem;
+	font-weight: 600;
+	color: rgb(var(--v-theme-on-surface));
+}
 
-.shift-info { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 4px; }
-.shift-info-item { display: flex; align-items: center; gap: 6px; }
-.shift-info-label { font-size: 0.8rem; font-weight: 600; color: rgb(var(--v-theme-on-surface-variant)); min-width: 55px; }
+.shift-info {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	margin-top: 4px;
+}
+.shift-info-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.shift-info-label {
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: rgb(var(--v-theme-on-surface-variant));
+	min-width: 55px;
+}
 .shift-info-value {
-	font-size: 0.8rem; font-weight: 500; color: rgb(var(--v-theme-on-surface));
-	font-family: 'Courier New', monospace;
+	font-size: 0.8rem;
+	font-weight: 500;
+	color: rgb(var(--v-theme-on-surface));
+	font-family: "Courier New", monospace;
 	background: rgba(var(--v-theme-primary), 0.1);
-	padding: 2px 6px; border-radius: 4px;
+	padding: 2px 6px;
+	border-radius: 4px;
 	border: 1px solid rgba(var(--v-theme-primary), 0.2);
 }
 
@@ -836,13 +910,13 @@ export default {
 	font-size: 0.75rem;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
-	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	transition: all 0.3s ease;
 }
 
 .verification-status-chip:hover {
 	transform: translateY(-1px);
-	box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .verification-warning-text {

@@ -110,7 +110,7 @@
 				class="quick-view-btn"
 				:class="{ 'quick-view-active': showQuickView }"
 			>
-				<v-icon size="20">{{ showQuickView ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon>
+				<v-icon size="20">{{ showQuickView ? "mdi-eye-off" : "mdi-eye" }}</v-icon>
 				<v-tooltip activator="parent" location="top">
 					{{ showQuickView ? __("Hide Quick View") : __("Show Quick View") }} (Ctrl+Q)
 				</v-tooltip>
@@ -263,7 +263,7 @@
 
 .quick-view-active {
 	background-color: rgba(76, 175, 80, 0.1) !important;
-	border-color: #4CAF50 !important;
+	border-color: #4caf50 !important;
 	animation: quickViewPulse 2s infinite;
 }
 
@@ -502,7 +502,7 @@ export default {
 			if (this.pos_profile && this.pos_profile.pos_profile) {
 				actualProfile = this.pos_profile.pos_profile;
 			}
-			
+
 			if (!actualProfile || !actualProfile.name) {
 				console.log("❌ No POS Profile name available for server call");
 				return;
@@ -517,7 +517,7 @@ export default {
 					if (r.message) {
 						console.log("Default customer info from server:", r.message);
 						// Add to customers list if not already present
-						const existingCustomer = this.customers.find(c => c.name === r.message.name);
+						const existingCustomer = this.customers.find((c) => c.name === r.message.name);
 						if (!existingCustomer) {
 							this.customers.unshift(r.message);
 							console.log("Added default customer to list:", r.message);
@@ -530,7 +530,7 @@ export default {
 				},
 				error: (err) => {
 					console.error("Failed to load default customer from server:", err);
-				}
+				},
 			});
 		},
 
@@ -540,7 +540,7 @@ export default {
 			var vm = this;
 			console.log("Current customers.length:", this.customers.length);
 			console.log("POS Profile:", this.pos_profile);
-			
+
 			if (this.customers.length > 0) {
 				// If customers already loaded, just check for default customer
 				console.log("✅ Customers already loaded, checking for default customer");
@@ -590,7 +590,9 @@ export default {
 								actualProfile = vm.pos_profile.pos_profile;
 							}
 							if (!vm.customer && actualProfile && actualProfile.default_customer) {
-								console.log("🔄 Default customer not set, trying loadDefaultCustomerFromServer...");
+								console.log(
+									"🔄 Default customer not set, trying loadDefaultCustomerFromServer...",
+								);
 								vm.loadDefaultCustomerFromServer();
 							}
 						});
@@ -611,7 +613,7 @@ export default {
 		setDefaultCustomerIfConfigured() {
 			console.log("=== DEBUG: setDefaultCustomerIfConfigured() called ===");
 			console.log("POS Profile (full object):", JSON.stringify(this.pos_profile, null, 2));
-			
+
 			// Handle both direct pos_profile object and nested structure
 			let actualProfile = this.pos_profile;
 			if (this.pos_profile && this.pos_profile.pos_profile) {
@@ -619,9 +621,9 @@ export default {
 				actualProfile = this.pos_profile.pos_profile;
 				console.log("Using nested pos_profile structure");
 			}
-			
+
 			console.log("Actual Profile default_customer:", actualProfile?.default_customer);
-			console.log("Actual Profile keys:", actualProfile ? Object.keys(actualProfile) : 'null');
+			console.log("Actual Profile keys:", actualProfile ? Object.keys(actualProfile) : "null");
 			console.log("Current customer:", this.customer);
 			console.log("Customers loaded:", this.customers.length);
 
@@ -649,30 +651,36 @@ export default {
 
 			const defaultCustomerId = actualProfile.default_customer;
 			console.log("🔍 Looking for default customer:", defaultCustomerId);
-			console.log("Available customers:", this.customers.map(c => ({ name: c.name, customer_name: c.customer_name })));
-			
-			const defaultCustomer = this.customers.find(c => c.name === defaultCustomerId);
+			console.log(
+				"Available customers:",
+				this.customers.map((c) => ({ name: c.name, customer_name: c.customer_name })),
+			);
+
+			const defaultCustomer = this.customers.find((c) => c.name === defaultCustomerId);
 			if (defaultCustomer) {
 				console.log("✅ Found default customer:", defaultCustomer);
 				console.log("Setting customer properties...");
-				
+
 				// Set all customer-related properties
 				this.customer = defaultCustomer.name;
 				this.internalCustomer = defaultCustomer.name;
 				this.tempSelectedCustomer = defaultCustomer.name;
-				
+
 				console.log("Customer properties set:");
 				console.log("- this.customer:", this.customer);
 				console.log("- this.internalCustomer:", this.internalCustomer);
 				console.log("- this.tempSelectedCustomer:", this.tempSelectedCustomer);
-				
+
 				// Emit update event
 				this.eventBus.emit("update_customer", defaultCustomer.name);
 				console.log("✅ Default customer applied successfully:", defaultCustomer.customer_name);
 				console.log("Event 'update_customer' emitted with:", defaultCustomer.name);
 			} else {
 				console.log("❌ Default customer not found in customer list:", defaultCustomerId);
-				console.log("All available customer names:", this.customers.map(c => c.name));
+				console.log(
+					"All available customer names:",
+					this.customers.map((c) => c.name),
+				);
 			}
 			console.log("=== END DEBUG: setDefaultCustomerIfConfigured() ===");
 		},
@@ -686,34 +694,41 @@ export default {
 		},
 
 		viewCustomerDetails(customerId) {
-			console.log('[Customer] viewCustomerDetails called with:', customerId);
-			console.log('[Customer] Current showCustomerDetail:', this.showCustomerDetail);
+			console.log("[Customer] viewCustomerDetails called with:", customerId);
+			console.log("[Customer] Current showCustomerDetail:", this.showCustomerDetail);
 
 			this.customer = customerId;
 			this.showCustomerDetail = true;
 			this.customerDetailKey += 1; // Force re-render by changing key
 
-			console.log('[Customer] After setting - customer:', this.customer, 'showCustomerDetail:', this.showCustomerDetail, 'key:', this.customerDetailKey);
+			console.log(
+				"[Customer] After setting - customer:",
+				this.customer,
+				"showCustomerDetail:",
+				this.showCustomerDetail,
+				"key:",
+				this.customerDetailKey,
+			);
 
 			// Force update to ensure reactivity
 			this.$nextTick(() => {
 				this.$forceUpdate();
-				console.log('[Customer] Force updated component');
+				console.log("[Customer] Force updated component");
 			});
 		},
 
 		onCustomerDetailDialogUpdate(value) {
-			console.log('[Customer] onCustomerDetailDialogUpdate called with:', value);
-			console.log('[Customer] Current showCustomerDetail before update:', this.showCustomerDetail);
+			console.log("[Customer] onCustomerDetailDialogUpdate called with:", value);
+			console.log("[Customer] Current showCustomerDetail before update:", this.showCustomerDetail);
 
 			this.showCustomerDetail = value;
 
-			console.log('[Customer] showCustomerDetail updated to:', this.showCustomerDetail);
+			console.log("[Customer] showCustomerDetail updated to:", this.showCustomerDetail);
 
 			// Force update to ensure reactivity
 			this.$nextTick(() => {
 				this.$forceUpdate();
-				console.log('[Customer] Force updated after dialog update');
+				console.log("[Customer] Force updated after dialog update");
 			});
 		},
 
@@ -721,44 +736,44 @@ export default {
 		toggleQuickView() {
 			this.showQuickView = !this.showQuickView;
 			this.saveQuickViewPreference();
-			console.log('[Customer] Quick View toggled:', this.showQuickView);
+			console.log("[Customer] Quick View toggled:", this.showQuickView);
 		},
 
 		saveQuickViewPreference() {
 			try {
-				localStorage.setItem('posawesome_quick_view_expanded', this.showQuickView);
-				console.log('[Customer] Quick View preference saved:', this.showQuickView);
+				localStorage.setItem("posawesome_quick_view_expanded", this.showQuickView);
+				console.log("[Customer] Quick View preference saved:", this.showQuickView);
 			} catch (e) {
-				console.error('[Customer] Failed to save Quick View preference:', e);
+				console.error("[Customer] Failed to save Quick View preference:", e);
 			}
 		},
 
 		loadQuickViewPreference() {
 			try {
-				const saved = localStorage.getItem('posawesome_quick_view_expanded');
-				this.showQuickView = saved === 'true'; // Default false if not set
-				console.log('[Customer] Quick View preference loaded:', this.showQuickView);
+				const saved = localStorage.getItem("posawesome_quick_view_expanded");
+				this.showQuickView = saved === "true"; // Default false if not set
+				console.log("[Customer] Quick View preference loaded:", this.showQuickView);
 			} catch (e) {
-				console.error('[Customer] Failed to load Quick View preference:', e);
+				console.error("[Customer] Failed to load Quick View preference:", e);
 				this.showQuickView = false;
 			}
 		},
 
 		// Event handlers for PostingDateRow - Forward events to parent component
 		onPostingDateUpdate(val) {
-			this.$emit('update:posting_date_display', val);
+			this.$emit("update:posting_date_display", val);
 		},
 
 		onPriceListUpdate(val) {
-			this.$emit('update:priceList', val);
+			this.$emit("update:priceList", val);
 		},
 
 		// Keyboard shortcut handler - Ctrl+Q to toggle Quick View
 		handleKeyboardShortcut(event) {
-			if (event.ctrlKey && event.key === 'q') {
+			if (event.ctrlKey && event.key === "q") {
 				event.preventDefault();
 				this.toggleQuickView();
-				console.log('[Customer] Quick View toggled via Ctrl+Q');
+				console.log("[Customer] Quick View toggled via Ctrl+Q");
 			}
 		},
 	},
@@ -779,23 +794,29 @@ export default {
 		this.loadQuickViewPreference();
 
 		// Add keyboard shortcut listener
-		document.addEventListener('keydown', this.handleKeyboardShortcut);
+		document.addEventListener("keydown", this.handleKeyboardShortcut);
 
 		this.$nextTick(() => {
 			this.eventBus.on("register_pos_profile", (pos_profile) => {
 				console.log("=== EVENT: register_pos_profile ===");
-				console.log("POS Profile registered in Customer component (full):", JSON.stringify(pos_profile, null, 2));
+				console.log(
+					"POS Profile registered in Customer component (full):",
+					JSON.stringify(pos_profile, null, 2),
+				);
 				console.log("default_customer in profile:", pos_profile?.default_customer);
-				console.log("pos_profile keys:", pos_profile ? Object.keys(pos_profile) : 'null');
+				console.log("pos_profile keys:", pos_profile ? Object.keys(pos_profile) : "null");
 				this.pos_profile = pos_profile;
 				this.get_customer_names();
 			});
 
 			this.eventBus.on("payments_register_pos_profile", (pos_profile) => {
 				console.log("=== EVENT: payments_register_pos_profile ===");
-				console.log("POS Profile registered from payments (full):", JSON.stringify(pos_profile, null, 2));
+				console.log(
+					"POS Profile registered from payments (full):",
+					JSON.stringify(pos_profile, null, 2),
+				);
 				console.log("default_customer in profile:", pos_profile?.default_customer);
-				console.log("pos_profile keys:", pos_profile ? Object.keys(pos_profile) : 'null');
+				console.log("pos_profile keys:", pos_profile ? Object.keys(pos_profile) : "null");
 				this.pos_profile = pos_profile;
 				this.get_customer_names();
 			});
@@ -848,7 +869,7 @@ export default {
 
 	beforeUnmount() {
 		// Remove keyboard shortcut listener
-		document.removeEventListener('keydown', this.handleKeyboardShortcut);
+		document.removeEventListener("keydown", this.handleKeyboardShortcut);
 	},
 };
 </script>

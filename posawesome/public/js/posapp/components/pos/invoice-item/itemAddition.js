@@ -17,7 +17,9 @@ export default {
 			scanMode = true;
 		}
 
-		console.log(`[Invoice.add_item] Processing item ${item.item_code} in ${scanMode ? 'Add' : 'Remove'} mode`);
+		console.log(
+			`[Invoice.add_item] Processing item ${item.item_code} in ${scanMode ? "Add" : "Remove"} mode`,
+		);
 
 		if (!item.uom) {
 			item.uom = item.stock_uom;
@@ -160,14 +162,16 @@ export default {
 
 	// Apply highlight effect with green background and enlarged font for quantity and amount
 	applyItemHighlight(itemRowId, scanMode) {
-		console.log(`[Invoice.applyItemHighlight] Highlighting item ${itemRowId} in ${scanMode ? 'Add' : 'Remove'} mode`);
+		console.log(
+			`[Invoice.applyItemHighlight] Highlighting item ${itemRowId} in ${scanMode ? "Add" : "Remove"} mode`,
+		);
 
 		// Emit event to ItemsTable to apply highlight with enlarged font
 		this.eventBus.emit("highlight_invoice_item", {
 			itemRowId: itemRowId,
 			scanMode: scanMode,
 			duration: 2000, // 2 seconds highlight duration
-			enlargeFont: true // Enable font enlargement for quantity and amount
+			enlargeFont: true, // Enable font enlargement for quantity and amount
 		});
 
 		// Also emit to show visual feedback

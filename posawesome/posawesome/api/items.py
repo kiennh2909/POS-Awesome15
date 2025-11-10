@@ -865,6 +865,42 @@ def get_item_variants(pos_profile, parent_item_code, price_list=None, customer=N
 	return result
 
 @frappe.whitelist()
+def get_item_tax_info(item_code, price_list=None):
+    """Lấy thông tin thuế cho MISA API từ Item + Item Price"""
+
+    # Lấy từ Item (thuộc tính cố định)
+    item_doc = frappe.get_doc("Item", item_code)
+
+    # Lấy từ Item Price (thuộc tính theo giá)
+    price_filters = {"item_code": item_code}
+    if price_list:
+        price_filters["price_list"] = price_list
+
+    item_price_data = frappe.get_all(
+        "Item Price",
+        filters=price_filters,
+        fields=["custom_service_fee_rate", "custom_discount_rate"],
+        limit=1
+    )
+
+    # Tính VAT rate cuối cùng
+    vat_applicable = item_doc.custom_vat_applicable or True
+    vat_rate = item_doc.custom_vat_rate or "10"
+    final_vat_rate = vat_rate if vat_applicable else "-1"
+
+    return {
+        "custom_inventory_type": item_doc.custom_inventory_type or "0",
+        "custom_vat_applicable": vat_applicable,
+        "custom_vat_rate": vat_rate,
+        "custom_excise_rate": item_doc.custom_excise_rate or "0",
+        "custom_service_fee_rate": item_price_data[0].custom_service_fee_rate if item_price_data else "0",
+        "custom_discount_rate": item_price_data[0].custom_discount_rate if item_price_data else "0",
+        "item_group": item_doc.item_group or "",
+        "vat_rate": final_vat_rate
+    }
+
+
+@frappe.whitelist()
 def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=None):
     item = json.loads(item)
     today = nowdate()
@@ -940,11 +976,11 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
             doc.price_list_currency = price_list_currency
             doc.plc_conversion_rate = exchange_rate
             doc.conversion_rate = exchange_rate
-    
+
     # Add company and doctype to the item args for ERPNext validation
     if company:
         item["company"] = company
-    
+
     # Set doctype for ERPNext validation
     item["doctype"] = "Sales Invoice"
 
@@ -967,14 +1003,14 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
     res["max_discount"] = max_discount
     res["batch_no_data"] = batch_no_data
     res["serial_no_data"] = serial_no_data
-    
+
     # Add UOMs data directly from item document
     uoms = frappe.get_all(
         "UOM Conversion Detail",
         filters={"parent": item_code},
         fields=["uom", "conversion_factor"],
     )
-    
+
     # Add stock UOM if not already in uoms list
     stock_uom = frappe.db.get_value("Item", item_code, "stock_uom")
     if stock_uom:
@@ -983,13 +1019,31 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
             if uom_data.get("uom") == stock_uom:
                 stock_uom_exists = True
                 break
-        
+
         if not stock_uom_exists:
             uoms.append({"uom": stock_uom, "conversion_factor": 1.0})
-    
+
     res["item_uoms"] = uoms
-    
+
+    # === THÊM THÔNG TIN THUẾ CHO MISA ===
+    tax_info = get_item_tax_info(item_code, price_list)
+    res.update(tax_info)
+
     return res
+
+
+@frappe.whitelist()
+def mark_invoice_as_submitted_vntax(invoice_name, meinvoice_ref_id=None):
+    """Đánh dấu hóa đơn đã gửi MISA thành công"""
+    update_data = {"custom_misa_status": "Submitted"}
+
+    if meinvoice_ref_id:
+        update_data["custom_misa_ref_id"] = meinvoice_ref_id
+
+    frappe.db.set_value("Sales Invoice", invoice_name, update_data)
+    frappe.db.commit()
+
+    return {"success": True, "ref_id": meinvoice_ref_id}
 
 
 @frappe.whitelist()
