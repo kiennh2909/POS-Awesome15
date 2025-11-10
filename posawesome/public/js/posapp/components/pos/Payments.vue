@@ -1509,7 +1509,7 @@ export default {
 					});
 			}
 		},
-		
+
 		async load_print_page_tax(invoice_or_name) {
 			try {
 				// 1) Lấy invoice "fresh" từ server để chắc chắn có tax_id do server đã patch
@@ -1638,7 +1638,6 @@ export default {
 						},
 					);
 				}
-
 			} catch (error) {
 				console.error("[TaxPrint] Unexpected error in load_print_page_tax:", error);
 				frappe.msgprint({
@@ -1700,7 +1699,6 @@ export default {
 				}
 			}
 		},
-		
 
 		set_full_amount(idx) {
 			const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
@@ -1806,7 +1804,7 @@ export default {
 				},
 			};
 		},
-		
+
 		// Print invoice using a more detailed offline template
 		print_offline_invoice(invoice) {
 			if (!invoice) return;

@@ -250,8 +250,8 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 		debugLog("Bước 2: Tạo body request (PrintRequest) cho VNTAX theo chuẩn test case...");
 
 		// Tạo InternalCode theo format: VN-IC-{4 ký tự ngẫu nhiên}
-		const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-		const internalCode = `VN-IC-${randomSuffix}`;
+		//const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+		const internalCode = invoice.name;
 
 		const body = {
 			// Cờ (QUAN TRỌNG - PHẢI LÀ "VNTAX")
@@ -261,13 +261,13 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 			// Mã định danh (TUÂN THỦ CHUẨN TEST CASE)
 			DocNo: invoice.name,
 			InternalCode: internalCode, // Format: VN-IC-XXXX
-			TaxCode: "VN-TaxCode-IGNORE", // PHẢI LÀ "VN-TaxCode-IGNORE" theo test case
+			TaxCode: "VN-0111200981", // PHẢI LÀ "VN-TaxCode-IGNORE" theo test case
 
 			// Thông tin chung (KHỚP VỚI TEST CASE)
 			Cashier: String(invoice.owner || invoice.modified_by),
 			CustomerName: String(invoice.customer || invoice.customer_name || invoice.title || "Khách lẻ"),
 			CustomerInfo: String(invoice.tax_id || invoice.customer_tax_id || "").trim(), // Có thể là empty string
-			PrinterName: "TestClientPrinter", // PHẢI LÀ "TestClientPrinter" theo test case
+			PrinterName: "DONG_ANH_Printer", // PHẢI LÀ "TestClientPrinter" theo test case
 			PosTerminal: String(pos_profile.name || pos_profile.warehouse || "POS Terminal"),
 			RequestTime: new Date().toISOString(),
 			Currency: String(invoice.currency || "VND"),
@@ -303,35 +303,44 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 			throw new Error(`Lỗi từ máy chủ in (${response.status}): ${responseText}`);
 		}
 
-		// === BƯỚC 4: XỬ LÝ KHI THÀNH CÔNG (CẬP NHẬT ERPNext) ===
+		// === BƯỚC 4: XỬ LÝ KHI THÀNH CÔNG (CẬP NHẬT TRẠNG THÁI LÊN ERPNext) ===
 		debugLog("Bước 4: Gửi MISA thành công, đang cập nhật trạng thái lên ERPNext...");
 
-		// (Giả định: bạn cần tạo API 'mark_invoice_as_submitted_vntax' trong file python của ERPNext)
+		// Cập nhật trạng thái hóa đơn Việt Nam (tương tự bước 4 của handleTaxPrint)
 		const updateResponse = await frappe.call({
-			method: "posawesome.posawesome.api.tax_roll.mark_invoice_as_submitted_vntax",
+			method: "posawesome.posawesome.api.invoices.mark_invoice_as_submitted_vntax",
 			args: {
 				invoice_name: invoice.name,
-				// Giả sử PrintController trả về RefID của MISA trong body
-				meinvoice_ref_id: responseText,
+				response_data: responseText,
 			},
 		});
 
 		if (!updateResponse.message || !updateResponse.message.success) {
-			// Ghi log lỗi nhưng không chặn người dùng
-			console.error("Không thể cập nhật trạng thái hóa đơn MISA trên server ERPNext.", updateResponse);
+			throw new Error("Không thể cập nhật trạng thái hóa đơn Việt Nam trên server.");
 		}
 
-		debugLog("Cập nhật trạng thái ERPNext thành công.");
+		debugLog("Cập nhật trạng thái ERPNext thành công.", updateResponse.message);
 
-		// === BƯỚC 5: XỬ LÝ PHÍA CLIENT ===
+		// === BƯỚC 5: XỬ LÝ PHÍA CLIENT SAU KHI MỌI THỨ THÀNH CÔNG ===
+		// Duy trì bộ đếm ký hiệu riêng cho các hóa đơn phát hành ở Việt Nam (tương tự handleTaxPrint)
+		const { new_counter, next_display, req_id } = updateResponse.message;
+
+		// Cập nhật pos_profile object
+		pos_profile.tax_current_counter = new_counter;
+
+		// Cập nhật header display
+		updateHeaderTaxDisplay(next_display);
+
 		if (onSuccess) {
 			onSuccess({
-				response: responseText,
+				reqId: req_id,
+				newCounter: new_counter,
+				nextDisplay: next_display,
 			});
 		}
 
 		frappe.show_alert({
-			message: `Đã gửi hóa đơn VNTAX thành công. RefID: ${responseText}`,
+			message: `Đã gửi hóa đơn VNTAX thành công. ReqID: ${req_id || responseText}`,
 			indicator: "green",
 		});
 
