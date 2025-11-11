@@ -615,6 +615,18 @@ def mark_invoice_as_submitted_vntax(invoice_name, response_data):
         except Exception as e:
             log.warning(f"[VNTAX_MARK_SUBMITTED] Could not parse response data: {str(e)}")
 
+        # Check if already submitted to prevent duplicate submissions
+        current_status = invoice_doc.get("custom_misa_status")
+        if current_status == "Submitted":
+            log.warning(f"[VNTAX_MARK_SUBMITTED] Invoice {invoice_name} already submitted to MISA")
+            return {
+                "success": True,
+                "message": "Invoice already marked as submitted for Vietnam tax",
+                "req_id": invoice_doc.get("custom_misa_ref_id"),
+                "new_counter": current_counter,
+                "next_display": next_display
+            }
+
         # Update invoice custom fields
         invoice_doc.custom_misa_status = "Submitted"
         invoice_doc.custom_misa_ref_id = req_id or f"VN-{invoice_name}"

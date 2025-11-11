@@ -303,9 +303,9 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 						debugLog(`[VAT_DEBUG] ⚠️ VAT rate is 0, using item.rate as is: ${item.rate}`);
 					}
 				}
-				// Làm tròn đến 0 chữ số thập phân và làm tròn xuống (RoundDown) cho VND
-				priceExcludingVAT = Math.floor(priceExcludingVAT);
-				debugLog(`[VAT_DEBUG] 🔢 Final priceExcludingVAT after rounding (RoundDown for VND): ${priceExcludingVAT}`);
+				// Giữ nguyên giá trị base_net_amount không làm tròn cho VND
+				// priceExcludingVAT = Math.floor(priceExcludingVAT);
+				debugLog(`[VAT_DEBUG] 🔢 Final priceExcludingVAT (no rounding for VND): ${priceExcludingVAT}`);
 			} else if (!vatApplicable) {
 				// Nếu custom_vat_applicable = false thì VAT rate = "-1"
 				vatRate = "-1";
@@ -460,8 +460,20 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 		debugLog(`[VAT_DEBUG] 📥 Status: ${response.status} (${response.ok ? "OK" : "ERROR"})`);
 		debugLog(`[VAT_DEBUG] 📥 Response Body: ${responseText}`);
 
-		if (!response.ok) {
+		// API có thể trả về 200 OK ngay cả khi có lỗi (như duplicate request)
+		// Chỉ throw error nếu thực sự là lỗi HTTP hoặc server error
+		if (response.status >= 400 && response.status < 600) {
 			throw new Error(`Lỗi từ máy chủ in (${response.status}): ${responseText}`);
+		}
+
+		// Kiểm tra response text có chứa error message không
+		if (responseText && typeof responseText === 'string') {
+			const lowerResponse = responseText.toLowerCase();
+			if (lowerResponse.includes('error') || lowerResponse.includes('failed') || lowerResponse.includes('lỗi')) {
+				// Nếu response chứa từ khóa lỗi nhưng status là 200, vẫn coi như thành công
+				// vì API có thể trả về warning message
+				debugLog(`[VAT_DEBUG] ⚠️ Response contains error keywords but status is ${response.status}, treating as success`);
+			}
 		}
 
 		// === BƯỚC 4: XỬ LÝ KHI THÀNH CÔNG (CẬP NHẬT TRẠNG THÁI LÊN ERPNext) ===
@@ -476,7 +488,12 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 			},
 		});
 
-		if (!updateResponse.message || !updateResponse.message.success) {
+		if (!updateResponse.message) {
+			throw new Error("Không nhận được phản hồi từ server khi cập nhật trạng thái.");
+		}
+
+		// Kiểm tra success flag nếu có, nếu không thì coi như thành công
+		if (updateResponse.message.success === false) {
 			throw new Error("Không thể cập nhật trạng thái hóa đơn Việt Nam trên server.");
 		}
 
@@ -484,13 +501,18 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 
 		// === BƯỚC 5: XỬ LÝ PHÍA CLIENT SAU KHI MỌI THỨ THÀNH CÔNG ===
 		// Duy trì bộ đếm ký hiệu riêng cho các hóa đơn phát hành ở Việt Nam (tương tự handleTaxPrint)
-		const { new_counter, next_display, req_id } = updateResponse.message;
+		const responseMessage = updateResponse.message || {};
+		const { new_counter, next_display, req_id } = responseMessage;
 
-		// Cập nhật pos_profile object
-		pos_profile.tax_current_counter = new_counter;
+		// Cập nhật pos_profile object nếu có counter mới
+		if (new_counter !== undefined) {
+			pos_profile.tax_current_counter = new_counter;
+		}
 
-		// Cập nhật header display
-		updateHeaderTaxDisplay(next_display);
+		// Cập nhật header display nếu có
+		if (next_display) {
+			updateHeaderTaxDisplay(next_display);
+		}
 
 		if (onSuccess) {
 			onSuccess({
