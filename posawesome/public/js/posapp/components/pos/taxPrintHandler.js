@@ -303,9 +303,9 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 						debugLog(`[VAT_DEBUG] ⚠️ VAT rate is 0, using item.rate as is: ${item.rate}`);
 					}
 				}
-				// Làm tròn đến 0 chữ số thập phân và làm tròn lên (RoundUp) cho VND
-				priceExcludingVAT = Math.ceil(priceExcludingVAT);
-				debugLog(`[VAT_DEBUG] 🔢 Final priceExcludingVAT after rounding (RoundUp for VND): ${priceExcludingVAT}`);
+				// Làm tròn đến 0 chữ số thập phân và làm tròn xuống (RoundDown) cho VND
+				priceExcludingVAT = Math.floor(priceExcludingVAT);
+				debugLog(`[VAT_DEBUG] 🔢 Final priceExcludingVAT after rounding (RoundDown for VND): ${priceExcludingVAT}`);
 			} else if (!vatApplicable) {
 				// Nếu custom_vat_applicable = false thì VAT rate = "-1"
 				vatRate = "-1";
