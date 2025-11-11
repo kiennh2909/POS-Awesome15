@@ -469,7 +469,7 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 
 		// Cập nhật trạng thái hóa đơn Việt Nam (tương tự bước 4 của handleTaxPrint)
 		const updateResponse = await frappe.call({
-			method: "posawesome.posawesome.api.invoices.mark_invoice_as_submitted_vntax",
+			method: "posawesome.posawesome.api.invoice.mark_invoice_as_submitted_vntax",
 			args: {
 				invoice_name: invoice.name,
 				response_data: responseText,
