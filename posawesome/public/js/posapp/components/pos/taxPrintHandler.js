@@ -488,14 +488,22 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 			},
 		});
 
+		debugLog(`[VAT_DEBUG] 📥 ERPNext API Response:`, updateResponse);
+
 		if (!updateResponse.message) {
+			debugLog(`[VAT_DEBUG] ❌ No message in updateResponse:`, updateResponse);
 			throw new Error("Không nhận được phản hồi từ server khi cập nhật trạng thái.");
 		}
 
+		debugLog(`[VAT_DEBUG] 📊 Update response message:`, updateResponse.message);
+
 		// Kiểm tra success flag nếu có, nếu không thì coi như thành công
 		if (updateResponse.message.success === false) {
-			throw new Error("Không thể cập nhật trạng thái hóa đơn Việt Nam trên server.");
+			debugLog(`[VAT_DEBUG] ❌ Update failed with success=false:`, updateResponse.message);
+			throw new Error(`Không thể cập nhật trạng thái hóa đơn Việt Nam trên server: ${updateResponse.message.message || 'Unknown error'}`);
 		}
+
+		debugLog(`[VAT_DEBUG] ✅ Update successful:`, updateResponse.message);
 
 		debugLog("Cập nhật trạng thái ERPNext thành công.", updateResponse.message);
 

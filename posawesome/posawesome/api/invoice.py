@@ -617,8 +617,10 @@ def mark_invoice_as_submitted_vntax(invoice_name, response_data):
 
         # Check if already submitted to prevent duplicate submissions
         current_status = invoice_doc.get("custom_misa_status")
+        log.info(f"[VNTAX_MARK_SUBMITTED] Current MISA status for invoice {invoice_name}: '{current_status}'")
+
         if current_status == "Submitted":
-            log.warning(f"[VNTAX_MARK_SUBMITTED] Invoice {invoice_name} already submitted to MISA")
+            log.warning(f"[VNTAX_MARK_SUBMITTED] Invoice {invoice_name} already submitted to MISA (status: {current_status})")
             return {
                 "success": True,
                 "message": "Invoice already marked as submitted for Vietnam tax",
@@ -628,11 +630,17 @@ def mark_invoice_as_submitted_vntax(invoice_name, response_data):
             }
 
         # Update invoice custom fields
+        log.info(f"[VNTAX_MARK_SUBMITTED] Updating invoice {invoice_name} - setting status to 'Submitted', req_id: {req_id}")
         invoice_doc.custom_misa_status = "Submitted"
         invoice_doc.custom_misa_ref_id = req_id or f"VN-{invoice_name}"
 
         # Save invoice with custom fields
-        invoice_doc.save(ignore_permissions=True)
+        try:
+            invoice_doc.save(ignore_permissions=True)
+            log.info(f"[VNTAX_MARK_SUBMITTED] Successfully saved invoice {invoice_name} with MISA status")
+        except Exception as save_error:
+            log.error(f"[VNTAX_MARK_SUBMITTED] Failed to save invoice {invoice_name}: {str(save_error)}")
+            raise save_error
 
         # Update POS Profile counter
         pos_profile.tax_current_counter = new_counter
