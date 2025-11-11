@@ -634,12 +634,17 @@ def mark_invoice_as_submitted_vntax(invoice_name, response_data):
         invoice_doc.custom_misa_status = "Submitted"
         invoice_doc.custom_misa_ref_id = req_id or f"VN-{invoice_name}"
 
-        # Save invoice with custom fields
+        # Save invoice with custom fields - use db_set_value to bypass validation completely
         try:
-            invoice_doc.save(ignore_permissions=True)
-            log.info(f"[VNTAX_MARK_SUBMITTED] Successfully saved invoice {invoice_name} with MISA status")
+            # Use db_set_value to update custom fields directly without triggering validation
+            frappe.db.set_value("Sales Invoice", invoice_name, {
+                "custom_misa_status": "Submitted",
+                "custom_misa_ref_id": req_id or f"VN-{invoice_name}"
+            })
+            frappe.db.commit()
+            log.info(f"[VNTAX_MARK_SUBMITTED] Successfully updated invoice {invoice_name} with MISA status using db_set_value")
         except Exception as save_error:
-            log.error(f"[VNTAX_MARK_SUBMITTED] Failed to save invoice {invoice_name}: {str(save_error)}")
+            log.error(f"[VNTAX_MARK_SUBMITTED] Failed to update invoice {invoice_name} using db_set_value: {str(save_error)}")
             raise save_error
 
         # Update POS Profile counter
