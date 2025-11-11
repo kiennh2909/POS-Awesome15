@@ -196,6 +196,11 @@ export async function handleTaxPrint(invoice, pos_profile, onSuccess, onError) {
 export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onError) {
 	debugLog("Hàm handleVietnamTaxPrint (VIỆT NAM) được gọi...");
 
+	// === LOG DEBUG CHI TIẾT INVOICE DATA ===
+	debugLog(`[VAT_DEBUG] 🎯 INVOICE DATA RECEIVED:`);
+	debugLog(`[VAT_DEBUG] 📊 Invoice Info: ${invoice.name}, Items Count: ${invoice.items.length}`);
+	debugLog(`[VAT_DEBUG] 📊 POS Profile Country: ${pos_profile.country}`);
+
 	try {
 		// === BƯỚC 0: KIỂM TRA CẤU HÌNH (VIỆT NAM) ===
 		debugLog("Bước 0: Bắt đầu xác thực cấu hình (Việt Nam).");
@@ -215,6 +220,23 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 		// Lưu ý: invoice.items là các POS Invoice Item, không phải Item master
 		debugLog("Bước 1: Bắt đầu tạo danh sách sản phẩm chi tiết (ProductDto) từ POS Invoice Items...");
 
+		// === LOG DEBUG CHI TIẾT INVOICE ITEMS ===
+		debugLog(`[VAT_DEBUG] 📦 PROCESSING ${invoice.items.length} INVOICE ITEMS:`);
+		invoice.items.forEach((item, index) => {
+			debugLog(`[VAT_DEBUG] 📦 Item ${index + 1}: ${item.item_name} (${item.item_code})`);
+			debugLog(`[VAT_DEBUG] 📦 Raw Data:`, {
+				rate: item.rate,
+				base_rate: item.base_rate,
+				base_amount: item.base_amount,
+				base_net_amount: item.base_net_amount,
+				amount: item.amount,
+				qty: item.qty,
+				custom_vat_applicable: item.custom_vat_applicable,
+				custom_vat_rate: item.custom_vat_rate,
+				custom_inventory_type: item.custom_inventory_type,
+			});
+		});
+
 		const products = invoice.items.map((item) => {
 			// LƯU Ý QUAN TRỌNG:
 			// Bạn phải thêm các "Custom Fields" (Trường tùy chỉnh) sau đây vào DocType "POS Invoice Item"
@@ -231,38 +253,89 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 			let exciseRate = "0"; // Mặc định 0%
 			let priceExcludingVAT = item.rate; // Mặc định = giá hiện tại (có VAT)
 
+			// === LOG DEBUG CHI TIẾT VAT TRƯỚC KHI XỬ LÝ ===
+			debugLog(`[VAT_DEBUG] 🎯 PROCESSING ITEM: ${item.item_name} (${item.item_code})`);
+			debugLog(`[VAT_DEBUG] 📊 Raw Item Data:`, {
+				custom_vat_applicable: item.custom_vat_applicable,
+				custom_vat_rate: item.custom_vat_rate,
+				custom_inventory_type: item.custom_inventory_type,
+				rate: item.rate,
+				base_amount: item.base_amount,
+				base_net_amount: item.base_net_amount,
+				amount: item.amount,
+				base_rate: item.base_rate,
+			});
+
 			// Logic VAT: kiểm tra custom_vat_applicable trước
 			const vatApplicable =
 				item.custom_vat_applicable !== false && item.custom_vat_applicable !== "false";
+			debugLog(
+				`[VAT_DEBUG] 📊 VAT Logic Check: vatApplicable = ${vatApplicable}, inventory_type = ${item.custom_inventory_type}`,
+			);
+
 			if (vatApplicable && item.custom_inventory_type === "0") {
 				// Lấy VAT rate từ custom_vat_rate
 				vatRate = String(item.custom_vat_rate || "8"); // Mặc định VAT 8%
+				debugLog(`[VAT_DEBUG] ✅ VAT Applicable - Using vatRate: ${vatRate}`);
 
 				// === TÍNH GIÁ CHƯA VAT TỪ base_amount/base_net_amount ===
 				// Sử dụng base_amount hoặc base_net_amount thay vì item.rate
 				const baseAmount = item.base_amount || item.base_net_amount;
+				debugLog(
+					`[VAT_DEBUG] 💰 Price Calculation - baseAmount: ${baseAmount}, item.rate: ${item.rate}`,
+				);
+
 				if (baseAmount && baseAmount > 0) {
 					// Nếu có base_amount, sử dụng nó (đã là giá chưa VAT)
 					priceExcludingVAT = baseAmount;
+					debugLog(`[VAT_DEBUG] ✅ Using base_amount as priceExcludingVAT: ${priceExcludingVAT}`);
 				} else {
 					// Fallback: tính từ item.rate nếu không có base_amount
 					const vatRateNum = parseFloat(vatRate);
 					if (vatRateNum > 0) {
 						const priceIncludingVAT = parseFloat(item.rate);
 						priceExcludingVAT = priceIncludingVAT / (1 + vatRateNum / 100);
+						debugLog(
+							`[VAT_DEBUG] ⚠️ No base_amount, calculated from item.rate: ${priceIncludingVAT} / (1 + ${vatRateNum}/100) = ${priceExcludingVAT}`,
+						);
+					} else {
+						debugLog(`[VAT_DEBUG] ⚠️ VAT rate is 0, using item.rate as is: ${item.rate}`);
 					}
 				}
 				// Làm tròn đến 0 chữ số thập phân và làm tròn lên (RoundUp)
 				priceExcludingVAT = Math.ceil(priceExcludingVAT);
+				debugLog(`[VAT_DEBUG] 🔢 Final priceExcludingVAT after rounding: ${priceExcludingVAT}`);
 			} else if (!vatApplicable) {
 				// Nếu custom_vat_applicable = false thì VAT rate = "-1"
 				vatRate = "-1";
 				// Giá chưa VAT = giá hiện tại (không có VAT)
 				priceExcludingVAT = item.rate;
+				debugLog(
+					`[VAT_DEBUG] ❌ VAT Not Applicable - Using vatRate: ${vatRate}, priceExcludingVAT: ${priceExcludingVAT}`,
+				);
+			} else {
+				debugLog(
+					`[VAT_DEBUG] ⚠️ Item is not inventory type 0 or VAT not applicable - vatRate: ${vatRate}, priceExcludingVAT: ${priceExcludingVAT}`,
+				);
 			}
 
 			// Excise tax từ custom_excise_rate
 			exciseRate = String(item.custom_excise_rate || "0");
+
+			// === LOG DEBUG CHI TIẾT VAT TRƯỚC KHI TRẢ VỀ ===
+			debugLog(`[VAT_DEBUG] 🎯 FINAL PRODUCT DATA FOR MISA:`);
+			debugLog(`[VAT_DEBUG] 📊 Final Values:`, {
+				Name: item.item_name || item.description,
+				Qty: item.qty,
+				Price: priceExcludingVAT,
+				VATRate: isCommercialDiscount ? "0" : vatRate,
+				InventoryItemType: String(item.custom_inventory_type || (isCommercialDiscount ? "4" : "0")),
+				isCommercialDiscount: isCommercialDiscount,
+			});
+			debugLog(
+				`[VAT_DEBUG] 💰 Price Summary: Original=${item.rate}, ExclVAT=${priceExcludingVAT}, VATRate=${vatRate}`,
+			);
+			debugLog(`[VAT_DEBUG] ✅ Item ${item.item_code} processed for MISA API`);
 
 			return {
 				Name: item.item_name || item.description,
@@ -289,9 +362,36 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 		});
 		debugLog("Tạo danh sách sản phẩm chi tiết thành công.", { productCount: products.length });
 
+		// === LOG DEBUG CHI TIẾT PRODUCTS ARRAY ===
+		debugLog(`[VAT_DEBUG] 📦 FINAL PRODUCTS ARRAY FOR MISA API:`);
+		products.forEach((product, index) => {
+			debugLog(`[VAT_DEBUG] 📦 Product ${index + 1}: ${product.Name}`);
+			debugLog(`[VAT_DEBUG] 📦 Data:`, {
+				Qty: product.Qty,
+				Price: product.Price,
+				VATRate: product.VATRate,
+				InventoryItemType: product.InventoryItemType,
+				_debug_original_price: product._debug_original_price,
+				_debug_price_excl_vat: product._debug_price_excl_vat,
+				_debug_vat_rate: product._debug_vat_rate,
+			});
+		});
+
 		// === BƯỚC 2: TẠO BODY HOÀN CHỈNH (PrintRequest) ===
 		// TUÂN THỦ CHÍNH XÁC theo Test Client (bản 10 test case)
 		debugLog("Bước 2: Tạo body request (PrintRequest) cho VNTAX theo chuẩn test case...");
+
+		// === LOG DEBUG CHI TIẾT REQUEST BODY ===
+		debugLog(`[VAT_DEBUG] 📤 REQUEST BODY FOR MISA API:`);
+		debugLog(`[VAT_DEBUG] 📤 Header Info:`, {
+			Flag: "VNTAX",
+			Country: "VN",
+			DocNo: invoice.name,
+			InternalCode: internalCode,
+			CustomerName: String(invoice.customer || invoice.customer_name || invoice.title || "Khách lẻ"),
+			Currency: String(invoice.currency || "VND"),
+		});
+		debugLog(`[VAT_DEBUG] 📤 Products Count: ${products.length}`);
 
 		// Tạo InternalCode theo format: VN-IC-{4 ký tự ngẫu nhiên}
 		//const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -327,6 +427,17 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 
 		// === BƯỚC 3: GỌI API PROXY ===
 		debugLog("Bước 3: Gửi yêu cầu đến API Proxy (VNTAX)...");
+
+		// === LOG DEBUG CHI TIẾT REQUEST BEING SENT ===
+		debugLog(`[VAT_DEBUG] 🚀 SENDING REQUEST TO MISA API:`);
+		debugLog(`[VAT_DEBUG] 🚀 URL: ${apiUrl}`);
+		debugLog(`[VAT_DEBUG] 🚀 Method: POST`);
+		debugLog(`[VAT_DEBUG] 🚀 Headers:`, {
+			"Content-Type": "application/json",
+			"X-Protect-Print-Key": protectKey ? "***PROTECTED***" : "MISSING",
+		});
+		debugLog(`[VAT_DEBUG] 🚀 Body Preview:`, JSON.stringify(body).substring(0, 1000) + "...");
+
 		const response = await fetch(apiUrl, {
 			method: "POST",
 			headers: {
@@ -342,6 +453,11 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 			ok: response.ok,
 			body: responseText.substring(0, 500),
 		});
+
+		// === LOG DEBUG CHI TIẾT RESPONSE ===
+		debugLog(`[VAT_DEBUG] 📥 MISA API RESPONSE:`);
+		debugLog(`[VAT_DEBUG] 📥 Status: ${response.status} (${response.ok ? "OK" : "ERROR"})`);
+		debugLog(`[VAT_DEBUG] 📥 Response Body: ${responseText}`);
 
 		if (!response.ok) {
 			throw new Error(`Lỗi từ máy chủ in (${response.status}): ${responseText}`);

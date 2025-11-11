@@ -888,6 +888,12 @@ def get_item_tax_info(item_code, price_list=None):
     vat_rate = item_doc.custom_vat_rate or "8"  # Mặc định VAT 8%
     final_vat_rate = vat_rate if vat_applicable else "-1"
 
+    # === LOG DEBUG CHI TIẾT VAT ===
+    log.info(f"[VAT_DEBUG] 🎯 GET_ITEM_TAX_INFO - Item: {item_code}")
+    log.info(f"[VAT_DEBUG] 📊 Item Master - custom_vat_applicable: {item_doc.custom_vat_applicable}, custom_vat_rate: {item_doc.custom_vat_rate}")
+    log.info(f"[VAT_DEBUG] 📊 Calculated - vat_applicable: {vat_applicable}, vat_rate: {vat_rate}, final_vat_rate: {final_vat_rate}")
+    log.info(f"[VAT_DEBUG] 📊 Item Price - service_fee_rate: {item_price_data[0].custom_service_fee_rate if item_price_data else 'N/A'}, discount_rate: {item_price_data[0].custom_discount_rate if item_price_data else 'N/A'}")
+
     return {
         "custom_inventory_type": item_doc.custom_inventory_type or "0",
         "custom_vat_applicable": vat_applicable,
@@ -1029,6 +1035,11 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
     # === THÊM THÔNG TIN THUẾ CHO MISA ===
     tax_info = get_item_tax_info(item_code, price_list)
     res.update(tax_info)
+
+    # === LOG DEBUG CHI TIẾT VAT KHI LOAD ITEM ===
+    log.info(f"[VAT_DEBUG] 🎯 GET_ITEM_DETAIL - Item: {item_code}, Price List: {price_list}")
+    log.info(f"[VAT_DEBUG] 📊 Item Detail Response - custom_vat_applicable: {res.get('custom_vat_applicable')}, custom_vat_rate: {res.get('custom_vat_rate')}, final_vat_rate: {res.get('final_vat_rate')}")
+    log.info(f"[VAT_DEBUG] 💰 Price Info - rate: {res.get('rate')}, base_rate: {res.get('base_rate')}, base_amount: {res.get('base_amount')}")
 
     return res
 
