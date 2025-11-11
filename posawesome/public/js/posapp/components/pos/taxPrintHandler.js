@@ -382,6 +382,10 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 		// TUÂN THỦ CHÍNH XÁC theo Test Client (bản 10 test case)
 		debugLog("Bước 2: Tạo body request (PrintRequest) cho VNTAX theo chuẩn test case...");
 
+		// Tạo InternalCode theo format: VN-IC-{4 ký tự ngẫu nhiên}
+		const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+		const internalCode = `VN-IC-${randomSuffix}`;
+
 		// === LOG DEBUG CHI TIẾT REQUEST BODY ===
 		debugLog(`[VAT_DEBUG] 📤 REQUEST BODY FOR MISA API:`);
 		debugLog(`[VAT_DEBUG] 📤 Header Info:`, {
@@ -393,10 +397,6 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 			Currency: String(invoice.currency || "VND"),
 		});
 		debugLog(`[VAT_DEBUG] 📤 Products Count: ${products.length}`);
-
-		// Tạo InternalCode theo format: VN-IC-{4 ký tự ngẫu nhiên}
-		//const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-		const internalCode = invoice.name;
 
 		const body = {
 			// Cờ (QUAN TRỌNG - PHẢI LÀ "VNTAX")

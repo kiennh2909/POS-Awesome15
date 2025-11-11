@@ -31,11 +31,13 @@ function formatCurrency(value, precision = 2) {
 export default {
 	// Helper method to get tax info from backend
 	async getItemTaxInfo(item_code, price_list) {
+		console.log("[DEBUG] getItemTaxInfo called with:", { item_code, price_list });
 		// Call backend API to get tax info
 		const response = await frappe.call({
 			method: "posawesome.posawesome.api.items.get_item_tax_info",
 			args: { item_code, price_list },
 		});
+		console.log("[DEBUG] getItemTaxInfo response:", response.message);
 		return response.message;
 	},
 	// Helper: Merge new item with existing item in cart
@@ -327,12 +329,15 @@ export default {
 			// === THÊM THÔNG TIN THUẾ CHO MISA ===
 			// Copy tax information từ Item + Item Price vào Invoice Item
 			try {
+				console.log("[DEBUG] Calling getItemTaxInfo for item:", item.item_code);
 				const tax_info = await this.getItemTaxInfo(
 					item.item_code,
 					this.selected_price_list || this.pos_profile.selling_price_list,
 				);
+				console.log("[DEBUG] Tax info received:", tax_info);
 
 				new_item.custom_inventory_type = tax_info.custom_inventory_type;
+				new_item.custom_vat_applicable = tax_info.custom_vat_applicable;
 				new_item.custom_vat_rate = tax_info.vat_rate;
 				new_item.custom_excise_rate = tax_info.custom_excise_rate;
 				new_item.custom_service_fee_rate = tax_info.custom_service_fee_rate;
@@ -342,13 +347,14 @@ export default {
 				console.log("Tax info copied to new item:", {
 					item_code: new_item.item_code,
 					custom_inventory_type: new_item.custom_inventory_type,
+					custom_vat_applicable: new_item.custom_vat_applicable,
 					custom_vat_rate: new_item.custom_vat_rate,
-					custom_excise_rate: new_item.custom_excise_rate,
 				});
 			} catch (error) {
 				console.error("Failed to get tax info for item:", item.item_code, error);
 				// Set default values if API fails
 				new_item.custom_inventory_type = "0";
+				new_item.custom_vat_applicable = true; // Default to true
 				new_item.custom_vat_rate = "10";
 				new_item.custom_excise_rate = "0";
 				new_item.custom_service_fee_rate = "0";
