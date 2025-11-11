@@ -885,7 +885,7 @@ def get_item_tax_info(item_code, price_list=None):
 
     # Tính VAT rate cuối cùng
     vat_applicable = item_doc.custom_vat_applicable or True
-    vat_rate = item_doc.custom_vat_rate or "10"
+    vat_rate = item_doc.custom_vat_rate or "8"  # Mặc định VAT 8%
     final_vat_rate = vat_rate if vat_applicable else "-1"
 
     return {
@@ -896,7 +896,8 @@ def get_item_tax_info(item_code, price_list=None):
         "custom_service_fee_rate": item_price_data[0].custom_service_fee_rate if item_price_data else "0",
         "custom_discount_rate": item_price_data[0].custom_discount_rate if item_price_data else "0",
         "item_group": item_doc.item_group or "",
-        "vat_rate": final_vat_rate
+        "vat_rate": final_vat_rate,
+        "final_vat_rate": final_vat_rate  # Thêm field này để client dễ sử dụng
     }
 
 

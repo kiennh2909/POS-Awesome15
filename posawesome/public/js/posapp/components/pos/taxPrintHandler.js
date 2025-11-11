@@ -211,8 +211,9 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 		debugLog("Xác thực cấu hình (Việt Nam) thành công.");
 
 		// === BƯỚC 1: TẠO DANH SÁCH SẢN PHẨM CHI TIẾT (ProductDto) ===
-		// Ánh xạ 'invoice.items' sang 'ProductDto'
-		debugLog("Bước 1: Bắt đầu tạo danh sách sản phẩm chi tiết (ProductDto)...");
+		// Ánh xạ 'invoice.items' (POS Invoice Item) sang 'ProductDto'
+		// Lưu ý: invoice.items là các POS Invoice Item, không phải Item master
+		debugLog("Bước 1: Bắt đầu tạo danh sách sản phẩm chi tiết (ProductDto) từ POS Invoice Items...");
 
 		const products = invoice.items.map((item) => {
 			// LƯU Ý QUAN TRỌNG:
@@ -225,22 +226,58 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 				item.item_name?.toLowerCase().includes("chiết khấu") ||
 				item.item_name?.toLowerCase().includes("chiếu khấu");
 
+			// === TÍNH TOÁN VAT THEO LOGIC CUSTOMIZE ===
+			let vatRate = "0"; // Mặc định 0%
+			let exciseRate = "0"; // Mặc định 0%
+			let priceExcludingVAT = item.rate; // Mặc định = giá hiện tại (có VAT)
+
+			// Logic VAT: kiểm tra custom_vat_applicable trước
+			const vatApplicable =
+				item.custom_vat_applicable !== false && item.custom_vat_applicable !== "false";
+			if (vatApplicable && item.custom_inventory_type === "0") {
+				// Lấy VAT rate từ custom_vat_rate
+				vatRate = String(item.custom_vat_rate || "8"); // Mặc định VAT 8%
+
+				// === TÍNH GIÁ CHƯA VAT TỪ GIÁ CÓ VAT ===
+				// Công thức: Giá chưa VAT = Giá có VAT ÷ (1 + VAT Rate ÷ 100)
+				const vatRateNum = parseFloat(vatRate);
+				if (vatRateNum > 0) {
+					const priceIncludingVAT = parseFloat(item.rate);
+					priceExcludingVAT = priceIncludingVAT / (1 + vatRateNum / 100);
+					// Làm tròn đến 0 chữ số thập phân và làm tròn lên (RoundUp)
+					priceExcludingVAT = Math.ceil(priceExcludingVAT);
+				}
+			} else if (!vatApplicable) {
+				// Nếu custom_vat_applicable = false thì VAT rate = "-1"
+				vatRate = "-1";
+				// Giá chưa VAT = giá hiện tại (không có VAT)
+				priceExcludingVAT = item.rate;
+			}
+
+			// Excise tax từ custom_excise_rate
+			exciseRate = String(item.custom_excise_rate || "0");
+
 			return {
 				Name: item.item_name || item.description,
 				Qty: String(item.qty),
-				Price: String(item.rate), // Đơn giá (trước thuế)
-				UnitName: item.uom || "Cái", // Đơn vị tính
+				Price: String(priceExcludingVAT), // ← GIÁ CHƯA VAT (đã tính)
+				UnitName: item.uom || "Cái",
 
-				// === ĐỌC TỪ CUSTOM FIELDS CỦA ERPNEXT ===
-				InventoryItemType: String(item.custom_inventory_type || (isCommercialDiscount ? "4" : "0")), // "0" = Hàng hóa, "4" = Chiết khấu
-				VATRate: String(item.custom_vat_rate || (isCommercialDiscount ? "0" : "10")), // Chiết khấu thường VAT 0%
-				DiscountRate: String(item.custom_discount_rate || "0"), // Ví dụ: "5" (cho 5%)
+				// VAT information
+				InventoryItemType: String(item.custom_inventory_type || (isCommercialDiscount ? "4" : "0")),
+				VATRate: isCommercialDiscount ? "0" : vatRate,
+				DiscountRate: String(item.custom_discount_rate || "0"),
 				ServiceFeeRate: String(item.custom_service_fee_rate || "0"),
-				ExciseTaxRate: String(item.custom_excise_rate || "0"),
+				ExciseTaxRate: exciseRate,
 
-				// Các trường phụ (TUÂN THỦ TEST CASE)
-				Category: isCommercialDiscount ? "CK" : item.item_group || "N/A", // Chiết khấu dùng "CK"
-				WarehouseCode: isCommercialDiscount ? "CK" : item.warehouse || "N/A", // Chiết khấu dùng "CK"
+				// Các trường phụ
+				Category: isCommercialDiscount ? "CK" : item.item_group || "N/A",
+				WarehouseCode: isCommercialDiscount ? "CK" : item.warehouse || "N/A",
+
+				// Debug info (có thể remove sau)
+				_debug_original_price: item.rate, // Giá gốc có VAT
+				_debug_price_excl_vat: priceExcludingVAT, // Giá đã chuyển đổi
+				_debug_vat_rate: vatRate,
 			};
 		});
 		debugLog("Tạo danh sách sản phẩm chi tiết thành công.", { productCount: products.length });
