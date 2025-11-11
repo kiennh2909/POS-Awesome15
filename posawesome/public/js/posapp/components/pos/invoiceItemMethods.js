@@ -1232,6 +1232,14 @@ export default {
 				batch_no: item.batch_no,
 				posa_notes: item.posa_notes,
 				posa_delivery_date: this.formatDateForBackend(item.posa_delivery_date),
+				// === THÊM THÔNG TIN THUẾ CHO MISA ===
+				custom_inventory_type: item.custom_inventory_type,
+				custom_vat_applicable: item.custom_vat_applicable,
+				custom_vat_rate: item.custom_vat_rate,
+				custom_excise_rate: item.custom_excise_rate,
+				custom_service_fee_rate: item.custom_service_fee_rate,
+				custom_discount_rate: item.custom_discount_rate,
+				item_group: item.item_group,
 			};
 			if (isReturn && !new_item.sales_invoice_item && item.name) {
 				new_item.sales_invoice_item = item.name;
@@ -1272,6 +1280,16 @@ export default {
 				new_item.discount_amount = flt(item.discount_amount);
 				new_item.base_discount_amount = item.base_discount_amount || flt(item.discount_amount);
 			}
+
+			// === COPY THÔNG TIN THUẾ CHO MISA ===
+			// Đảm bảo các trường thuế được copy từ item vào invoice document
+			new_item.custom_inventory_type = item.custom_inventory_type || "0";
+			new_item.custom_vat_applicable = item.custom_vat_applicable;
+			new_item.custom_vat_rate = item.custom_vat_rate || "0";
+			new_item.custom_excise_rate = item.custom_excise_rate || "0";
+			new_item.custom_service_fee_rate = item.custom_service_fee_rate || "0";
+			new_item.custom_discount_rate = item.custom_discount_rate || "0";
+			new_item.item_group = item.item_group || "";
 
 			// For returns, ensure all amounts are negative
 			if (isReturn) {
