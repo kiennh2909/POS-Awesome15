@@ -238,15 +238,22 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 				// Lấy VAT rate từ custom_vat_rate
 				vatRate = String(item.custom_vat_rate || "8"); // Mặc định VAT 8%
 
-				// === TÍNH GIÁ CHƯA VAT TỪ GIÁ CÓ VAT ===
-				// Công thức: Giá chưa VAT = Giá có VAT ÷ (1 + VAT Rate ÷ 100)
-				const vatRateNum = parseFloat(vatRate);
-				if (vatRateNum > 0) {
-					const priceIncludingVAT = parseFloat(item.rate);
-					priceExcludingVAT = priceIncludingVAT / (1 + vatRateNum / 100);
-					// Làm tròn đến 0 chữ số thập phân và làm tròn lên (RoundUp)
-					priceExcludingVAT = Math.ceil(priceExcludingVAT);
+				// === TÍNH GIÁ CHƯA VAT TỪ base_amount/base_net_amount ===
+				// Sử dụng base_amount hoặc base_net_amount thay vì item.rate
+				const baseAmount = item.base_amount || item.base_net_amount;
+				if (baseAmount && baseAmount > 0) {
+					// Nếu có base_amount, sử dụng nó (đã là giá chưa VAT)
+					priceExcludingVAT = baseAmount;
+				} else {
+					// Fallback: tính từ item.rate nếu không có base_amount
+					const vatRateNum = parseFloat(vatRate);
+					if (vatRateNum > 0) {
+						const priceIncludingVAT = parseFloat(item.rate);
+						priceExcludingVAT = priceIncludingVAT / (1 + vatRateNum / 100);
+					}
 				}
+				// Làm tròn đến 0 chữ số thập phân và làm tròn lên (RoundUp)
+				priceExcludingVAT = Math.ceil(priceExcludingVAT);
 			} else if (!vatApplicable) {
 				// Nếu custom_vat_applicable = false thì VAT rate = "-1"
 				vatRate = "-1";
