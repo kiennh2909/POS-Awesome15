@@ -279,33 +279,33 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 				vatRate = String(item.custom_vat_rate || "8"); // Mặc định VAT 8%
 				debugLog(`[VAT_DEBUG] ✅ VAT Applicable - Using vatRate: ${vatRate}`);
 
-				// === TÍNH GIÁ CHƯA VAT TỪ base_amount/base_net_amount ===
-				// Sử dụng base_amount hoặc base_net_amount thay vì item.rate
-				const baseAmount = item.base_amount || item.base_net_amount;
+				// === TÍNH GIÁ CHƯA VAT TỪ base_net_amount (ĐÚNG THEO YÊU CẦU) ===
+				// Sử dụng base_net_amount thay vì base_amount vì base_net_amount là giá chưa VAT
+				const baseNetAmount = item.base_net_amount;
 				debugLog(
-					`[VAT_DEBUG] 💰 Price Calculation - baseAmount: ${baseAmount}, item.rate: ${item.rate}`,
+					`[VAT_DEBUG] 💰 Price Calculation - base_net_amount: ${baseNetAmount}, base_amount: ${item.base_amount}, item.rate: ${item.rate}`,
 				);
 
-				if (baseAmount && baseAmount > 0) {
-					// Nếu có base_amount, sử dụng nó (đã là giá chưa VAT)
-					priceExcludingVAT = baseAmount;
-					debugLog(`[VAT_DEBUG] ✅ Using base_amount as priceExcludingVAT: ${priceExcludingVAT}`);
+				if (baseNetAmount && baseNetAmount > 0) {
+					// Nếu có base_net_amount, sử dụng nó (đã là giá chưa VAT)
+					priceExcludingVAT = baseNetAmount;
+					debugLog(`[VAT_DEBUG] ✅ Using base_net_amount as priceExcludingVAT: ${priceExcludingVAT}`);
 				} else {
-					// Fallback: tính từ item.rate nếu không có base_amount
+					// Fallback: tính từ item.rate nếu không có base_net_amount
 					const vatRateNum = parseFloat(vatRate);
 					if (vatRateNum > 0) {
 						const priceIncludingVAT = parseFloat(item.rate);
 						priceExcludingVAT = priceIncludingVAT / (1 + vatRateNum / 100);
 						debugLog(
-							`[VAT_DEBUG] ⚠️ No base_amount, calculated from item.rate: ${priceIncludingVAT} / (1 + ${vatRateNum}/100) = ${priceExcludingVAT}`,
+							`[VAT_DEBUG] ⚠️ No base_net_amount, calculated from item.rate: ${priceIncludingVAT} / (1 + ${vatRateNum}/100) = ${priceExcludingVAT}`,
 						);
 					} else {
 						debugLog(`[VAT_DEBUG] ⚠️ VAT rate is 0, using item.rate as is: ${item.rate}`);
 					}
 				}
-				// Làm tròn đến 0 chữ số thập phân và làm tròn lên (RoundUp)
+				// Làm tròn đến 0 chữ số thập phân và làm tròn lên (RoundUp) cho VND
 				priceExcludingVAT = Math.ceil(priceExcludingVAT);
-				debugLog(`[VAT_DEBUG] 🔢 Final priceExcludingVAT after rounding: ${priceExcludingVAT}`);
+				debugLog(`[VAT_DEBUG] 🔢 Final priceExcludingVAT after rounding (RoundUp for VND): ${priceExcludingVAT}`);
 			} else if (!vatApplicable) {
 				// Nếu custom_vat_applicable = false thì VAT rate = "-1"
 				vatRate = "-1";
