@@ -265,6 +265,7 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 				amount: item.amount,
 				base_rate: item.base_rate,
 			});
+			debugLog(`[VAT_DEBUG] 📊 Type Check - custom_vat_applicable: ${typeof item.custom_vat_applicable}, custom_vat_rate: ${typeof item.custom_vat_rate}`);
 
 			// Logic VAT: kiểm tra custom_vat_applicable trước
 			const vatApplicable =
