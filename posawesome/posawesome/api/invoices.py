@@ -255,10 +255,9 @@ def update_invoice(data):
 			pos_profile_doc = frappe.get_doc("POS Profile", data.get("pos_profile"))
 			if hasattr(pos_profile_doc, 'taxes_and_charges') and pos_profile_doc.taxes_and_charges:
 				log.info(f"[UPDATE_INVOICE] 🚨 FOUND TAX SOURCE - POS Profile '{data.get('pos_profile')}' has taxes_and_charges: '{pos_profile_doc.taxes_and_charges}'")
-				log.info(f"[UPDATE_INVOICE] 🛡️ CRITICAL FIX - Clearing taxes_and_charges from POS Profile immediately")
-				pos_profile_doc.taxes_and_charges = None
-				pos_profile_doc.save()
-				log.info(f"[UPDATE_INVOICE] ✅ Cleared taxes_and_charges from POS Profile")
+				log.info(f"[UPDATE_INVOICE] 🛡️ CRITICAL FIX - Will override taxes_and_charges in invoice after set_missing_values")
+				# Don't modify POS Profile directly to avoid LinkValidationError
+				# Instead, we'll override in invoice document after set_missing_values
 
 		invoice_doc = frappe.get_doc(data)
 		log.info(f"[UPDATE_INVOICE] ✅ New invoice document created")
@@ -401,6 +400,14 @@ def update_invoice(data):
 
 	invoice_doc.set_missing_values()
 	log.info(f"[UPDATE_INVOICE] ✅ Missing values set")
+
+	# CRITICAL FIX: Override taxes_and_charges in invoice document to prevent POS Profile 8% tax override
+	if data.get("pos_profile"):
+		pos_profile_doc = frappe.get_doc("POS Profile", data.get("pos_profile"))
+		if hasattr(pos_profile_doc, 'taxes_and_charges') and pos_profile_doc.taxes_and_charges:
+			log.info(f"[UPDATE_INVOICE] 🛡️ CRITICAL FIX - Clearing taxes_and_charges from invoice document to prevent POS Profile override")
+			invoice_doc.taxes_and_charges = None
+			log.info(f"[UPDATE_INVOICE] ✅ Cleared taxes_and_charges from invoice document")
 
 	# Restore original taxes_and_charges if we had item-level tax templates
 	if has_item_tax_templates and original_taxes_and_charges:
