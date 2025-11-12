@@ -441,11 +441,25 @@ def update_invoice(data):
 	# Calculate taxes and totals to apply Item Tax Template logic
 	log.info(f"[UPDATE_INVOICE] 🧾 Calculating taxes and totals for invoice")
 
+	# DEBUG: Log taxes_and_charges before calculate_taxes_and_totals
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Before calculate_taxes_and_totals:")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.taxes_and_charges: {invoice_doc.taxes_and_charges}")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.taxes length: {len(invoice_doc.taxes) if hasattr(invoice_doc, 'taxes') else 'N/A'}")
+
 	# Debug: Log item tax templates before calculation
 	for i, item in enumerate(invoice_doc.items):
 		log.info(f"[UPDATE_INVOICE] 🧾 Item {i+1} ({item.item_code}): item_tax_template = {item.item_tax_template}")
 
 	invoice_doc.calculate_taxes_and_totals()
+
+	# DEBUG: Log taxes_and_charges after calculate_taxes_and_totals
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - After calculate_taxes_and_totals:")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.taxes_and_charges: {invoice_doc.taxes_and_charges}")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.taxes length: {len(invoice_doc.taxes) if hasattr(invoice_doc, 'taxes') else 'N/A'}")
+	if hasattr(invoice_doc, 'taxes') and invoice_doc.taxes:
+		for i, tax in enumerate(invoice_doc.taxes):
+			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Tax {i+1}: account_head={tax.account_head}, rate={tax.rate}, amount={tax.tax_amount}")
+
 	log.info(f"[UPDATE_INVOICE] ✅ Taxes and totals calculated")
 
 	# Log tax information after calculation
