@@ -132,7 +132,10 @@ def update_invoice(data):
 	log.info(f"[UPDATE_INVOICE] 🎯 START - Processing invoice update")
 
 	# Debug log: Raw data received from client
-	log.info(f"[UPDATE_INVOICE] 📥 RAW DATA RECEIVED: {data}")
+	log.info(f"[VAT_TRACE] BACKEND RECEIVE - Step 5: Raw data received from client")
+	log.info(f"[VAT_TRACE] BACKEND RECEIVE - Invoice data: {data}")
+	for i, item in enumerate(data.get('items', [])):
+		log.info(f"[VAT_TRACE] BACKEND RECEIVE - Item {i+1} ({item.get('item_code')}): custom_vat_applicable={item.get('custom_vat_applicable')}, custom_vat_rate={item.get('custom_vat_rate')}, custom_inventory_type={item.get('custom_inventory_type')}")
 
 	# Log request metadata
 	log.info(f"[UPDATE_INVOICE] 📊 REQUEST METADATA:")
@@ -291,10 +294,20 @@ def update_invoice(data):
 	else:
 		log.info(f"[UPDATE_INVOICE] ✅ Customer exists: {customer_name}")
 
+	# === LOG VAT INFO TRƯỚC KHI SET_MISSING_VALUES ===
+	log.info(f"[VAT_TRACE] BEFORE SET_MISSING_VALUES - Step 6: Invoice: {invoice_doc.name}")
+	for i, item in enumerate(invoice_doc.items):
+		log.info(f"[VAT_TRACE] BEFORE SET_MISSING_VALUES - Item {i+1} ({item.item_code}): custom_vat_applicable={item.custom_vat_applicable}, custom_vat_rate={item.custom_vat_rate}, custom_inventory_type={item.custom_inventory_type}")
+
 	# Set missing values first
 	log.info(f"[UPDATE_INVOICE] 🔧 Setting missing values for invoice")
 	invoice_doc.set_missing_values()
 	log.info(f"[UPDATE_INVOICE] ✅ Missing values set")
+
+	# === LOG VAT INFO SAU KHI SET_MISSING_VALUES ===
+	log.info(f"[VAT_TRACE] AFTER SET_MISSING_VALUES - Step 7: Invoice: {invoice_doc.name}")
+	for i, item in enumerate(invoice_doc.items):
+		log.info(f"[VAT_TRACE] AFTER SET_MISSING_VALUES - Item {i+1} ({item.item_code}): custom_vat_applicable={item.custom_vat_applicable}, custom_vat_rate={item.custom_vat_rate}, custom_inventory_type={item.custom_inventory_type}")
 
 	# Calculate stock_qty for all items (critical for inventory management)
 	log.info(f"[UPDATE_INVOICE] 📦 Calculating stock_qty for {len(invoice_doc.items)} items")
@@ -474,9 +487,19 @@ def update_invoice(data):
 			log.error(f"[UPDATE_INVOICE] ❌ Failed to fix items structure: {str(fix_error)}")
 			frappe.throw(f"Failed to process invoice items: {str(fix_error)}")
 
+	# === LOG VAT INFO TRƯỚC KHI SAVE ===
+	log.info(f"[VAT_TRACE] BEFORE SAVE - Step 8: Invoice: {invoice_doc.name}")
+	for i, item in enumerate(invoice_doc.items):
+		log.info(f"[VAT_TRACE] BEFORE SAVE - Item {i+1} ({item.item_code}): custom_vat_applicable={item.custom_vat_applicable}, custom_vat_rate={item.custom_vat_rate}, custom_inventory_type={item.custom_inventory_type}")
+
 	_set_item_level_discount_totals(invoice_doc)
 	invoice_doc.save()
 	log.info(f"[UPDATE_INVOICE] ✅ Invoice saved successfully: {invoice_doc.name}")
+
+	# === LOG VAT INFO SAU KHI SAVE ===
+	log.info(f"[VAT_TRACE] AFTER SAVE - Step 9: Invoice: {invoice_doc.name}")
+	for i, item in enumerate(invoice_doc.items):
+		log.info(f"[VAT_TRACE] AFTER SAVE - Item {i+1} ({item.item_code}): custom_vat_applicable={item.custom_vat_applicable}, custom_vat_rate={item.custom_vat_rate}, custom_inventory_type={item.custom_inventory_type}")
 
 	# Calculate and set total item discount if field exists
 	if hasattr(invoice_doc, 'posa_total_item_discount'):
@@ -486,6 +509,10 @@ def update_invoice(data):
 		log.info(f"[UPDATE_INVOICE] Total item discount updated: {invoice_doc.posa_total_item_discount}")
 
 	# Return both the invoice doc and the updated data
+	log.info(f"[VAT_TRACE] RESPONSE TO CLIENT - Step 10: Invoice: {invoice_doc.name}")
+	for i, item in enumerate(invoice_doc.items):
+		log.info(f"[VAT_TRACE] RESPONSE TO CLIENT - Item {i+1} ({item.item_code}): custom_vat_applicable={item.custom_vat_applicable}, custom_vat_rate={item.custom_vat_rate}, custom_inventory_type={item.custom_inventory_type}")
+
 	log.info(f"[UPDATE_INVOICE] 📤 Preparing response data")
 	response = invoice_doc.as_dict()
 	response["conversion_rate"] = invoice_doc.conversion_rate

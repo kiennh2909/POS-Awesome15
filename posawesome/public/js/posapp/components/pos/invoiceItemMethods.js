@@ -348,13 +348,15 @@ export default {
 				new_item.custom_discount_rate = tax_info.custom_discount_rate;
 				new_item.item_group = tax_info.item_group;
 
-				console.log("Tax info copied to new item:", {
+				console.log("🔍 [VAT_TRACE] SCAN BARCODE - Tax info copied to new item:", {
 					item_code: new_item.item_code,
+					source: "getItemTaxInfo API",
 					custom_inventory_type: new_item.custom_inventory_type,
 					custom_vat_applicable: new_item.custom_vat_applicable,
 					custom_vat_rate: new_item.custom_vat_rate,
 					tax_info_vat_rate: tax_info.vat_rate,
-					tax_info_vat_rate_type: typeof tax_info.vat_rate,
+					tax_info_final_vat_rate: tax_info.final_vat_rate,
+					step: "1_scan_barcode_copy_tax_info"
 				});
 			} catch (error) {
 				console.error("Failed to get tax info for item:", item.item_code, error);
@@ -1318,7 +1320,7 @@ export default {
 			new_item.item_group = item.item_group || "";
 
 			// === LOG TRACKING KHI TẠO INVOICE DOCUMENT ===
-			console.log("📄 [INVOICE_DOC_LOG] TRACKING KHI TẠO INVOICE DOCUMENT - Item:", new_item.item_code, {
+			console.log("📄 [VAT_TRACE] CREATE INVOICE DOC - Item:", new_item.item_code, {
 				custom_inventory_type: new_item.custom_inventory_type,
 				custom_vat_applicable: new_item.custom_vat_applicable,
 				custom_vat_rate: new_item.custom_vat_rate,
@@ -1329,7 +1331,7 @@ export default {
 				qty: new_item.qty,
 				rate: new_item.rate,
 				amount: new_item.amount,
-				source: "get_invoice_items_create_doc"
+				step: "3_create_invoice_doc"
 			});
 
 			// For returns, ensure all amounts are negative
@@ -1445,6 +1447,26 @@ export default {
 	// Update invoice in backend
 	update_invoice(doc) {
 		var vm = this;
+
+		// === LOG DỮ LIỆU GỬI LÊN SERVER ===
+		console.log("🚀 [VAT_TRACE] SUBMIT TO SERVER - Invoice:", {
+			doc_name: doc.name,
+			doc_doctype: doc.doctype,
+			total_items: doc.items?.length || 0,
+			items_vat_info: doc.items?.map(item => ({
+				item_code: item.item_code,
+				custom_vat_applicable: item.custom_vat_applicable,
+				custom_vat_rate: item.custom_vat_rate,
+				custom_inventory_type: item.custom_inventory_type,
+				qty: item.qty,
+				rate: item.rate,
+				amount: item.amount,
+			})) || [],
+			total: doc.total,
+			grand_total: doc.grand_total,
+			step: "4_submit_to_server"
+		});
+
 		if (isOffline()) {
 			// When offline, simply merge the passed doc with the current invoice_doc
 			// to allow offline invoice creation without server calls
@@ -1463,6 +1485,25 @@ export default {
 			callback: function (r) {
 				if (r.message) {
 					vm.invoice_doc = r.message;
+
+					// === LOG RESPONSE TỪ SERVER ===
+					console.log("📥 [VAT_TRACE] SERVER RESPONSE - Invoice:", {
+						invoice_name: r.message.name,
+						total_items: r.message.items?.length || 0,
+						items_vat_info: r.message.items?.map(item => ({
+							item_code: item.item_code,
+							custom_vat_applicable: item.custom_vat_applicable,
+							custom_vat_rate: item.custom_vat_rate,
+							custom_inventory_type: item.custom_inventory_type,
+							qty: item.qty,
+							rate: item.rate,
+							amount: item.amount,
+						})) || [],
+						total: r.message.total,
+						grand_total: r.message.grand_total,
+						step: "9_server_response"
+					});
+
 					if (r.message.exchange_rate_date) {
 						vm.exchange_rate_date = r.message.exchange_rate_date;
 						const posting_backend = vm.formatDateForBackend(vm.posting_date_display);
@@ -1681,7 +1722,7 @@ export default {
 			console.log("Final payment data:", invoice_doc.payments);
 
 			// === LOG VAT INFO KHI CLICK PAY ===
-			console.log("💰 [PAY_LOG] VAT INFO KHI CLICK PAY - Invoice:", invoice_doc.name, {
+			console.log("💰 [VAT_TRACE] CLICK PAY - Invoice:", invoice_doc.name, {
 				total_items: invoice_doc.items?.length || 0,
 				items_with_vat: invoice_doc.items?.map(item => ({
 					item_code: item.item_code,
@@ -1693,7 +1734,7 @@ export default {
 				})) || [],
 				total: invoice_doc.total,
 				grand_total: invoice_doc.grand_total,
-				source: "show_payment_click_pay"
+				step: "2_click_pay"
 			});
 
 			// Double-check return invoice payments are negative
