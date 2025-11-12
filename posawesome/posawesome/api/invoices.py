@@ -323,6 +323,11 @@ def update_invoice(data):
 
 	# Calculate taxes and totals to apply Item Tax Template logic
 	log.info(f"[UPDATE_INVOICE] 🧾 Calculating taxes and totals for invoice")
+
+	# Debug: Log item tax templates before calculation
+	for i, item in enumerate(invoice_doc.items):
+		log.info(f"[UPDATE_INVOICE] 🧾 Item {i+1} ({item.item_code}): item_tax_template = {item.item_tax_template}")
+
 	invoice_doc.calculate_taxes_and_totals()
 	log.info(f"[UPDATE_INVOICE] ✅ Taxes and totals calculated")
 
@@ -333,6 +338,9 @@ def update_invoice(data):
 			log.info(f"[UPDATE_INVOICE] 🧾 Tax {i+1}: {tax.description} - Rate: {tax.rate}%, Amount: {tax.tax_amount}")
 	else:
 		log.info(f"[UPDATE_INVOICE] 🧾 No taxes found after calculation")
+		# Debug: Check if Item Tax Templates are properly set
+		for i, item in enumerate(invoice_doc.items):
+			log.info(f"[UPDATE_INVOICE] 🧾 DEBUG - Item {i+1} ({item.item_code}): item_tax_template = {item.item_tax_template}, amount = {item.amount}")
 
 	# Missing values set successfully
 
