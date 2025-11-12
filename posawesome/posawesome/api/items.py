@@ -900,7 +900,8 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
             limit=1
         )
         if tax_template_details and tax_template_details[0].get("tax_rate"):
-            vat_rate = str(tax_template_details[0]["tax_rate"])
+            # Convert to integer and then to string to remove decimal places
+            vat_rate = str(int(float(tax_template_details[0]["tax_rate"])))
             get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 1 - Using VAT rate from Item Tax Template: {vat_rate}%")
 
     # === ƯU TIÊN 2: Sales Taxes and Charges Template từ POS Profile ===
@@ -913,8 +914,11 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
             limit=1
         )
         if tax_template_details and tax_template_details[0].get("rate"):
-            vat_rate = str(tax_template_details[0]["rate"])
+            # Convert to integer and then to string to remove decimal places
+            vat_rate = str(int(float(tax_template_details[0]["rate"])))
             get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 2 - Using VAT rate from POS Profile Sales Tax Template: {vat_rate}%")
+
+    # === BỎ Priority 3 - Company Sales Tax Template (không sử dụng) ===
 
     # === FALLBACK: Custom VAT Rate hoặc mặc định 0% ===
     if not vat_rate:
