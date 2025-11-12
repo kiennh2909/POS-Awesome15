@@ -435,53 +435,115 @@ def update_invoice(data):
 		invoice_doc.taxes_and_charges = original_taxes_and_charges
 		log.info(f"[UPDATE_INVOICE] ✅ Preserved taxes_and_charges for item-level tax templates")
 
-	# If item has item_tax_template, try to set it as invoice-level taxes_and_charges
+	# Check if we have multiple tax rates in the invoice - if so, rely on item-level tax calculation
+	tax_rates_in_invoice = set()
+	tax_templates_in_invoice = set()
+
 	for item in invoice_doc.items:
-		if item.item_tax_template and not invoice_doc.taxes_and_charges:
-			# Check if Item Tax Template has tax rates
+		if item.item_tax_template:
+			tax_templates_in_invoice.add(item.item_tax_template)
+			# Get tax rate from template
 			try:
 				template_details = frappe.get_all(
 					"Item Tax Template Detail",
 					filters={"parent": item.item_tax_template},
-					fields=["tax_rate", "tax_type"],
+					fields=["tax_rate"],
 					limit=1
 				)
-				log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item Tax Template '{item.item_tax_template}' details: {template_details}")
+				if template_details:
+					tax_rates_in_invoice.add(template_details[0].get("tax_rate"))
 			except Exception as e:
-				log.error(f"[UPDATE_INVOICE] 🔍 DEBUG - Error querying Item Tax Template Detail for '{item.item_tax_template}': {e}")
-				# Try alternative SQL query
-				try:
-					template_sql = frappe.db.sql("""
-						SELECT tax_rate, tax_type
-						FROM `tabItem Tax Template Detail`
-						WHERE parent = %s
-						LIMIT 1
-					""", (item.item_tax_template,), as_dict=True)
-					log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item Tax Template '{item.item_tax_template}' details (SQL): {template_sql}")
-					template_details = template_sql
-				except Exception as sql_e:
-					log.error(f"[UPDATE_INVOICE] 🔍 DEBUG - Error with SQL query for template details: {sql_e}")
-					template_details = []
+				log.warning(f"[UPDATE_INVOICE] Could not get tax rate for template {item.item_tax_template}: {e}")
 
-			if template_details:
-				# Set invoice-level taxes_and_charges from Item Tax Template
-				# Use tax_type (Sales Taxes and Charges Template name) instead of item_tax_template name
-				sales_tax_template_name = template_details[0].get("tax_type")
-				invoice_doc.taxes_and_charges = sales_tax_template_name
-				log.info(f"[UPDATE_INVOICE] 🏷️ Set invoice taxes_and_charges '{sales_tax_template_name}' from item tax template")
-				log.info(f"[UPDATE_INVOICE] 🏷️ Template has tax rates: {template_details[0].get('tax_rate')}% (from {item.item_tax_template})")
-			else:
-				log.warning(f"[UPDATE_INVOICE] ⚠️ Item Tax Template '{item.item_tax_template}' has no tax rates - checking template directly")
+	has_multiple_tax_rates = len(tax_rates_in_invoice) > 1
+	log.info(f"[UPDATE_INVOICE] 🔍 Tax analysis for invoice-level setting:")
+	log.info(f"[UPDATE_INVOICE] 🔍   - Tax rates found: {list(tax_rates_in_invoice)}")
+	log.info(f"[UPDATE_INVOICE] 🔍   - Multiple tax rates: {has_multiple_tax_rates}")
 
-				# Try to get the template document directly
+	if has_multiple_tax_rates:
+		log.info(f"[UPDATE_INVOICE] ℹ️ Multiple tax rates detected - will rely on item-level tax calculation")
+		log.info(f"[UPDATE_INVOICE] ℹ️ ERPNext will automatically create separate tax entries for each rate (0%, 5%, 8%, 10%, etc.)")
+		log.info(f"[UPDATE_INVOICE] ℹ️ No invoice-level taxes_and_charges will be set")
+		# Don't set any invoice-level taxes_and_charges - let item-level templates handle it
+	else:
+		# Single tax rate - can set invoice-level taxes_and_charges
+		log.info(f"[UPDATE_INVOICE] ℹ️ Single tax rate detected - can set invoice-level taxes_and_charges")
+
+		# If item has item_tax_template, try to set it as invoice-level taxes_and_charges
+		for item in invoice_doc.items:
+			if item.item_tax_template and not invoice_doc.taxes_and_charges:
+				# Check if Item Tax Template has tax rates
 				try:
-					template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
-					log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Template doc taxes: {len(template_doc.taxes) if hasattr(template_doc, 'taxes') else 'N/A'}")
-					if hasattr(template_doc, 'taxes') and template_doc.taxes:
-						for i, tax in enumerate(template_doc.taxes):
-							log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Template tax {i+1}: rate={tax.tax_rate}%, type={tax.tax_type}")
+					template_details = frappe.get_all(
+						"Item Tax Template Detail",
+						filters={"parent": item.item_tax_template},
+						fields=["tax_rate", "tax_type"],
+						limit=1
+					)
+					log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item Tax Template '{item.item_tax_template}' details: {template_details}")
 				except Exception as e:
-					log.error(f"[UPDATE_INVOICE] ❌ Error getting template doc: {e}")
+					log.error(f"[UPDATE_INVOICE] 🔍 DEBUG - Error querying Item Tax Template Detail for '{item.item_tax_template}': {e}")
+					# Try alternative SQL query
+					try:
+						template_sql = frappe.db.sql("""
+							SELECT tax_rate, tax_type
+							FROM `tabItem Tax Template Detail`
+							WHERE parent = %s
+							LIMIT 1
+						""", (item.item_tax_template,), as_dict=True)
+						log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item Tax Template '{item.item_tax_template}' details (SQL): {template_sql}")
+						template_details = template_sql
+					except Exception as sql_e:
+						log.error(f"[UPDATE_INVOICE] 🔍 DEBUG - Error with SQL query for template details: {sql_e}")
+						template_details = []
+
+				if template_details:
+					# Set invoice-level taxes_and_charges from Item Tax Template
+					# Use tax_type (Sales Taxes and Charges Template name) instead of item_tax_template name
+					sales_tax_template_name = template_details[0].get("tax_type")
+					log.info(f"[UPDATE_INVOICE] 🏷️ Attempting to set taxes_and_charges to '{sales_tax_template_name}' from item tax template")
+
+					# Check if the template exists, if not try to find the correct one
+					if not frappe.db.exists("Sales Taxes and Charges Template", sales_tax_template_name):
+						log.warning(f"[UPDATE_INVOICE] ⚠️ Sales Taxes and Charges Template '{sales_tax_template_name}' not found, trying to find correct name")
+
+						# Try common variations for 5% VAT template
+						possible_names = [
+							"3313 - Thuế GTGT đầu ra 5%-VN - TPVN",  # Correct name
+							"VAT đầu ra 5% - TPVN",  # Alternative name
+							"Thuế GTGT 5%",  # Generic name
+						]
+
+						found_template = None
+						for name in possible_names:
+							if frappe.db.exists("Sales Taxes and Charges Template", name):
+								found_template = name
+								log.info(f"[UPDATE_INVOICE] ✅ Found alternative template: '{name}'")
+								break
+
+						if found_template:
+							sales_tax_template_name = found_template
+						else:
+							log.error(f"[UPDATE_INVOICE] 🚫 No valid Sales Taxes and Charges Template found for 5% VAT")
+							# List all available templates for debugging
+							all_templates = frappe.get_all("Sales Taxes and Charges Template", fields=["name"], limit=10)
+							log.info(f"[UPDATE_INVOICE] ℹ️ Available templates: {[t.name for t in all_templates]}")
+
+					invoice_doc.taxes_and_charges = sales_tax_template_name
+					log.info(f"[UPDATE_INVOICE] 🏷️ Final taxes_and_charges set to '{sales_tax_template_name}'")
+					log.info(f"[UPDATE_INVOICE] 🏷️ Template has tax rates: {template_details[0].get('tax_rate')}% (from {item.item_tax_template})")
+				else:
+					log.warning(f"[UPDATE_INVOICE] ⚠️ Item Tax Template '{item.item_tax_template}' has no tax rates - checking template directly")
+
+					# Try to get the template document directly
+					try:
+						template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
+						log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Template doc taxes: {len(template_doc.taxes) if hasattr(template_doc, 'taxes') else 'N/A'}")
+						if hasattr(template_doc, 'taxes') and template_doc.taxes:
+							for i, tax in enumerate(template_doc.taxes):
+								log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Template tax {i+1}: rate={tax.tax_rate}%, type={tax.tax_type}")
+					except Exception as e:
+						log.error(f"[UPDATE_INVOICE] ❌ Error getting template doc: {e}")
 
 	# Calculate taxes and totals to apply Item Tax Template logic
 	log.info(f"[UPDATE_INVOICE] 🧾 Calculating taxes and totals for invoice")
