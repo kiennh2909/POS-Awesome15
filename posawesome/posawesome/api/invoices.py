@@ -250,6 +250,16 @@ def update_invoice(data):
 			data['taxes_and_charges'] = None
 			log.info(f"[UPDATE_INVOICE] ✅ Cleared taxes_and_charges from invoice data")
 
+		# CRITICAL FIX: Clear taxes_and_charges from POS Profile to prevent 8% tax override
+		if data.get("pos_profile"):
+			pos_profile_doc = frappe.get_doc("POS Profile", data.get("pos_profile"))
+			if hasattr(pos_profile_doc, 'taxes_and_charges') and pos_profile_doc.taxes_and_charges:
+				log.info(f"[UPDATE_INVOICE] 🚨 FOUND TAX SOURCE - POS Profile '{data.get('pos_profile')}' has taxes_and_charges: '{pos_profile_doc.taxes_and_charges}'")
+				log.info(f"[UPDATE_INVOICE] 🛡️ CRITICAL FIX - Clearing taxes_and_charges from POS Profile to prevent 8% tax override")
+				pos_profile_doc.taxes_and_charges = None
+				pos_profile_doc.save()
+				log.info(f"[UPDATE_INVOICE] ✅ Cleared taxes_and_charges from POS Profile - Item-level tax templates will now work!")
+
 		invoice_doc = frappe.get_doc(data)
 		log.info(f"[UPDATE_INVOICE] ✅ New invoice document created")
 
