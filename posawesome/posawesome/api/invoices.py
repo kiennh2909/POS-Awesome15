@@ -414,7 +414,7 @@ def update_invoice(data):
 
 	if has_item_tax_templates:
 		log.info(f"[UPDATE_INVOICE] 🛡️ Temporarily clearing taxes_and_charges to prevent default override")
-		invoice_doc.taxes_and_charges = None
+		invoice_doc.taxes_and_charges = ""
 
 	invoice_doc.set_missing_values()
 	log.info(f"[UPDATE_INVOICE] ✅ Missing values set")
@@ -424,8 +424,8 @@ def update_invoice(data):
 		pos_profile_doc = frappe.get_doc("POS Profile", data.get("pos_profile"))
 		if hasattr(pos_profile_doc, 'taxes_and_charges') and pos_profile_doc.taxes_and_charges:
 			log.info(f"[UPDATE_INVOICE] 🛡️ CRITICAL FIX - Clearing taxes_and_charges from invoice document to prevent POS Profile override")
-			invoice_doc.taxes_and_charges = None
-			# Also clear existing taxes array to prevent old tax entries from interfering
+			# Clear both taxes_and_charges and taxes array to prevent old tax entries from interfering
+			invoice_doc.taxes_and_charges = ""
 			invoice_doc.taxes = []
 			log.info(f"[UPDATE_INVOICE] ✅ Cleared taxes_and_charges and taxes array from invoice document")
 
