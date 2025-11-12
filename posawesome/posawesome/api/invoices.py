@@ -301,6 +301,26 @@ def update_invoice(data):
 	invoice_doc.set_missing_values()
 	log.info(f"[UPDATE_INVOICE] ✅ Missing values set")
 
+	# Set Item Tax Template for each item before calculating taxes
+	# Priority: 1) Client-provided item_tax_template, 2) Item Tax table lookup
+	log.info(f"[UPDATE_INVOICE] 🏷️ Setting Item Tax Templates for {len(invoice_doc.items)} items")
+	for item in invoice_doc.items:
+		if not item.item_tax_template:
+			# Fallback to Item Tax table if client didn't provide item_tax_template
+			item_tax_template = frappe.db.get_value(
+				"Item Tax",
+				{"parent": item.item_code},
+				"item_tax_template"
+			)
+			if item_tax_template:
+				item.item_tax_template = item_tax_template
+				log.info(f"[UPDATE_INVOICE] 🏷️ Set item_tax_template '{item_tax_template}' for item {item.item_code} (from Item Tax table)")
+			else:
+				log.info(f"[UPDATE_INVOICE] 🏷️ No item_tax_template found for item {item.item_code}")
+		else:
+			log.info(f"[UPDATE_INVOICE] 🏷️ Using client-provided item_tax_template '{item.item_tax_template}' for item {item.item_code}")
+	log.info(f"[UPDATE_INVOICE] ✅ Item Tax Templates set")
+
 	# Calculate taxes and totals to apply Item Tax Template logic
 	log.info(f"[UPDATE_INVOICE] 🧾 Calculating taxes and totals for invoice")
 	invoice_doc.calculate_taxes_and_totals()

@@ -449,6 +449,10 @@ export default {
 		new_item.posa_notes = "";
 		new_item.posa_delivery_date = "";
 		new_item.posa_row_id = this.makeid(20);
+		// Include item_tax_template from original item data for ERPNext tax calculation
+		if (item.item_tax_template) {
+			new_item.item_tax_template = item.item_tax_template;
+		}
 		if (new_item.has_serial_no && !new_item.serial_no_selected) {
 			new_item.serial_no_selected = [];
 			new_item.serial_no_selected_count = 0;
@@ -1206,7 +1210,8 @@ export default {
 				batch_no: item.batch_no,
 				posa_notes: item.posa_notes,
 				posa_delivery_date: this.formatDateForBackend(item.posa_delivery_date),
-				// Tax information removed - using ERPNext default tax mechanism
+				// Include item_tax_template for ERPNext tax calculation
+				...(item.item_tax_template && { item_tax_template: item.item_tax_template }),
 			};
 			if (isReturn && !new_item.sales_invoice_item && item.name) {
 				new_item.sales_invoice_item = item.name;
