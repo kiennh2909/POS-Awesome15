@@ -904,8 +904,8 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
             get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 1 - Using VAT rate from Item Tax Template: {vat_rate}%")
 
     # === ƯU TIÊN 2: Sales Taxes and Charges Template từ POS Profile ===
-    if not vat_rate and pos_profile_doc and pos_profile_doc.sales_taxes_and_charges_template:
-        sales_tax_template = pos_profile_doc.sales_taxes_and_charges_template
+    if not vat_rate and pos_profile_doc and pos_profile_doc.taxes_and_charges:
+        sales_tax_template = pos_profile_doc.taxes_and_charges
         tax_template_details = frappe.get_all(
             "Sales Taxes and Charges",
             filters={"parent": sales_tax_template},
@@ -962,7 +962,7 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
     get_logger("items").info(f"[VAT_DEBUG] 🎯 GET_ITEM_TAX_INFO - Item: {item_code}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Item Master - custom_vat_applicable: {item_doc.custom_vat_applicable} (type: {type(item_doc.custom_vat_applicable)}), custom_vat_rate: {item_doc.custom_vat_rate}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Item Tax Template: {item_tax_template}")
-    get_logger("items").info(f"[VAT_DEBUG] 📊 POS Profile Tax Template: {pos_profile_doc.sales_taxes_and_charges_template if pos_profile_doc else 'N/A'}")
+    get_logger("items").info(f"[VAT_DEBUG] 📊 POS Profile Tax Template: {pos_profile_doc.taxes_and_charges if pos_profile_doc else 'N/A'}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Company Tax Template: {frappe.get_value('Company', pos_profile_doc.company if pos_profile_doc else None, 'default_sales_taxes_and_charges_template') if pos_profile_doc else 'N/A'}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Logic Check - vat_applicable is None: {item_doc.custom_vat_applicable is None}, so vat_applicable = {vat_applicable}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Calculated - vat_applicable: {vat_applicable}, vat_rate: {vat_rate}, final_vat_rate: {final_vat_rate}")
