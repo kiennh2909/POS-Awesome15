@@ -650,6 +650,18 @@ def update_invoice(data):
 
 	log.info(f"[UPDATE_INVOICE] 💾 Preparing to save invoice")
 
+	# DEBUG: Check taxes_and_charges before save
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Before save: taxes_and_charges = '{invoice_doc.taxes_and_charges}'")
+	if invoice_doc.taxes_and_charges:
+		# Check if the Sales Taxes and Charges Template exists
+		if not frappe.db.exists("Sales Taxes and Charges Template", invoice_doc.taxes_and_charges):
+			log.error(f"[UPDATE_INVOICE] 🚫 ERROR - Sales Taxes and Charges Template '{invoice_doc.taxes_and_charges}' does not exist!")
+			# Try to find a valid template
+			valid_templates = frappe.get_all("Sales Taxes and Charges Template", fields=["name"], limit=5)
+			log.info(f"[UPDATE_INVOICE] ℹ️ Available Sales Taxes and Charges Templates: {[t.name for t in valid_templates]}")
+		else:
+			log.info(f"[UPDATE_INVOICE] ✅ Sales Taxes and Charges Template '{invoice_doc.taxes_and_charges}' exists")
+
 	# --- DEBUG: Tìm field ko phải Table nhưng đang là list ---
 	meta = invoice_doc.meta
 	for k, v in invoice_doc.as_dict().items():
