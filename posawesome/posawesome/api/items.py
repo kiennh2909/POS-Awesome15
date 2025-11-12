@@ -916,21 +916,21 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
             vat_rate = str(tax_template_details[0]["rate"])
             get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 2 - Using VAT rate from POS Profile Sales Tax Template: {vat_rate}%")
 
-    # === ƯU TIÊN 3: Sales Taxes and Charges Template từ Company ===
-    if not vat_rate and pos_profile_doc:
-        company = pos_profile_doc.company
-        company_doc = frappe.get_doc("Company", company)
-        if company_doc.default_sales_taxes_and_charges_template:
-            sales_tax_template = company_doc.default_sales_taxes_and_charges_template
-            tax_template_details = frappe.get_all(
-                "Sales Taxes and Charges",
-                filters={"parent": sales_tax_template},
-                fields=["rate"],
-                limit=1
-            )
-            if tax_template_details and tax_template_details[0].get("rate"):
-                vat_rate = str(tax_template_details[0]["rate"])
-                get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 3 - Using VAT rate from Company Sales Tax Template: {vat_rate}%")
+    # # === ƯU TIÊN 3: Sales Taxes and Charges Template từ Company ===
+    # if not vat_rate and pos_profile_doc:
+    #     company = pos_profile_doc.company
+    #     company_doc = frappe.get_doc("Company", company)
+    #     if company_doc.default_sales_taxes_and_charges_template:
+    #         sales_tax_template = company_doc.default_sales_taxes_and_charges_template
+    #         tax_template_details = frappe.get_all(
+    #             "Sales Taxes and Charges",
+    #             filters={"parent": sales_tax_template},
+    #             fields=["rate"],
+    #             limit=1
+    #         )
+    #         if tax_template_details and tax_template_details[0].get("rate"):
+    #             vat_rate = str(tax_template_details[0]["rate"])
+    #             get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 3 - Using VAT rate from Company Sales Tax Template: {vat_rate}%")
 
     # === FALLBACK: Custom VAT Rate hoặc mặc định 0% ===
     if not vat_rate:
