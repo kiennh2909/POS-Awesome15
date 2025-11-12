@@ -330,45 +330,7 @@ export default {
 				new_item.qty = -Math.abs(new_item.qty || 1);
 			}
 
-			// === THÊM THÔNG TIN THUẾ CHO MISA ===
-			// Copy tax information từ Item + Item Price vào Invoice Item
-			try {
-				console.log("[DEBUG] Calling getItemTaxInfo for item:", item.item_code);
-				const tax_info = await this.getItemTaxInfo(
-					item.item_code,
-					this.selected_price_list || this.pos_profile.selling_price_list,
-				);
-				console.log("[DEBUG] Tax info received:", tax_info);
-
-				new_item.custom_inventory_type = tax_info.custom_inventory_type;
-				new_item.custom_vat_applicable = tax_info.custom_vat_applicable !== undefined ? tax_info.custom_vat_applicable : true; // Default to true if undefined
-				new_item.custom_vat_rate = tax_info.vat_rate;
-				new_item.custom_excise_rate = tax_info.custom_excise_rate;
-				new_item.custom_service_fee_rate = tax_info.custom_service_fee_rate;
-				new_item.custom_discount_rate = tax_info.custom_discount_rate;
-				new_item.item_group = tax_info.item_group;
-
-				console.log("🔍 [VAT_TRACE] SCAN BARCODE - Tax info copied to new item:", {
-					item_code: new_item.item_code,
-					source: "getItemTaxInfo API",
-					custom_inventory_type: new_item.custom_inventory_type,
-					custom_vat_applicable: new_item.custom_vat_applicable,
-					custom_vat_rate: new_item.custom_vat_rate,
-					tax_info_vat_rate: tax_info.vat_rate,
-					tax_info_final_vat_rate: tax_info.final_vat_rate,
-					step: "1_scan_barcode_copy_tax_info"
-				});
-			} catch (error) {
-				console.error("Failed to get tax info for item:", item.item_code, error);
-				// Set default values if API fails
-				new_item.custom_inventory_type = "0";
-				new_item.custom_vat_applicable = true; // Default to true
-				new_item.custom_vat_rate = "10";
-				new_item.custom_excise_rate = "0";
-				new_item.custom_service_fee_rate = "0";
-				new_item.custom_discount_rate = "0";
-				new_item.item_group = "";
-			}
+			// Tax information will be handled by ERPNext default tax mechanism
 
 			// Add item to end of array to maintain order (push instead of unshift)
 			this.items.push(new_item);
@@ -714,25 +676,7 @@ export default {
 				item._preserve_rate_on_load = true;
 				item._manual_rate_set = true;
 
-				// Ensure tax fields have default values if undefined
-				if (item.custom_inventory_type === undefined) {
-					item.custom_inventory_type = "0";
-				}
-				if (item.custom_vat_applicable === undefined) {
-					item.custom_vat_applicable = true; // Default to true
-				}
-				if (item.custom_vat_rate === undefined) {
-					item.custom_vat_rate = "0";
-				}
-				if (item.custom_excise_rate === undefined) {
-					item.custom_excise_rate = "0";
-				}
-				if (item.custom_service_fee_rate === undefined) {
-					item.custom_service_fee_rate = "0";
-				}
-				if (item.custom_discount_rate === undefined) {
-					item.custom_discount_rate = "0";
-				}
+				// Tax fields removed - using ERPNext default tax mechanism
 			});
 
 			this.update_items_details(this.items);
@@ -954,17 +898,7 @@ export default {
 			}
 		});
 
-		// Log để kiểm tra tax info trong items sau khi get_invoice_items
-		console.log("📄 [VAT_TRACE] AFTER GET_INVOICE_ITEMS - Final items array:", {
-			items_count: items.length,
-			first_item_tax_info: items[0] ? {
-				item_code: items[0].item_code,
-				custom_vat_applicable: items[0].custom_vat_applicable,
-				custom_vat_rate: items[0].custom_vat_rate,
-				custom_inventory_type: items[0].custom_inventory_type
-			} : null,
-			step: "3.5_after_get_invoice_items"
-		});
+		// Items prepared for invoice document
 
 		doc.items = items;
 
@@ -1272,14 +1206,7 @@ export default {
 				batch_no: item.batch_no,
 				posa_notes: item.posa_notes,
 				posa_delivery_date: this.formatDateForBackend(item.posa_delivery_date),
-				// === THÊM THÔNG TIN THUẾ CHO MISA ===
-				custom_inventory_type: item.custom_inventory_type,
-				custom_vat_applicable: item.custom_vat_applicable,
-				custom_vat_rate: item.custom_vat_rate,
-				custom_excise_rate: item.custom_excise_rate,
-				custom_service_fee_rate: item.custom_service_fee_rate,
-				custom_discount_rate: item.custom_discount_rate,
-				item_group: item.item_group,
+				// Tax information removed - using ERPNext default tax mechanism
 			};
 			if (isReturn && !new_item.sales_invoice_item && item.name) {
 				new_item.sales_invoice_item = item.name;
@@ -1321,40 +1248,7 @@ export default {
 				new_item.base_discount_amount = item.base_discount_amount || flt(item.discount_amount);
 			}
 
-			// === COPY THÔNG TIN THUẾ CHO MISA ===
-			// Đảm bảo các trường thuế được copy từ item vào invoice document
-			new_item.custom_inventory_type = item.custom_inventory_type || "0";
-			new_item.custom_vat_applicable = item.custom_vat_applicable !== undefined ? item.custom_vat_applicable : true; // Default to true if undefined
-			new_item.custom_vat_rate = item.custom_vat_rate || "0";
-			new_item.custom_excise_rate = item.custom_excise_rate || "0";
-			new_item.custom_service_fee_rate = item.custom_service_fee_rate || "0";
-			new_item.custom_discount_rate = item.custom_discount_rate || "0";
-			new_item.item_group = item.item_group || "";
-
-			// === LOG TRACKING KHI TẠO INVOICE DOCUMENT ===
-			console.log("📄 [VAT_TRACE] CREATE INVOICE DOC - Item:", new_item.item_code, {
-				custom_inventory_type: new_item.custom_inventory_type,
-				custom_vat_applicable: new_item.custom_vat_applicable,
-				custom_vat_rate: new_item.custom_vat_rate,
-				custom_excise_rate: new_item.custom_excise_rate,
-				custom_service_fee_rate: new_item.custom_service_fee_rate,
-				custom_discount_rate: new_item.custom_discount_rate,
-				item_group: new_item.item_group,
-				qty: new_item.qty,
-				rate: new_item.rate,
-				amount: new_item.amount,
-				step: "3_create_invoice_doc"
-			});
-
-			// Log để kiểm tra xem tax info có bị mất trong get_invoice_items không
-			console.log("📄 [VAT_TRACE] BEFORE GET_INVOICE_ITEMS - Checking items array:", {
-				items_count: this.items.length,
-				first_item_tax_info: this.items[0] ? {
-					item_code: this.items[0].item_code,
-					custom_vat_applicable: this.items[0].custom_vat_applicable,
-					custom_vat_rate: this.items[0].custom_vat_rate
-				} : null
-			});
+			// Tax information removed - using ERPNext default tax mechanism
 
 			// For returns, ensure all amounts are negative
 			if (isReturn) {
@@ -1470,24 +1364,7 @@ export default {
 	update_invoice(doc) {
 		var vm = this;
 
-		// === LOG DỮ LIỆU GỬI LÊN SERVER ===
-		console.log("🚀 [VAT_TRACE] SUBMIT TO SERVER - Invoice:", {
-			doc_name: doc.name,
-			doc_doctype: doc.doctype,
-			total_items: doc.items?.length || 0,
-			items_vat_info: doc.items?.map(item => ({
-				item_code: item.item_code,
-				custom_vat_applicable: item.custom_vat_applicable,
-				custom_vat_rate: item.custom_vat_rate,
-				custom_inventory_type: item.custom_inventory_type,
-				qty: item.qty,
-				rate: item.rate,
-				amount: item.amount,
-			})) || [],
-			total: doc.total,
-			grand_total: doc.grand_total,
-			step: "4_submit_to_server"
-		});
+		// Submitting invoice to server
 
 		if (isOffline()) {
 			// When offline, simply merge the passed doc with the current invoice_doc
@@ -1508,23 +1385,7 @@ export default {
 				if (r.message) {
 					vm.invoice_doc = r.message;
 
-					// === LOG RESPONSE TỪ SERVER ===
-					console.log("📥 [VAT_TRACE] SERVER RESPONSE - Invoice:", {
-						invoice_name: r.message.name,
-						total_items: r.message.items?.length || 0,
-						items_vat_info: r.message.items?.map(item => ({
-							item_code: item.item_code,
-							custom_vat_applicable: item.custom_vat_applicable,
-							custom_vat_rate: item.custom_vat_rate,
-							custom_inventory_type: item.custom_inventory_type,
-							qty: item.qty,
-							rate: item.rate,
-							amount: item.amount,
-						})) || [],
-						total: r.message.total,
-						grand_total: r.message.grand_total,
-						step: "9_server_response"
-					});
+					// Invoice processed successfully
 
 					if (r.message.exchange_rate_date) {
 						vm.exchange_rate_date = r.message.exchange_rate_date;
@@ -1743,21 +1604,7 @@ export default {
 			invoice_doc.payments = this.get_payments();
 			console.log("Final payment data:", invoice_doc.payments);
 
-			// === LOG VAT INFO KHI CLICK PAY ===
-			console.log("💰 [VAT_TRACE] CLICK PAY - Invoice:", invoice_doc.name, {
-				total_items: invoice_doc.items?.length || 0,
-				items_with_vat: invoice_doc.items?.map(item => ({
-					item_code: item.item_code,
-					custom_vat_applicable: item.custom_vat_applicable,
-					custom_vat_rate: item.custom_vat_rate,
-					custom_inventory_type: item.custom_inventory_type,
-					amount: item.amount,
-					base_amount: item.base_amount,
-				})) || [],
-				total: invoice_doc.total,
-				grand_total: invoice_doc.grand_total,
-				step: "2_click_pay"
-			});
+			// Processing payment for invoice
 
 			// Double-check return invoice payments are negative
 			if ((this.isReturnInvoice || invoice_doc.is_return) && invoice_doc.payments.length) {
@@ -2003,28 +1850,7 @@ export default {
 						item.has_batch_no = updated_item.has_batch_no;
 						item.has_serial_no = updated_item.has_serial_no;
 
-						// Update tax fields to ensure they are properly set
-						if (updated_item.custom_inventory_type !== undefined) {
-							item.custom_inventory_type = updated_item.custom_inventory_type;
-						}
-						if (updated_item.custom_vat_applicable !== undefined) {
-							item.custom_vat_applicable = updated_item.custom_vat_applicable;
-						}
-						if (updated_item.custom_vat_rate !== undefined) {
-							item.custom_vat_rate = updated_item.custom_vat_rate;
-						}
-						if (updated_item.custom_excise_rate !== undefined) {
-							item.custom_excise_rate = updated_item.custom_excise_rate;
-						}
-						if (updated_item.custom_service_fee_rate !== undefined) {
-							item.custom_service_fee_rate = updated_item.custom_service_fee_rate;
-						}
-						if (updated_item.custom_discount_rate !== undefined) {
-							item.custom_discount_rate = updated_item.custom_discount_rate;
-						}
-						if (updated_item.item_group !== undefined) {
-							item.item_group = updated_item.item_group;
-						}
+						// Item details updated
 					}
 				});
 			}

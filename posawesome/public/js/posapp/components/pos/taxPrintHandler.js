@@ -230,28 +230,11 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 						method: "posawesome.posawesome.api.items.get_item_tax_info",
 						args: { item_code: item.item_code, price_list: null }
 					});
-					// Update item with tax info
-					item.custom_inventory_type = taxInfo.message.custom_inventory_type;
-					item.custom_vat_applicable = taxInfo.message.custom_vat_applicable;
-					item.custom_vat_rate = taxInfo.message.custom_vat_rate;
-					item.custom_excise_rate = taxInfo.message.custom_excise_rate;
-					item.custom_service_fee_rate = taxInfo.message.custom_service_fee_rate;
-					item.custom_discount_rate = taxInfo.message.custom_discount_rate;
-					item.item_group = taxInfo.message.item_group;
-					debugLog(`[VAT_DEBUG] 📦 Updated tax info for ${item.item_code}:`, {
-						custom_vat_applicable: item.custom_vat_applicable,
-						custom_vat_rate: item.custom_vat_rate
-					});
+					// Tax information removed - using ERPNext default tax mechanism
+					debugLog(`[VAT_DEBUG] 📦 Tax info removed for ${item.item_code}`);
 				} catch (error) {
 					console.error(`Failed to get tax info for ${item.item_code}:`, error);
-					// Set defaults if API fails
-					item.custom_inventory_type = item.custom_inventory_type || "0";
-					item.custom_vat_applicable = true;
-					item.custom_vat_rate = "0";
-					item.custom_excise_rate = item.custom_excise_rate || "0";
-					item.custom_service_fee_rate = item.custom_service_fee_rate || "0";
-					item.custom_discount_rate = item.custom_discount_rate || "0";
-					item.item_group = item.item_group || "";
+					// Tax information removed - using ERPNext default tax mechanism
 				}
 			}
 		}
@@ -272,18 +255,7 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 				custom_inventory_type: item.custom_inventory_type,
 			});
 
-			// Log chi tiết để debug tại sao custom_vat_applicable undefined
-			debugLog(`[VAT_TRACE] TAX PRINT - Item ${index + 1} VAT Info:`, {
-				item_code: item.item_code,
-				custom_vat_applicable: item.custom_vat_applicable,
-				custom_vat_applicable_type: typeof item.custom_vat_applicable,
-				custom_vat_rate: item.custom_vat_rate,
-				custom_vat_rate_type: typeof item.custom_vat_rate,
-				custom_inventory_type: item.custom_inventory_type,
-				has_custom_vat_applicable: item.hasOwnProperty('custom_vat_applicable'),
-				has_custom_vat_rate: item.hasOwnProperty('custom_vat_rate'),
-				step: "tax_print_handler_check"
-			});
+			// Tax information removed - using ERPNext default tax mechanism
 		});
 
 		const products = invoice.items.map((item) => {
@@ -302,130 +274,34 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 			let exciseRate = "0"; // Mặc định 0%
 			let priceExcludingVAT = item.rate; // Mặc định = giá hiện tại (có VAT)
 
-			// === LOG DEBUG CHI TIẾT VAT TRƯỚC KHI XỬ LÝ ===
-			debugLog(`[VAT_DEBUG] 🎯 PROCESSING ITEM: ${item.item_name} (${item.item_code})`);
-			debugLog(`[VAT_DEBUG] 📊 Raw Item Data:`, {
-				custom_vat_applicable: item.custom_vat_applicable,
-				custom_vat_rate: item.custom_vat_rate,
-				custom_inventory_type: item.custom_inventory_type,
-				rate: item.rate,
-				base_amount: item.base_amount,
-				base_net_amount: item.base_net_amount,
-				amount: item.amount,
-				base_rate: item.base_rate,
-			});
-			debugLog(`[VAT_DEBUG] 📊 Type Check - custom_vat_applicable: ${typeof item.custom_vat_applicable}, custom_vat_rate: ${typeof item.custom_vat_rate}`);
+			// Tax information removed - using ERPNext default tax mechanism
+			// Use item rate as price excluding VAT (simplified)
+			priceExcludingVAT = item.rate;
+			vatRate = "0"; // Default to 0% VAT
+			exciseRate = "0"; // Default to 0% excise
 
-			// Logic VAT: kiểm tra custom_vat_applicable trước
-			const vatApplicable =
-				item.custom_vat_applicable !== false && item.custom_vat_applicable !== "false";
-			debugLog(
-				`[VAT_DEBUG] 📊 VAT Logic Check: vatApplicable = ${vatApplicable}, inventory_type = ${item.custom_inventory_type}`,
-			);
-
-			if (vatApplicable && item.custom_inventory_type === "0") {
-				// Lấy VAT rate từ custom_vat_rate
-				vatRate = String(item.custom_vat_rate || "8"); // Mặc định VAT 8%
-				debugLog(`[VAT_DEBUG] ✅ VAT Applicable - Using vatRate: ${vatRate}`);
-
-				// === TÍNH GIÁ CHƯA VAT TỪ base_net_amount (ĐÚNG THEO YÊU CẦU) ===
-				// Sử dụng base_net_amount thay vì base_amount vì base_net_amount là giá chưa VAT
-				const baseNetAmount = item.base_net_amount;
-				debugLog(
-					`[VAT_DEBUG] 💰 Price Calculation - base_net_amount: ${baseNetAmount}, base_amount: ${item.base_amount}, item.rate: ${item.rate}`,
-				);
-
-				if (baseNetAmount && baseNetAmount > 0) {
-					// Nếu có base_net_amount, sử dụng nó (đã là giá chưa VAT)
-					priceExcludingVAT = baseNetAmount;
-					debugLog(`[VAT_DEBUG] ✅ Using base_net_amount as priceExcludingVAT: ${priceExcludingVAT}`);
-				} else {
-					// Fallback: tính từ item.rate nếu không có base_net_amount
-					const vatRateNum = parseFloat(vatRate);
-					if (vatRateNum > 0) {
-						const priceIncludingVAT = parseFloat(item.rate);
-						priceExcludingVAT = priceIncludingVAT / (1 + vatRateNum / 100);
-						debugLog(
-							`[VAT_DEBUG] ⚠️ No base_net_amount, calculated from item.rate: ${priceIncludingVAT} / (1 + ${vatRateNum}/100) = ${priceExcludingVAT}`,
-						);
-					} else {
-						debugLog(`[VAT_DEBUG] ⚠️ VAT rate is 0, using item.rate as is: ${item.rate}`);
-					}
-				}
-				// Giữ nguyên giá trị base_net_amount không làm tròn cho VND
-				// priceExcludingVAT = Math.floor(priceExcludingVAT);
-				debugLog(`[VAT_DEBUG] 🔢 Final priceExcludingVAT (no rounding for VND): ${priceExcludingVAT}`);
-			} else if (!vatApplicable) {
-				// Nếu custom_vat_applicable = false thì VAT rate = "-1"
-				vatRate = "-1";
-				// Giá chưa VAT = giá hiện tại (không có VAT)
-				priceExcludingVAT = item.rate;
-				debugLog(
-					`[VAT_DEBUG] ❌ VAT Not Applicable - Using vatRate: ${vatRate}, priceExcludingVAT: ${priceExcludingVAT}`,
-				);
-			} else {
-				debugLog(
-					`[VAT_DEBUG] ⚠️ Item is not inventory type 0 or VAT not applicable - vatRate: ${vatRate}, priceExcludingVAT: ${priceExcludingVAT}`,
-				);
-			}
-
-			// Excise tax từ custom_excise_rate
-			exciseRate = String(item.custom_excise_rate || "0");
-
-			// === LOG DEBUG CHI TIẾT VAT TRƯỚC KHI TRẢ VỀ ===
-			debugLog(`[VAT_DEBUG] 🎯 FINAL PRODUCT DATA FOR MISA:`);
-			debugLog(`[VAT_DEBUG] 📊 Final Values:`, {
-				Name: item.item_name || item.description,
-				Qty: item.qty,
-				Price: priceExcludingVAT,
-				VATRate: isCommercialDiscount ? "0" : vatRate,
-				InventoryItemType: String(item.custom_inventory_type || (isCommercialDiscount ? "4" : "0")),
-				isCommercialDiscount: isCommercialDiscount,
-			});
-			debugLog(
-				`[VAT_DEBUG] 💰 Price Summary: Original=${item.rate}, ExclVAT=${priceExcludingVAT}, VATRate=${vatRate}`,
-			);
-			debugLog(`[VAT_DEBUG] ✅ Item ${item.item_code} processed for MISA API`);
+			// Item processed for tax print
 
 			return {
 				Name: item.item_name || item.description,
 				Qty: String(item.qty),
-				Price: String(priceExcludingVAT), // ← GIÁ CHƯA VAT (đã tính)
+				Price: String(priceExcludingVAT),
 				UnitName: item.uom || "Cái",
 
-				// VAT information
-				InventoryItemType: String(item.custom_inventory_type || (isCommercialDiscount ? "4" : "0")),
+				// Simplified tax information - using ERPNext defaults
+				InventoryItemType: isCommercialDiscount ? "4" : "0",
 				VATRate: isCommercialDiscount ? "0" : vatRate,
-				DiscountRate: String(item.custom_discount_rate || "0"),
-				ServiceFeeRate: String(item.custom_service_fee_rate || "0"),
+				DiscountRate: "0",
+				ServiceFeeRate: "0",
 				ExciseTaxRate: exciseRate,
 
-				// Các trường phụ
 				Category: isCommercialDiscount ? "CK" : item.item_group || "N/A",
 				WarehouseCode: isCommercialDiscount ? "CK" : item.warehouse || "N/A",
-
-				// Debug info (có thể remove sau)
-				_debug_original_price: item.rate, // Giá gốc có VAT
-				_debug_price_excl_vat: priceExcludingVAT, // Giá đã chuyển đổi
-				_debug_vat_rate: vatRate,
 			};
 		});
 		debugLog("Tạo danh sách sản phẩm chi tiết thành công.", { productCount: products.length });
 
-		// === LOG DEBUG CHI TIẾT PRODUCTS ARRAY ===
-		debugLog(`[VAT_DEBUG] 📦 FINAL PRODUCTS ARRAY FOR MISA API:`);
-		products.forEach((product, index) => {
-			debugLog(`[VAT_DEBUG] 📦 Product ${index + 1}: ${product.Name}`);
-			debugLog(`[VAT_DEBUG] 📦 Data:`, {
-				Qty: product.Qty,
-				Price: product.Price,
-				VATRate: product.VATRate,
-				InventoryItemType: product.InventoryItemType,
-				_debug_original_price: product._debug_original_price,
-				_debug_price_excl_vat: product._debug_price_excl_vat,
-				_debug_vat_rate: product._debug_vat_rate,
-			});
-		});
+		// Products array prepared for tax print
 
 		// === BƯỚC 2: TẠO BODY HOÀN CHỈNH (PrintRequest) ===
 		// TUÂN THỦ CHÍNH XÁC theo Test Client (bản 10 test case)

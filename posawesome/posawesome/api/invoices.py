@@ -145,10 +145,7 @@ def update_invoice(data):
 	data = json.loads(data)
 	invoice_name = data.get("name")
 
-	# Log VAT info after parsing JSON
-	log.info(f"[VAT_TRACE] BACKEND RECEIVE - Step 5: Parsed data")
-	for i, item in enumerate(data.get('items', [])):
-		log.info(f"[VAT_TRACE] BACKEND RECEIVE - Item {i+1} ({item.get('item_code')}): custom_vat_applicable={item.get('custom_vat_applicable')}, custom_vat_rate={item.get('custom_vat_rate')}, custom_inventory_type={item.get('custom_inventory_type')}")
+	# Invoice data parsed successfully
 
 	log.info(f"[UPDATE_INVOICE] 📋 BASIC INVOICE INFO:")
 	log.info(f"[UPDATE_INVOICE] 📋   - Name: {invoice_name}")
@@ -297,20 +294,14 @@ def update_invoice(data):
 	else:
 		log.info(f"[UPDATE_INVOICE] ✅ Customer exists: {customer_name}")
 
-	# === LOG VAT INFO TRƯỚC KHI SET_MISSING_VALUES ===
-	log.info(f"[VAT_TRACE] BEFORE SET_MISSING_VALUES - Step 6: Invoice: {invoice_doc.name}")
-	for i, item in enumerate(invoice_doc.items):
-		log.info(f"[VAT_TRACE] BEFORE SET_MISSING_VALUES - Item {i+1} ({item.item_code}): custom_vat_applicable={item.custom_vat_applicable}, custom_vat_rate={item.custom_vat_rate}, custom_inventory_type={item.custom_inventory_type}")
+	# Setting missing values for invoice
 
 	# Set missing values first
 	log.info(f"[UPDATE_INVOICE] 🔧 Setting missing values for invoice")
 	invoice_doc.set_missing_values()
 	log.info(f"[UPDATE_INVOICE] ✅ Missing values set")
 
-	# === LOG VAT INFO SAU KHI SET_MISSING_VALUES ===
-	log.info(f"[VAT_TRACE] AFTER SET_MISSING_VALUES - Step 7: Invoice: {invoice_doc.name}")
-	for i, item in enumerate(invoice_doc.items):
-		log.info(f"[VAT_TRACE] AFTER SET_MISSING_VALUES - Item {i+1} ({item.item_code}): custom_vat_applicable={item.custom_vat_applicable}, custom_vat_rate={item.custom_vat_rate}, custom_inventory_type={item.custom_inventory_type}")
+	# Missing values set successfully
 
 	# Calculate stock_qty for all items (critical for inventory management)
 	log.info(f"[UPDATE_INVOICE] 📦 Calculating stock_qty for {len(invoice_doc.items)} items")
@@ -490,19 +481,13 @@ def update_invoice(data):
 			log.error(f"[UPDATE_INVOICE] ❌ Failed to fix items structure: {str(fix_error)}")
 			frappe.throw(f"Failed to process invoice items: {str(fix_error)}")
 
-	# === LOG VAT INFO TRƯỚC KHI SAVE ===
-	log.info(f"[VAT_TRACE] BEFORE SAVE - Step 8: Invoice: {invoice_doc.name}")
-	for i, item in enumerate(invoice_doc.items):
-		log.info(f"[VAT_TRACE] BEFORE SAVE - Item {i+1} ({item.item_code}): custom_vat_applicable={item.custom_vat_applicable}, custom_vat_rate={item.custom_vat_rate}, custom_inventory_type={item.custom_inventory_type}")
+	# Preparing to save invoice
 
 	_set_item_level_discount_totals(invoice_doc)
 	invoice_doc.save()
 	log.info(f"[UPDATE_INVOICE] ✅ Invoice saved successfully: {invoice_doc.name}")
 
-	# === LOG VAT INFO SAU KHI SAVE ===
-	log.info(f"[VAT_TRACE] AFTER SAVE - Step 9: Invoice: {invoice_doc.name}")
-	for i, item in enumerate(invoice_doc.items):
-		log.info(f"[VAT_TRACE] AFTER SAVE - Item {i+1} ({item.item_code}): custom_vat_applicable={item.custom_vat_applicable}, custom_vat_rate={item.custom_vat_rate}, custom_inventory_type={item.custom_inventory_type}")
+	# Invoice saved successfully
 
 	# Calculate and set total item discount if field exists
 	if hasattr(invoice_doc, 'posa_total_item_discount'):
@@ -511,10 +496,7 @@ def update_invoice(data):
 		invoice_doc.save()
 		log.info(f"[UPDATE_INVOICE] Total item discount updated: {invoice_doc.posa_total_item_discount}")
 
-	# Return both the invoice doc and the updated data
-	log.info(f"[VAT_TRACE] RESPONSE TO CLIENT - Step 10: Invoice: {invoice_doc.name}")
-	for i, item in enumerate(invoice_doc.items):
-		log.info(f"[VAT_TRACE] RESPONSE TO CLIENT - Item {i+1} ({item.item_code}): custom_vat_applicable={item.custom_vat_applicable}, custom_vat_rate={item.custom_vat_rate}, custom_inventory_type={item.custom_inventory_type}")
+	# Preparing response data
 
 	log.info(f"[UPDATE_INVOICE] 📤 Preparing response data")
 	response = invoice_doc.as_dict()
@@ -524,6 +506,282 @@ def update_invoice(data):
 
 	log.info(f"[UPDATE_INVOICE] 🎉 COMPLETED - Invoice: {invoice_doc.name}, Grand Total: {invoice_doc.grand_total}")
 	return response
+
+
+@frappe.whitelist()
+def submit_invoice(invoice, data):
+	log.info(f"[SUBMIT_INVOICE] 🎯 START - Processing invoice submission")
+
+	# Log raw data received
+	log.info(f"[SUBMIT_INVOICE] 📥 RAW INVOICE DATA: {invoice[:500]}...")
+	log.info(f"[SUBMIT_INVOICE] 📥 RAW SUBMIT DATA: {data[:500]}...")
+
+	data = json.loads(data)
+	invoice = json.loads(invoice)
+	invoice_name = invoice.get("name")
+
+	log.info(f"[SUBMIT_INVOICE] 📋 BASIC INFO:")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Invoice Name: {invoice_name}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Customer: {invoice.get('customer', 'N/A')}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Grand Total: {invoice.get('grand_total', 0)}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Items Count: {len(invoice.get('items', []))}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Payments Count: {len(invoice.get('payments', []))}")
+
+	log.info(f"[SUBMIT_INVOICE] 📋 SUBMIT PARAMETERS:")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Total Change: {data.get('total_change', 0)}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Paid Change: {data.get('paid_change', 0)}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Credit Change: {data.get('credit_change', 0)}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Redeemed Credit: {data.get('redeemed_customer_credit', 0)}")
+	log.info(f"[SUBMIT_INVOICE] 📋   - Is Cashback: {data.get('is_cashback', False)}")
+
+	# Clean up posa_offers before processing (convert lists to JSON strings)
+	if 'posa_offers' in invoice and invoice['posa_offers']:
+		log.info(f"[SUBMIT_INVOICE] 🧹 Cleaning up posa_offers before submit")
+		for offer in invoice['posa_offers']:
+			# Convert items list to JSON string if it exists
+			if 'items' in offer and isinstance(offer['items'], list):
+				offer['items'] = json.dumps(offer['items'])
+				log.info(f"[SUBMIT_INVOICE] ✅ Converted posa_offers items to JSON string for submit")
+
+	if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
+		log.info(f"[SUBMIT_INVOICE] 🆕 Creating new invoice")
+		created = update_invoice(json.dumps(invoice))
+		invoice_name = created.get("name")
+		invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
+		log.info(f"[SUBMIT_INVOICE] ✅ New invoice created: {invoice_name}")
+	else:
+		log.info(f"[SUBMIT_INVOICE] 📝 Updating existing invoice: {invoice_name}")
+		invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
+		invoice_doc.update(invoice)
+		log.info(f"[SUBMIT_INVOICE] ✅ Invoice updated: {invoice_name}")
+	if invoice.get("posa_delivery_date"):
+		invoice_doc.update_stock = 0
+		log.info(f"[SUBMIT_INVOICE] 📅 Delivery date set - disabling stock update")
+
+	mop_cash_list = [
+		i.mode_of_payment
+		for i in invoice_doc.payments
+		if "cash" in i.mode_of_payment.lower() and i.type == "Cash"
+	]
+	log.info(f"[SUBMIT_INVOICE] 💰 Cash payment methods found: {len(mop_cash_list)}")
+
+	if len(mop_cash_list) > 0:
+		cash_account = get_bank_cash_account(mop_cash_list[0], invoice_doc.company)
+		log.info(f"[SUBMIT_INVOICE] 🏦 Cash account resolved: {cash_account.get('account', 'N/A')}")
+	else:
+		cash_account = {"account": frappe.get_value("Company", invoice_doc.company, "default_cash_account")}
+		log.info(f"[SUBMIT_INVOICE] 🏦 Using default cash account: {cash_account.get('account', 'N/A')}")
+
+	# Update remarks with items details
+	items = []
+	for item in invoice_doc.items:
+		if item.item_name and item.rate and item.qty:
+			total = item.rate * item.qty
+			items.append(f"{item.item_name} - Rate: {item.rate}, Qty: {item.qty}, Amount: {total}")
+
+	# Add the grand total at the end of remarks
+	grand_total = f"\nGrand Total: {invoice_doc.grand_total}"
+	items.append(grand_total)
+
+	invoice_doc.remarks = "\n".join(items)
+
+	# Calculate stock_qty for all items before submit (ensure inventory accuracy)
+	log.info(f"[SUBMIT_INVOICE] 📦 Calculating stock_qty for {len(invoice_doc.items)} items before submit")
+	for i, item in enumerate(invoice_doc.items):
+		if hasattr(item, 'qty') and hasattr(item, 'conversion_factor'):
+			original_stock_qty = getattr(item, 'stock_qty', None)
+			qty = flt(item.qty)
+			conversion_factor = flt(item.conversion_factor)
+
+			if conversion_factor > 0:
+				calculated_stock_qty = qty * conversion_factor
+				item.stock_qty = calculated_stock_qty
+				log.info(f"[SUBMIT_INVOICE] 📦 Item {i+1} ({item.item_code}): stock_qty = {qty} × {conversion_factor} = {calculated_stock_qty}")
+			else:
+				item.stock_qty = qty
+				log.warning(f"[SUBMIT_INVOICE] ⚠️ Item {i+1} ({item.item_code}): conversion_factor is 0 or invalid, setting stock_qty = qty = {qty}")
+
+			if original_stock_qty is not None and original_stock_qty != item.stock_qty:
+				log.info(f"[SUBMIT_INVOICE] 📦 Item {i+1} ({item.item_code}): stock_qty updated from {original_stock_qty} to {item.stock_qty}")
+		else:
+			log.error(f"[SUBMIT_INVOICE] ❌ Item {i+1} ({item.item_code}): missing qty or conversion_factor")
+
+	log.info(f"[SUBMIT_INVOICE] ✅ Stock quantities calculated for submit")
+
+	# Clean up problematic fields that contain lists before saving
+	log.info(f"[SUBMIT_INVOICE] 🧹 Cleaning up item fields before save")
+	for item in invoice_doc.items:
+		for field_name in ['applied_offers', 'posa_offers']:
+			if hasattr(item, field_name):
+				field_value = getattr(item, field_name)
+				if isinstance(field_value, list):
+					log.info(f"[SUBMIT_INVOICE] 🔧 Converting {field_name} list to JSON string for item {item.item_code}")
+					setattr(item, field_name, json.dumps(field_value) if field_value else '[]')
+
+	# creating advance payment
+	if data.get("credit_change"):
+		log.info(f"[SUBMIT_INVOICE] 💳 Creating advance payment - Amount: {data.get('credit_change')}")
+		advance_payment_entry = frappe.get_doc(
+			{
+				"doctype": "Payment Entry",
+				"mode_of_payment": "Cash",
+				"paid_to": cash_account["account"],
+				"payment_type": "Receive",
+				"party_type": "Customer",
+				"party": invoice_doc.get("customer"),
+				"paid_amount": invoice_doc.get("credit_change"),
+				"received_amount": invoice_doc.get("credit_change"),
+				"company": invoice_doc.get("company"),
+			}
+		)
+
+		advance_payment_entry.flags.ignore_permissions = True
+		frappe.flags.ignore_account_permission = True
+		advance_payment_entry.save()
+		advance_payment_entry.submit()
+		log.info(f"[SUBMIT_INVOICE] ✅ Advance payment created: {advance_payment_entry.name}")
+	else:
+		log.info(f"[SUBMIT_INVOICE] 💸 No credit change - skipping advance payment")
+
+	# calculating cash
+	total_cash = 0
+	if data.get("redeemed_customer_credit"):
+		total_cash = invoice_doc.total - float(data.get("redeemed_customer_credit"))
+		log.info(f"[SUBMIT_INVOICE] 💰 Calculated total cash after credit redemption: {total_cash}")
+
+	is_payment_entry = 0
+	if data.get("redeemed_customer_credit"):
+		log.info(f"[SUBMIT_INVOICE] 🎫 Processing customer credit redemption")
+		for row in data.get("customer_credit_dict"):
+			if row["type"] == "Advance" and row["credit_to_redeem"]:
+				log.info(f"[SUBMIT_INVOICE] 🔄 Processing advance credit: {row['credit_origin']}, Amount: {row['credit_to_redeem']}")
+				advance = frappe.get_doc("Payment Entry", row["credit_origin"])
+
+				advance_payment = {
+					"reference_type": "Payment Entry",
+					"reference_name": advance.name,
+					"remarks": advance.remarks,
+					"advance_amount": advance.unallocated_amount,
+					"allocated_amount": row["credit_to_redeem"],
+				}
+
+				advance_row = invoice_doc.append("advances", {})
+				advance_row.update(advance_payment)
+				ensure_child_doctype(invoice_doc, "advances", "Sales Invoice Advance")
+				invoice_doc.is_pos = 0
+				is_payment_entry = 1
+				log.info(f"[SUBMIT_INVOICE] ✅ Advance credit processed: {advance.name}")
+	else:
+		log.info(f"[SUBMIT_INVOICE] 🎫 No customer credit redemption")
+
+	payments = invoice_doc.payments
+
+	# if frappe.get_value("POS Profile", invoice_doc.pos_profile, "posa_auto_set_batch"):
+	#     set_batch_nos(invoice_doc, "warehouse", throw=True)
+	set_batch_nos_for_bundels(invoice_doc, "warehouse", throw=True)
+
+	invoice_doc.flags.ignore_permissions = True
+	frappe.flags.ignore_account_permission = True
+	# invoice_doc.posa_is_printed = 1
+	if data.get("posa_is_printed") is not None:
+		invoice_doc.posa_is_printed = data.get("posa_is_printed")
+	if data.get("tax_report") is not None:
+		invoice_doc.tax_report = data.get("tax_report")
+
+# === Attach Customer Tax ID to Invoice (simple mode, corrected) ===
+	log.info(f"[UPDATE_INVOICE] 🆔 Attaching customer tax ID")
+	try:
+		if invoice_doc.get("customer"):
+			cust_tax_id = frappe.db.get_value("Customer", invoice_doc.customer, "tax_id")
+			log.info(f"[UPDATE_INVOICE] 🆔 Customer tax ID: {cust_tax_id}")
+
+			if cust_tax_id:
+				has_tax_id = invoice_doc.meta.has_field("tax_id")
+				has_customer_tax_id = invoice_doc.meta.has_field("customer_tax_id")
+
+				log.info(f"[UPDATE_INVOICE] 🆔 Field availability - tax_id: {has_tax_id}, customer_tax_id: {has_customer_tax_id}")
+
+				# Ưu tiên set vào đúng tên trường
+				if has_tax_id:
+					invoice_doc.tax_id = cust_tax_id
+					log.info(f"[UPDATE_INVOICE] ✅ Set tax_id field: {cust_tax_id}")
+				if has_customer_tax_id:
+					invoice_doc.customer_tax_id = cust_tax_id
+					log.info(f"[UPDATE_INVOICE] ✅ Set customer_tax_id field: {cust_tax_id}")
+
+				# Nếu không có field nào trên Invoice → fallback ghi vào remarks
+				if not (has_tax_id or has_customer_tax_id):
+					line = f"Tax ID: {cust_tax_id}"
+					current = (invoice_doc.remarks or "")
+					if line not in current:
+						invoice_doc.remarks = (current + "\n" if current else "") + line
+						log.info(f"[UPDATE_INVOICE] ✅ Added tax ID to remarks: {cust_tax_id}")
+			else:
+				log.info(f"[UPDATE_INVOICE] ℹ️ No tax ID found for customer: {invoice_doc.customer}")
+		else:
+			log.info(f"[UPDATE_INVOICE] ℹ️ No customer specified for tax ID attachment")
+	except Exception as e:
+		log.error(f"[UPDATE_INVOICE] ❌ Failed to attach customer tax_id to invoice {invoice_doc.name}: {str(e)}")
+		frappe.log_error(f"[POSA] Failed to attach customer tax_id to invoice {invoice_doc.name}: {e}")
+
+	invoice_doc.save()
+
+	if data.get("due_date"):
+		frappe.db.set_value(
+			"Sales Invoice",
+			invoice_doc.name,
+			"due_date",
+			data.get("due_date"),
+			update_modified=False,
+		)
+
+	if frappe.get_value(
+		"POS Profile",
+		invoice_doc.pos_profile,
+		"posa_allow_submissions_in_background_job",
+	):
+		log.info(f"[SUBMIT_INVOICE] 🔄 Background job enabled - queuing invoices")
+		invoices_list = frappe.get_all(
+			"Sales Invoice",
+			filters={
+				"posa_pos_opening_shift": invoice_doc.posa_pos_opening_shift,
+				"docstatus": 0,
+				"posa_is_printed": 1,
+			},
+		)
+		log.info(f"[SUBMIT_INVOICE] 📋 Found {len(invoices_list)} invoices for background processing")
+
+		for invoice in invoices_list:
+			log.info(f"[SUBMIT_INVOICE] ⏳ Queuing invoice: {invoice.name}")
+			enqueue(
+				method=submit_in_background_job,
+				queue="short",
+				timeout=1000,
+				is_async=True,
+				kwargs={
+					"invoice": invoice.name,
+					"data": data,
+					"is_payment_entry": is_payment_entry,
+					"total_cash": total_cash,
+					"cash_account": cash_account,
+					"payments": payments,
+				},
+			)
+		log.info(f"[SUBMIT_INVOICE] ✅ All invoices queued for background processing")
+	else:
+		log.info(f"[SUBMIT_INVOICE] ⚡ Call Submitting invoice immediately - Directly Mode")
+
+		_set_item_level_discount_totals(invoice_doc)
+		invoice_doc.submit()
+
+		log.info(f"[SUBMIT_INVOICE] ✅ Invoice submitted successfully: {invoice_doc.name}")
+
+		redeeming_customer_credit(invoice_doc, data, is_payment_entry, total_cash, cash_account, payments)
+		log.info(f"[SUBMIT_INVOICE] ✅ Customer credit redeemed")
+
+	result = {"name": invoice_doc.name, "status": invoice_doc.docstatus}
+	log.info(f"[SUBMIT_INVOICE] 🎉 COMPLETED - Invoice: {invoice_doc.name}, Status: {invoice_doc.docstatus}")
+	return result
 
 
 @frappe.whitelist()
