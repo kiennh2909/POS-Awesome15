@@ -916,22 +916,6 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
             vat_rate = str(tax_template_details[0]["rate"])
             get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 2 - Using VAT rate from POS Profile Sales Tax Template: {vat_rate}%")
 
-    # # === ƯU TIÊN 3: Sales Taxes and Charges Template từ Company ===
-    # if not vat_rate and pos_profile_doc:
-    #     company = pos_profile_doc.company
-    #     company_doc = frappe.get_doc("Company", company)
-    #     if company_doc.default_sales_taxes_and_charges_template:
-    #         sales_tax_template = company_doc.default_sales_taxes_and_charges_template
-    #         tax_template_details = frappe.get_all(
-    #             "Sales Taxes and Charges",
-    #             filters={"parent": sales_tax_template},
-    #             fields=["rate"],
-    #             limit=1
-    #         )
-    #         if tax_template_details and tax_template_details[0].get("rate"):
-    #             vat_rate = str(tax_template_details[0]["rate"])
-    #             get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 3 - Using VAT rate from Company Sales Tax Template: {vat_rate}%")
-
     # === FALLBACK: Custom VAT Rate hoặc mặc định 0% ===
     if not vat_rate:
         vat_rate = item_doc.custom_vat_rate or "0"  # Mặc định VAT 0%
@@ -963,7 +947,6 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
     get_logger("items").info(f"[VAT_DEBUG] 📊 Item Master - custom_vat_applicable: {item_doc.custom_vat_applicable} (type: {type(item_doc.custom_vat_applicable)}), custom_vat_rate: {item_doc.custom_vat_rate}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Item Tax Template: {item_tax_template}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 POS Profile Tax Template: {pos_profile_doc.taxes_and_charges if pos_profile_doc else 'N/A'}")
-    get_logger("items").info(f"[VAT_DEBUG] 📊 Company Tax Template: {frappe.get_value('Company', pos_profile_doc.company if pos_profile_doc else None, 'default_sales_taxes_and_charges_template') if pos_profile_doc else 'N/A'}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Logic Check - vat_applicable is None: {item_doc.custom_vat_applicable is None}, so vat_applicable = {vat_applicable}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Calculated - vat_applicable: {vat_applicable}, vat_rate: {vat_rate}, final_vat_rate: {final_vat_rate}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Item Price - service_fee_rate: {item_price_data[0].custom_service_fee_rate if item_price_data else 'N/A'}, discount_rate: {item_price_data[0].custom_discount_rate if item_price_data else 'N/A'}")
