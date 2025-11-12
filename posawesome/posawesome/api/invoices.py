@@ -250,15 +250,13 @@ def update_invoice(data):
 			data['taxes_and_charges'] = None
 			log.info(f"[UPDATE_INVOICE] ✅ Cleared taxes_and_charges from invoice data")
 
-		# CRITICAL FIX: Clear taxes_and_charges from POS Profile to prevent 8% tax override
+		# CRITICAL FIX: Override taxes_and_charges in invoice data to prevent POS Profile 8% tax override
 		if data.get("pos_profile"):
 			pos_profile_doc = frappe.get_doc("POS Profile", data.get("pos_profile"))
 			if hasattr(pos_profile_doc, 'taxes_and_charges') and pos_profile_doc.taxes_and_charges:
 				log.info(f"[UPDATE_INVOICE] 🚨 FOUND TAX SOURCE - POS Profile '{data.get('pos_profile')}' has taxes_and_charges: '{pos_profile_doc.taxes_and_charges}'")
-				log.info(f"[UPDATE_INVOICE] 🛡️ CRITICAL FIX - Clearing taxes_and_charges from POS Profile to prevent 8% tax override")
-				pos_profile_doc.taxes_and_charges = None
-				pos_profile_doc.save()
-				log.info(f"[UPDATE_INVOICE] ✅ Cleared taxes_and_charges from POS Profile - Item-level tax templates will now work!")
+				log.info(f"[UPDATE_INVOICE] 🛡️ CRITICAL FIX - Will override taxes_and_charges in invoice after set_missing_values")
+				# Don't modify POS Profile directly, just note that we need to override later
 
 		invoice_doc = frappe.get_doc(data)
 		log.info(f"[UPDATE_INVOICE] ✅ New invoice document created")
@@ -418,12 +416,25 @@ def update_invoice(data):
 				fields=["tax_rate", "tax_type"],
 				limit=1
 			)
+			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item Tax Template '{item.item_tax_template}' details: {template_details}")
+
 			if template_details:
 				# Set invoice-level taxes_and_charges from Item Tax Template
 				invoice_doc.taxes_and_charges = item.item_tax_template
 				log.info(f"[UPDATE_INVOICE] 🏷️ Set invoice taxes_and_charges '{item.item_tax_template}' from item tax template")
+				log.info(f"[UPDATE_INVOICE] 🏷️ Template has tax rates: {template_details[0].get('tax_rate')}% ({template_details[0].get('tax_type')})")
 			else:
-				log.warning(f"[UPDATE_INVOICE] ⚠️ Item Tax Template '{item.item_tax_template}' has no tax rates")
+				log.warning(f"[UPDATE_INVOICE] ⚠️ Item Tax Template '{item.item_tax_template}' has no tax rates - checking template directly")
+
+				# Try to get the template document directly
+				try:
+					template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
+					log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Template doc taxes: {len(template_doc.taxes) if hasattr(template_doc, 'taxes') else 'N/A'}")
+					if hasattr(template_doc, 'taxes') and template_doc.taxes:
+						for i, tax in enumerate(template_doc.taxes):
+							log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Template tax {i+1}: rate={tax.tax_rate}%, type={tax.tax_type}")
+				except Exception as e:
+					log.error(f"[UPDATE_INVOICE] ❌ Error getting template doc: {e}")
 
 	# Calculate taxes and totals to apply Item Tax Template logic
 	log.info(f"[UPDATE_INVOICE] 🧾 Calculating taxes and totals for invoice")
