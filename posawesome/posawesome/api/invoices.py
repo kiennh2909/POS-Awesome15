@@ -344,13 +344,31 @@ def update_invoice(data):
 		log.info(f"[UPDATE_INVOICE] 🔍   - default_tax_template: {getattr(item_doc, 'default_tax_template', 'N/A')}")
 
 		# Check Item Tax table entries
-		item_tax_entries = frappe.get_all("Item Tax",
-			filters={"parent": item.item_code},
-			fields=["item_tax_template", "tax_category", "valid_from"]
-		)
-		log.info(f"[UPDATE_INVOICE] 🔍   - Item Tax table entries: {len(item_tax_entries)}")
-		for entry in item_tax_entries:
-			log.info(f"[UPDATE_INVOICE] 🔍     * {entry}")
+		try:
+			item_tax_entries = frappe.get_all("Item Tax",
+				filters={"parent": item.item_code},
+				fields=["item_tax_template", "tax_category", "valid_from"]
+			)
+			log.info(f"[UPDATE_INVOICE] 🔍   - Item Tax table entries: {len(item_tax_entries)}")
+			for entry in item_tax_entries:
+				log.info(f"[UPDATE_INVOICE] 🔍     * {entry}")
+		except Exception as e:
+			log.error(f"[UPDATE_INVOICE] 🔍   - Error querying Item Tax table for {item.item_code}: {e}")
+			# Try alternative query method
+			try:
+				item_tax_sql = frappe.db.sql("""
+					SELECT item_tax_template, tax_category, valid_from
+					FROM `tabItem Tax`
+					WHERE parent = %s
+					LIMIT 10
+				""", (item.item_code,), as_dict=True)
+				log.info(f"[UPDATE_INVOICE] 🔍   - Item Tax table entries (SQL): {len(item_tax_sql)}")
+				for entry in item_tax_sql:
+					log.info(f"[UPDATE_INVOICE] 🔍     * {entry}")
+				item_tax_entries = item_tax_sql
+			except Exception as sql_e:
+				log.error(f"[UPDATE_INVOICE] 🔍   - Error with SQL query: {sql_e}")
+				item_tax_entries = []
 
 	# Check Tax Rules
 	tax_rules = frappe.get_all("Tax Rule",
@@ -421,13 +439,29 @@ def update_invoice(data):
 	for item in invoice_doc.items:
 		if item.item_tax_template and not invoice_doc.taxes_and_charges:
 			# Check if Item Tax Template has tax rates
-			template_details = frappe.get_all(
-				"Item Tax Template Detail",
-				filters={"parent": item.item_tax_template},
-				fields=["tax_rate", "tax_type"],
-				limit=1
-			)
-			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item Tax Template '{item.item_tax_template}' details: {template_details}")
+			try:
+				template_details = frappe.get_all(
+					"Item Tax Template Detail",
+					filters={"parent": item.item_tax_template},
+					fields=["tax_rate", "tax_type"],
+					limit=1
+				)
+				log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item Tax Template '{item.item_tax_template}' details: {template_details}")
+			except Exception as e:
+				log.error(f"[UPDATE_INVOICE] 🔍 DEBUG - Error querying Item Tax Template Detail for '{item.item_tax_template}': {e}")
+				# Try alternative SQL query
+				try:
+					template_sql = frappe.db.sql("""
+						SELECT tax_rate, tax_type
+						FROM `tabItem Tax Template Detail`
+						WHERE parent = %s
+						LIMIT 1
+					""", (item.item_tax_template,), as_dict=True)
+					log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item Tax Template '{item.item_tax_template}' details (SQL): {template_sql}")
+					template_details = template_sql
+				except Exception as sql_e:
+					log.error(f"[UPDATE_INVOICE] 🔍 DEBUG - Error with SQL query for template details: {sql_e}")
+					template_details = []
 
 			if template_details:
 				# Set invoice-level taxes_and_charges from Item Tax Template
