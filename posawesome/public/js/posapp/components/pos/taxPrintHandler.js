@@ -220,6 +220,42 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 		// Lưu ý: invoice.items là các POS Invoice Item, không phải Item master
 		debugLog("Bước 1: Bắt đầu tạo danh sách sản phẩm chi tiết (ProductDto) từ POS Invoice Items...");
 
+		// === ĐẢM BẢO TAX INFO ĐƯỢC POPULATE CHO INVOICE ITEMS ===
+		// Nếu invoice items chưa có tax info (từ database cũ), lấy từ Item master
+		for (const item of invoice.items) {
+			if (item.custom_vat_applicable === undefined || item.custom_vat_applicable === null) {
+				try {
+					debugLog(`[VAT_DEBUG] 📦 Populating tax info for item: ${item.item_code}`);
+					const taxInfo = await frappe.call({
+						method: "posawesome.posawesome.api.items.get_item_tax_info",
+						args: { item_code: item.item_code, price_list: null }
+					});
+					// Update item with tax info
+					item.custom_inventory_type = taxInfo.message.custom_inventory_type;
+					item.custom_vat_applicable = taxInfo.message.custom_vat_applicable;
+					item.custom_vat_rate = taxInfo.message.custom_vat_rate;
+					item.custom_excise_rate = taxInfo.message.custom_excise_rate;
+					item.custom_service_fee_rate = taxInfo.message.custom_service_fee_rate;
+					item.custom_discount_rate = taxInfo.message.custom_discount_rate;
+					item.item_group = taxInfo.message.item_group;
+					debugLog(`[VAT_DEBUG] 📦 Updated tax info for ${item.item_code}:`, {
+						custom_vat_applicable: item.custom_vat_applicable,
+						custom_vat_rate: item.custom_vat_rate
+					});
+				} catch (error) {
+					console.error(`Failed to get tax info for ${item.item_code}:`, error);
+					// Set defaults if API fails
+					item.custom_inventory_type = item.custom_inventory_type || "0";
+					item.custom_vat_applicable = true;
+					item.custom_vat_rate = "0";
+					item.custom_excise_rate = item.custom_excise_rate || "0";
+					item.custom_service_fee_rate = item.custom_service_fee_rate || "0";
+					item.custom_discount_rate = item.custom_discount_rate || "0";
+					item.item_group = item.item_group || "";
+				}
+			}
+		}
+
 		// === LOG DEBUG CHI TIẾT INVOICE ITEMS ===
 		debugLog(`[VAT_DEBUG] 📦 PROCESSING ${invoice.items.length} INVOICE ITEMS:`);
 		invoice.items.forEach((item, index) => {

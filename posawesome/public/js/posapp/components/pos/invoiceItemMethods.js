@@ -711,6 +711,26 @@ export default {
 				// Preserve rate when loading saved invoice
 				item._preserve_rate_on_load = true;
 				item._manual_rate_set = true;
+
+				// Ensure tax fields have default values if undefined
+				if (item.custom_inventory_type === undefined) {
+					item.custom_inventory_type = "0";
+				}
+				if (item.custom_vat_applicable === undefined) {
+					item.custom_vat_applicable = true; // Default to true
+				}
+				if (item.custom_vat_rate === undefined) {
+					item.custom_vat_rate = "0";
+				}
+				if (item.custom_excise_rate === undefined) {
+					item.custom_excise_rate = "0";
+				}
+				if (item.custom_service_fee_rate === undefined) {
+					item.custom_service_fee_rate = "0";
+				}
+				if (item.custom_discount_rate === undefined) {
+					item.custom_discount_rate = "0";
+				}
 			});
 
 			this.update_items_details(this.items);
@@ -1297,6 +1317,21 @@ export default {
 			new_item.custom_discount_rate = item.custom_discount_rate || "0";
 			new_item.item_group = item.item_group || "";
 
+			// === LOG TRACKING KHI TẠO INVOICE DOCUMENT ===
+			console.log("📄 [INVOICE_DOC_LOG] TRACKING KHI TẠO INVOICE DOCUMENT - Item:", new_item.item_code, {
+				custom_inventory_type: new_item.custom_inventory_type,
+				custom_vat_applicable: new_item.custom_vat_applicable,
+				custom_vat_rate: new_item.custom_vat_rate,
+				custom_excise_rate: new_item.custom_excise_rate,
+				custom_service_fee_rate: new_item.custom_service_fee_rate,
+				custom_discount_rate: new_item.custom_discount_rate,
+				item_group: new_item.item_group,
+				qty: new_item.qty,
+				rate: new_item.rate,
+				amount: new_item.amount,
+				source: "get_invoice_items_create_doc"
+			});
+
 			// For returns, ensure all amounts are negative
 			if (isReturn) {
 				new_item.qty = -Math.abs(new_item.qty);
@@ -1645,6 +1680,22 @@ export default {
 			invoice_doc.payments = this.get_payments();
 			console.log("Final payment data:", invoice_doc.payments);
 
+			// === LOG VAT INFO KHI CLICK PAY ===
+			console.log("💰 [PAY_LOG] VAT INFO KHI CLICK PAY - Invoice:", invoice_doc.name, {
+				total_items: invoice_doc.items?.length || 0,
+				items_with_vat: invoice_doc.items?.map(item => ({
+					item_code: item.item_code,
+					custom_vat_applicable: item.custom_vat_applicable,
+					custom_vat_rate: item.custom_vat_rate,
+					custom_inventory_type: item.custom_inventory_type,
+					amount: item.amount,
+					base_amount: item.base_amount,
+				})) || [],
+				total: invoice_doc.total,
+				grand_total: invoice_doc.grand_total,
+				source: "show_payment_click_pay"
+			});
+
 			// Double-check return invoice payments are negative
 			if ((this.isReturnInvoice || invoice_doc.is_return) && invoice_doc.payments.length) {
 				invoice_doc.payments.forEach((payment) => {
@@ -1888,6 +1939,29 @@ export default {
 						item.item_uoms = updated_item.item_uoms;
 						item.has_batch_no = updated_item.has_batch_no;
 						item.has_serial_no = updated_item.has_serial_no;
+
+						// Update tax fields to ensure they are properly set
+						if (updated_item.custom_inventory_type !== undefined) {
+							item.custom_inventory_type = updated_item.custom_inventory_type;
+						}
+						if (updated_item.custom_vat_applicable !== undefined) {
+							item.custom_vat_applicable = updated_item.custom_vat_applicable;
+						}
+						if (updated_item.custom_vat_rate !== undefined) {
+							item.custom_vat_rate = updated_item.custom_vat_rate;
+						}
+						if (updated_item.custom_excise_rate !== undefined) {
+							item.custom_excise_rate = updated_item.custom_excise_rate;
+						}
+						if (updated_item.custom_service_fee_rate !== undefined) {
+							item.custom_service_fee_rate = updated_item.custom_service_fee_rate;
+						}
+						if (updated_item.custom_discount_rate !== undefined) {
+							item.custom_discount_rate = updated_item.custom_discount_rate;
+						}
+						if (updated_item.item_group !== undefined) {
+							item.item_group = updated_item.item_group;
+						}
 					}
 				});
 			}
