@@ -35,7 +35,11 @@ export default {
 		// Call backend API to get tax info
 		const response = await frappe.call({
 			method: "posawesome.posawesome.api.items.get_item_tax_info",
-			args: { item_code, price_list },
+			args: {
+				item_code,
+				price_list,
+				pos_profile: this.pos_profile
+			},
 		});
 		console.log("[DEBUG] getItemTaxInfo response:", response.message);
 		return response.message;

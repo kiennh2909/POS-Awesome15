@@ -865,11 +865,72 @@ def get_item_variants(pos_profile, parent_item_code, price_list=None, customer=N
 	return result
 
 @frappe.whitelist()
-def get_item_tax_info(item_code, price_list=None):
-    """Lấy thông tin thuế cho MISA API từ Item + Item Price"""
+def get_item_tax_info(item_code, price_list=None, pos_profile=None):
+    """Lấy thông tin thuế cho MISA API từ Item + Item Price với ưu tiên theo thứ tự"""
 
     # Lấy từ Item (thuộc tính cố định)
     item_doc = frappe.get_doc("Item", item_code)
+
+    # Lấy POS Profile để lấy Sales Taxes and Charges Template
+    pos_profile_doc = None
+    if pos_profile:
+        try:
+            pos_profile_data = json.loads(pos_profile) if isinstance(pos_profile, str) else pos_profile
+            pos_profile_name = pos_profile_data.get("name") if isinstance(pos_profile_data, dict) else pos_profile
+            pos_profile_doc = frappe.get_doc("POS Profile", pos_profile_name)
+        except:
+            pass
+
+    # === ƯU TIÊN 1: Item Tax Template Detail ===
+    vat_rate = None
+    item_tax_template = item_doc.item_tax_template
+    if item_tax_template:
+        tax_template_details = frappe.get_all(
+            "Item Tax Template Detail",
+            filters={"parent": item_tax_template},
+            fields=["tax_rate"],
+            limit=1
+        )
+        if tax_template_details and tax_template_details[0].get("tax_rate"):
+            vat_rate = str(tax_template_details[0]["tax_rate"])
+            get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 1 - Using VAT rate from Item Tax Template: {vat_rate}%")
+
+    # === ƯU TIÊN 2: Sales Taxes and Charges Template từ POS Profile ===
+    if not vat_rate and pos_profile_doc and pos_profile_doc.sales_taxes_and_charges_template:
+        sales_tax_template = pos_profile_doc.sales_taxes_and_charges_template
+        tax_template_details = frappe.get_all(
+            "Sales Taxes and Charges",
+            filters={"parent": sales_tax_template},
+            fields=["rate"],
+            limit=1
+        )
+        if tax_template_details and tax_template_details[0].get("rate"):
+            vat_rate = str(tax_template_details[0]["rate"])
+            get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 2 - Using VAT rate from POS Profile Sales Tax Template: {vat_rate}%")
+
+    # === ƯU TIÊN 3: Sales Taxes and Charges Template từ Company ===
+    if not vat_rate and pos_profile_doc:
+        company = pos_profile_doc.company
+        company_doc = frappe.get_doc("Company", company)
+        if company_doc.default_sales_taxes_and_charges_template:
+            sales_tax_template = company_doc.default_sales_taxes_and_charges_template
+            tax_template_details = frappe.get_all(
+                "Sales Taxes and Charges",
+                filters={"parent": sales_tax_template},
+                fields=["rate"],
+                limit=1
+            )
+            if tax_template_details and tax_template_details[0].get("rate"):
+                vat_rate = str(tax_template_details[0]["rate"])
+                get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 3 - Using VAT rate from Company Sales Tax Template: {vat_rate}%")
+
+    # === FALLBACK: Custom VAT Rate hoặc mặc định 0% ===
+    if not vat_rate:
+        vat_rate = item_doc.custom_vat_rate or "0"  # Mặc định VAT 0%
+        if item_doc.custom_vat_rate:
+            get_logger("items").info(f"[VAT_DEBUG] 📊 Fallback - Using custom VAT rate: {vat_rate}%")
+        else:
+            get_logger("items").info(f"[VAT_DEBUG] 📊 Fallback - Using default VAT rate: {vat_rate}%")
 
     # Lấy từ Item Price (thuộc tính theo giá)
     price_filters = {"item_code": item_code}
@@ -885,14 +946,16 @@ def get_item_tax_info(item_code, price_list=None):
 
     # Tính VAT rate cuối cùng
     # Logic: Nếu custom_vat_applicable = False thì VAT = -1 (không áp dụng)
-    # Nếu custom_vat_applicable = True hoặc undefined thì VAT = custom_vat_rate hoặc 8%
+    # Nếu custom_vat_applicable = True hoặc undefined thì VAT = vat_rate đã tính
     vat_applicable = item_doc.custom_vat_applicable if item_doc.custom_vat_applicable is not None else True
-    vat_rate = item_doc.custom_vat_rate or "8"  # Mặc định VAT 8%
     final_vat_rate = vat_rate if vat_applicable else "-1"
 
     # === LOG DEBUG CHI TIẾT VAT ===
     get_logger("items").info(f"[VAT_DEBUG] 🎯 GET_ITEM_TAX_INFO - Item: {item_code}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Item Master - custom_vat_applicable: {item_doc.custom_vat_applicable} (type: {type(item_doc.custom_vat_applicable)}), custom_vat_rate: {item_doc.custom_vat_rate}")
+    get_logger("items").info(f"[VAT_DEBUG] 📊 Item Tax Template: {item_doc.item_tax_template}")
+    get_logger("items").info(f"[VAT_DEBUG] 📊 POS Profile Tax Template: {pos_profile_doc.sales_taxes_and_charges_template if pos_profile_doc else 'N/A'}")
+    get_logger("items").info(f"[VAT_DEBUG] 📊 Company Tax Template: {frappe.get_value('Company', pos_profile_doc.company if pos_profile_doc else None, 'default_sales_taxes_and_charges_template') if pos_profile_doc else 'N/A'}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Logic Check - vat_applicable is None: {item_doc.custom_vat_applicable is None}, so vat_applicable = {vat_applicable}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Calculated - vat_applicable: {vat_applicable}, vat_rate: {vat_rate}, final_vat_rate: {final_vat_rate}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Item Price - service_fee_rate: {item_price_data[0].custom_service_fee_rate if item_price_data else 'N/A'}, discount_rate: {item_price_data[0].custom_discount_rate if item_price_data else 'N/A'}")
