@@ -134,8 +134,6 @@ def update_invoice(data):
 	# Debug log: Raw data received from client
 	log.info(f"[VAT_TRACE] BACKEND RECEIVE - Step 5: Raw data received from client")
 	log.info(f"[VAT_TRACE] BACKEND RECEIVE - Invoice data: {data}")
-	for i, item in enumerate(data.get('items', [])):
-		log.info(f"[VAT_TRACE] BACKEND RECEIVE - Item {i+1} ({item.get('item_code')}): custom_vat_applicable={item.get('custom_vat_applicable')}, custom_vat_rate={item.get('custom_vat_rate')}, custom_inventory_type={item.get('custom_inventory_type')}")
 
 	# Log request metadata
 	log.info(f"[UPDATE_INVOICE] 📊 REQUEST METADATA:")
@@ -146,6 +144,11 @@ def update_invoice(data):
 
 	data = json.loads(data)
 	invoice_name = data.get("name")
+
+	# Log VAT info after parsing JSON
+	log.info(f"[VAT_TRACE] BACKEND RECEIVE - Step 5: Parsed data")
+	for i, item in enumerate(data.get('items', [])):
+		log.info(f"[VAT_TRACE] BACKEND RECEIVE - Item {i+1} ({item.get('item_code')}): custom_vat_applicable={item.get('custom_vat_applicable')}, custom_vat_rate={item.get('custom_vat_rate')}, custom_inventory_type={item.get('custom_inventory_type')}")
 
 	log.info(f"[UPDATE_INVOICE] 📋 BASIC INVOICE INFO:")
 	log.info(f"[UPDATE_INVOICE] 📋   - Name: {invoice_name}")
