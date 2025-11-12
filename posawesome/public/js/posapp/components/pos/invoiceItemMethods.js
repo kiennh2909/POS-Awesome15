@@ -954,6 +954,18 @@ export default {
 			}
 		});
 
+		// Log để kiểm tra tax info trong items sau khi get_invoice_items
+		console.log("📄 [VAT_TRACE] AFTER GET_INVOICE_ITEMS - Final items array:", {
+			items_count: items.length,
+			first_item_tax_info: items[0] ? {
+				item_code: items[0].item_code,
+				custom_vat_applicable: items[0].custom_vat_applicable,
+				custom_vat_rate: items[0].custom_vat_rate,
+				custom_inventory_type: items[0].custom_inventory_type
+			} : null,
+			step: "3.5_after_get_invoice_items"
+		});
+
 		doc.items = items;
 
 		// Calculate totals in selected currency ensuring negative values for returns
@@ -1332,6 +1344,16 @@ export default {
 				rate: new_item.rate,
 				amount: new_item.amount,
 				step: "3_create_invoice_doc"
+			});
+
+			// Log để kiểm tra xem tax info có bị mất trong get_invoice_items không
+			console.log("📄 [VAT_TRACE] BEFORE GET_INVOICE_ITEMS - Checking items array:", {
+				items_count: this.items.length,
+				first_item_tax_info: this.items[0] ? {
+					item_code: this.items[0].item_code,
+					custom_vat_applicable: this.items[0].custom_vat_applicable,
+					custom_vat_rate: this.items[0].custom_vat_rate
+				} : null
 			});
 
 			// For returns, ensure all amounts are negative

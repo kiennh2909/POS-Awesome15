@@ -271,6 +271,19 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 				custom_vat_rate: item.custom_vat_rate,
 				custom_inventory_type: item.custom_inventory_type,
 			});
+
+			// Log chi tiết để debug tại sao custom_vat_applicable undefined
+			debugLog(`[VAT_TRACE] TAX PRINT - Item ${index + 1} VAT Info:`, {
+				item_code: item.item_code,
+				custom_vat_applicable: item.custom_vat_applicable,
+				custom_vat_applicable_type: typeof item.custom_vat_applicable,
+				custom_vat_rate: item.custom_vat_rate,
+				custom_vat_rate_type: typeof item.custom_vat_rate,
+				custom_inventory_type: item.custom_inventory_type,
+				has_custom_vat_applicable: item.hasOwnProperty('custom_vat_applicable'),
+				has_custom_vat_rate: item.hasOwnProperty('custom_vat_rate'),
+				step: "tax_print_handler_check"
+			});
 		});
 
 		const products = invoice.items.map((item) => {
