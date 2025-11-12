@@ -901,8 +901,9 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
         )
         if tax_template_details and tax_template_details[0].get("tax_rate"):
             # Convert to integer and then to string to remove decimal places
-            vat_rate = str(int(float(tax_template_details[0]["tax_rate"])))
-            get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 1 - Using VAT rate from Item Tax Template: {vat_rate}%")
+            raw_rate = tax_template_details[0]["tax_rate"]
+            vat_rate = str(int(float(raw_rate)))
+            get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 1 - Raw rate: {raw_rate} (type: {type(raw_rate)}), Converted: {vat_rate}%")
 
     # === ƯU TIÊN 2: Sales Taxes and Charges Template từ POS Profile ===
     if not vat_rate and pos_profile_doc and pos_profile_doc.taxes_and_charges:
@@ -915,16 +916,19 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
         )
         if tax_template_details and tax_template_details[0].get("rate"):
             # Convert to integer and then to string to remove decimal places
-            vat_rate = str(int(float(tax_template_details[0]["rate"])))
-            get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 2 - Using VAT rate from POS Profile Sales Tax Template: {vat_rate}%")
+            raw_rate = tax_template_details[0]["rate"]
+            vat_rate = str(int(float(raw_rate)))
+            get_logger("items").info(f"[VAT_DEBUG] 📊 Priority 2 - Raw rate: {raw_rate} (type: {type(raw_rate)}), Converted: {vat_rate}%")
 
     # === BỎ Priority 3 - Company Sales Tax Template (không sử dụng) ===
 
     # === FALLBACK: Custom VAT Rate hoặc mặc định 0% ===
     if not vat_rate:
-        vat_rate = item_doc.custom_vat_rate or "0"  # Mặc định VAT 0%
+        raw_custom_rate = item_doc.custom_vat_rate or "0"  # Mặc định VAT 0%
+        # Always convert to integer string to remove decimal places
+        vat_rate = str(int(float(raw_custom_rate)))
         if item_doc.custom_vat_rate:
-            get_logger("items").info(f"[VAT_DEBUG] 📊 Fallback - Using custom VAT rate: {vat_rate}%")
+            get_logger("items").info(f"[VAT_DEBUG] 📊 Fallback - Raw custom rate: {raw_custom_rate}, Converted: {vat_rate}%")
         else:
             get_logger("items").info(f"[VAT_DEBUG] 📊 Fallback - Using default VAT rate: {vat_rate}%")
 
@@ -954,6 +958,21 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
     get_logger("items").info(f"[VAT_DEBUG] 📊 Logic Check - vat_applicable is None: {item_doc.custom_vat_applicable is None}, so vat_applicable = {vat_applicable}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Calculated - vat_applicable: {vat_applicable}, vat_rate: {vat_rate}, final_vat_rate: {final_vat_rate}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Item Price - service_fee_rate: {item_price_data[0].custom_service_fee_rate if item_price_data else 'N/A'}, discount_rate: {item_price_data[0].custom_discount_rate if item_price_data else 'N/A'}")
+
+    # Log the return data
+    return_data = {
+        "custom_inventory_type": item_doc.custom_inventory_type or "0",
+        "custom_vat_applicable": vat_applicable,
+        "custom_vat_rate": vat_rate,
+        "custom_excise_rate": item_doc.custom_excise_rate or "0",
+        "custom_service_fee_rate": item_price_data[0].custom_service_fee_rate if item_price_data else "0",
+        "custom_discount_rate": item_price_data[0].custom_discount_rate if item_price_data else "0",
+        "item_group": item_doc.item_group or "",
+        "vat_rate": final_vat_rate,
+        "final_vat_rate": final_vat_rate
+    }
+    get_logger("items").info(f"[VAT_DEBUG] 📤 RETURN DATA: {return_data}")
+    return return_data
 
     return {
         "custom_inventory_type": item_doc.custom_inventory_type or "0",

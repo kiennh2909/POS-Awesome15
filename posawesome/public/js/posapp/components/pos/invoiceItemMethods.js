@@ -341,7 +341,7 @@ export default {
 				console.log("[DEBUG] Tax info received:", tax_info);
 
 				new_item.custom_inventory_type = tax_info.custom_inventory_type;
-				new_item.custom_vat_applicable = tax_info.custom_vat_applicable;
+				new_item.custom_vat_applicable = tax_info.custom_vat_applicable !== undefined ? tax_info.custom_vat_applicable : true; // Default to true if undefined
 				new_item.custom_vat_rate = tax_info.vat_rate;
 				new_item.custom_excise_rate = tax_info.custom_excise_rate;
 				new_item.custom_service_fee_rate = tax_info.custom_service_fee_rate;
@@ -353,6 +353,8 @@ export default {
 					custom_inventory_type: new_item.custom_inventory_type,
 					custom_vat_applicable: new_item.custom_vat_applicable,
 					custom_vat_rate: new_item.custom_vat_rate,
+					tax_info_vat_rate: tax_info.vat_rate,
+					tax_info_vat_rate_type: typeof tax_info.vat_rate,
 				});
 			} catch (error) {
 				console.error("Failed to get tax info for item:", item.item_code, error);
@@ -1288,7 +1290,7 @@ export default {
 			// === COPY THÔNG TIN THUẾ CHO MISA ===
 			// Đảm bảo các trường thuế được copy từ item vào invoice document
 			new_item.custom_inventory_type = item.custom_inventory_type || "0";
-			new_item.custom_vat_applicable = item.custom_vat_applicable;
+			new_item.custom_vat_applicable = item.custom_vat_applicable !== undefined ? item.custom_vat_applicable : true; // Default to true if undefined
 			new_item.custom_vat_rate = item.custom_vat_rate || "0";
 			new_item.custom_excise_rate = item.custom_excise_rate || "0";
 			new_item.custom_service_fee_rate = item.custom_service_fee_rate || "0";
