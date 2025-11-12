@@ -301,6 +301,19 @@ def update_invoice(data):
 	invoice_doc.set_missing_values()
 	log.info(f"[UPDATE_INVOICE] ✅ Missing values set")
 
+	# Calculate taxes and totals to apply Item Tax Template logic
+	log.info(f"[UPDATE_INVOICE] 🧾 Calculating taxes and totals for invoice")
+	invoice_doc.calculate_taxes_and_totals()
+	log.info(f"[UPDATE_INVOICE] ✅ Taxes and totals calculated")
+
+	# Log tax information after calculation
+	if hasattr(invoice_doc, 'taxes') and invoice_doc.taxes:
+		log.info(f"[UPDATE_INVOICE] 🧾 TAXES AFTER CALCULATION: {len(invoice_doc.taxes)} tax entries")
+		for i, tax in enumerate(invoice_doc.taxes[:3]):  # Log first 3 taxes
+			log.info(f"[UPDATE_INVOICE] 🧾 Tax {i+1}: {tax.description} - Rate: {tax.rate}%, Amount: {tax.tax_amount}")
+	else:
+		log.info(f"[UPDATE_INVOICE] 🧾 No taxes found after calculation")
+
 	# Missing values set successfully
 
 	# Calculate stock_qty for all items (critical for inventory management)

@@ -922,15 +922,10 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
 
     # === BỎ Priority 3 - Company Sales Tax Template (không sử dụng) ===
 
-    # === FALLBACK: Custom VAT Rate hoặc mặc định 0% ===
+    # === FALLBACK: VAT rate mặc định 0% ===
     if not vat_rate:
-        raw_custom_rate = item_doc.custom_vat_rate or "0"  # Mặc định VAT 0%
-        # Always convert to integer string to remove decimal places
-        vat_rate = str(int(float(raw_custom_rate)))
-        if item_doc.custom_vat_rate:
-            get_logger("items").info(f"[VAT_DEBUG] 📊 Fallback - Raw custom rate: {raw_custom_rate}, Converted: {vat_rate}%")
-        else:
-            get_logger("items").info(f"[VAT_DEBUG] 📊 Fallback - Using default VAT rate: {vat_rate}%")
+        vat_rate = "0"  # Mặc định VAT 0%
+        get_logger("items").info(f"[VAT_DEBUG] 📊 Fallback - Using default VAT rate: {vat_rate}%")
 
     # Lấy từ Item Price (thuộc tính theo giá)
     price_filters = {"item_code": item_code}
@@ -952,7 +947,6 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
 
     # === LOG DEBUG CHI TIẾT VAT ===
     get_logger("items").info(f"[VAT_DEBUG] 🎯 GET_ITEM_TAX_INFO - Item: {item_code}")
-    get_logger("items").info(f"[VAT_DEBUG] 📊 Item Master - custom_vat_applicable: {item_doc.custom_vat_applicable} (type: {type(item_doc.custom_vat_applicable)}), custom_vat_rate: {item_doc.custom_vat_rate}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Item Tax Template: {item_tax_template}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 POS Profile Tax Template: {pos_profile_doc.taxes_and_charges if pos_profile_doc else 'N/A'}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Logic Check - vat_applicable is None: {item_doc.custom_vat_applicable is None}, so vat_applicable = {vat_applicable}")
@@ -1118,7 +1112,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 
     # === LOG DEBUG CHI TIẾT VAT KHI LOAD ITEM ===
     get_logger("items").info(f"[VAT_DEBUG] 🎯 GET_ITEM_DETAIL - Item: {item_code}, Price List: {price_list}")
-    get_logger("items").info(f"[VAT_DEBUG] 📊 Item Detail Response - custom_vat_applicable: {res.get('custom_vat_applicable')} (type: {type(res.get('custom_vat_applicable'))}), custom_vat_rate: {res.get('custom_vat_rate')}, final_vat_rate: {res.get('final_vat_rate')}")
+    get_logger("items").info(f"[VAT_DEBUG] 📊 Item Detail Response - custom_vat_applicable: {res.get('custom_vat_applicable')} (type: {type(res.get('custom_vat_applicable'))}), final_vat_rate: {res.get('final_vat_rate')}")
     get_logger("items").info(f"[VAT_DEBUG] 💰 Price Info - rate: {res.get('rate')}, base_rate: {res.get('base_rate')}, base_amount: {res.get('base_amount')}, base_net_amount: {res.get('base_net_amount')}")
 
     return res
