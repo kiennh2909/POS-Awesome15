@@ -337,7 +337,7 @@ def update_invoice(data):
 		# Check Item Tax table entries
 		item_tax_entries = frappe.get_all("Item Tax",
 			filters={"parent": item.item_code},
-			fields=["item_tax_template", "tax_category", "valid_from", "valid_upto"]
+			fields=["item_tax_template", "tax_category", "valid_from"]
 		)
 		log.info(f"[UPDATE_INVOICE] 🔍   - Item Tax table entries: {len(item_tax_entries)}")
 		for entry in item_tax_entries:
