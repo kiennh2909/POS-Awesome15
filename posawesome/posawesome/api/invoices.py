@@ -351,7 +351,7 @@ def update_invoice(data):
 			"from_date": ["<=", data.get("posting_date", frappe.utils.nowdate())],
 			"to_date": [">=", data.get("posting_date", frappe.utils.nowdate())]
 		},
-		fields=["name", "tax_type", "tax_rate", "priority"]
+		fields=["name", "tax_type", "priority"]
 	)
 	log.info(f"[UPDATE_INVOICE] 🔍 Applicable Tax Rules: {len(tax_rules)}")
 	for rule in tax_rules:
