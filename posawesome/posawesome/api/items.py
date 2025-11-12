@@ -883,7 +883,15 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
 
     # === ƯU TIÊN 1: Item Tax Template Detail ===
     vat_rate = None
-    item_tax_template = item_doc.item_tax_template
+    # Lấy Item Tax Template từ bảng Item Tax (child table của Item)
+    item_tax_data = frappe.get_all(
+        "Item Tax",
+        filters={"parent": item_code},
+        fields=["item_tax_template"],
+        limit=1
+    )
+    item_tax_template = item_tax_data[0].get("item_tax_template") if item_tax_data else None
+
     if item_tax_template:
         tax_template_details = frappe.get_all(
             "Item Tax Template Detail",
@@ -953,7 +961,7 @@ def get_item_tax_info(item_code, price_list=None, pos_profile=None):
     # === LOG DEBUG CHI TIẾT VAT ===
     get_logger("items").info(f"[VAT_DEBUG] 🎯 GET_ITEM_TAX_INFO - Item: {item_code}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Item Master - custom_vat_applicable: {item_doc.custom_vat_applicable} (type: {type(item_doc.custom_vat_applicable)}), custom_vat_rate: {item_doc.custom_vat_rate}")
-    get_logger("items").info(f"[VAT_DEBUG] 📊 Item Tax Template: {item_doc.item_tax_template}")
+    get_logger("items").info(f"[VAT_DEBUG] 📊 Item Tax Template: {item_tax_template}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 POS Profile Tax Template: {pos_profile_doc.sales_taxes_and_charges_template if pos_profile_doc else 'N/A'}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Company Tax Template: {frappe.get_value('Company', pos_profile_doc.company if pos_profile_doc else None, 'default_sales_taxes_and_charges_template') if pos_profile_doc else 'N/A'}")
     get_logger("items").info(f"[VAT_DEBUG] 📊 Logic Check - vat_applicable is None: {item_doc.custom_vat_applicable is None}, so vat_applicable = {vat_applicable}")
