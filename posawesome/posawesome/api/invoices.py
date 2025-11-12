@@ -296,10 +296,25 @@ def update_invoice(data):
 
 	# Setting missing values for invoice
 
-	# Set missing values first
+	# Set missing values first, but preserve item-level tax templates for POS
 	log.info(f"[UPDATE_INVOICE] 🔧 Setting missing values for invoice")
+
+	# For POS invoices, temporarily disable default taxes_and_charges to prevent override
+	original_taxes_and_charges = invoice_doc.taxes_and_charges
+	has_item_tax_templates = any(item.item_tax_template for item in invoice_doc.items)
+
+	if has_item_tax_templates:
+		log.info(f"[UPDATE_INVOICE] 🛡️ Temporarily clearing taxes_and_charges to prevent default override")
+		invoice_doc.taxes_and_charges = None
+
 	invoice_doc.set_missing_values()
 	log.info(f"[UPDATE_INVOICE] ✅ Missing values set")
+
+	# Restore original taxes_and_charges if we had item-level tax templates
+	if has_item_tax_templates and original_taxes_and_charges:
+		log.info(f"[UPDATE_INVOICE] 🔄 Restoring original taxes_and_charges: {original_taxes_and_charges}")
+		invoice_doc.taxes_and_charges = original_taxes_and_charges
+		log.info(f"[UPDATE_INVOICE] ✅ Preserved taxes_and_charges for item-level tax templates")
 
 	# Set Item Tax Template for each item before calculating taxes
 	# Priority: 1) Client-provided item_tax_template, 2) Item Tax table lookup
@@ -319,6 +334,23 @@ def update_invoice(data):
 				log.info(f"[UPDATE_INVOICE] 🏷️ No item_tax_template found for item {item.item_code}")
 		else:
 			log.info(f"[UPDATE_INVOICE] 🏷️ Using client-provided item_tax_template '{item.item_tax_template}' for item {item.item_code}")
+
+		# If item has item_tax_template, try to set it as invoice-level taxes_and_charges
+		if item.item_tax_template and not invoice_doc.taxes_and_charges:
+			# Check if Item Tax Template has tax rates
+			template_details = frappe.get_all(
+				"Item Tax Template Detail",
+				filters={"parent": item.item_tax_template},
+				fields=["tax_rate", "tax_type"],
+				limit=1
+			)
+			if template_details:
+				# Set invoice-level taxes_and_charges from Item Tax Template
+				invoice_doc.taxes_and_charges = item.item_tax_template
+				log.info(f"[UPDATE_INVOICE] 🏷️ Set invoice taxes_and_charges '{item.item_tax_template}' from item tax template")
+			else:
+				log.warning(f"[UPDATE_INVOICE] ⚠️ Item Tax Template '{item.item_tax_template}' has no tax rates")
+
 	log.info(f"[UPDATE_INVOICE] ✅ Item Tax Templates set")
 
 	# Calculate taxes and totals to apply Item Tax Template logic
