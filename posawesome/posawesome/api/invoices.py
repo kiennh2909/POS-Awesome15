@@ -407,7 +407,9 @@ def update_invoice(data):
 		if hasattr(pos_profile_doc, 'taxes_and_charges') and pos_profile_doc.taxes_and_charges:
 			log.info(f"[UPDATE_INVOICE] 🛡️ CRITICAL FIX - Clearing taxes_and_charges from invoice document to prevent POS Profile override")
 			invoice_doc.taxes_and_charges = None
-			log.info(f"[UPDATE_INVOICE] ✅ Cleared taxes_and_charges from invoice document")
+			# Also clear existing taxes array to prevent old tax entries from interfering
+			invoice_doc.taxes = []
+			log.info(f"[UPDATE_INVOICE] ✅ Cleared taxes_and_charges and taxes array from invoice document")
 
 	# Restore original taxes_and_charges if we had item-level tax templates
 	if has_item_tax_templates and original_taxes_and_charges:
@@ -429,9 +431,11 @@ def update_invoice(data):
 
 			if template_details:
 				# Set invoice-level taxes_and_charges from Item Tax Template
-				invoice_doc.taxes_and_charges = item.item_tax_template
-				log.info(f"[UPDATE_INVOICE] 🏷️ Set invoice taxes_and_charges '{item.item_tax_template}' from item tax template")
-				log.info(f"[UPDATE_INVOICE] 🏷️ Template has tax rates: {template_details[0].get('tax_rate')}% ({template_details[0].get('tax_type')})")
+				# Use tax_type (Sales Taxes and Charges Template name) instead of item_tax_template name
+				sales_tax_template_name = template_details[0].get("tax_type")
+				invoice_doc.taxes_and_charges = sales_tax_template_name
+				log.info(f"[UPDATE_INVOICE] 🏷️ Set invoice taxes_and_charges '{sales_tax_template_name}' from item tax template")
+				log.info(f"[UPDATE_INVOICE] 🏷️ Template has tax rates: {template_details[0].get('tax_rate')}% (from {item.item_tax_template})")
 			else:
 				log.warning(f"[UPDATE_INVOICE] ⚠️ Item Tax Template '{item.item_tax_template}' has no tax rates - checking template directly")
 
