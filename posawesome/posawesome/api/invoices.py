@@ -243,6 +243,13 @@ def update_invoice(data):
 		log.info(f"[UPDATE_INVOICE] ✅ Existing invoice loaded and updated: {invoice_name}")
 	else:
 		log.info(f"[UPDATE_INVOICE] 🆕 Creating new invoice document")
+
+		# For POS invoices, clear taxes_and_charges from data to prevent default override from POS Profile
+		if 'taxes_and_charges' in data:
+			log.info(f"[UPDATE_INVOICE] 🛡️ Clearing taxes_and_charges from invoice data: {data['taxes_and_charges']}")
+			data['taxes_and_charges'] = None
+			log.info(f"[UPDATE_INVOICE] ✅ Cleared taxes_and_charges from invoice data")
+
 		invoice_doc = frappe.get_doc(data)
 		log.info(f"[UPDATE_INVOICE] ✅ New invoice document created")
 
@@ -295,6 +302,60 @@ def update_invoice(data):
 		log.info(f"[UPDATE_INVOICE] ✅ Customer exists: {customer_name}")
 
 	# Setting missing values for invoice
+
+	# DEBUG: Check all possible tax sources before setting item tax templates
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Checking all possible tax sources:")
+
+	# Check POS Profile tax settings
+	if data.get("pos_profile"):
+		pos_profile_doc = frappe.get_doc("POS Profile", data.get("pos_profile"))
+		log.info(f"[UPDATE_INVOICE] 🔍 POS Profile '{data.get('pos_profile')}' tax settings:")
+		log.info(f"[UPDATE_INVOICE] 🔍   - taxes_and_charges: {getattr(pos_profile_doc, 'taxes_and_charges', 'N/A')}")
+		log.info(f"[UPDATE_INVOICE] 🔍   - tax_category: {getattr(pos_profile_doc, 'tax_category', 'N/A')}")
+
+	# Check Company tax settings
+	company_doc = frappe.get_doc("Company", data.get("company", invoice_doc.company))
+	log.info(f"[UPDATE_INVOICE] 🔍 Company '{company_doc.name}' tax settings:")
+	log.info(f"[UPDATE_INVOICE] 🔍   - default_taxes_and_charges_template: {getattr(company_doc, 'default_taxes_and_charges_template', 'N/A')}")
+	log.info(f"[UPDATE_INVOICE] 🔍   - tax_id: {getattr(company_doc, 'tax_id', 'N/A')}")
+
+	# Check Customer tax settings
+	if data.get("customer"):
+		customer_doc = frappe.get_doc("Customer", data.get("customer"))
+		log.info(f"[UPDATE_INVOICE] 🔍 Customer '{customer_doc.name}' tax settings:")
+		log.info(f"[UPDATE_INVOICE] 🔍   - default_tax_template: {getattr(customer_doc, 'default_tax_template', 'N/A')}")
+		log.info(f"[UPDATE_INVOICE] 🔍   - tax_id: {getattr(customer_doc, 'tax_id', 'N/A')}")
+		log.info(f"[UPDATE_INVOICE] 🔍   - tax_category: {getattr(customer_doc, 'tax_category', 'N/A')}")
+
+	# Check Item tax settings for each item
+	for item in invoice_doc.items:
+		item_doc = frappe.get_doc("Item", item.item_code)
+		log.info(f"[UPDATE_INVOICE] 🔍 Item '{item.item_code}' tax settings:")
+		log.info(f"[UPDATE_INVOICE] 🔍   - tax_category: {getattr(item_doc, 'tax_category', 'N/A')}")
+		log.info(f"[UPDATE_INVOICE] 🔍   - default_tax_template: {getattr(item_doc, 'default_tax_template', 'N/A')}")
+
+		# Check Item Tax table entries
+		item_tax_entries = frappe.get_all("Item Tax",
+			filters={"parent": item.item_code},
+			fields=["item_tax_template", "tax_category", "valid_from", "valid_upto"]
+		)
+		log.info(f"[UPDATE_INVOICE] 🔍   - Item Tax table entries: {len(item_tax_entries)}")
+		for entry in item_tax_entries:
+			log.info(f"[UPDATE_INVOICE] 🔍     * {entry}")
+
+	# Check Tax Rules
+	tax_rules = frappe.get_all("Tax Rule",
+		filters={
+			"company": data.get("company", invoice_doc.company),
+			"customer": data.get("customer"),
+			"from_date": ["<=", data.get("posting_date", frappe.utils.nowdate())],
+			"to_date": [">=", data.get("posting_date", frappe.utils.nowdate())]
+		},
+		fields=["name", "tax_type", "tax_rate", "priority"]
+	)
+	log.info(f"[UPDATE_INVOICE] 🔍 Applicable Tax Rules: {len(tax_rules)}")
+	for rule in tax_rules:
+		log.info(f"[UPDATE_INVOICE] 🔍   - {rule}")
 
 	# Set Item Tax Template for each item BEFORE set_missing_values
 	# Priority: 1) Client-provided item_tax_template, 2) Item Tax table lookup
