@@ -322,6 +322,46 @@ def update_invoice(data):
 		log.info(f"[UPDATE_INVOICE] 🔍   - taxes_and_charges: {getattr(pos_profile_doc, 'taxes_and_charges', 'N/A')}")
 		log.info(f"[UPDATE_INVOICE] 🔍   - tax_category: {getattr(pos_profile_doc, 'tax_category', 'N/A')}")
 
+		# DETAILED LOGGING: Check POS Profile tax configuration
+		if hasattr(pos_profile_doc, 'taxes_and_charges') and pos_profile_doc.taxes_and_charges:
+			log.info(f"[UPDATE_INVOICE] 🔍   - POS Profile has taxes_and_charges: '{pos_profile_doc.taxes_and_charges}'")
+			# Check if the template exists
+			template_exists = frappe.db.exists("Sales Taxes and Charges Template", pos_profile_doc.taxes_and_charges)
+			log.info(f"[UPDATE_INVOICE] 🔍   - Sales Taxes and Charges Template exists: {template_exists}")
+
+			if template_exists:
+				try:
+					sales_template = frappe.get_doc("Sales Taxes and Charges Template", pos_profile_doc.taxes_and_charges)
+					log.info(f"[UPDATE_INVOICE] 🔍   - Sales Template details:")
+					log.info(f"[UPDATE_INVOICE] 🔍     * Title: {sales_template.title}")
+					log.info(f"[UPDATE_INVOICE] 🔍     * Company: {sales_template.company}")
+					log.info(f"[UPDATE_INVOICE] 🔍     * Taxes count: {len(sales_template.taxes)}")
+
+					for i, tax_row in enumerate(sales_template.taxes):
+						log.info(f"[UPDATE_INVOICE] 🔍     * Tax Row {i+1}:")
+						log.info(f"[UPDATE_INVOICE] 🔍       - charge_type: {tax_row.charge_type}")
+						log.info(f"[UPDATE_INVOICE] 🔍       - account_head: '{tax_row.account_head}'")
+						log.info(f"[UPDATE_INVOICE] 🔍       - description: '{tax_row.description}'")
+						log.info(f"[UPDATE_INVOICE] 🔍       - rate: {tax_row.rate}")
+
+						# Check account validity
+						if tax_row.account_head:
+							account_exists = frappe.db.exists("Account", tax_row.account_head)
+							log.info(f"[UPDATE_INVOICE] 🔍       - account_exists: {account_exists}")
+						else:
+							log.warning(f"[UPDATE_INVOICE] 🔍       - account_head is EMPTY!")
+
+				except Exception as template_e:
+					log.error(f"[UPDATE_INVOICE] 🔍   - ERROR getting Sales Taxes Template: {template_e}")
+			else:
+				log.warning(f"[UPDATE_INVOICE] 🔍   - Sales Taxes and Charges Template '{pos_profile_doc.taxes_and_charges}' DOES NOT EXIST!")
+		else:
+			log.info(f"[UPDATE_INVOICE] 🔍   - POS Profile has NO taxes_and_charges (empty)")
+
+		# Check other POS Profile tax-related settings
+		log.info(f"[UPDATE_INVOICE] 🔍   - posa_tax_inclusive: {getattr(pos_profile_doc, 'posa_tax_inclusive', 'N/A')}")
+		log.info(f"[UPDATE_INVOICE] 🔍   - tax_category: {getattr(pos_profile_doc, 'tax_category', 'N/A')}")
+
 	# Check Company tax settings
 	company_doc = frappe.get_doc("Company", data.get("company", invoice_doc.company))
 	log.info(f"[UPDATE_INVOICE] 🔍 Company '{company_doc.name}' tax settings:")
@@ -352,6 +392,38 @@ def update_invoice(data):
 			log.info(f"[UPDATE_INVOICE] 🔍   - Item Tax table entries: {len(item_tax_entries)}")
 			for entry in item_tax_entries:
 				log.info(f"[UPDATE_INVOICE] 🔍     * {entry}")
+
+				# DETAILED LOGGING: Check Item Tax Template configuration
+				if entry.item_tax_template:
+					try:
+						template_doc = frappe.get_doc("Item Tax Template", entry.item_tax_template)
+						log.info(f"[UPDATE_INVOICE] 🔍     * TEMPLATE '{entry.item_tax_template}' DETAILS:")
+						log.info(f"[UPDATE_INVOICE] 🔍       - Title: {template_doc.title}")
+						log.info(f"[UPDATE_INVOICE] 🔍       - Company: {template_doc.company}")
+						log.info(f"[UPDATE_INVOICE] 🔍       - Taxes count: {len(template_doc.taxes)}")
+
+						for i, tax_detail in enumerate(template_doc.taxes):
+							log.info(f"[UPDATE_INVOICE] 🔍       - Tax {i+1}:")
+							log.info(f"[UPDATE_INVOICE] 🔍         * tax_type: '{tax_detail.tax_type}'")
+							log.info(f"[UPDATE_INVOICE] 🔍         * tax_rate: {tax_detail.tax_rate}")
+							log.info(f"[UPDATE_INVOICE] 🔍         * account_head: '{tax_detail.account_head}'")
+
+							# Check if account exists
+							if tax_detail.account_head:
+								account_exists = frappe.db.exists("Account", tax_detail.account_head)
+								log.info(f"[UPDATE_INVOICE] 🔍         * account_exists: {account_exists}")
+							else:
+								log.warning(f"[UPDATE_INVOICE] 🔍         * account_head is EMPTY!")
+
+							# Check tax_rate validity
+							if tax_detail.tax_rate == 0:
+								log.warning(f"[UPDATE_INVOICE] 🔍         * tax_rate is ZERO!")
+							elif tax_detail.tax_rate < 0:
+								log.warning(f"[UPDATE_INVOICE] 🔍         * tax_rate is NEGATIVE: {tax_detail.tax_rate}")
+
+					except Exception as template_e:
+						log.error(f"[UPDATE_INVOICE] 🔍     * ERROR getting template '{entry.item_tax_template}': {template_e}")
+
 		except Exception as e:
 			log.error(f"[UPDATE_INVOICE] 🔍   - Error querying Item Tax table for {item.item_code}: {e}")
 			# Try alternative query method
@@ -404,6 +476,11 @@ def update_invoice(data):
 			log.info(f"[UPDATE_INVOICE] 🏷️ Using client-provided item_tax_template '{item.item_tax_template}' for item {item.item_code}")
 
 	log.info(f"[UPDATE_INVOICE] ✅ Item Tax Templates set")
+
+	# DEBUG: Log final item tax templates before set_missing_values
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Final item tax templates before set_missing_values:")
+	for i, item in enumerate(invoice_doc.items):
+		log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Item {i+1} ({item.item_code}): item_tax_template = '{item.item_tax_template}'")
 
 	# Set missing values first, but preserve item-level tax templates for POS
 	log.info(f"[UPDATE_INVOICE] 🔧 Setting missing values for invoice")
@@ -472,22 +549,65 @@ def update_invoice(data):
 
 	# DEBUG: Log taxes_and_charges before calculate_taxes_and_totals
 	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Before calculate_taxes_and_totals:")
-	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.taxes_and_charges: {invoice_doc.taxes_and_charges}")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.taxes_and_charges: '{invoice_doc.taxes_and_charges}'")
 	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.taxes length: {len(invoice_doc.taxes) if hasattr(invoice_doc, 'taxes') else 'N/A'}")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.net_total: {invoice_doc.net_total}")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.total: {invoice_doc.total}")
 
 	# Debug: Log item tax templates before calculation
 	for i, item in enumerate(invoice_doc.items):
-		log.info(f"[UPDATE_INVOICE] 🧾 Item {i+1} ({item.item_code}): item_tax_template = {item.item_tax_template}")
+		log.info(f"[UPDATE_INVOICE] 🧾 Item {i+1} ({item.item_code}):")
+		log.info(f"[UPDATE_INVOICE] 🧾   - item_tax_template: '{item.item_tax_template}'")
+		log.info(f"[UPDATE_INVOICE] 🧾   - amount: {item.amount}")
+		log.info(f"[UPDATE_INVOICE] 🧾   - net_amount: {item.net_amount if hasattr(item, 'net_amount') else 'N/A'}")
+		log.info(f"[UPDATE_INVOICE] 🧾   - qty: {item.qty}")
 
+		# Check if item_tax_template exists and is valid
+		if item.item_tax_template:
+			template_exists = frappe.db.exists("Item Tax Template", item.item_tax_template)
+			log.info(f"[UPDATE_INVOICE] 🧾   - item_tax_template exists: {template_exists}")
+
+			if template_exists:
+				try:
+					template = frappe.get_doc("Item Tax Template", item.item_tax_template)
+					log.info(f"[UPDATE_INVOICE] 🧾   - Template has {len(template.taxes)} tax entries")
+					for j, tax_detail in enumerate(template.taxes):
+						log.info(f"[UPDATE_INVOICE] 🧾     * Tax {j+1}: rate={tax_detail.tax_rate}, account='{tax_detail.account_head}'")
+				except Exception as e:
+					log.error(f"[UPDATE_INVOICE] 🧾   - Error checking template: {e}")
+
+	log.info(f"[UPDATE_INVOICE] 🧾 CALLING calculate_taxes_and_totals()...")
 	invoice_doc.calculate_taxes_and_totals()
+	log.info(f"[UPDATE_INVOICE] 🧾 calculate_taxes_and_totals() COMPLETED")
 
 	# DEBUG: Log taxes_and_charges after calculate_taxes_and_totals
 	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - After calculate_taxes_and_totals:")
-	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.taxes_and_charges: {invoice_doc.taxes_and_charges}")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.taxes_and_charges: '{invoice_doc.taxes_and_charges}'")
 	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.taxes length: {len(invoice_doc.taxes) if hasattr(invoice_doc, 'taxes') else 'N/A'}")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.net_total: {invoice_doc.net_total}")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.total: {invoice_doc.total}")
+	log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - invoice_doc.grand_total: {invoice_doc.grand_total}")
+
 	if hasattr(invoice_doc, 'taxes') and invoice_doc.taxes:
+		log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - TAXES CREATED:")
 		for i, tax in enumerate(invoice_doc.taxes):
-			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Tax {i+1}: account_head={tax.account_head}, rate={tax.rate}, amount={tax.tax_amount}")
+			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG - Tax {i+1}:")
+			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG   - charge_type: {tax.charge_type}")
+			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG   - account_head: '{tax.account_head}'")
+			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG   - description: '{tax.description}'")
+			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG   - rate: {tax.rate}")
+			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG   - tax_amount: {tax.tax_amount}")
+			log.info(f"[UPDATE_INVOICE] 🔍 DEBUG   - total: {tax.total}")
+
+			# Check if account exists
+			if tax.account_head:
+				account_exists = frappe.db.exists("Account", tax.account_head)
+				log.info(f"[UPDATE_INVOICE] 🔍 DEBUG   - account_exists: {account_exists}")
+			else:
+				log.warning(f"[UPDATE_INVOICE] 🔍 DEBUG   - account_head is EMPTY!")
+	else:
+		log.warning(f"[UPDATE_INVOICE] 🔍 DEBUG - NO TAXES CREATED!")
+		log.warning(f"[UPDATE_INVOICE] 🔍 DEBUG - This means item_tax_template did not generate tax entries")
 
 	log.info(f"[UPDATE_INVOICE] ✅ Taxes and totals calculated")
 
