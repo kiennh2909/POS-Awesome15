@@ -620,11 +620,30 @@ def update_invoice(data):
 
 		log.info(f"[UPDATE_INVOICE] 🧾 Tax calculation mode: {'Inclusive' if is_inclusive else 'Exclusive'}")
 
+		# Adjust item net_amounts and calculate tax amounts for inclusive taxes
+		if is_inclusive:
+			log.info(f"[UPDATE_INVOICE] 🧾 Adjusting item net_amounts for inclusive taxes")
+			for item in invoice_doc.items:
+				if item.item_tax_template:
+					try:
+						template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
+						total_rate = sum(tax_detail.tax_rate for tax_detail in template_doc.taxes)
+						if total_rate > 0:
+							total_tax_amount = flt(item.amount) * total_rate / (100 + total_rate)
+							item.net_amount = flt(item.amount) - total_tax_amount
+							item.net_rate = item.net_amount / flt(item.qty) if item.qty else 0
+							log.info(f"[UPDATE_INVOICE] 🧾 Adjusted item {item.item_code}: net_amount {item.net_amount}, total_tax {total_tax_amount}")
+					except Exception as e:
+						log.error(f"[UPDATE_INVOICE] 🧾 Error adjusting net_amount for item {item.item_code}: {e}")
+
 		tax_entries = {}
 		for item in invoice_doc.items:
 			if item.item_tax_template:
 				try:
 					template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
+					total_rate = sum(tax_detail.tax_rate for tax_detail in template_doc.taxes)
+					total_tax_amount = flt(item.amount) * total_rate / (100 + total_rate) if is_inclusive and total_rate > 0 else 0
+
 					for tax_detail in template_doc.taxes:
 						# In v15, account is tax_type; fallback to account_head for compatibility
 						account = getattr(tax_detail, 'tax_type', getattr(tax_detail, 'account_head', None))
@@ -635,26 +654,33 @@ def update_invoice(data):
 						rate = tax_detail.tax_rate
 						key = (account, rate)
 
+						if is_inclusive and total_rate > 0:
+							# For inclusive, calculate proportional tax amount
+							tax_amount = total_tax_amount * (rate / total_rate)
+							charge_type = 'Actual'
+						else:
+							# For exclusive or no tax, use On Net Total
+							tax_amount = 0.0
+							charge_type = 'On Net Total'
+
 						if key not in tax_entries:
 							tax_entries[key] = {
-								'charge_type': 'On Net Total',  # Use On Net Total for proper tax calculation
+								'charge_type': charge_type,
 								'account_head': account,
 								'description': f'Tax {rate}%',
 								'rate': rate,
-								'tax_amount': 0.0  # Let engine calculate
+								'tax_amount': tax_amount
 							}
 
-						# Tax amount will be calculated by the engine based on rate and net total
-						log.info(f"[UPDATE_INVOICE] 🧾 Added tax entry for item {item.item_code}: rate {rate}% to account {account}")
+						log.info(f"[UPDATE_INVOICE] 🧾 Added tax entry for item {item.item_code}: rate {rate}%, amount {tax_amount}, account {account}")
 
 				except Exception as e:
 					log.error(f"[UPDATE_INVOICE] 🧾 Error processing template {item.item_tax_template} for item {item.item_code}: {e}")
 
 		# Add tax entries to invoice
 		for tax_entry in tax_entries.values():
-			if tax_entry['tax_amount'] > 0:
-				invoice_doc.append('taxes', tax_entry)
-				log.info(f"[UPDATE_INVOICE] 🧾 Added tax entry: {tax_entry}")
+			invoice_doc.append('taxes', tax_entry)
+			log.info(f"[UPDATE_INVOICE] 🧾 Added tax entry: {tax_entry}")
 
 		log.info(f"[UPDATE_INVOICE] 🧾 Manually added {len([t for t in tax_entries.values() if t['tax_amount'] > 0])} tax entries")
 
