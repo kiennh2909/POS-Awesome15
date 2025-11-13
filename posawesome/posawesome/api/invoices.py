@@ -625,10 +625,10 @@ def update_invoice(data):
 						template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
 						total_rate = sum(tax_detail.tax_rate for tax_detail in template_doc.taxes)
 						if total_rate > 0:
-							total_tax_amount = flt(item.amount) * total_rate / (100 + total_rate)
-							item.net_amount = flt(item.amount) - total_tax_amount
+							# For inclusive tax: net_amount = amount / (1 + total_rate/100)
+							item.net_amount = flt(item.amount) / (1 + total_rate / 100)
 							item.net_rate = item.net_amount / flt(item.qty) if item.qty else 0
-							log.info(f"[UPDATE_INVOICE] 🧾 Adjusted item {item.item_code}: net_amount {item.net_amount}, total_tax {total_tax_amount}")
+							log.info(f"[UPDATE_INVOICE] 🧾 Adjusted item {item.item_code}: amount {item.amount}, net_amount {item.net_amount}")
 					except Exception as e:
 						log.error(f"[UPDATE_INVOICE] 🧾 Error adjusting net_amount for item {item.item_code}: {e}")
 
@@ -638,7 +638,6 @@ def update_invoice(data):
 				try:
 					template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
 					total_rate = sum(tax_detail.tax_rate for tax_detail in template_doc.taxes)
-					total_tax_amount = flt(item.amount) * total_rate / (100 + total_rate) if is_inclusive and total_rate > 0 else 0
 
 					for tax_detail in template_doc.taxes:
 						# In v15, account is tax_type; fallback to account_head for compatibility
@@ -651,9 +650,9 @@ def update_invoice(data):
 						key = (account, rate)
 
 						if is_inclusive and total_rate > 0:
-							# For inclusive, calculate proportional tax amount
-							tax_amount = total_tax_amount * (rate / total_rate)
-							charge_type = 'Actual'
+							# For inclusive tax, use 'On Net Total' to let ERPNext calculate automatically
+							charge_type = 'On Net Total'
+							tax_amount = 0.0  # ERPNext will calculate this
 						else:
 							# For exclusive tax, calculate tax per item
 							tax_amount = flt(item.amount) * rate / 100
@@ -668,10 +667,11 @@ def update_invoice(data):
 								'tax_amount': tax_amount
 							}
 						else:
-							# Accumulate tax amount for same rate
-							tax_entries[key]['tax_amount'] += tax_amount
+							# For inclusive tax, we don't accumulate tax_amount since ERPNext calculates it
+							if not is_inclusive:
+								tax_entries[key]['tax_amount'] += tax_amount
 
-						log.info(f"[UPDATE_INVOICE] 🧾 Added tax entry for item {item.item_code}: rate {rate}%, amount {tax_amount}, account {account}")
+						log.info(f"[UPDATE_INVOICE] 🧾 Added tax entry for item {item.item_code}: rate {rate}%, charge_type {charge_type}, account {account}")
 
 				except Exception as e:
 					log.error(f"[UPDATE_INVOICE] 🧾 Error processing template {item.item_tax_template} for item {item.item_code}: {e}")
