@@ -129,6 +129,13 @@ def validate_return_items(original_invoice_name, return_items):
 
 @frappe.whitelist()
 def update_invoice(data):
+	"""
+	Update invoice with EXCLUSIVE TAX calculation only.
+	System standard: Prices are displayed before tax, tax is calculated separately per item.
+
+	INCLUSIVE TAX IS NOT SUPPORTED in this POS system.
+	All prices shown to customers are before tax.
+	"""
 	log.info(f"[UPDATE_INVOICE] 🎯 START - Processing invoice update")
 
 	# Debug log: Raw data received from client
@@ -609,37 +616,50 @@ def update_invoice(data):
 		log.warning(f"[UPDATE_INVOICE] 🔍 DEBUG - NO TAXES CREATED!")
 		log.warning(f"[UPDATE_INVOICE] 🔍 DEBUG - This means item_tax_template did not generate tax entries")
 
-		# Manual tax calculation for ERPNext v15 compatibility
+		# =====================================================================================
+		# MANUAL TAX CALCULATION FOR ERPNext v15 - EXCLUSIVE TAX ONLY
+		# =====================================================================================
+		# This system ONLY supports EXCLUSIVE TAX mode:
+		# - Prices displayed to customers are BEFORE tax
+		# - Tax is calculated separately per item
+		# - Tax amounts are accumulated for same tax rates
+		# - INCLUSIVE TAX logic has been commented out for system consistency
+		# =====================================================================================
 		log.info(f"[UPDATE_INVOICE] 🧾 Attempting manual tax calculation from item_tax_templates")
 
-		# Set exclusive tax mode (system standard: prices are before tax)
-		is_inclusive = False
-		log.info(f"[UPDATE_INVOICE] 🧾 Tax calculation mode: {'Inclusive' if is_inclusive else 'Exclusive'}")
+		# SYSTEM STANDARD: EXCLUSIVE TAX MODE (prices are before tax)
+		# Comment: Inclusive tax logic removed to ensure system consistency
+		# is_inclusive = False  # Always exclusive tax
+		log.info(f"[UPDATE_INVOICE] 🧾 Tax calculation mode: EXCLUSIVE (prices before tax)")
 
-		# Adjust item net_amounts and calculate tax amounts for inclusive taxes
-		if is_inclusive:
-			log.info(f"[UPDATE_INVOICE] 🧾 Adjusting item net_amounts for inclusive taxes")
-			for item in invoice_doc.items:
-				if item.item_tax_template:
-					try:
-						template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
-						total_rate = sum(tax_detail.tax_rate for tax_detail in template_doc.taxes)
-						if total_rate > 0:
-							# For inclusive tax: net_amount = amount / (1 + total_rate/100)
-							item.net_amount = flt(item.amount) / (1 + total_rate / 100)
-							item.net_rate = item.net_amount / flt(item.qty) if item.qty else 0
-							log.info(f"[UPDATE_INVOICE] 🧾 Adjusted item {item.item_code}: amount {item.amount}, net_amount {item.net_amount}")
-					except Exception as e:
-						log.error(f"[UPDATE_INVOICE] 🧾 Error adjusting net_amount for item {item.item_code}: {e}")
+		# EXCLUSIVE TAX: No adjustment needed for net_amounts
+		# (Inclusive tax logic commented out)
+		# if is_inclusive:
+		#     log.info(f"[UPDATE_INVOICE] 🧾 Adjusting item net_amounts for inclusive taxes")
+		#     for item in invoice_doc.items:
+		#         if item.item_tax_template:
+		#             try:
+		#                 template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
+		#                 total_rate = sum(tax_detail.tax_rate for tax_detail in template_doc.taxes)
+		#                 if total_rate > 0:
+		#                     # For inclusive tax: net_amount = amount / (1 + total_rate/100)
+		#                     item.net_amount = flt(item.amount) / (1 + total_rate / 100)
+		#                     item.net_rate = item.net_amount / flt(item.qty) if item.qty else 0
+		#                     log.info(f"[UPDATE_INVOICE] 🧾 Adjusted item {item.item_code}: amount {item.amount}, net_amount {item.net_amount}")
+		#             except Exception as e:
+		#                 log.error(f"[UPDATE_INVOICE] 🧾 Error adjusting net_amount for item {item.item_code}: {e}")
 
 		tax_entries = {}
-		log.info(f"[UPDATE_INVOICE] 🧾 STARTING MANUAL TAX CALCULATION - Exclusive mode: {not is_inclusive}")
+		log.info(f"[UPDATE_INVOICE] 🧾 STARTING MANUAL TAX CALCULATION - EXCLUSIVE TAX MODE")
 
 		for item in invoice_doc.items:
 			if item.item_tax_template:
 				try:
 					template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
 					total_rate = sum(tax_detail.tax_rate for tax_detail in template_doc.taxes)
+
+					# EXCLUSIVE TAX: is_inclusive is always False (commented out)
+					# is_inclusive = False  # System standard: prices before tax
 
 					log.info(f"[UPDATE_INVOICE] 🧾 Processing item {item.item_code}: amount={item.amount}, template={item.item_tax_template}, total_rate={total_rate}%")
 
@@ -653,16 +673,22 @@ def update_invoice(data):
 						rate = tax_detail.tax_rate
 						key = (account, rate)
 
-						if is_inclusive and total_rate > 0:
-							# For inclusive tax, use 'On Net Total' to let ERPNext calculate automatically
-							charge_type = 'On Net Total'
-							tax_amount = 0.0  # ERPNext will calculate this
-							log.info(f"[UPDATE_INVOICE] 🧾 INCLUSIVE TAX - Item {item.item_code}: rate {rate}%, charge_type={charge_type}")
-						else:
-							# For exclusive tax, calculate tax per item
-							tax_amount = flt(item.amount) * rate / 100
-							charge_type = 'Actual'
-							log.info(f"[UPDATE_INVOICE] 🧾 EXCLUSIVE TAX - Item {item.item_code}: amount {item.amount} × {rate}% = {tax_amount}, charge_type={charge_type}")
+						# EXCLUSIVE TAX ONLY: Calculate tax per item
+						tax_amount = flt(item.amount) * rate / 100
+						charge_type = 'Actual'
+						log.info(f"[UPDATE_INVOICE] 🧾 EXCLUSIVE TAX - Item {item.item_code}: amount {item.amount} × {rate}% = {tax_amount}, charge_type={charge_type}")
+
+						# INCLUSIVE TAX LOGIC COMMENTED OUT (not used in this system)
+						# if is_inclusive and total_rate > 0:
+						#     # For inclusive tax, use 'On Net Total' to let ERPNext calculate automatically
+						#     charge_type = 'On Net Total'
+						#     tax_amount = 0.0  # ERPNext will calculate this
+						#     log.info(f"[UPDATE_INVOICE] 🧾 INCLUSIVE TAX - Item {item.item_code}: rate {rate}%, charge_type={charge_type}")
+						# else:
+						#     # For exclusive tax, calculate tax per item
+						#     tax_amount = flt(item.amount) * rate / 100
+						#     charge_type = 'Actual'
+						#     log.info(f"[UPDATE_INVOICE] 🧾 EXCLUSIVE TAX - Item {item.item_code}: amount {item.amount} × {rate}% = {tax_amount}, charge_type={charge_type}")
 
 						if key not in tax_entries:
 							tax_entries[key] = {
@@ -674,11 +700,17 @@ def update_invoice(data):
 							}
 							log.info(f"[UPDATE_INVOICE] 🧾 Created new tax entry: {account} @ {rate}% = {tax_amount}")
 						else:
+							# EXCLUSIVE TAX: Always accumulate tax amounts for same rate
+							old_amount = tax_entries[key]['tax_amount']
+							tax_entries[key]['tax_amount'] += tax_amount
+							log.info(f"[UPDATE_INVOICE] 🧾 Accumulated tax entry: {account} @ {rate}% = {old_amount} + {tax_amount} = {tax_entries[key]['tax_amount']}")
+
+							# INCLUSIVE TAX LOGIC COMMENTED OUT (not used in this system)
 							# For inclusive tax, we don't accumulate tax_amount since ERPNext calculates it
-							if not is_inclusive:
-								old_amount = tax_entries[key]['tax_amount']
-								tax_entries[key]['tax_amount'] += tax_amount
-								log.info(f"[UPDATE_INVOICE] 🧾 Accumulated tax entry: {account} @ {rate}% = {old_amount} + {tax_amount} = {tax_entries[key]['tax_amount']}")
+							# if not is_inclusive:
+							#     old_amount = tax_entries[key]['tax_amount']
+							#     tax_entries[key]['tax_amount'] += tax_amount
+							#     log.info(f"[UPDATE_INVOICE] 🧾 Accumulated tax entry: {account} @ {rate}% = {old_amount} + {tax_amount} = {tax_entries[key]['tax_amount']}")
 
 						log.info(f"[UPDATE_INVOICE] 🧾 Final tax entry for {account} @ {rate}%: amount={tax_entries[key]['tax_amount']}, charge_type={charge_type}")
 
