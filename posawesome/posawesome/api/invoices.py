@@ -637,23 +637,15 @@ def update_invoice(data):
 
 						if key not in tax_entries:
 							tax_entries[key] = {
-								'charge_type': 'Actual',  # Use Actual for manual tax entries
+								'charge_type': 'On Net Total',  # Use On Net Total for proper tax calculation
 								'account_head': account,
 								'description': f'Tax {rate}%',
 								'rate': rate,
-								'tax_amount': 0.0
+								'tax_amount': 0.0  # Let engine calculate
 							}
 
-						# Calculate tax amount
-						if is_inclusive:
-							# For inclusive: tax_amount = amount * rate / (100 + rate)
-							tax_amount = flt(item.amount) * rate / (100 + rate)
-						else:
-							# For exclusive: tax_amount = amount * rate / 100
-							tax_amount = flt(item.amount) * rate / 100
-
-						tax_entries[key]['tax_amount'] += tax_amount
-						log.info(f"[UPDATE_INVOICE] 🧾 Added tax for item {item.item_code}: {tax_amount} to account {account}")
+						# Tax amount will be calculated by the engine based on rate and net total
+						log.info(f"[UPDATE_INVOICE] 🧾 Added tax entry for item {item.item_code}: rate {rate}% to account {account}")
 
 				except Exception as e:
 					log.error(f"[UPDATE_INVOICE] 🧾 Error processing template {item.item_tax_template} for item {item.item_code}: {e}")
