@@ -629,12 +629,18 @@ def update_invoice(data):
 							item.net_amount = flt(item.amount) - total_tax_amount
 							item.net_rate = item.net_amount / flt(item.qty) if item.qty else 0
 
+							# For inclusive tax, update item.amount to net_amount to ensure correct totals calculation
+							original_amount = item.amount
+							item.amount = item.net_amount
+							item.rate = item.net_rate
+
 							# Log detailed calculation
 							log.info(f"[UPDATE_INVOICE] 🧾 Item {item.item_code} inclusive tax calculation:")
-							log.info(f"[UPDATE_INVOICE] 🧾   - Price (including tax): {item.amount}")
+							log.info(f"[UPDATE_INVOICE] 🧾   - Original price (including tax): {original_amount}")
 							log.info(f"[UPDATE_INVOICE] 🧾   - Tax rate: {total_rate}%")
-							log.info(f"[UPDATE_INVOICE] 🧾   - Tax = {item.amount} × {total_rate} ÷ (100 + {total_rate}) = {total_tax_amount:.2f}")
-							log.info(f"[UPDATE_INVOICE] 🧾   - Net amount = {item.amount} - {total_tax_amount:.2f} = {item.net_amount:.2f}")
+							log.info(f"[UPDATE_INVOICE] 🧾   - Tax = {original_amount} × {total_rate} ÷ (100 + {total_rate}) = {total_tax_amount:.2f}")
+							log.info(f"[UPDATE_INVOICE] 🧾   - Net amount = {original_amount} - {total_tax_amount:.2f} = {item.net_amount:.2f}")
+							log.info(f"[UPDATE_INVOICE] 🧾   - Updated item.amount to: {item.amount} (for correct totals)")
 					except Exception as e:
 						log.error(f"[UPDATE_INVOICE] 🧾 Error adjusting net_amount for item {item.item_code}: {e}")
 
