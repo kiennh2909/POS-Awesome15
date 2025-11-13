@@ -258,29 +258,40 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 			// Tax information removed - using ERPNext default tax mechanism
 		});
 
-		const products = invoice.items.map((item) => {
-			// LƯU Ý QUAN TRỌNG:
-			// Bạn phải thêm các "Custom Fields" (Trường tùy chỉnh) sau đây vào DocType "POS Invoice Item"
-			// (hoặc "Sales Invoice Item") trong ERPNext để code này có thể đọc được.
-
+		// === TẠO PROMISE ARRAY ĐỂ LẤY VAT RATE CHO TẤT CẢ ITEMS ===
+		const itemPromises = invoice.items.map(async (item) => {
 			// Xử lý đặc biệt cho dòng chiết khấu thương mại (Type 4)
 			const isCommercialDiscount =
 				item.custom_inventory_type === "4" ||
 				item.item_name?.toLowerCase().includes("chiết khấu") ||
 				item.item_name?.toLowerCase().includes("chiếu khấu");
 
-			// === TÍNH TOÁN VAT THEO LOGIC CUSTOMIZE ===
+			// === LẤY VAT RATE TỪ ITEM TAX TEMPLATE ===
 			let vatRate = "0"; // Mặc định 0%
 			let exciseRate = "0"; // Mặc định 0%
-			let priceExcludingVAT = item.rate; // Mặc định = giá hiện tại (có VAT)
+			let priceExcludingVAT = item.rate; // Mặc định = giá hiện tại
 
-			// Tax information removed - using ERPNext default tax mechanism
-			// Use item rate as price excluding VAT (simplified)
-			priceExcludingVAT = item.rate;
-			vatRate = "0"; // Default to 0% VAT
-			exciseRate = "0"; // Default to 0% excise
+			try {
+				// Gọi API để lấy VAT rate thực từ item_tax_template
+				const vatResponse = await frappe.call({
+					method: "posawesome.posawesome.api.invoices.get_item_vat_rate",
+					args: { item_code: item.item_code }
+				});
 
-			// Item processed for tax print
+				if (vatResponse && vatResponse.message !== undefined) {
+					vatRate = String(Math.round(vatResponse.message)); // Làm tròn và chuyển thành string
+					debugLog(`[VAT_DEBUG] ✅ Got VAT rate for ${item.item_code}: ${vatRate}%`);
+				} else {
+					debugLog(`[VAT_DEBUG] ⚠️ No VAT rate found for ${item.item_code}, using default 0%`);
+					vatRate = "0";
+				}
+			} catch (error) {
+				console.error(`[VAT_DEBUG] ❌ Error getting VAT rate for ${item.item_code}:`, error);
+				debugLog(`[VAT_DEBUG] ⚠️ Using default VAT rate 0% for ${item.item_code}`);
+				vatRate = "0";
+			}
+
+			// Item processed for tax print with correct VAT rate
 
 			return {
 				Name: item.item_name || item.description,
@@ -288,7 +299,7 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 				Price: String(priceExcludingVAT),
 				UnitName: item.uom || "Cái",
 
-				// Simplified tax information - using ERPNext defaults
+				// VAT information from item_tax_template
 				InventoryItemType: isCommercialDiscount ? "4" : "0",
 				VATRate: isCommercialDiscount ? "0" : vatRate,
 				DiscountRate: "0",
@@ -299,6 +310,9 @@ export async function handleVietnamTaxPrint(invoice, pos_profile, onSuccess, onE
 				WarehouseCode: isCommercialDiscount ? "CK" : item.warehouse || "N/A",
 			};
 		});
+
+		// === CHỜ TẤT CẢ PROMISES HOÀN THÀNH ===
+		const products = await Promise.all(itemPromises);
 		debugLog("Tạo danh sách sản phẩm chi tiết thành công.", { productCount: products.length });
 
 		// Products array prepared for tax print

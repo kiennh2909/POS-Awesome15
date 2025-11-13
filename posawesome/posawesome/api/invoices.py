@@ -1900,3 +1900,117 @@ def get_price_list_currency(price_list: str) -> str:
 	if not price_list:
 		return None
 	return frappe.db.get_value("Price List", price_list, "currency")
+
+
+@frappe.whitelist()
+def get_item_vat_rate(item_code: str) -> float:
+	"""
+	Get VAT rate for an item from its Item Tax Template.
+
+	This is used to populate VATRate field when sending data to MISA.
+
+	Args:
+		item_code: Item code to get VAT rate for
+
+	Returns:
+		float: VAT rate percentage (e.g., 5.0, 8.0, 10.0) or 0.0 if not found
+	"""
+	try:
+		if not item_code:
+			log.warning(f"[GET_ITEM_VAT_RATE] Empty item_code provided")
+			return 0.0
+
+		log.info(f"[GET_ITEM_VAT_RATE] Getting VAT rate for item: {item_code}")
+
+		# Get item_tax_template from Item Tax table
+		item_tax_template = frappe.db.get_value(
+			"Item Tax",
+			{"parent": item_code},
+			"item_tax_template"
+		)
+
+		if not item_tax_template:
+			log.info(f"[GET_ITEM_VAT_RATE] No item_tax_template found for item {item_code}")
+			return 0.0
+
+		log.info(f"[GET_ITEM_VAT_RATE] Found item_tax_template: {item_tax_template} for item {item_code}")
+
+		# Get tax rate from Item Tax Template Detail
+		tax_details = frappe.get_all(
+			"Item Tax Template Detail",
+			filters={"parent": item_tax_template},
+			fields=["tax_rate"],
+			limit=1
+		)
+
+		if tax_details and tax_details[0].get("tax_rate"):
+			vat_rate = flt(tax_details[0].get("tax_rate"))
+			log.info(f"[GET_ITEM_VAT_RATE] VAT rate for item {item_code}: {vat_rate}%")
+			return vat_rate
+		else:
+			log.warning(f"[GET_ITEM_VAT_RATE] No tax_rate found in template {item_tax_template} for item {item_code}")
+			return 0.0
+
+	except Exception as e:
+		log.error(f"[GET_ITEM_VAT_RATE] Error getting VAT rate for item {item_code}: {str(e)}")
+		return 0.0
+
+
+@frappe.whitelist()
+def get_invoice_items_for_misa(invoice_name: str) -> list:
+	"""
+	Get invoice items with VATRate for MISA integration.
+
+	This function returns items data formatted for MISA API with correct VATRate
+	from item_tax_template instead of hardcoded "0".
+
+	Args:
+		invoice_name: Sales Invoice name
+
+	Returns:
+		list: List of items with MISA format including correct VATRate
+	"""
+	try:
+		log.info(f"[GET_INVOICE_ITEMS_FOR_MISA] Getting items for MISA - Invoice: {invoice_name}")
+
+		# Get invoice document
+		invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
+		if not invoice_doc:
+			log.error(f"[GET_INVOICE_ITEMS_FOR_MISA] Invoice {invoice_name} not found")
+			return []
+
+		misa_items = []
+
+		for item in invoice_doc.items:
+			try:
+				# Get VAT rate for this item
+				vat_rate = get_item_vat_rate(item.item_code)
+
+				# Format item for MISA (based on the sample data structure)
+				misa_item = {
+					"Category": item.item_group or "TA GIAY TA QUAN-VN",  # Default category
+					"DiscountRate": "0",  # No discount rate
+					"ExciseTaxRate": "0",  # No excise tax
+					"InventoryItemType": "0",  # Default item type
+					"Name": item.item_name or item.item_code,
+					"Price": str(int(item.rate)),  # Unit price as string
+					"Qty": str(int(item.qty)),  # Quantity as string
+					"ServiceFeeRate": "0",  # No service fee
+					"UnitName": item.uom or "Gói",  # Unit of measure
+					"VATRate": str(int(vat_rate)),  # VAT rate as string (integer)
+					"WarehouseCode": item.warehouse or "VTM_DA"  # Default warehouse
+				}
+
+				misa_items.append(misa_item)
+				log.info(f"[GET_INVOICE_ITEMS_FOR_MISA] Item {item.item_code}: VATRate = {vat_rate}%")
+
+			except Exception as item_error:
+				log.error(f"[GET_INVOICE_ITEMS_FOR_MISA] Error processing item {item.item_code}: {str(item_error)}")
+				continue
+
+		log.info(f"[GET_INVOICE_ITEMS_FOR_MISA] Successfully processed {len(misa_items)} items for MISA")
+		return misa_items
+
+	except Exception as e:
+		log.error(f"[GET_INVOICE_ITEMS_FOR_MISA] Error getting items for MISA - Invoice {invoice_name}: {str(e)}")
+		return []
