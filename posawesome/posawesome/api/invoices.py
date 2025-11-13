@@ -498,40 +498,30 @@ def update_invoice(data):
 						template_details = []
 
 				if template_details:
-					# Set invoice-level taxes_and_charges from Item Tax Template
-					# Use tax_type (Sales Taxes and Charges Template name) instead of item_tax_template name
-					sales_tax_template_name = template_details[0].get("tax_type")
-					log.info(f"[UPDATE_INVOICE] 🏷️ Attempting to set taxes_and_charges to '{sales_tax_template_name}' from item tax template")
+					# Set invoice-level taxes_and_charges based on tax_rate from Item Tax Template
+					tax_rate = template_details[0].get("tax_rate")
 
-					# Check if the template exists, if not try to find the correct one
-					if not frappe.db.exists("Sales Taxes and Charges Template", sales_tax_template_name):
-						log.warning(f"[UPDATE_INVOICE] ⚠️ Sales Taxes and Charges Template '{sales_tax_template_name}' not found, trying to find correct name")
+					# Map tax_rate to correct Sales Taxes and Charges Template name
+					tax_rate_to_template = {
+						0.0: 'VAT0_SALE',
+						5.0: 'VAT5_SALE',
+						8.0: 'VAT8_SALE',
+						10.0: 'VAT10_SALE'
+					}
 
-						# Try common variations for 5% VAT template
-						possible_names = [
-							"3313 - Thuế GTGT đầu ra 5%-VN - TPVN",  # Correct name
-							"VAT đầu ra 5% - TPVN",  # Alternative name
-							"Thuế GTGT 5%",  # Generic name
-						]
+					sales_tax_template_name = tax_rate_to_template.get(tax_rate)
+					log.info(f"[UPDATE_INVOICE] 🏷️ Attempting to set taxes_and_charges to '{sales_tax_template_name}' for {tax_rate}% VAT from item tax template")
 
-						found_template = None
-						for name in possible_names:
-							if frappe.db.exists("Sales Taxes and Charges Template", name):
-								found_template = name
-								log.info(f"[UPDATE_INVOICE] ✅ Found alternative template: '{name}'")
-								break
-
-						if found_template:
-							sales_tax_template_name = found_template
-						else:
-							log.error(f"[UPDATE_INVOICE] 🚫 No valid Sales Taxes and Charges Template found for 5% VAT")
-							# List all available templates for debugging
-							all_templates = frappe.get_all("Sales Taxes and Charges Template", fields=["name"], limit=10)
-							log.info(f"[UPDATE_INVOICE] ℹ️ Available templates: {[t.name for t in all_templates]}")
-
-					invoice_doc.taxes_and_charges = sales_tax_template_name
-					log.info(f"[UPDATE_INVOICE] 🏷️ Final taxes_and_charges set to '{sales_tax_template_name}'")
-					log.info(f"[UPDATE_INVOICE] 🏷️ Template has tax rates: {template_details[0].get('tax_rate')}% (from {item.item_tax_template})")
+					# Check if the template exists
+					if sales_tax_template_name and frappe.db.exists("Sales Taxes and Charges Template", sales_tax_template_name):
+						invoice_doc.taxes_and_charges = sales_tax_template_name
+						log.info(f"[UPDATE_INVOICE] 🏷️ Final taxes_and_charges set to '{sales_tax_template_name}'")
+						log.info(f"[UPDATE_INVOICE] 🏷️ Template has tax rates: {tax_rate}% (from {item.item_tax_template})")
+					else:
+						log.error(f"[UPDATE_INVOICE] 🚫 No valid Sales Taxes and Charges Template found for {tax_rate}% VAT")
+						# List all available templates for debugging
+						all_templates = frappe.get_all("Sales Taxes and Charges Template", fields=["name"], limit=10)
+						log.info(f"[UPDATE_INVOICE] ℹ️ Available templates: {[t.name for t in all_templates]}")
 				else:
 					log.warning(f"[UPDATE_INVOICE] ⚠️ Item Tax Template '{item.item_tax_template}' has no tax rates - checking template directly")
 
