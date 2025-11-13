@@ -612,12 +612,8 @@ def update_invoice(data):
 		# Manual tax calculation for ERPNext v15 compatibility
 		log.info(f"[UPDATE_INVOICE] 🧾 Attempting manual tax calculation from item_tax_templates")
 
-		# Check if POS Profile has inclusive tax
-		is_inclusive = False
-		if data.get("pos_profile"):
-			pos_profile_doc = frappe.get_doc("POS Profile", data.get("pos_profile"))
-			is_inclusive = getattr(pos_profile_doc, 'posa_tax_inclusive', 0) == 1
-
+		# Set inclusive tax mode (hardcoded as requested)
+		is_inclusive = True
 		log.info(f"[UPDATE_INVOICE] 🧾 Tax calculation mode: {'Inclusive' if is_inclusive else 'Exclusive'}")
 
 		# Adjust item net_amounts and calculate tax amounts for inclusive taxes
@@ -659,9 +655,9 @@ def update_invoice(data):
 							tax_amount = total_tax_amount * (rate / total_rate)
 							charge_type = 'Actual'
 						else:
-							# For exclusive or no tax, use On Net Total
-							tax_amount = 0.0
-							charge_type = 'On Net Total'
+							# For exclusive tax, calculate tax per item
+							tax_amount = flt(item.amount) * rate / 100
+							charge_type = 'Actual'
 
 						if key not in tax_entries:
 							tax_entries[key] = {
@@ -671,6 +667,9 @@ def update_invoice(data):
 								'rate': rate,
 								'tax_amount': tax_amount
 							}
+						else:
+							# Accumulate tax amount for same rate
+							tax_entries[key]['tax_amount'] += tax_amount
 
 						log.info(f"[UPDATE_INVOICE] 🧾 Added tax entry for item {item.item_code}: rate {rate}%, amount {tax_amount}, account {account}")
 
