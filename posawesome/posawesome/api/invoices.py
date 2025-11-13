@@ -406,14 +406,14 @@ def update_invoice(data):
 							log.info(f"[UPDATE_INVOICE] 🔍       - Tax {i+1}:")
 							log.info(f"[UPDATE_INVOICE] 🔍         * tax_type: '{tax_detail.tax_type}'")
 							log.info(f"[UPDATE_INVOICE] 🔍         * tax_rate: {tax_detail.tax_rate}")
-							log.info(f"[UPDATE_INVOICE] 🔍         * account_head: '{tax_detail.account_head}'")
+							log.info(f"[UPDATE_INVOICE] 🔍         * tax_type (account): '{tax_detail.tax_type}'")
 
 							# Check if account exists
-							if tax_detail.account_head:
-								account_exists = frappe.db.exists("Account", tax_detail.account_head)
+							if tax_detail.tax_type:
+								account_exists = frappe.db.exists("Account", tax_detail.tax_type)
 								log.info(f"[UPDATE_INVOICE] 🔍         * account_exists: {account_exists}")
 							else:
-								log.warning(f"[UPDATE_INVOICE] 🔍         * account_head is EMPTY!")
+								log.warning(f"[UPDATE_INVOICE] 🔍         * tax_type is EMPTY!")
 
 							# Check tax_rate validity
 							if tax_detail.tax_rate == 0:
@@ -572,7 +572,7 @@ def update_invoice(data):
 					template = frappe.get_doc("Item Tax Template", item.item_tax_template)
 					log.info(f"[UPDATE_INVOICE] 🧾   - Template has {len(template.taxes)} tax entries")
 					for j, tax_detail in enumerate(template.taxes):
-						log.info(f"[UPDATE_INVOICE] 🧾     * Tax {j+1}: rate={tax_detail.tax_rate}, account='{tax_detail.account_head}'")
+						log.info(f"[UPDATE_INVOICE] 🧾     * Tax {j+1}: rate={tax_detail.tax_rate}, account='{tax_detail.tax_type}'")
 				except Exception as e:
 					log.error(f"[UPDATE_INVOICE] 🧾   - Error checking template: {e}")
 
@@ -608,6 +608,68 @@ def update_invoice(data):
 	else:
 		log.warning(f"[UPDATE_INVOICE] 🔍 DEBUG - NO TAXES CREATED!")
 		log.warning(f"[UPDATE_INVOICE] 🔍 DEBUG - This means item_tax_template did not generate tax entries")
+
+		# Manual tax calculation for ERPNext v15 compatibility
+		log.info(f"[UPDATE_INVOICE] 🧾 Attempting manual tax calculation from item_tax_templates")
+
+		# Check if POS Profile has inclusive tax
+		is_inclusive = False
+		if data.get("pos_profile"):
+			pos_profile_doc = frappe.get_doc("POS Profile", data.get("pos_profile"))
+			is_inclusive = getattr(pos_profile_doc, 'posa_tax_inclusive', 0) == 1
+
+		log.info(f"[UPDATE_INVOICE] 🧾 Tax calculation mode: {'Inclusive' if is_inclusive else 'Exclusive'}")
+
+		tax_entries = {}
+		for item in invoice_doc.items:
+			if item.item_tax_template:
+				try:
+					template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
+					for tax_detail in template_doc.taxes:
+						# In v15, account is tax_type; fallback to account_head for compatibility
+						account = getattr(tax_detail, 'tax_type', getattr(tax_detail, 'account_head', None))
+						if not account:
+							log.warning(f"[UPDATE_INVOICE] 🧾 Skipping tax detail with no account: {tax_detail}")
+							continue
+
+						rate = tax_detail.tax_rate
+						key = (account, rate)
+
+						if key not in tax_entries:
+							tax_entries[key] = {
+								'charge_type': 'Actual',  # Use Actual for manual tax entries
+								'account_head': account,
+								'description': f'Tax {rate}%',
+								'rate': rate,
+								'tax_amount': 0.0
+							}
+
+						# Calculate tax amount
+						if is_inclusive:
+							# For inclusive: tax_amount = amount * rate / (100 + rate)
+							tax_amount = flt(item.amount) * rate / (100 + rate)
+						else:
+							# For exclusive: tax_amount = amount * rate / 100
+							tax_amount = flt(item.amount) * rate / 100
+
+						tax_entries[key]['tax_amount'] += tax_amount
+						log.info(f"[UPDATE_INVOICE] 🧾 Added tax for item {item.item_code}: {tax_amount} to account {account}")
+
+				except Exception as e:
+					log.error(f"[UPDATE_INVOICE] 🧾 Error processing template {item.item_tax_template} for item {item.item_code}: {e}")
+
+		# Add tax entries to invoice
+		for tax_entry in tax_entries.values():
+			if tax_entry['tax_amount'] > 0:
+				invoice_doc.append('taxes', tax_entry)
+				log.info(f"[UPDATE_INVOICE] 🧾 Added tax entry: {tax_entry}")
+
+		log.info(f"[UPDATE_INVOICE] 🧾 Manually added {len([t for t in tax_entries.values() if t['tax_amount'] > 0])} tax entries")
+
+		# Recalculate totals after adding taxes
+		if tax_entries:
+			invoice_doc.calculate_taxes_and_totals()
+			log.info(f"[UPDATE_INVOICE] 🧾 Recalculated totals after manual tax addition")
 
 	log.info(f"[UPDATE_INVOICE] ✅ Taxes and totals calculated")
 
