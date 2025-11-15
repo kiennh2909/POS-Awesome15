@@ -371,7 +371,7 @@ def _get_items_optimized(
     # Lấy giá hàng loạt
     price_data = frappe.get_all(
         "Item Price",
-        fields=["item_code", "price_list_rate", "currency", "uom"],
+        fields=["item_code", "price_list_rate", "currency", "uom", "custom_vat_rate", "custom_price_list_rate_after_vat"],
         filters={
             "price_list": selling_price_list, "item_code": ["in", item_codes],
             "selling": 1, "valid_from": ["<=", today],
@@ -419,6 +419,9 @@ def _get_items_optimized(
             "item_barcode": barcodes_map.get(item_code, []),
             "actual_qty": actual_qty,  # ← Từ Bin (đã có sẵn)
             "item_uoms": item_uoms,
+            # Thêm các trường custom cho VAT
+            "custom_vat_rate": item_price.get("custom_vat_rate"),
+            "custom_price_list_rate_after_vat": item_price.get("custom_price_list_rate_after_vat"),
             # Giữ các trường này để tương thích với frontend
             "serial_no_data": [],
             "batch_no_data": [],
@@ -1405,7 +1408,7 @@ def get_item_by_barcode_exact(barcode, pos_profile=None, price_list=None, custom
     # Ưu tiên: Tìm giá cho UOM cụ thể từ barcode
     item_price_data = frappe.get_all(
         "Item Price",
-        fields=["price_list_rate", "currency", "uom"],
+        fields=["price_list_rate", "currency", "uom", "custom_vat_rate", "custom_price_list_rate_after_vat"],
         filters={
             "item_code": item_code,
             "price_list": selling_price_list,
@@ -1428,7 +1431,7 @@ def get_item_by_barcode_exact(barcode, pos_profile=None, price_list=None, custom
         # Fallback to any available price for this item
         item_price_data = frappe.get_all(
             "Item Price",
-            fields=["price_list_rate", "currency", "uom"],
+            fields=["price_list_rate", "currency", "uom", "custom_vat_rate", "custom_price_list_rate_after_vat"],
             filters={
                 "item_code": item_code,
                 "price_list": selling_price_list,
@@ -1474,6 +1477,9 @@ def get_item_by_barcode_exact(barcode, pos_profile=None, price_list=None, custom
         "item_barcode": item_barcodes,
         "actual_qty": actual_qty,
         "item_uoms": item_uoms,
+        # Thêm các trường custom cho VAT
+        "custom_vat_rate": item_price.get("custom_vat_rate"),
+        "custom_price_list_rate_after_vat": item_price.get("custom_price_list_rate_after_vat"),
         "serial_no_data": [],  # Để tương thích, sẽ load khi cần
         "batch_no_data": [],   # Để tương thích, sẽ load khi cần
         "attributes": "",
