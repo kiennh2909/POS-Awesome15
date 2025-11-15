@@ -273,6 +273,9 @@
 									></v-text-field>
 								</div>
 							</div>
+
+							<!-- Third row of fields -->
+							<div class="form-row">
 								<div class="form-field">
 									<v-text-field
 										density="compact"
