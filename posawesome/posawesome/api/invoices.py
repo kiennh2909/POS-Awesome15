@@ -758,8 +758,9 @@ def update_invoice(data):
 				except Exception as e:
 					log.error(f"[UPDATE_INVOICE] 🧾 Error calculating tax for item {item.item_code}: {e}")
 
-		invoice_doc.custom_tax_amount = flt(total_tax_amount)
-		log.info(f"[UPDATE_INVOICE] 🧾 Set custom_tax_amount (total tax from all items): {total_tax_amount}")
+		# Round the total tax amount using invoice's precision
+		invoice_doc.custom_tax_amount = flt(total_tax_amount, invoice_doc.precision("custom_tax_amount"))
+		log.info(f"[UPDATE_INVOICE] 🧾 Set custom_tax_amount (total tax from all items, rounded): {invoice_doc.custom_tax_amount}")
 
 	# Log tax information after calculation
 	if hasattr(invoice_doc, 'taxes') and invoice_doc.taxes:
