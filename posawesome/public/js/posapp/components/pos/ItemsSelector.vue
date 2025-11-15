@@ -2341,34 +2341,63 @@ export default {
 			return Number.isInteger(numericValue) ? 0 : this.currency_precision;
 		},
 		getPriceAfterTax(item) {
+			console.log(`[getPriceAfterTax] Processing item: ${item.item_code}, template: ${item.item_tax_template}`);
+
 			// Get base price
 			const basePrice = item.base_price_list_rate || item.rate || 0;
+			console.log(`[getPriceAfterTax] Base price: ${basePrice}`);
 
 			// Get VAT rate from item_tax_template
 			let vatRate = 0;
+			let vatSource = 'none';
+
 			if (item.item_tax_template) {
 				try {
-					// Try to get VAT rate from cached data first
-					if (item.custom_vat_rate !== undefined) {
-						vatRate = item.custom_vat_rate;
+					// Priority 1: Use custom_vat_rate if available from backend
+					if (item.custom_vat_rate !== undefined && item.custom_vat_rate !== null) {
+						vatRate = parseFloat(item.custom_vat_rate);
+						vatSource = 'custom_vat_rate';
+						console.log(`[getPriceAfterTax] Using custom_vat_rate: ${vatRate}%`);
 					} else {
-						// Fallback: parse from template name
+						// Priority 2: Parse from template name with improved logic
 						const template = item.item_tax_template;
-						if (template.includes('VAT5')) {
-							vatRate = 5;
-						} else if (template.includes('VAT8')) {
-							vatRate = 8;
-						} else if (template.includes('VAT10')) {
-							vatRate = 10;
+						console.log(`[getPriceAfterTax] Parsing template name: ${template}`);
+
+						// More precise parsing for VAT_ITEM_X format
+						const vatItemMatch = template.match(/VAT_ITEM_(\d+)/);
+						if (vatItemMatch) {
+							vatRate = parseInt(vatItemMatch[1]);
+							vatSource = 'VAT_ITEM_X';
+							console.log(`[getPriceAfterTax] Matched VAT_ITEM_X format: ${vatRate}%`);
+						} else {
+							// Fallback: legacy VATX format
+							const vatMatch = template.match(/VAT(\d+)/);
+							if (vatMatch) {
+								vatRate = parseInt(vatMatch[1]);
+								vatSource = 'VATX';
+								console.log(`[getPriceAfterTax] Matched legacy VATX format: ${vatRate}%`);
+							} else {
+								console.warn(`[getPriceAfterTax] Could not parse VAT rate from template: ${template}`);
+							}
 						}
 					}
 				} catch (e) {
-					console.warn('Error getting VAT rate for item:', item.item_code, e);
+					console.error(`[getPriceAfterTax] Error getting VAT rate for item ${item.item_code}:`, e);
 				}
+			} else {
+				console.log(`[getPriceAfterTax] No item_tax_template found for item: ${item.item_code}`);
+			}
+
+			// Validate VAT rate
+			if (vatRate < 0 || vatRate > 100) {
+				console.warn(`[getPriceAfterTax] Invalid VAT rate ${vatRate}%, resetting to 0`);
+				vatRate = 0;
 			}
 
 			// Calculate price after tax: base_price * (1 + vat_rate/100)
 			const priceAfterTax = basePrice * (1 + vatRate / 100);
+			console.log(`[getPriceAfterTax] Final calculation: ${basePrice} * (1 + ${vatRate}/100) = ${priceAfterTax} (source: ${vatSource})`);
+
 			return priceAfterTax;
 		},
 		format_number(value, precision) {
