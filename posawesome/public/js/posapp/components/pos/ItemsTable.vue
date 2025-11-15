@@ -165,7 +165,7 @@
 							</div>
 						</div>
 
-						<!-- Item details form with all fields -->
+						<!-- Item details form with essential VAT fields -->
 						<div class="item-details-form">
 							<!-- First row of fields -->
 							<div class="form-row">
@@ -253,7 +253,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="item.custom_vat_rate || ''"
+										:model-value="item.custom_vat_rate ? item.custom_vat_rate + '%' : ''"
 										disabled
 										prepend-inner-icon="mdi-percent"
 									></v-text-field>
@@ -263,7 +263,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Price After VAT')"
+										:label="frappe._('Final Price (After VAT)')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -329,11 +329,11 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Price list Rate')"
+										:label="frappe._('Price List Rate (Before VAT)')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.custom_price_list_rate_after_vat || item.price_list_rate)"
+										:model-value="formatCurrency(item.price_list_rate)"
 										:disabled="!pos_profile.posa_allow_price_list_rate_change"
 										:prefix="currencySymbol(pos_profile.currency)"
 										@change="changePriceListRate(item)"
@@ -547,11 +547,11 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Price List Rate')"
+										:label="frappe._('Price List Rate (Before VAT)')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.custom_price_list_rate_after_vat || item.price_list_rate || 0)"
+										:model-value="formatCurrency(item.price_list_rate || 0)"
 										:disabled="!pos_profile.posa_allow_price_list_rate_change"
 										prepend-inner-icon="mdi-format-list-numbered"
 										@change="changePriceListRate(item)"
