@@ -301,8 +301,8 @@ def update_invoice(data):
 				{
 					"doctype": "Customer",
 					"customer_name": customer_name,
-					"customer_group": "All Customer Groups",
-					"territory": "All Territories",
+					"customer_group": "Khách lẻ POS",
+					"territory": "Hà nội",
 					"customer_type": "Individual",
 				}
 			)
@@ -663,6 +663,11 @@ def update_invoice(data):
 
 					log.info(f"[UPDATE_INVOICE] 🧾 Processing item {item.item_code}: amount={item.amount}, template={item.item_tax_template}, total_rate={total_rate}%")
 
+					# Set custom_vat_rate for the item
+					if hasattr(item, 'custom_vat_rate') or item.meta.has_field('custom_vat_rate'):
+						item.custom_vat_rate = str(total_rate)
+						log.info(f"[UPDATE_INVOICE] 🧾 Set custom_vat_rate for item {item.item_code}: {total_rate}%")
+
 					for tax_detail in template_doc.taxes:
 						# In v15, account is tax_type; fallback to account_head for compatibility
 						account = getattr(tax_detail, 'tax_type', getattr(tax_detail, 'account_head', None))
@@ -714,6 +719,14 @@ def update_invoice(data):
 
 						log.info(f"[UPDATE_INVOICE] 🧾 Final tax entry for {account} @ {rate}%: amount={tax_entries[key]['tax_amount']}, charge_type={charge_type}")
 
+					# Set custom_amount_after_vat for the item (amount + tax for exclusive tax)
+					if hasattr(item, 'custom_amount_after_vat') or item.meta.has_field('custom_amount_after_vat'):
+						# For exclusive tax: final amount = net_amount + tax_amount
+						# Since we have multiple tax rates, we need to calculate total tax for this item
+						item_tax_amount = sum(flt(item.amount) * tax_detail.tax_rate / 100 for tax_detail in template_doc.taxes)
+						item.custom_amount_after_vat = flt(item.net_amount) + item_tax_amount
+						log.info(f"[UPDATE_INVOICE] 🧾 Set custom_amount_after_vat for item {item.item_code}: {item.net_amount} + {item_tax_amount} = {item.custom_amount_after_vat}")
+
 				except Exception as e:
 					log.error(f"[UPDATE_INVOICE] 🧾 Error processing template {item.item_tax_template} for item {item.item_code}: {e}")
 
@@ -730,6 +743,23 @@ def update_invoice(data):
 			log.info(f"[UPDATE_INVOICE] 🧾 Recalculated totals after manual tax addition")
 
 	log.info(f"[UPDATE_INVOICE] ✅ Taxes and totals calculated")
+
+	# Calculate and set custom_tax_amount (total of all item_tax_amount)
+	if hasattr(invoice_doc, 'custom_tax_amount') or invoice_doc.meta.has_field('custom_tax_amount'):
+		total_tax_amount = 0.0
+		for item in invoice_doc.items:
+			if item.item_tax_template:
+				try:
+					template_doc = frappe.get_doc("Item Tax Template", item.item_tax_template)
+					# Calculate tax amount for this item
+					item_tax_amount = sum(flt(item.amount) * tax_detail.tax_rate / 100 for tax_detail in template_doc.taxes)
+					total_tax_amount += item_tax_amount
+					log.info(f"[UPDATE_INVOICE] 🧾 Item {item.item_code} tax amount: {item_tax_amount}")
+				except Exception as e:
+					log.error(f"[UPDATE_INVOICE] 🧾 Error calculating tax for item {item.item_code}: {e}")
+
+		invoice_doc.custom_tax_amount = flt(total_tax_amount)
+		log.info(f"[UPDATE_INVOICE] 🧾 Set custom_tax_amount (total tax from all items): {total_tax_amount}")
 
 	# Log tax information after calculation
 	if hasattr(invoice_doc, 'taxes') and invoice_doc.taxes:
