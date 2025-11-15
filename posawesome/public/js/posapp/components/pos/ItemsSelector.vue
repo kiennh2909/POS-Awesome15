@@ -186,7 +186,7 @@
 										}}</v-card-text>
 									</v-img>
 									<v-card-text class="text--primary pa-1">
-										<div class="text-caption text-primary truncate">
+										<div class="text-caption text-primary truncate" title="Giá sau thuế">
 											{{
 												currencySymbol(
 													item.original_currency || pos_profile.currency,
@@ -194,9 +194,9 @@
 											}}
 											{{
 												format_currency(
-													item.base_price_list_rate || item.rate,
+													getPriceAfterTax(item),
 													item.original_currency || pos_profile.currency,
-													ratePrecision(item.base_price_list_rate || item.rate),
+													ratePrecision(getPriceAfterTax(item)),
 												)
 											}}
 										</div>
@@ -235,7 +235,7 @@
 									@click:row="click_item_row"
 								>
 									<template v-slot:item.rate="{ item }">
-										<div>
+										<div title="Giá sau thuế">
 											<div class="text-primary">
 												{{
 													currencySymbol(
@@ -244,9 +244,9 @@
 												}}
 												{{
 													format_currency(
-														item.base_price_list_rate || item.rate,
+														getPriceAfterTax(item),
 														item.original_currency || pos_profile.currency,
-														ratePrecision(item.base_price_list_rate || item.rate),
+														ratePrecision(getPriceAfterTax(item)),
 													)
 												}}
 											</div>
@@ -260,9 +260,9 @@
 												{{ currencySymbol(selected_currency) }}
 												{{
 													format_currency(
-														item.rate,
+														getPriceAfterTax(item),
 														selected_currency,
-														ratePrecision(item.rate),
+														ratePrecision(getPriceAfterTax(item)),
 													)
 												}}
 											</div>
@@ -2339,6 +2339,37 @@ export default {
 		ratePrecision(value) {
 			const numericValue = typeof value === "string" ? parseFloat(value) : value;
 			return Number.isInteger(numericValue) ? 0 : this.currency_precision;
+		},
+		getPriceAfterTax(item) {
+			// Get base price
+			const basePrice = item.base_price_list_rate || item.rate || 0;
+
+			// Get VAT rate from item_tax_template
+			let vatRate = 0;
+			if (item.item_tax_template) {
+				try {
+					// Try to get VAT rate from cached data first
+					if (item.custom_vat_rate !== undefined) {
+						vatRate = item.custom_vat_rate;
+					} else {
+						// Fallback: parse from template name
+						const template = item.item_tax_template;
+						if (template.includes('VAT5')) {
+							vatRate = 5;
+						} else if (template.includes('VAT8')) {
+							vatRate = 8;
+						} else if (template.includes('VAT10')) {
+							vatRate = 10;
+						}
+					}
+				} catch (e) {
+					console.warn('Error getting VAT rate for item:', item.item_code, e);
+				}
+			}
+
+			// Calculate price after tax: base_price * (1 + vat_rate/100)
+			const priceAfterTax = basePrice * (1 + vatRate / 100);
+			return priceAfterTax;
 		},
 		format_number(value, precision) {
 			const prec = typeof precision === "number" ? precision : this.float_precision;
