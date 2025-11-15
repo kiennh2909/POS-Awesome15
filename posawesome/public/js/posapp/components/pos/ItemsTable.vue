@@ -47,7 +47,10 @@
 					</span>
 					<span v-else>
 						<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-						<span class="amount-value">{{ formatCurrency(item.rate) }}</span>
+						<span class="amount-value">{{ formatCurrency(item.custom_price_list_rate_after_vat || item.rate) }}</span>
+						<span v-if="item.custom_vat_rate" class="text-caption text-orange ml-1">
+							(VAT {{ item.custom_vat_rate }}%)
+						</span>
 					</span>
 				</div>
 			</template>
@@ -56,7 +59,7 @@
 			<template v-slot:item.amount="{ item }">
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.qty * item.rate) }}</span>
+					<span class="amount-value">{{ formatCurrency(item.qty * (item.custom_price_list_rate_after_vat || item.rate)) }}</span>
 				</div>
 			</template>
 
@@ -232,7 +235,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.rate)"
+										:model-value="formatCurrency(item.custom_price_list_rate_after_vat || item.rate)"
 										@change="[
 											setFormatedCurrency(item, 'rate', null, false, $event),
 											calcPrices(item, $event.target.value, $event),
@@ -241,6 +244,35 @@
 										prepend-inner-icon="mdi-currency-usd"
 									></v-text-field>
 								</div>
+								<div class="form-field">
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('VAT Rate (%)')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										:model-value="item.custom_vat_rate || ''"
+										disabled
+										prepend-inner-icon="mdi-percent"
+									></v-text-field>
+								</div>
+								<div class="form-field">
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Price After VAT')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										:model-value="formatCurrency(item.custom_price_list_rate_after_vat || 0)"
+										disabled
+										prepend-inner-icon="mdi-currency-usd"
+									></v-text-field>
+								</div>
+							</div>
 								<div class="form-field">
 									<v-text-field
 										density="compact"
@@ -298,7 +330,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.price_list_rate)"
+										:model-value="formatCurrency(item.custom_price_list_rate_after_vat || item.price_list_rate)"
 										:disabled="!pos_profile.posa_allow_price_list_rate_change"
 										:prefix="currencySymbol(pos_profile.currency)"
 										@change="changePriceListRate(item)"
@@ -516,7 +548,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.price_list_rate || 0)"
+										:model-value="formatCurrency(item.custom_price_list_rate_after_vat || item.price_list_rate || 0)"
 										:disabled="!pos_profile.posa_allow_price_list_rate_change"
 										prepend-inner-icon="mdi-format-list-numbered"
 										@change="changePriceListRate(item)"
@@ -538,7 +570,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.qty * item.rate)"
+										:model-value="formatCurrency(item.qty * (item.custom_price_list_rate_after_vat || item.rate))"
 										disabled
 										prepend-inner-icon="mdi-calculator"
 									></v-text-field>
@@ -620,10 +652,11 @@ export default {
 					"[ItemsTable] Items updated - checking rates:",
 					newItems.map((item) => ({
 						Item_code: item.item_code,
-						Price: item.rate,
+						Price: item.custom_price_list_rate_after_vat || item.rate,
+						VAT_Rate: item.custom_vat_rate,
 						Uom: item.uom,
 						qty: item.qty,
-						amount: item.qty * item.rate,
+						amount: item.qty * (item.custom_price_list_rate_after_vat || item.rate),
 						base_rate: item.base_rate,
 						conversion_factor: item.conversion_factor,
 						expected_price: item.base_rate * (item.conversion_factor || 1),
@@ -642,7 +675,8 @@ export default {
 						stock_uom: item.stock_uom,
 						conversion_factor: item.conversion_factor,
 						base_rate: item.base_rate,
-						current_rate: item.rate,
+						current_rate: item.custom_price_list_rate_after_vat || item.rate,
+						vat_rate: item.custom_vat_rate,
 					});
 
 					// If UOM is different from stock UOM and conversion_factor > 1, expect converted price
@@ -652,24 +686,26 @@ export default {
 						item.conversion_factor &&
 						item.conversion_factor > 1
 					) {
-						expectedPrice = item.base_rate * item.conversion_factor;
+						expectedPrice = (item.custom_price_list_rate_after_vat || item.base_rate) * item.conversion_factor;
 						shouldConvert = true;
 						console.log("[ItemsTable] SHOULD CONVERT detected:", {
 							Item_code: item.item_code,
 							expectedPrice: expectedPrice,
 							conversion_factor: item.conversion_factor,
+							vat_rate: item.custom_vat_rate,
 						});
 					}
 
+					let currentPrice = item.custom_price_list_rate_after_vat || item.rate;
 					if (
-						item.rate !== expectedPrice &&
+						currentPrice !== expectedPrice &&
 						shouldConvert &&
 						!item.posa_offer_applied &&
 						item.discount_amount <= 0
 					) {
 						console.error("[ItemsTable] ❌ PRICE MISMATCH DETECTED - AUTO FIXING:", {
 							Item_code: item.item_code,
-							current_price: item.rate,
+							current_price: currentPrice,
 							expected_price: expectedPrice,
 							base_rate: item.base_rate,
 							conversion_factor: item.conversion_factor,
@@ -677,32 +713,36 @@ export default {
 							stock_uom: item.stock_uom,
 							should_convert: shouldConvert,
 							posa_offer_applied: item.posa_offer_applied,
+							vat_rate: item.custom_vat_rate,
 						});
 
 						// AUTO FIX: Update the rate to expected price
 						item.rate = expectedPrice;
 						item.price_list_rate = item.base_price_list_rate * item.conversion_factor;
-						item.amount = item.qty * item.rate;
+						item.amount = item.qty * (item.custom_price_list_rate_after_vat || item.rate);
 
 						console.log("[ItemsTable] ✅ PRICE FIXED:", {
 							Item_code: item.item_code,
 							new_rate: item.rate,
 							new_amount: item.amount,
+							vat_rate: item.custom_vat_rate,
 						});
 					} else if (item.posa_offer_applied) {
 						console.log("[ItemsTable] ✅ Skipping auto-fix for offer-applied item:", {
 							Item_code: item.item_code,
-							current_price: item.rate,
+							current_price: currentPrice,
 							expected_price: expectedPrice,
 							posa_offer_applied: item.posa_offer_applied,
+							vat_rate: item.custom_vat_rate,
 						});
 					} else {
 						console.log("[ItemsTable] ✅ Price status:", {
 							Item_code: item.item_code,
-							current_price: item.rate,
+							current_price: currentPrice,
 							expected_price: expectedPrice,
 							should_convert: shouldConvert,
-							status: item.rate === expectedPrice ? "CORRECT" : "WAITING_FOR_UPDATE",
+							vat_rate: item.custom_vat_rate,
+							status: currentPrice === expectedPrice ? "CORRECT" : "WAITING_FOR_UPDATE",
 						});
 					}
 				});
