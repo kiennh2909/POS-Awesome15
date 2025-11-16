@@ -51,6 +51,32 @@ export default {
 
 		return this.flt(sum, this.currency_precision);
 	},
+	// Calculate total after tax (grand total)
+	total_after_tax() {
+		this.close_payments();
+		let sum = 0;
+		this.items.forEach((item) => {
+			// For returns, use absolute value for correct calculation
+			const qty = this.isReturnInvoice ? Math.abs(flt(item.qty)) : flt(item.qty);
+			const rate = flt(item.custom_price_list_rate_after_vat || item.rate);
+			sum += qty * rate;
+		});
+
+		// Subtract additional discount
+		const additional_discount = this.flt(this.additional_discount);
+		sum -= additional_discount;
+
+		// Add delivery charges
+		const delivery_charges = this.flt(this.delivery_charges_rate);
+		sum += delivery_charges;
+
+		// FIX: For return invoices, ensure the total is negative
+		if (this.isReturnInvoice && sum > 0) {
+			sum = -Math.abs(sum);
+		}
+
+		return this.flt(sum, this.currency_precision);
+	},
 	// Calculate total discount amount for all items
 	total_items_discount_amount() {
 		let sum = 0;
