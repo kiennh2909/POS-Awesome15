@@ -165,7 +165,7 @@
 							</div>
 						</div>
 
-						<!-- Item details form with essential VAT fields -->
+						<!-- Item details form with all fields -->
 						<div class="item-details-form">
 							<!-- First row of fields -->
 							<div class="form-row">

@@ -79,7 +79,7 @@
 						<v-text-field
 							:model-value="formatCurrency(subtotal)"
 							:prefix="currencySymbol(displayCurrency)"
-							:label="frappe._('Total (After VAT)')"
+							:label="frappe._('Total')"
 							prepend-inner-icon="mdi-cash"
 							variant="solo"
 							density="compact"

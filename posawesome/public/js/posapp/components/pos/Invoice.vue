@@ -201,7 +201,7 @@
 			:additional_discount="additional_discount"
 			:additional_discount_percentage="additional_discount_percentage"
 			:total_items_discount_amount="total_items_discount_amount"
-			:subtotal="total_after_tax"
+			:subtotal="subtotal"
 			:displayCurrency="displayCurrency"
 			:formatFloat="formatFloat"
 			:formatCurrency="formatCurrency"
