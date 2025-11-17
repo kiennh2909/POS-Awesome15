@@ -305,6 +305,7 @@ export default {
 			temp_selected_columns: [], // Temporary array for column selection
 			available_columns: [], // All available columns
 			show_column_selector: false, // Column selector dialog visibility
+			columns_initialized: false, // Flag to track if columns have been initialized
 			invoiceHeight: null,
 			tax_print_loading: false, // Loading state for tax print button
 			shiftVerificationStatus: null, // Verification status of current shift report
@@ -504,15 +505,15 @@ export default {
 				{ title: "Offer?", key: "posa_is_offer", align: "center", required: false },
 			];
 
-			// Initialize selected columns if empty
+			// Initialize selected columns if empty or if columns haven't been loaded from preferences yet
 			if (!this.selected_columns || this.selected_columns.length === 0) {
 				// By default, select all required columns and essential calculation columns
 				this.selected_columns = this.available_columns
 					.filter((col) => {
 						if (col.required) return true;
-						if (col.key === "discount_value" && this.pos_profile.posa_display_discount_percentage)
+						if (col.key === "discount_value" && this.pos_profile?.posa_display_discount_percentage)
 							return true;
-						if (col.key === "discount_amount" && this.pos_profile.posa_display_discount_amount)
+						if (col.key === "discount_amount" && this.pos_profile?.posa_display_discount_amount)
 							return true;
 						// Enable pack_info by default as it's a useful feature
 						if (col.key === "pack_info") return true;
@@ -523,7 +524,18 @@ export default {
 						return false;
 					})
 					.map((col) => col.key);
+			} else {
+				// If columns were loaded from preferences, ensure essential columns are still included
+				const alwaysIncludeKeys = ["uom", "discount_amount", "amount_before_discount", "net_amount_before_vat", "vat_amount", "total_with_vat"];
+				alwaysIncludeKeys.forEach((key) => {
+					if (!this.selected_columns.includes(key)) {
+						this.selected_columns.push(key);
+					}
+				});
 			}
+
+			// Mark columns as initialized
+			this.columns_initialized = true;
 
 			// Generate headers based on selected columns
 			this.updateHeadersFromSelection();
@@ -623,6 +635,11 @@ export default {
 
 		loadColumnPreferences() {
 			try {
+				// Ensure columns are initialized before loading preferences
+				if (!this.columns_initialized) {
+					this.initializeItemsHeaders();
+				}
+
 				const saved = localStorage.getItem("posawesome_selected_columns");
 				if (saved) {
 					this.selected_columns = JSON.parse(saved);
@@ -633,9 +650,22 @@ export default {
 							this.selected_columns.push(key);
 						}
 					});
+
+					// Always include essential columns (hide rate_uom_base by default)
+					const alwaysIncludeKeys = ["uom", "discount_amount", "amount_before_discount", "net_amount_before_vat", "vat_amount", "total_with_vat"];
+					alwaysIncludeKeys.forEach((key) => {
+						if (!this.selected_columns.includes(key)) {
+							this.selected_columns.push(key);
+						}
+					});
 				}
+				// If no saved preferences, columns are already initialized above
 			} catch (e) {
 				console.error("Failed to load column preferences:", e);
+				// Fallback to default initialization
+				if (!this.columns_initialized) {
+					this.initializeItemsHeaders();
+				}
 			}
 		},
 

@@ -55,7 +55,6 @@
 					</span>
 					<span v-else>
 							<span class="amount-value">{{ formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1), 0) }}</span>
->
 					</span>
 				</div>
 			</template>
@@ -87,7 +86,7 @@
 				<div class="currency-display">
 					<span class="amount-value">{{ formatCurrency(((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0)) * ((item.custom_vat_rate || 0) / 100), 0) }}</span>
 					<span v-if="item.custom_vat_rate" class="text-caption text-orange ml-1">
-						(VAT {{ item.custom_vat_rate }}%)
+						({{ item.custom_vat_rate }}%)
 					</span>
 				</div>
 			</template>
@@ -96,7 +95,6 @@
 			<template v-slot:item.total_with_vat="{ item }">
 				<div class="currency-display net-amount-cell" title="Tổng tiền bao gồm VAT">
 					<v-icon size="small" color="success" class="mr-1">mdi-cash</v-icon>
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
 					<span class="amount-value net-amount-value">{{ formatCurrency((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0) + (((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0)) * ((item.custom_vat_rate || 0) / 100)), 0) }}</span>
 				</div>
 			</template>
@@ -118,7 +116,6 @@
 			<!-- Discount amount column -->
 			<template v-slot:item.discount_amount="{ item }">
 				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
 					<span class="amount-value">{{ formatCurrency(item.discount_amount || 0, 0) }}</span>
 				</div>
 			</template>
@@ -126,7 +123,6 @@
 			<!-- Price list rate column -->
 			<template v-slot:item.price_list_rate="{ item }">
 				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
 					<span class="amount-value">{{ formatCurrency(item.price_list_rate, 0) }}</span>
 				</div>
 			</template>
@@ -1408,3 +1404,4 @@ export default {
 	}
 }
 </style>
+
