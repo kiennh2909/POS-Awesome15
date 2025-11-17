@@ -670,7 +670,7 @@
 						theme="dark"
 						@click="submit(undefined, false, true, false)"
 						:loading="loading"
-						:disabled="loading || vaildatPayment"
+						:disabled="loading || vaildatPayment || !is_payment_confirmed"
 					>
 						{{ __("THANH TOÁN VN 1") }}
 					</v-btn>
@@ -684,11 +684,36 @@
 						theme="dark"
 						@click="submit(undefined, false, true, true)"
 						:loading="loading"
-						:disabled="loading || vaildatPayment"
+						:disabled="loading || vaildatPayment || !is_payment_confirmed"
 					>
 						{{ __("THANH TOÁN VN 2") }}
 					</v-btn>
 				</v-col>
+				<v-row align="start" no-gutters class="pa-1">
+					<v-col cols="6">
+						<v-btn
+							block
+							size="large"
+							color="primary"
+							theme="dark"
+							@click="openQRBank"
+						>
+							QR Bank
+						</v-btn>
+					</v-col>
+					<v-col cols="6" class="pl-1">
+						<v-btn
+							block
+							size="large"
+							color="success"
+							theme="dark"
+							@click="markAsPaid"
+							:disabled="is_payment_confirmed"
+						>
+							{{ is_payment_confirmed ? 'Đã đánh dấu thanh toán' : 'Đánh dấu đã thanh toán' }}
+						</v-btn>
+					</v-col>
+				</v-row>
 				<v-col cols="12">
 					<v-btn
 						block
@@ -788,6 +813,7 @@ import {
 
 import generateOfflineInvoiceHTML from "../../../offline_print_template";
 import { silentPrint } from "../../plugins/print.js";
+import md5 from 'crypto-js/md5';
 
 export default {
 	// Using format mixin for shared formatting methods
@@ -825,6 +851,7 @@ export default {
 			sales_person: "", // Selected sales person
 			addresses: [], // List of customer addresses
 			is_user_editing_paid_change: false, // User interaction flag
+			is_payment_confirmed: false, // Flag for manual payment confirmation
 		};
 	},
 	computed: {
@@ -1124,6 +1151,19 @@ export default {
 		back_to_invoice() {
 			this.eventBus.emit("show_payment", "false");
 			this.eventBus.emit("set_customer_readonly", false);
+		},
+		// Open QR Bank payment URL
+		openQRBank() {
+			const amount = this.invoice_doc.grand_total || this.invoice_doc.rounded_total || 0;
+			const desc = this.invoice_doc.name || '';
+			const hashInput = amount.toString() + desc;
+			const hash = md5(hashInput).toString();
+			const url = `https://pay.vtmart.online/?p?amount=${amount}&desc=${desc}&Hash=${hash}`;
+			window.open(url, '_blank');
+		},
+		// Mark payment as confirmed manually
+		markAsPaid() {
+			this.is_payment_confirmed = true;
 		},
 		// Reset all cash payments to zero
 		reset_cash_payments() {
@@ -2237,6 +2277,7 @@ export default {
 				const default_payment = this.invoice_doc.payments.find((payment) => payment.default === 1);
 				this.is_credit_sale = false;
 				this.is_write_off_change = false;
+				this.is_payment_confirmed = false;
 				if (invoice_doc.is_return) {
 					this.is_return = true;
 					this.is_credit_return = false;
@@ -2318,6 +2359,7 @@ export default {
 				this.invoice_doc = "";
 				this.is_return = false;
 				this.is_credit_return = false;
+				this.is_payment_confirmed = false;
 			});
 		});
 	},
