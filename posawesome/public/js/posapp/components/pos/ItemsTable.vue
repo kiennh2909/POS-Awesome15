@@ -47,7 +47,7 @@
 					</span>
 					<span v-else>
 						<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-						<span class="amount-value">{{ formatCurrency(item.custom_price_list_rate_after_vat || item.rate) }}</span>
+						<span class="amount-value">{{ formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1)) }}</span>
 						<span v-if="item.custom_vat_rate" class="text-caption text-orange ml-1">
 							(VAT {{ item.custom_vat_rate }}%)
 						</span>
@@ -59,7 +59,7 @@
 			<template v-slot:item.rate_uom_base="{ item }">
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.base_rate || 0) }}</span>
+					<span class="amount-value">{{ formatCurrency(getRateUomBase(item)) }}</span>
 				</div>
 			</template>
 
@@ -67,7 +67,7 @@
 			<template v-slot:item.amount="{ item }">
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.qty * (item.custom_price_list_rate_after_vat || item.rate)) }}</span>
+					<span class="amount-value">{{ formatCurrency(item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) }}</span>
 				</div>
 			</template>
 
@@ -243,7 +243,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.custom_price_list_rate_after_vat || item.rate)"
+										:model-value="formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1))"
 										@change="[
 											setFormatedCurrency(item, 'rate', null, false, $event),
 											calcPrices(item, $event.target.value, $event),
@@ -275,7 +275,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.custom_price_list_rate_after_vat || 0)"
+										:model-value="formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1))"
 										disabled
 										prepend-inner-icon="mdi-currency-usd"
 									></v-text-field>
@@ -341,7 +341,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.custom_price_list_rate_after_vat || item.price_list_rate)"
+										:model-value="formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1))"
 										:disabled="!pos_profile.posa_allow_price_list_rate_change"
 										:prefix="currencySymbol(pos_profile.currency)"
 										@change="changePriceListRate(item)"
@@ -559,7 +559,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.custom_price_list_rate_after_vat || item.price_list_rate || 0)"
+										:model-value="formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1))"
 										:disabled="!pos_profile.posa_allow_price_list_rate_change"
 										prepend-inner-icon="mdi-format-list-numbered"
 										@change="changePriceListRate(item)"
@@ -581,7 +581,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.qty * (item.custom_price_list_rate_after_vat || item.rate))"
+										:model-value="formatCurrency(item.qty * (getRateUomBase(item) * (item.conversion_factor || 1)))"
 										disabled
 										prepend-inner-icon="mdi-calculator"
 									></v-text-field>
@@ -895,6 +895,20 @@ export default {
 
 			// Default for single items
 			return null;
+		},
+
+		// Get RATE_UOM_BASE: đơn giá có VAT của đơn vị cơ bản tồn kho
+		getRateUomBase(item) {
+			// Lấy base_rate (giá không VAT của stock UOM)
+			const baseRate = item.base_rate || 0;
+
+			// Nếu có VAT rate, tính giá có VAT
+			if (item.custom_vat_rate && item.custom_vat_rate > 0) {
+				return baseRate * (1 + item.custom_vat_rate / 100);
+			}
+
+			// Nếu không có VAT, trả về base_rate
+			return baseRate;
 		},
 	},
 };

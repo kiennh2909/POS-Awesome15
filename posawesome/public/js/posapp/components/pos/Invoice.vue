@@ -489,16 +489,14 @@ export default {
 		initializeItemsHeaders() {
 			// Define all available columns
 			this.available_columns = [
-				{ title: __("Name"), align: "start", sortable: true, key: "item_name", required: true },
-				{ title: __("QTY"), key: "qty", align: "start", required: true },
-				{ title: __("UOM"), key: "uom", align: "start", required: false },
-				{ title: __("Rate"), key: "rate", align: "start", required: true },
-				{ title: __("RATE_UOM_BASE"), key: "rate_uom_base", align: "start", required: false },
-				{ title: __("Discount %"), key: "discount_value", align: "start", required: false },
-				{ title: __("Discount Amount"), key: "discount_amount", align: "start", required: false },
-				{ title: __("Amount"), key: "amount", align: "start", required: true },
-				{ title: __("Pack Info"), key: "pack_info", align: "center", required: false },
-				{ title: __("Offer?"), key: "posa_is_offer", align: "center", required: false },
+				{ title: "Tên", align: "start", sortable: true, key: "item_name", required: true },
+				{ title: "SL", key: "qty", align: "start", required: true },
+				{ title: "ĐVT", key: "uom", align: "start", required: false },
+				{ title: "Giá bán", key: "rate", align: "start", required: true },
+				{ title: "Giá Base", key: "rate_uom_base", align: "start", required: false },
+				{ title: "Giảm giá", key: "discount_amount", align: "start", required: false },
+				{ title: "Thành tiền", key: "amount", align: "start", required: true },
+				{ title: "KM trong", key: "posa_is_offer", align: "center", required: false },
 			];
 
 			// Initialize selected columns if empty
