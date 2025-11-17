@@ -289,6 +289,15 @@ export default {
 			});
 		}
 	},
+	// Đây là hàm gọi khi Scan Barcode được kích hoạt thông qua các bước 
+	// 	1. User quét barcode
+	// 2. ItemsSelector.processScannedItem() → fetchExactBarcodeAndAdd()
+	// 3. API call: posawesome.posawesome.api.items.get_item_by_barcode_exact
+	// 4. Nếu tìm thấy: await this.add_item(item) ← ItemsSelector.add_item()
+	// 5. Emit event: this.eventBus.emit("add_item", item, scan_mode)
+	// 6. Invoice nhận event → invoiceItemMethods.add_item() ← Hàm được hỏi
+	// 7. Item được thêm vào this.items array
+
 
 	async add_item(item) {
 		console.log("Invoice.add_item received", {
@@ -347,8 +356,15 @@ export default {
 				stock_uom: new_item.stock_uom,
 				conversion_factor: new_item.conversion_factor,
 			});
+			//Nguồn giá ban đầu:
+			// Từ API get_item_by_barcode_exact (nếu scan barcode)
+			// Từ local items cache (nếu tìm thấy trong this.items)
+			// Từ exact item code match
+			
+			//Giai Đoạn 2: Cập Nhật Giá Chính Xác Từ Server(update_item_detail)
+
 			this.update_item_detail(new_item, true);
-			console.log("After update_item_detail - Item state after server call", {
+			console.log("Kien-After update_item_detail - Item state after server call", {
 				Item_code: new_item.item_code,
 				Price: new_item.rate,
 				Uom: new_item.uom,
@@ -356,6 +372,13 @@ export default {
 				base_price_list_rate: new_item.base_price_list_rate,
 				stock_uom: new_item.stock_uom,
 				conversion_factor: new_item.conversion_factor,
+				// Tax Information
+				custom_vat_rate: new_item.custom_vat_rate,
+				custom_price_list_rate_after_vat: new_item.custom_price_list_rate_after_vat,
+				// Discount Information
+				discount_amount: new_item.discount_amount,
+				discount_percentage: new_item.discount_percentage,
+				base_discount_amount: new_item.base_discount_amount,
 			});
 			// Apply UOM conversion if needed
 			this.applyImmediateUomConversion(new_item);
@@ -457,8 +480,32 @@ export default {
 		new_item.posa_delivery_date = "";
 		new_item.posa_row_id = this.makeid(20);
 		// Include item_tax_template from original item data for ERPNext tax calculation
+		// Luôn phải lấy từ Item Tax Template 
 		if (item.item_tax_template) {
 			new_item.item_tax_template = item.item_tax_template;
+
+			// Calculate VAT rate and price after VAT when item has tax template
+			// TODO: Implement proper VAT calculation based on tax template data
+			// For now, using default VAT rate - this should be calculated from actual tax template
+			const defaultVatRate = 10; // Default 10% VAT - should be fetched from tax template
+			new_item.custom_vat_rate = defaultVatRate;
+
+			// Calculate price after VAT: base_price_list_rate + VAT
+			const basePrice = new_item.base_price_list_rate || new_item.rate || 0;
+			const vatAmount = (basePrice * defaultVatRate) / 100;
+			new_item.custom_price_list_rate_after_vat = basePrice + vatAmount;
+
+			// Console log riêng cho phần thuế của Item
+			console.log("🔥 [TAX_INFO] Item Tax Information:", {
+				item_code: new_item.item_code,
+				item_name: new_item.item_name,
+				item_tax_template: new_item.item_tax_template,
+				custom_vat_rate: new_item.custom_vat_rate,
+				base_price_list_rate: new_item.base_price_list_rate,
+				custom_price_list_rate_after_vat: new_item.custom_price_list_rate_after_vat,
+				vat_amount: vatAmount,
+				source: "get_new_item - item_tax_template exists"
+			});
 		}
 		if (new_item.has_serial_no && !new_item.serial_no_selected) {
 			new_item.serial_no_selected = [];
@@ -523,6 +570,10 @@ export default {
 			item_tax_template: new_item.item_tax_template,
 			posa_notes: new_item.posa_notes,
 			posa_delivery_date: new_item.posa_delivery_date,
+
+			// Tax Information
+			custom_vat_rate: new_item.custom_vat_rate,
+			custom_price_list_rate_after_vat: new_item.custom_price_list_rate_after_vat,
 
 			// Flags
 			_manual_rate_set: new_item._manual_rate_set,

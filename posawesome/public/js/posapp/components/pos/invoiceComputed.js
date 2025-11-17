@@ -22,34 +22,34 @@ export default {
 		if (this.isReturnInvoice && sum > 0) {
 			sum = -Math.abs(sum);
 		}
+return this.flt(sum, 0);
+},
 
-		return this.flt(sum, this.currency_precision);
-	},
-	// Calculate subtotal after discounts and delivery charges
-	subtotal() {
-		this.close_payments();
-		let sum = 0;
-		this.items.forEach((item) => {
-			// For returns, use absolute value for correct calculation
-			const qty = this.isReturnInvoice ? Math.abs(flt(item.qty)) : flt(item.qty);
-			const rate = flt(item.rate);
-			sum += qty * rate;
-		});
+// Calculate subtotal after discounts and delivery charges
+subtotal() {
+this.close_payments();
+let sum = 0;
+this.items.forEach((item) => {
+	// For returns, use absolute value for correct calculation
+	const qty = this.isReturnInvoice ? Math.abs(flt(item.qty)) : flt(item.qty);
+	const rate = flt(item.rate);
+	sum += qty * rate;
+});
 
-		// Subtract additional discount
-		const additional_discount = this.flt(this.additional_discount);
-		sum -= additional_discount;
+// Subtract additional discount
+const additional_discount = this.flt(this.additional_discount);
+sum -= additional_discount;
 
-		// Add delivery charges
-		const delivery_charges = this.flt(this.delivery_charges_rate);
-		sum += delivery_charges;
+// Add delivery charges
+const delivery_charges = this.flt(this.delivery_charges_rate);
+sum += delivery_charges;
 
-		// FIX: For return invoices, ensure the subtotal is negative
-		if (this.isReturnInvoice && sum > 0) {
-			sum = -Math.abs(sum);
-		}
+// FIX: For return invoices, ensure the subtotal is negative
+if (this.isReturnInvoice && sum > 0) {
+	sum = -Math.abs(sum);
+}
 
-		return this.flt(sum, this.currency_precision);
+return this.flt(sum, 0);
 	},
 	// Calculate total discount amount for all items
 	total_items_discount_amount() {
@@ -70,19 +70,19 @@ export default {
 			const rate = flt(item.rate);
 			const itemAmount = qty * rate;
 
-			// Get VAT rate from item or POS profile or default to 10%
-			const vatRate = item.posa_vat_rate || this.pos_profile?.posa_vat_rate || 10;
+			// Get VAT rate from item tax template only, default to 0%
+			const vatRate = item.custom_vat_rate || 0;
 			const itemVatAmount = (itemAmount * vatRate) / 100;
 
 			sum += itemVatAmount;
 		});
-		return this.flt(sum, this.currency_precision);
+		return this.flt(sum, 0);
 	},
 	// Calculate total including VAT
 	totalIncVat() {
 		const subtotal = this.subtotal;
 		const vatAmount = this.vatAmount;
-		return this.flt(subtotal + vatAmount, this.currency_precision);
+		return this.flt(subtotal + vatAmount, 0);
 	},
 	// Format posting_date for display as DD-MM-YYYY
 	formatted_posting_date: {

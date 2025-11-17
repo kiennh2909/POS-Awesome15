@@ -883,7 +883,7 @@ export default {
 					// Show success message
 					frappe.show_alert(
 						{
-							message: `Added: ${item.item_name} (${item.uom})`,
+							message: `Thêm giỏ hàng thành công : ${item.item_name} (${item.uom})`,
 							indicator: "green",
 						},
 						3,
