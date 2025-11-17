@@ -124,7 +124,6 @@
 				/> -->
 
 				<!-- Multi-Currency Section (Only if enabled in POS profile) -->
-				<!--
 				<MultiCurrencyRow
 					:pos_profile="pos_profile"
 					:selected_currency="selected_currency"
@@ -152,7 +151,6 @@
 						}
 					"
 				/>
-				-->
 
 				<!-- Items Table Section (Main items list for invoice) -->
 				<div class="items-table-wrapper">
@@ -197,7 +195,80 @@
 			</div>
 		</v-card>
 		<!-- Payment Section -->
-		
+		<InvoiceSummary
+			:pos_profile="pos_profile"
+			:total_qty="total_qty"
+			:additional_discount="additional_discount"
+			:additional_discount_percentage="additional_discount_percentage"
+			:total_items_discount_amount="total_items_discount_amount"
+			:subtotal="subtotal"
+			:displayCurrency="displayCurrency"
+			:formatFloat="formatFloat"
+			:formatCurrency="formatCurrency"
+			:currencySymbol="currencySymbol"
+			:discount_percentage_offer_name="discount_percentage_offer_name"
+			:isNumber="isNumber"
+			:shiftVerificationStatus="shiftVerificationStatus"
+			@update:additional_discount="(val) => (additional_discount = val)"
+			@update:additional_discount_percentage="(val) => (additional_discount_percentage = val)"
+			@update_discount_umount="update_discount_umount"
+			@save-and-clear="save_and_clear_invoice"
+			@load-drafts="get_draft_invoices"
+			@select-order="get_draft_orders"
+			@cancel-sale="cancel_dialog = true"
+			@open-returns="open_returns"
+			@print-draft="print_draft_invoice"
+			@show-payment="show_payment"
+			@list-invoices="handleListInvoices"
+			@list-shifts="handleListShifts"
+		>
+			<!-- Add Print and Tax Print Buttons here -->
+			<!--
+			<template #actions>
+			  <!-- Submit Button (hidden for Vietnam) -->
+			  <!--
+			  <v-btn
+			    v-if="!isVietnamCountry"
+			    color="success"
+			    @click="submit_invoice"
+			    :disabled="!can_print"
+			  >
+			    <v-icon left>mdi-printer</v-icon>
+			    {{ __("Submit") }}
+			  </v-btn>
+			  -->
+	
+			  <!-- Tax Print Button (hidden for Vietnam) -->
+			  <!--
+			  <v-btn
+			    v-if="show_tax_print_button"
+			    color="primary"
+			    @click="print_tax_invoice"
+			    :disabled="!can_print || tax_print_loading"
+			    :loading="tax_print_loading"
+			    class="ml-2"
+			  >
+			    <v-icon left>mdi-receipt</v-icon>
+			    {{ __("In Thuế") }}
+			  </v-btn>
+			  -->
+	
+			  <!-- Vietnam Payment Button -->
+			  <!--
+			  <v-btn
+			    v-if="isVietnamCountry"
+			    color="success"
+			    @click="print_tax_invoice_vietnam"
+			    :disabled="!can_print || tax_print_loading"
+			    :loading="tax_print_loading"
+			  >
+			    <v-icon left>mdi-credit-card</v-icon>
+			    {{ __("Thanh toán VN") }}
+			  </v-btn>
+			  -->
+			</template>
+			-->
+		</InvoiceSummary>
 	</div>
 </template>
 
@@ -462,10 +533,10 @@ export default {
 			this.available_columns = [
 				{ title: __("Name"), align: "start", sortable: true, key: "item_name", required: true },
 				{ title: __("QTY"), key: "qty", align: "start", required: true },
-				{ title: __("UOM"), key: "uom", align: "start", required: true },
+				{ title: __("UOM"), key: "uom", align: "start", required: false },
 				{ title: __("Rate"), key: "rate", align: "start", required: true },
 				{ title: __("Discount %"), key: "discount_value", align: "start", required: false },
-				{ title: __("Discount Amount"), key: "discount_amount", align: "start", required: true },
+				{ title: __("Discount Amount"), key: "discount_amount", align: "start", required: false },
 				{ title: __("Amount"), key: "amount", align: "start", required: true },
 				{ title: __("Pack Info"), key: "pack_info", align: "center", required: false },
 				{ title: __("Offer?"), key: "posa_is_offer", align: "center", required: false },
@@ -1223,6 +1294,121 @@ export default {
 				item.idx = index + 1;
 			});
 		},
+
+		/*
+		async print_tax_invoice() {
+			if (!this.invoice_doc || !this.pos_profile) {
+				this.eventBus.emit("show_message", {
+					title: __("Missing invoice data or POS profile."),
+					color: "error",
+				});
+				return;
+			}
+
+			if (!this.pos_profile.posa_enable_tax_print) {
+				this.eventBus.emit("show_message", {
+					title: __("Tax printing is not enabled in POS Profile."),
+					color: "warning",
+				});
+				return;
+			}
+
+			this.tax_print_loading = true;
+
+			try {
+				await handleTaxPrint(
+					this.invoice_doc,
+					this.pos_profile,
+					// onSuccess callback
+					(result) => {
+						// Update header display with the next invoice number
+						updateHeaderTaxDisplay(result.nextDisplay);
+
+						// Update local POS profile state with the new counter
+						this.$store.commit("updatePosProfile", {
+							tax_current_counter: result.newCounter,
+						});
+
+						this.eventBus.emit("show_message", {
+							title: __("Tax invoice printed successfully."),
+							color: "success",
+						});
+						this.tax_print_loading = false;
+					},
+					// onError callback
+					(error) => {
+						console.error("Error printing tax invoice:", error);
+						this.eventBus.emit("show_message", {
+							title: error.message || __("Failed to print tax invoice."),
+							color: "error",
+						});
+						this.tax_print_loading = false;
+					},
+				);
+			} catch (e) {
+				console.error("Unexpected error in print_tax_invoice:", e);
+				this.eventBus.emit("show_message", {
+					title: __("An unexpected error occurred."),
+					color: "error",
+				});
+				this.tax_print_loading = false;
+			}
+		},
+		*/
+
+		/*
+		async print_tax_invoice_vietnam() {
+			if (!this.invoice_doc || !this.pos_profile) {
+				this.eventBus.emit("show_message", {
+					title: __("Missing invoice data or POS profile."),
+					color: "error",
+				});
+				return;
+			}
+
+			if (!this.pos_profile.posa_enable_tax_print) {
+				this.eventBus.emit("show_message", {
+					title: __("Tax printing is not enabled in POS Profile."),
+					color: "warning",
+				});
+				return;
+			}
+
+			this.tax_print_loading = true;
+
+			try {
+				await handleVietnamTaxPrint(
+					this.invoice_doc,
+					this.pos_profile,
+					// onSuccess callback
+					(result) => {
+						this.eventBus.emit("show_message", {
+							title: __("Vietnam tax invoice processed successfully."),
+							color: "success",
+						});
+						this.tax_print_loading = false;
+					},
+					// onError callback
+					(error) => {
+						console.error("Error processing Vietnam tax invoice:", error);
+						this.eventBus.emit("show_message", {
+							title: error.message || __("Failed to process Vietnam tax invoice."),
+							color: "error",
+						});
+						this.tax_print_loading = false;
+					},
+				);
+			} catch (e) {
+				console.error("Unexpected error in print_tax_invoice_vietnam:", e);
+				this.eventBus.emit("show_message", {
+					title: __("An unexpected error occurred."),
+					color: "error",
+				});
+				this.tax_print_loading = false;
+			}
+		},
+		*/
+
 		handleListInvoices() {
 			// Emit event to open list invoices dialog
 			this.eventBus.emit("open_list_invoices");
