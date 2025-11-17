@@ -85,10 +85,10 @@
 			<!-- VAT Amount column (Tiền VAT = VatRate × Thành tiền) -->
 			<template v-slot:item.vat_amount="{ item }">
 				<div class="currency-display">
-						<span class="amount-value">{{ formatCurrency(((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0)) * ((item.custom_vat_rate || 0) / 100), 0) }}</span>
-						<span v-if="item.custom_vat_rate" class="text-caption text-orange ml-1">
-							(VAT {{ item.custom_vat_rate }}%)
-						</span
+					<span class="amount-value">{{ formatCurrency(((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0)) * ((item.custom_vat_rate || 0) / 100), 0) }}</span>
+					<span v-if="item.custom_vat_rate" class="text-caption text-orange ml-1">
+						(VAT {{ item.custom_vat_rate }}%)
+					</span>
 				</div>
 			</template>
 
