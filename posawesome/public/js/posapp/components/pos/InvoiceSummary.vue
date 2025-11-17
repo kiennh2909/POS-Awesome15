@@ -11,7 +11,7 @@
 			<v-col cols="12">
 				<v-row dense>
 					<!-- Total Qty -->
-					<v-col cols="2">
+					<v-col cols="3" class="button-col pa-1">
 						<v-text-field
 							:model-value="formatFloat(total_qty, hide_qty_decimals ? 0 : undefined)"
 							:label="frappe._('Total Qty')"
@@ -24,7 +24,7 @@
 						/>
 					</v-col>
 					<!-- Additional Discount -->
-					<v-col cols="2" v-if="!pos_profile.posa_use_percentage_discount">
+					<v-col cols="3" class="button-col pa-1" v-if="!pos_profile.posa_use_percentage_discount">
 						<v-text-field
 							:model-value="additional_discount"
 							@update:model-value="$emit('update:additional_discount', $event)"
@@ -41,7 +41,7 @@
 							class="standard-text-field"
 						/>
 					</v-col>
-					<v-col cols="2" v-else>
+					<v-col cols="3" class="button-col pa-1" v-else>
 						<v-text-field
 							:model-value="additional_discount_percentage"
 							@update:model-value="$emit('update:additional_discount_percentage', $event)"
@@ -61,7 +61,7 @@
 						/>
 					</v-col>
 					<!-- Items Discount -->
-					<v-col cols="2">
+					<v-col cols="3" class="button-col pa-1">
 						<v-text-field
 							:model-value="formatCurrency(total_items_discount_amount)"
 							:prefix="currencySymbol(displayCurrency)"
@@ -103,7 +103,7 @@
 						/>
 					</v-col> -->
 					<!-- Total INC VAT -->
-					<v-col cols="2">
+					<v-col cols="3" class="button-col pa-1">
 						<v-text-field
 							:model-value="formatCurrency(totalIncVat)"
 							:prefix="currencySymbol(displayCurrency)"
