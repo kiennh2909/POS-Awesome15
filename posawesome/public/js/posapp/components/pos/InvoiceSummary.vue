@@ -11,7 +11,7 @@
 			<v-col cols="12">
 				<v-row dense>
 					<!-- Total Qty -->
-					<v-col cols="3">
+					<v-col cols="2">
 						<v-text-field
 							:model-value="formatFloat(total_qty, hide_qty_decimals ? 0 : undefined)"
 							:label="frappe._('Total Qty')"
@@ -24,7 +24,7 @@
 						/>
 					</v-col>
 					<!-- Additional Discount -->
-					<v-col cols="3" v-if="!pos_profile.posa_use_percentage_discount">
+					<v-col cols="2" v-if="!pos_profile.posa_use_percentage_discount">
 						<v-text-field
 							:model-value="additional_discount"
 							@update:model-value="$emit('update:additional_discount', $event)"
@@ -41,7 +41,7 @@
 							class="standard-text-field"
 						/>
 					</v-col>
-					<v-col cols="3" v-else>
+					<v-col cols="2" v-else>
 						<v-text-field
 							:model-value="additional_discount_percentage"
 							@update:model-value="$emit('update:additional_discount_percentage', $event)"
@@ -61,7 +61,7 @@
 						/>
 					</v-col>
 					<!-- Items Discount -->
-					<v-col cols="3">
+					<v-col cols="2">
 						<v-text-field
 							:model-value="formatCurrency(total_items_discount_amount)"
 							:prefix="currencySymbol(displayCurrency)"
@@ -75,7 +75,7 @@
 						/>
 					</v-col>
 					<!-- Total (with larger font) -->
-					<v-col cols="3">
+					<v-col cols="2">
 						<v-text-field
 							:model-value="formatCurrency(subtotal)"
 							:prefix="currencySymbol(displayCurrency)"
@@ -85,6 +85,34 @@
 							density="compact"
 							readonly
 							color="success"
+							class="total-field-large standard-text-field"
+						/>
+					</v-col>
+					<!-- VAT Amount -->
+					<v-col cols="2">
+						<v-text-field
+							:model-value="formatCurrency(vatAmount)"
+							:prefix="currencySymbol(displayCurrency)"
+							:label="frappe._('VAT Amount')"
+							prepend-inner-icon="mdi-percent"
+							variant="solo"
+							density="compact"
+							readonly
+							color="info"
+							class="standard-text-field"
+						/>
+					</v-col>
+					<!-- Total INC VAT -->
+					<v-col cols="2">
+						<v-text-field
+							:model-value="formatCurrency(totalIncVat)"
+							:prefix="currencySymbol(displayCurrency)"
+							:label="frappe._('Total INC VAT')"
+							prepend-inner-icon="mdi-cash-plus"
+							variant="solo"
+							density="compact"
+							readonly
+							color="primary"
 							class="total-field-large standard-text-field"
 						/>
 					</v-col>
@@ -405,6 +433,8 @@ export default {
 		additional_discount_percentage: Number,
 		total_items_discount_amount: Number,
 		subtotal: Number,
+		vatAmount: Number,
+		totalIncVat: Number,
 		displayCurrency: String,
 		formatFloat: Function,
 		formatCurrency: Function,
@@ -670,7 +700,12 @@ export default {
 	padding: 0px;
 }
 
-/* Custom column width for 4-column layout */
+/* Custom column width for 6-column layout */
+.v-col-2 {
+	flex: 0 0 16.6666666667% !important;
+	max-width: 16.6666666667% !important;
+}
+
 .v-col-3 {
 	flex: 0 0 24% !important;
 	max-width: 24% !important;
@@ -850,13 +885,19 @@ export default {
 	}
 
 	.standard-text-field :deep(.v-field__input) {
-		font-size: 1.2rem !important;
-		min-height: 50px !important;
+		font-size: 1.1rem !important;
+		min-height: 45px !important;
 	}
 
 	.standard-text-field :deep(.v-field__input input) {
-		font-size: 1.2rem !important;
-		min-height: 50px !important;
+		font-size: 1.1rem !important;
+		min-height: 45px !important;
+	}
+
+	/* Custom column width for mobile 6-column layout */
+	.v-col-2 {
+		flex: 0 0 50% !important;
+		max-width: 50% !important;
 	}
 
 	.add-customer-btn,
@@ -883,13 +924,19 @@ export default {
 	}
 
 	.standard-text-field :deep(.v-field__input) {
-		font-size: 1.1rem !important;
-		min-height: 48px !important;
+		font-size: 1rem !important;
+		min-height: 42px !important;
 	}
 
 	.standard-text-field :deep(.v-field__input input) {
-		font-size: 1.1rem !important;
-		min-height: 48px !important;
+		font-size: 1rem !important;
+		min-height: 42px !important;
+	}
+
+	/* Custom column width for mobile 6-column layout */
+	.v-col-2 {
+		flex: 0 0 100% !important;
+		max-width: 100% !important;
 	}
 
 	.add-customer-btn,

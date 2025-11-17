@@ -124,6 +124,7 @@
 				/> -->
 
 				<!-- Multi-Currency Section (Only if enabled in POS profile) -->
+				<!--
 				<MultiCurrencyRow
 					:pos_profile="pos_profile"
 					:selected_currency="selected_currency"
@@ -151,6 +152,7 @@
 						}
 					"
 				/>
+				-->
 
 				<!-- Items Table Section (Main items list for invoice) -->
 				<div class="items-table-wrapper">
@@ -202,6 +204,8 @@
 			:additional_discount_percentage="additional_discount_percentage"
 			:total_items_discount_amount="total_items_discount_amount"
 			:subtotal="subtotal"
+			:vatAmount="vatAmount"
+			:totalIncVat="totalIncVat"
 			:displayCurrency="displayCurrency"
 			:formatFloat="formatFloat"
 			:formatCurrency="formatCurrency"
@@ -221,7 +225,7 @@
 			@show-payment="show_payment"
 			@list-invoices="handleListInvoices"
 			@list-shifts="handleListShifts"
-		>		
+		>
 		</InvoiceSummary>
 	</div>
 </template>

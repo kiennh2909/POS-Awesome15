@@ -61,6 +61,29 @@ export default {
 		});
 		return this.flt(sum, this.float_precision);
 	},
+	// Calculate VAT amount for each item line
+	vatAmount() {
+		let sum = 0;
+		this.items.forEach((item) => {
+			// Calculate VAT for each item based on its rate and quantity
+			const qty = this.isReturnInvoice ? Math.abs(flt(item.qty)) : flt(item.qty);
+			const rate = flt(item.rate);
+			const itemAmount = qty * rate;
+
+			// Get VAT rate from item or POS profile or default to 10%
+			const vatRate = item.posa_vat_rate || this.pos_profile?.posa_vat_rate || 10;
+			const itemVatAmount = (itemAmount * vatRate) / 100;
+
+			sum += itemVatAmount;
+		});
+		return this.flt(sum, this.currency_precision);
+	},
+	// Calculate total including VAT
+	totalIncVat() {
+		const subtotal = this.subtotal;
+		const vatAmount = this.vatAmount;
+		return this.flt(subtotal + vatAmount, this.currency_precision);
+	},
 	// Format posting_date for display as DD-MM-YYYY
 	formatted_posting_date: {
 		get() {

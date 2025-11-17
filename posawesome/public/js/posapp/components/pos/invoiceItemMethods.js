@@ -378,6 +378,13 @@ export default {
 
 	// Create a new item object with default and calculated fields
 	get_new_item(item) {
+		console.log("🔧 [GET_NEW_ITEM] Creating new item object from:", {
+			original_item: item,
+			isReturnInvoice: this.isReturnInvoice,
+			selected_currency: this.selected_currency,
+			base_currency: this.price_list_currency || this.pos_profile.currency,
+		});
+
 		const new_item = { ...item };
 		if (!new_item.warehouse) {
 			new_item.warehouse = this.pos_profile.warehouse;
@@ -461,6 +468,71 @@ export default {
 		if ((!this.pos_profile.posa_auto_set_batch && new_item.has_batch_no) || new_item.has_serial_no) {
 			this.expanded.push(new_item);
 		}
+
+		// LOG ĐẦY ĐỦ ITEM OBJECT SAU KHI TẠO
+		console.log("📦 [GET_NEW_ITEM] Complete Item Object created:", {
+			// Basic Info
+			item_code: new_item.item_code,
+			item_name: new_item.item_name,
+			posa_row_id: new_item.posa_row_id,
+
+			// Quantities
+			qty: new_item.qty,
+			stock_qty: new_item.stock_qty,
+			actual_qty: new_item.actual_qty,
+
+			// Pricing
+			rate: new_item.rate,
+			price_list_rate: new_item.price_list_rate,
+			base_rate: new_item.base_rate,
+			base_price_list_rate: new_item.base_price_list_rate,
+
+			// UOM & Conversion
+			uom: new_item.uom,
+			stock_uom: new_item.stock_uom,
+			conversion_factor: new_item.conversion_factor,
+			item_uoms: new_item.item_uoms,
+
+			// Discounts
+			discount_amount: new_item.discount_amount,
+			discount_percentage: new_item.discount_percentage,
+			base_discount_amount: new_item.base_discount_amount,
+
+			// Amounts
+			amount: new_item.amount,
+			base_amount: new_item.base_amount,
+
+			// Batch & Serial
+			has_batch_no: new_item.has_batch_no,
+			has_serial_no: new_item.has_serial_no,
+			batch_no: new_item.batch_no,
+			serial_no: new_item.serial_no,
+			serial_no_selected: new_item.serial_no_selected,
+			batch_no_data: new_item.batch_no_data,
+			actual_batch_qty: new_item.actual_batch_qty,
+
+			// Offers & POS specific
+			posa_is_offer: new_item.posa_is_offer,
+			posa_is_replace: new_item.posa_is_replace,
+			posa_offer_applied: new_item.posa_offer_applied,
+			posa_offers: new_item.posa_offers,
+			is_free_item: new_item.is_free_item,
+
+			// Other fields
+			warehouse: new_item.warehouse,
+			item_tax_template: new_item.item_tax_template,
+			posa_notes: new_item.posa_notes,
+			posa_delivery_date: new_item.posa_delivery_date,
+
+			// Flags
+			_manual_rate_set: new_item._manual_rate_set,
+			_preserve_rate_on_load: new_item._preserve_rate_on_load,
+			_converted_once: new_item._converted_once,
+
+			// All other properties
+			...new_item
+		});
+
 		return new_item;
 	},
 
