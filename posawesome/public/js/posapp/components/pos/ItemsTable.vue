@@ -55,7 +55,7 @@
 					</span>
 					<span v-else>
 						<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-						<span class="amount-value">{{ formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1)) }}</span>
+						<span class="amount-value">{{ formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1), 0) }}</span>
 						<span v-if="item.custom_vat_rate" class="text-caption text-orange ml-1">
 							(VAT {{ item.custom_vat_rate }}%)
 						</span>
@@ -67,7 +67,7 @@
 			<template v-slot:item.rate_uom_base="{ item }">
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(getRateUomBase(item)) }}</span>
+					<span class="amount-value">{{ formatCurrency(getRateUomBase(item), 0) }}</span>
 					<span v-if="item.custom_vat_rate" class="text-caption text-orange ml-1">
 						(VAT {{ item.custom_vat_rate }}%)
 					</span>
@@ -78,7 +78,7 @@
 			<template v-slot:item.amount="{ item }">
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) }}</span>
+					<span class="amount-value">{{ formatCurrency(item.qty * (getRateUomBase(item) * (item.conversion_factor || 1)), 0) }}</span>
 				</div>
 			</template>
 
@@ -86,7 +86,7 @@
 			<template v-slot:item.net_amount="{ item }">
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0)) }}</span>
+					<span class="amount-value">{{ formatCurrency((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0), 0) }}</span>
 				</div>
 			</template>
 
@@ -108,7 +108,7 @@
 			<template v-slot:item.discount_amount="{ item }">
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.discount_amount || 0) }}</span>
+					<span class="amount-value">{{ formatCurrency(item.discount_amount || 0, 0) }}</span>
 				</div>
 			</template>
 
@@ -116,7 +116,7 @@
 			<template v-slot:item.price_list_rate="{ item }">
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(item.price_list_rate) }}</span>
+					<span class="amount-value">{{ formatCurrency(item.price_list_rate, 0) }}</span>
 				</div>
 			</template>
 
@@ -294,7 +294,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1))"
+										:model-value="formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1), 0)"
 										disabled
 										prepend-inner-icon="mdi-currency-usd"
 									></v-text-field>
@@ -338,7 +338,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.discount_amount || 0)"
+										:model-value="formatCurrency(item.discount_amount || 0, 0)"
 										@change="[
 											setFormatedCurrency(item, 'discount_amount', null, false, $event),
 											calcPrices(item, $event.target.value, $event),
@@ -360,7 +360,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1))"
+										:model-value="formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1), 0)"
 										:disabled="!pos_profile.posa_allow_price_list_rate_change"
 										:prefix="currencySymbol(pos_profile.currency)"
 										@change="changePriceListRate(item)"
@@ -578,7 +578,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1))"
+										:model-value="formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1), 0)"
 										:disabled="!pos_profile.posa_allow_price_list_rate_change"
 										prepend-inner-icon="mdi-format-list-numbered"
 										@change="changePriceListRate(item)"
@@ -600,7 +600,7 @@
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
-										:model-value="formatCurrency(item.qty * (getRateUomBase(item) * (item.conversion_factor || 1)))"
+										:model-value="formatCurrency(item.qty * (getRateUomBase(item) * (item.conversion_factor || 1)), 0)"
 										disabled
 										prepend-inner-icon="mdi-calculator"
 									></v-text-field>
