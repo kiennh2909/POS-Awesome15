@@ -492,11 +492,11 @@ export default {
 				{ title: "Tên", align: "start", sortable: true, key: "item_name", required: true },
 				{ title: "SL", key: "qty", align: "start", required: true },
 				{ title: "ĐVT", key: "uom", align: "start", required: false },
-				{ title: "Đơn giá", key: "rate", align: "start", required: true },
 				{ title: "Giá Base", key: "rate_uom_base", align: "start", required: false },
+				{ title: "Đơn giá", key: "rate", align: "start", required: true },				
 				{ title: "Thành tiền (*incl VAT)", key: "amount", align: "start", required: true },
-				{ title: "Giảm giá", key: "discount_amount", align: "start", required: false },
-				{ title: "Thanh toán", key: "net_amount", align: "start", required: false },
+				{ title: "Giảm giá", key: "discount_amount", align: "start", required: true },
+				{ title: "Thanh toán", key: "net_amount", align: "start", required: true },
 				{ title: "KM", key: "posa_is_offer", align: "center", required: false },
 			];
 
