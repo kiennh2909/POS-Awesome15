@@ -626,6 +626,13 @@ export default {
 				const saved = localStorage.getItem("posawesome_selected_columns");
 				if (saved) {
 					this.selected_columns = JSON.parse(saved);
+					// Ensure required columns are always included
+					const requiredKeys = this.available_columns.filter((col) => col.required).map((col) => col.key);
+					requiredKeys.forEach((key) => {
+						if (!this.selected_columns.includes(key)) {
+							this.selected_columns.push(key);
+						}
+					});
 				}
 			} catch (e) {
 				console.error("Failed to load column preferences:", e);

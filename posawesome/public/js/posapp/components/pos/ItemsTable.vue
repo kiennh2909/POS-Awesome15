@@ -54,11 +54,8 @@
 						</v-chip>
 					</span>
 					<span v-else>
-						<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-						<span class="amount-value">{{ formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1), 0) }}</span>
-						<span v-if="item.custom_vat_rate" class="text-caption text-orange ml-1">
-							(VAT {{ item.custom_vat_rate }}%)
-						</span>
+							<span class="amount-value">{{ formatCurrency(getRateUomBase(item) * (item.conversion_factor || 1), 0) }}</span>
+>
 					</span>
 				</div>
 			</template>
@@ -66,7 +63,6 @@
 			<!-- RATE_UOM_BASE column -->
 			<template v-slot:item.rate_uom_base="{ item }">
 				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
 					<span class="amount-value">{{ formatCurrency(getRateUomBase(item), 0) }}</span>
 				</div>
 			</template>
@@ -74,7 +70,6 @@
 			<!-- Amount before discount column (Tổng chưa giảm = Giá × Qty) -->
 			<template v-slot:item.amount_before_discount="{ item }">
 				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
 					<span class="amount-value">{{ formatCurrency(item.qty * (getRateUomBase(item) * (item.conversion_factor || 1)), 0) }}</span>
 				</div>
 			</template>
@@ -90,8 +85,10 @@
 			<!-- VAT Amount column (Tiền VAT = VatRate × Thành tiền) -->
 			<template v-slot:item.vat_amount="{ item }">
 				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency(((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0)) * ((item.custom_vat_rate || 0) / 100), 0) }}</span>
+						<span class="amount-value">{{ formatCurrency(((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0)) * ((item.custom_vat_rate || 0) / 100), 0) }}</span>
+						<span v-if="item.custom_vat_rate" class="text-caption text-orange ml-1">
+							(VAT {{ item.custom_vat_rate }}%)
+						</span
 				</div>
 			</template>
 
