@@ -514,6 +514,8 @@ export default {
 						if (col.key === "pack_info") return true;
 						// Always enable UOM and Discount Amount by default
 						if (col.key === "uom" || col.key === "discount_amount") return true;
+						// Hide rate_uom_base by default
+						if (col.key === "rate_uom_base") return false;
 						return false;
 					})
 					.map((col) => col.key);
@@ -589,8 +591,8 @@ export default {
 				}
 			});
 
-			// Always include UOM, Discount Amount, RATE_UOM_BASE, and net_amount columns
-			const alwaysIncludeKeys = ["uom", "discount_amount", "rate_uom_base", "net_amount"];
+			// Always include UOM, Discount Amount, and net_amount columns (hide rate_uom_base by default)
+			const alwaysIncludeKeys = ["uom", "discount_amount", "net_amount"];
 			alwaysIncludeKeys.forEach((key) => {
 				if (!this.selected_columns.includes(key)) {
 					this.selected_columns.push(key);
