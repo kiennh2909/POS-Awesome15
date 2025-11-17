@@ -84,9 +84,10 @@
 
 			<!-- Net Amount column (Thanh toán = Thành tiền - Giảm giá) -->
 			<template v-slot:item.net_amount="{ item }">
-				<div class="currency-display">
+				<div class="currency-display net-amount-cell" title="Số tiền cần thanh toán sau khi trừ giảm giá">
+					<v-icon size="small" color="success" class="mr-1">mdi-cash</v-icon>
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value">{{ formatCurrency((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0), 0) }}</span>
+					<span class="amount-value net-amount-value">{{ formatCurrency((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0), 0) }}</span>
 				</div>
 			</template>
 
@@ -1341,6 +1342,40 @@ export default {
 	font-size: 0.75rem;
 	color: #666;
 	line-height: 1.1;
+}
+
+/* Net amount cell styling - make it more prominent */
+.net-amount-cell {
+	background-color: rgba(76, 175, 80, 0.08) !important;
+	border-radius: 4px;
+	padding: 4px 8px;
+	border: 1px solid rgba(76, 175, 80, 0.2);
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+}
+
+.net-amount-cell .v-icon {
+	margin-right: 4px;
+	flex-shrink: 0;
+}
+
+.net-amount-value {
+	font-weight: 600 !important;
+	color: #2e7d32 !important;
+	font-size: 0.95rem;
+}
+
+/* Dark theme support for net amount */
+:deep(.dark-theme) .net-amount-cell,
+:deep(.v-theme--dark) .net-amount-cell {
+	background-color: rgba(129, 199, 132, 0.15) !important;
+	border: 1px solid rgba(129, 199, 132, 0.3);
+}
+
+:deep(.dark-theme) .net-amount-value,
+:deep(.v-theme--dark) .net-amount-value {
+	color: #81c784 !important;
 }
 
 /* Free item badge styling */
