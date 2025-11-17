@@ -505,11 +505,15 @@ export default {
 				{ title: "Offer?", key: "posa_is_offer", align: "center", required: false },
 			];
 
-			// Initialize selected columns - show all columns by default for full system display
-			// Note: Total column (total_with_vat) is the last column and always visible
+			// Initialize selected columns - hide some columns by default for cleaner display
+			// Hidden by default: Price List, SubTotal, Discount %, VAT Amount, After Discount
+			// Always show: Name, UOM, Qty, Price, Discount, Total (inc Tax), Pack Info, Offer?
 			if (!this.selected_columns || this.selected_columns.length === 0) {
-				// Show all available columns by default
-				this.selected_columns = this.available_columns.map((col) => col.key);
+				// Show essential columns, hide detailed calculation columns
+				const hiddenByDefault = ["rate_uom_base", "amount_before_discount", "discount_value", "vat_amount", "net_amount_before_vat"];
+				this.selected_columns = this.available_columns
+					.filter((col) => !hiddenByDefault.includes(col.key))
+					.map((col) => col.key);
 			}
 
 			// Mark columns as initialized
@@ -621,15 +625,15 @@ export default {
 
 				const saved = localStorage.getItem("posawesome_selected_columns");
 				if (saved) {
-					// Load saved preferences but ensure all columns are available for full display
+					// Load saved preferences and merge with current selection
 					const savedColumns = JSON.parse(saved);
-					// Merge saved preferences with all available columns to ensure full display
-					this.selected_columns = [...new Set([...this.available_columns.map(col => col.key), ...savedColumns])];
+					// Keep saved preferences but ensure essential columns are included
+					this.selected_columns = [...new Set([...savedColumns, ...this.selected_columns])];
 				}
-				// If no saved preferences, columns are already initialized with all columns above
+				// If no saved preferences, use default selection from initializeItemsHeaders
 			} catch (e) {
 				console.error("Failed to load column preferences:", e);
-				// Fallback to default initialization with all columns
+				// Fallback to default initialization
 				if (!this.columns_initialized) {
 					this.initializeItemsHeaders();
 				}

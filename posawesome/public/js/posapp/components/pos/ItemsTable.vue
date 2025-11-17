@@ -91,11 +91,11 @@
 				</div>
 			</template>
 
-			<!-- Total with VAT column (Tổng phụ(có VAT) = Thành tiền + Tiền VAT) -->
+			<!-- Total with VAT column (Tổng phụ(có VAT) = After Discount + VAT Amount) -->
 			<template #item.total_with_vat="{ item }">
 				<div class="currency-display net-amount-cell" title="Tổng tiền bao gồm VAT">
 					<v-icon size="small" color="success" class="mr-1">mdi-cash</v-icon>
-					<span class="amount-value net-amount-value">{{ formatCurrency(item.amount || 0, 0) }}</span>
+					<span class="amount-value net-amount-value">{{ formatCurrency(calculateTotalWithVat(item), 0) }}</span>
 				</div>
 			</template>
 
@@ -928,6 +928,13 @@ export default {
 		getRateUomBase(item) {
 			// Lấy base_rate (giá không VAT của stock UOM)
 			return item.base_rate || 0;
+		},
+
+		// Calculate Total with VAT: After Discount + VAT Amount
+		calculateTotalWithVat(item) {
+			const afterDiscount = (item.qty * (this.getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0);
+			const vatAmount = afterDiscount * ((item.custom_vat_rate || 0) / 100);
+			return afterDiscount + vatAmount;
 		},
 	},
 };
