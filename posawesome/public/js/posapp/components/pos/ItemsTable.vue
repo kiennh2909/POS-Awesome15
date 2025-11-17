@@ -667,12 +667,11 @@ export default {
 				);
 
 				// Check if any item has wrong price (should be base_rate * conversion_factor for UOM items)
+				// DISABLED: Auto-fix logic is causing issues with barcode scanning
+				// The UOM conversion should be handled properly in invoiceItemMethods.js
 				newItems.forEach((item) => {
-					let expectedPrice = item.base_rate;
-					let shouldConvert = false;
-
-					// DEBUG: Log conversion factor status
-					console.log("[ItemsTable] DEBUG conversion factor:", {
+					// Only log for debugging, don't auto-fix prices
+					console.log("[ItemsTable] Price check (no auto-fix):", {
 						Item_code: item.item_code,
 						uom: item.uom,
 						stock_uom: item.stock_uom,
@@ -680,74 +679,8 @@ export default {
 						base_rate: item.base_rate,
 						current_rate: item.custom_price_list_rate_after_vat || item.rate,
 						vat_rate: item.custom_vat_rate,
+						posa_offer_applied: item.posa_offer_applied,
 					});
-
-					// If UOM is different from stock UOM and conversion_factor > 1, expect converted price
-					if (
-						item.uom &&
-						item.uom !== item.stock_uom &&
-						item.conversion_factor &&
-						item.conversion_factor > 1
-					) {
-						expectedPrice = (item.custom_price_list_rate_after_vat || item.base_rate) * item.conversion_factor;
-						shouldConvert = true;
-						console.log("[ItemsTable] SHOULD CONVERT detected:", {
-							Item_code: item.item_code,
-							expectedPrice: expectedPrice,
-							conversion_factor: item.conversion_factor,
-							vat_rate: item.custom_vat_rate,
-						});
-					}
-
-					let currentPrice = item.custom_price_list_rate_after_vat || item.rate;
-					if (
-						currentPrice !== expectedPrice &&
-						shouldConvert &&
-						!item.posa_offer_applied &&
-						item.discount_amount <= 0
-					) {
-						console.error("[ItemsTable] ❌ PRICE MISMATCH DETECTED - AUTO FIXING:", {
-							Item_code: item.item_code,
-							current_price: currentPrice,
-							expected_price: expectedPrice,
-							base_rate: item.base_rate,
-							conversion_factor: item.conversion_factor,
-							uom: item.uom,
-							stock_uom: item.stock_uom,
-							should_convert: shouldConvert,
-							posa_offer_applied: item.posa_offer_applied,
-							vat_rate: item.custom_vat_rate,
-						});
-
-						// AUTO FIX: Update the rate to expected price
-						item.rate = expectedPrice;
-						item.price_list_rate = item.base_price_list_rate * item.conversion_factor;
-						item.amount = item.qty * (item.custom_price_list_rate_after_vat || item.rate);
-
-						console.log("[ItemsTable] ✅ PRICE FIXED:", {
-							Item_code: item.item_code,
-							new_rate: item.rate,
-							new_amount: item.amount,
-							vat_rate: item.custom_vat_rate,
-						});
-					} else if (item.posa_offer_applied) {
-						console.log("[ItemsTable] ✅ Skipping auto-fix for offer-applied item:", {
-							Item_code: item.item_code,
-							current_price: currentPrice,
-							expected_price: expectedPrice,
-							posa_offer_applied: item.posa_offer_applied,
-							vat_rate: item.custom_vat_rate,
-						});
-					} else {
-						console.log("[ItemsTable] ✅ Price status:", {
-							Item_code: item.item_code,
-							current_price: currentPrice,
-							expected_price: expectedPrice,
-							should_convert: shouldConvert,
-							vat_rate: item.custom_vat_rate,
-							status: currentPrice === expectedPrice ? "CORRECT" : "WAITING_FOR_UPDATE",
-						});
-					}
 				});
 			},
 			deep: true,
