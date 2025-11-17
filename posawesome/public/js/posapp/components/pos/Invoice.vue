@@ -487,18 +487,20 @@ export default {
 		...offerMethods,
 		...invoiceItemMethods,
 		initializeItemsHeaders() {
-			// Define all available columns
+			// Define all available columns in the correct order
 			this.available_columns = [
 				{ title: "Name", align: "start", sortable: true, key: "item_name", required: true },
-				{ title: "Qty", key: "qty", align: "start", required: true },
-				{ title: "UOM", key: "uom", align: "start", required: false },
 				{ title: "Price List", key: "rate_uom_base", align: "start", required: false },
-				{ title: "Sell Price", key: "rate", align: "start", required: true },
+				{ title: "UOM", key: "uom", align: "start", required: true },
+				{ title: "Qty", key: "qty", align: "start", required: true },
+				{ title: "Price", key: "rate", align: "start", required: true },
 				{ title: "SubTotal", key: "amount_before_discount", align: "start", required: false },
 				{ title: "Discount", key: "discount_amount", align: "start", required: true },
-				{ title: "Sub After Discount", key: "net_amount_before_vat", align: "start", required: false },
+				{ title: "Discount %", key: "discount_value", align: "start", required: false },
+				{ title: "After Discount", key: "net_amount_before_vat", align: "start", required: false },
 				{ title: "VAT amount", key: "vat_amount", align: "start", required: false },
-				{ title: "Sub Total (inc Tax)", key: "total_with_vat", align: "start", required: false },
+				{ title: "Total (inc Tax)", key: "total_with_vat", align: "start", required: true },
+				{ title: "Pack Info", key: "pack_info", align: "center", required: false },
 				{ title: "Offer?", key: "posa_is_offer", align: "center", required: false },
 			];
 

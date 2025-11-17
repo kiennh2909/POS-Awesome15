@@ -68,9 +68,6 @@
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
 					<span class="amount-value">{{ formatCurrency(getRateUomBase(item), 0) }}</span>
-					<span v-if="item.custom_vat_rate" class="text-caption text-orange ml-1">
-						(VAT {{ item.custom_vat_rate }}%)
-					</span>
 				</div>
 			</template>
 
