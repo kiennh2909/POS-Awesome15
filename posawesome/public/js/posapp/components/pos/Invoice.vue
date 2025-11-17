@@ -489,20 +489,22 @@ export default {
 		initializeItemsHeaders() {
 			// Define all available columns
 			this.available_columns = [
-				{ title: "Tên", align: "start", sortable: true, key: "item_name", required: true },
-				{ title: "SL", key: "qty", align: "start", required: true },
-				{ title: "ĐVT", key: "uom", align: "start", required: false },
-				{ title: "Giá Base", key: "rate_uom_base", align: "start", required: false },
-				{ title: "Đơn giá", key: "rate", align: "start", required: true },				
-				{ title: "Thành tiền (*incl VAT)", key: "amount", align: "start", required: true },
-				{ title: "Giảm giá", key: "discount_amount", align: "start", required: true },
-				{ title: "Thanh toán", key: "net_amount", align: "start", required: true },
-				{ title: "KM", key: "posa_is_offer", align: "center", required: false },
+				{ title: "Name", align: "start", sortable: true, key: "item_name", required: true },
+				{ title: "Qty", key: "qty", align: "start", required: true },
+				{ title: "UOM", key: "uom", align: "start", required: false },
+				{ title: "Price List", key: "rate_uom_base", align: "start", required: false },
+				{ title: "Sell Price", key: "rate", align: "start", required: true },
+				{ title: "SubTotal", key: "amount_before_discount", align: "start", required: false },
+				{ title: "Discount", key: "discount_amount", align: "start", required: true },
+				{ title: "Sub After Discount", key: "net_amount_before_vat", align: "start", required: false },
+				{ title: "VAT amount", key: "vat_amount", align: "start", required: false },
+				{ title: "Sub Total (inc Tax)", key: "total_with_vat", align: "start", required: false },
+				{ title: "Offer?", key: "posa_is_offer", align: "center", required: false },
 			];
 
 			// Initialize selected columns if empty
 			if (!this.selected_columns || this.selected_columns.length === 0) {
-				// By default, select all required columns and those enabled in POS profile
+				// By default, select all required columns and essential calculation columns
 				this.selected_columns = this.available_columns
 					.filter((col) => {
 						if (col.required) return true;
@@ -512,8 +514,8 @@ export default {
 							return true;
 						// Enable pack_info by default as it's a useful feature
 						if (col.key === "pack_info") return true;
-						// Always enable UOM and Discount Amount by default
-						if (col.key === "uom" || col.key === "discount_amount") return true;
+						// Always enable essential calculation columns by default
+						if (["uom", "discount_amount", "amount_before_discount", "net_amount_before_vat", "vat_amount", "total_with_vat"].includes(col.key)) return true;
 						// Hide rate_uom_base by default
 						if (col.key === "rate_uom_base") return false;
 						return false;
@@ -591,8 +593,8 @@ export default {
 				}
 			});
 
-			// Always include UOM, Discount Amount, and net_amount columns (hide rate_uom_base by default)
-			const alwaysIncludeKeys = ["uom", "discount_amount", "net_amount"];
+			// Always include essential columns (hide rate_uom_base by default)
+			const alwaysIncludeKeys = ["uom", "discount_amount", "net_amount_before_vat", "vat_amount", "total_with_vat"];
 			alwaysIncludeKeys.forEach((key) => {
 				if (!this.selected_columns.includes(key)) {
 					this.selected_columns.push(key);

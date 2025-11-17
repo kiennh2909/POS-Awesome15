@@ -74,20 +74,36 @@
 				</div>
 			</template>
 
-			<!-- Amount column -->
-			<template v-slot:item.amount="{ item }">
+			<!-- Amount before discount column (Tổng chưa giảm = Giá × Qty) -->
+			<template v-slot:item.amount_before_discount="{ item }">
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
 					<span class="amount-value">{{ formatCurrency(item.qty * (getRateUomBase(item) * (item.conversion_factor || 1)), 0) }}</span>
 				</div>
 			</template>
 
-			<!-- Net Amount column (Thanh toán = Thành tiền - Giảm giá) -->
-			<template v-slot:item.net_amount="{ item }">
-				<div class="currency-display net-amount-cell" title="Số tiền cần thanh toán sau khi trừ giảm giá">
+			<!-- Net Amount before VAT column (Thành tiền = Tổng chưa giảm - Giảm giá) -->
+			<template v-slot:item.net_amount_before_vat="{ item }">
+				<div class="currency-display">
+					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+					<span class="amount-value">{{ formatCurrency((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0), 0) }}</span>
+				</div>
+			</template>
+
+			<!-- VAT Amount column (Tiền VAT = VatRate × Thành tiền) -->
+			<template v-slot:item.vat_amount="{ item }">
+				<div class="currency-display">
+					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+					<span class="amount-value">{{ formatCurrency(((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0)) * ((item.custom_vat_rate || 0) / 100), 0) }}</span>
+				</div>
+			</template>
+
+			<!-- Total with VAT column (Tổng phụ(có VAT) = Thành tiền + Tiền VAT) -->
+			<template v-slot:item.total_with_vat="{ item }">
+				<div class="currency-display net-amount-cell" title="Tổng tiền bao gồm VAT">
 					<v-icon size="small" color="success" class="mr-1">mdi-cash</v-icon>
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
-					<span class="amount-value net-amount-value">{{ formatCurrency((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0), 0) }}</span>
+					<span class="amount-value net-amount-value">{{ formatCurrency((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0) + (((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0)) * ((item.custom_vat_rate || 0) / 100)), 0) }}</span>
 				</div>
 			</template>
 
@@ -917,18 +933,10 @@ export default {
 			return null;
 		},
 
-		// Get RATE_UOM_BASE: đơn giá có VAT của đơn vị cơ bản tồn kho
+		// Get RATE_UOM_BASE: đơn giá cơ bản không VAT của đơn vị tồn kho
 		getRateUomBase(item) {
 			// Lấy base_rate (giá không VAT của stock UOM)
-			const baseRate = item.base_rate || 0;
-
-			// Nếu có VAT rate, tính giá có VAT
-			if (item.custom_vat_rate && item.custom_vat_rate > 0) {
-				return baseRate * (1 + item.custom_vat_rate / 100);
-			}
-
-			// Nếu không có VAT, trả về base_rate
-			return baseRate;
+			return item.base_rate || 0;
 		},
 	},
 };
