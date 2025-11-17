@@ -570,6 +570,7 @@ export default {
 			this.items_headers = this.available_columns.filter(
 				(col) => this.selected_columns.includes(col.key) || col.required,
 			);
+			console.log("[HEADERS_DEBUG] Generated headers:", this.items_headers.map(h => h.key));
 		},
 
 		updateSelectedColumns() {

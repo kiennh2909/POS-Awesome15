@@ -92,10 +92,10 @@
 			</template>
 
 			<!-- Total with VAT column (Tổng phụ(có VAT) = Thành tiền + Tiền VAT) -->
-			<template v-slot:item.total_with_vat="{ item }">
+			<template #item.total_with_vat="{ item }">
 				<div class="currency-display net-amount-cell" title="Tổng tiền bao gồm VAT">
 					<v-icon size="small" color="success" class="mr-1">mdi-cash</v-icon>
-					<span class="amount-value net-amount-value">{{ formatCurrency((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0) + (((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0)) * ((item.custom_vat_rate || 0) / 100)), 0) }}</span>
+					<span class="amount-value net-amount-value">{{ formatCurrency(item.amount || 0, 0) }}</span>
 				</div>
 			</template>
 
@@ -727,6 +727,7 @@ export default {
 			hasToggleOffer: typeof this.toggleOffer === "function",
 			itemsCount: this.items?.length || 0,
 			headersCount: this.headers?.length || 0,
+			headers: this.headers?.map(h => h.key) || [],
 		});
 
 		// Listen for force update events
