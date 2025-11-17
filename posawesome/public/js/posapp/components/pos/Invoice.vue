@@ -493,6 +493,7 @@ export default {
 				{ title: __("QTY"), key: "qty", align: "start", required: true },
 				{ title: __("UOM"), key: "uom", align: "start", required: false },
 				{ title: __("Rate"), key: "rate", align: "start", required: true },
+				{ title: __("RATE_UOM_BASE"), key: "rate_uom_base", align: "start", required: false },
 				{ title: __("Discount %"), key: "discount_value", align: "start", required: false },
 				{ title: __("Discount Amount"), key: "discount_amount", align: "start", required: false },
 				{ title: __("Amount"), key: "amount", align: "start", required: true },
@@ -589,8 +590,8 @@ export default {
 				}
 			});
 
-			// Always include UOM and Discount Amount columns
-			const alwaysIncludeKeys = ["uom", "discount_amount"];
+			// Always include UOM, Discount Amount, and RATE_UOM_BASE columns
+			const alwaysIncludeKeys = ["uom", "discount_amount", "rate_uom_base"];
 			alwaysIncludeKeys.forEach((key) => {
 				if (!this.selected_columns.includes(key)) {
 					this.selected_columns.push(key);

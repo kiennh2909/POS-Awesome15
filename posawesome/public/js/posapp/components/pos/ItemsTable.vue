@@ -55,6 +55,14 @@
 				</div>
 			</template>
 
+			<!-- RATE_UOM_BASE column -->
+			<template v-slot:item.rate_uom_base="{ item }">
+				<div class="currency-display">
+					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+					<span class="amount-value">{{ formatCurrency(item.base_rate || 0) }}</span>
+				</div>
+			</template>
+
 			<!-- Amount column -->
 			<template v-slot:item.amount="{ item }">
 				<div class="currency-display">
