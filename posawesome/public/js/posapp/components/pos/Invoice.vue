@@ -596,7 +596,7 @@ export default {
 			});
 
 			// Always include essential columns (hide rate_uom_base by default)
-			const alwaysIncludeKeys = ["uom", "discount_amount", "net_amount_before_vat", "vat_amount", "total_with_vat"];
+			const alwaysIncludeKeys = ["uom", "discount_amount", "amount_before_discount", "net_amount_before_vat", "vat_amount", "total_with_vat"];
 			alwaysIncludeKeys.forEach((key) => {
 				if (!this.selected_columns.includes(key)) {
 					this.selected_columns.push(key);
