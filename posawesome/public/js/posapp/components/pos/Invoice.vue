@@ -221,53 +221,7 @@
 			@show-payment="show_payment"
 			@list-invoices="handleListInvoices"
 			@list-shifts="handleListShifts"
-		>
-			<!-- Add Print and Tax Print Buttons here -->
-			<!--
-			<template #actions>
-			  <!-- Submit Button (hidden for Vietnam) -->
-			  <!--
-			  <v-btn
-			    v-if="!isVietnamCountry"
-			    color="success"
-			    @click="submit_invoice"
-			    :disabled="!can_print"
-			  >
-			    <v-icon left>mdi-printer</v-icon>
-			    {{ __("Submit") }}
-			  </v-btn>
-			  -->
-	
-			  <!-- Tax Print Button (hidden for Vietnam) -->
-			  <!--
-			  <v-btn
-			    v-if="show_tax_print_button"
-			    color="primary"
-			    @click="print_tax_invoice"
-			    :disabled="!can_print || tax_print_loading"
-			    :loading="tax_print_loading"
-			    class="ml-2"
-			  >
-			    <v-icon left>mdi-receipt</v-icon>
-			    {{ __("In Thuế") }}
-			  </v-btn>
-			  -->
-	
-			  <!-- Vietnam Payment Button -->
-			  <!--
-			  <v-btn
-			    v-if="isVietnamCountry"
-			    color="success"
-			    @click="print_tax_invoice_vietnam"
-			    :disabled="!can_print || tax_print_loading"
-			    :loading="tax_print_loading"
-			  >
-			    <v-icon left>mdi-credit-card</v-icon>
-			    {{ __("Thanh toán VN") }}
-			  </v-btn>
-			  -->
-			</template>
-			-->
+		>		
 		</InvoiceSummary>
 	</div>
 </template>
