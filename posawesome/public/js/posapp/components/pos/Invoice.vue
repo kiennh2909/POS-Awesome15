@@ -505,33 +505,11 @@ export default {
 				{ title: "Offer?", key: "posa_is_offer", align: "center", required: false },
 			];
 
-			// Initialize selected columns if empty or if columns haven't been loaded from preferences yet
+			// Initialize selected columns - show all columns by default for full system display
+			// Note: Total column (total_with_vat) is the last column and always visible
 			if (!this.selected_columns || this.selected_columns.length === 0) {
-				// By default, select all required columns and essential calculation columns
-				this.selected_columns = this.available_columns
-					.filter((col) => {
-						if (col.required) return true;
-						if (col.key === "discount_value" && this.pos_profile?.posa_display_discount_percentage)
-							return true;
-						if (col.key === "discount_amount" && this.pos_profile?.posa_display_discount_amount)
-							return true;
-						// Enable pack_info by default as it's a useful feature
-						if (col.key === "pack_info") return true;
-						// Always enable essential calculation columns by default
-						if (["uom", "discount_amount", "amount_before_discount", "net_amount_before_vat", "vat_amount", "total_with_vat"].includes(col.key)) return true;
-						// Hide rate_uom_base by default
-						if (col.key === "rate_uom_base") return false;
-						return false;
-					})
-					.map((col) => col.key);
-			} else {
-				// If columns were loaded from preferences, ensure essential columns are still included
-				const alwaysIncludeKeys = ["uom", "discount_amount", "amount_before_discount", "net_amount_before_vat", "vat_amount", "total_with_vat"];
-				alwaysIncludeKeys.forEach((key) => {
-					if (!this.selected_columns.includes(key)) {
-						this.selected_columns.push(key);
-					}
-				});
+				// Show all available columns by default
+				this.selected_columns = this.available_columns.map((col) => col.key);
 			}
 
 			// Mark columns as initialized
@@ -642,27 +620,15 @@ export default {
 
 				const saved = localStorage.getItem("posawesome_selected_columns");
 				if (saved) {
-					this.selected_columns = JSON.parse(saved);
-					// Ensure required columns are always included
-					const requiredKeys = this.available_columns.filter((col) => col.required).map((col) => col.key);
-					requiredKeys.forEach((key) => {
-						if (!this.selected_columns.includes(key)) {
-							this.selected_columns.push(key);
-						}
-					});
-
-					// Always include essential columns (hide rate_uom_base by default)
-					const alwaysIncludeKeys = ["uom", "discount_amount", "amount_before_discount", "net_amount_before_vat", "vat_amount", "total_with_vat"];
-					alwaysIncludeKeys.forEach((key) => {
-						if (!this.selected_columns.includes(key)) {
-							this.selected_columns.push(key);
-						}
-					});
+					// Load saved preferences but ensure all columns are available for full display
+					const savedColumns = JSON.parse(saved);
+					// Merge saved preferences with all available columns to ensure full display
+					this.selected_columns = [...new Set([...this.available_columns.map(col => col.key), ...savedColumns])];
 				}
-				// If no saved preferences, columns are already initialized above
+				// If no saved preferences, columns are already initialized with all columns above
 			} catch (e) {
 				console.error("Failed to load column preferences:", e);
-				// Fallback to default initialization
+				// Fallback to default initialization with all columns
 				if (!this.columns_initialized) {
 					this.initializeItemsHeaders();
 				}
