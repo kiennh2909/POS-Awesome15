@@ -1157,7 +1157,7 @@ export default {
 			const desc = this.invoice_doc.name || '';
 			const hashInput = amount.toString() + desc;
 			const hash = this.md5(hashInput);
-			const url = `https://vietqr-code-generator-265729503445.us-west1.run.app/?p?amount=${amount}&desc=${desc}&Hash=${hash}`;
+			const url = `https://vietqr-code-generator-265729503445.us-west1.run.app/?amount=${amount}&desc=${desc}&Hash=${hash}`;
 			window.open(url, '_blank');
 		},
 		// Mark payment as confirmed manually
