@@ -26,6 +26,14 @@
 			@update:expanded="$emit('update:expanded', $event)"
 			:search="itemSearch"
 		>
+			<!-- Name column (Tên + Mã Barcode) -->
+			<template v-slot:item.item_name="{ item }">
+				<div class="item-name-display">
+					<div class="item-name">{{ item.item_name }}</div>
+					<div class="item-code text-caption text-grey">{{ item.item_code }}</div>
+				</div>
+			</template>
+
 			<!-- Quantity column -->
 			<template v-slot:item.qty="{ item }">
 				<div class="amount-value">
@@ -60,6 +68,9 @@
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
 					<span class="amount-value">{{ formatCurrency(getRateUomBase(item)) }}</span>
+					<span v-if="item.custom_vat_rate" class="text-caption text-orange ml-1">
+						(VAT {{ item.custom_vat_rate }}%)
+					</span>
 				</div>
 			</template>
 
@@ -68,6 +79,14 @@
 				<div class="currency-display">
 					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
 					<span class="amount-value">{{ formatCurrency(item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) }}</span>
+				</div>
+			</template>
+
+			<!-- Net Amount column (Thanh toán = Thành tiền - Giảm giá) -->
+			<template v-slot:item.net_amount="{ item }">
+				<div class="currency-display">
+					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+					<span class="amount-value">{{ formatCurrency((item.qty * (getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0)) }}</span>
 				</div>
 			</template>
 
@@ -182,7 +201,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Item Code')"
+										:label="frappe._('Mã SP')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -196,7 +215,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('QTY')"
+										:label="frappe._('SL')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -214,7 +233,7 @@
 										density="compact"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
-										:label="frappe._('UOM')"
+										:label="frappe._('ĐVT')"
 										v-model="item.uom"
 										:items="item.item_uoms"
 										variant="outlined"
@@ -239,7 +258,7 @@
 										variant="outlined"
 										color="primary"
 										id="rate"
-										:label="frappe._('Rate')"
+										:label="frappe._('Đơn giá')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -257,7 +276,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('VAT Rate (%)')"
+										:label="frappe._('VAT (%)')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -271,7 +290,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Price After VAT')"
+										:label="frappe._('Thành tiền (*incl VAT)')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -290,7 +309,7 @@
 										variant="outlined"
 										color="primary"
 										id="discount_percentage"
-										:label="frappe._('Discount %')"
+										:label="frappe._('Giảm giá %')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -315,7 +334,7 @@
 										variant="outlined"
 										color="primary"
 										id="discount_amount"
-										:label="frappe._('Discount Amount')"
+										:label="frappe._('Giảm giá')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -337,7 +356,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Price list Rate')"
+										:label="frappe._('Đơn giá')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -352,7 +371,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Available QTY')"
+										:label="frappe._('SL có sẵn')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -365,7 +384,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Group')"
+										:label="frappe._('Nhóm')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -382,7 +401,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Stock QTY')"
+										:label="frappe._('SL tồn')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -395,7 +414,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Stock UOM')"
+										:label="frappe._('ĐVT tồn')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -406,7 +425,7 @@
 								<div class="form-field" v-if="item.posa_offer_applied">
 									<v-checkbox
 										density="compact"
-										:label="frappe._('Offer Applied')"
+										:label="frappe._('KM')"
 										v-model="item.posa_offer_applied"
 										readonly
 										hide-details
@@ -423,7 +442,7 @@
 											density="compact"
 											variant="outlined"
 											color="primary"
-											:label="frappe._('Serial No QTY')"
+											:label="frappe._('SL Serial')"
 											:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 											class="dark-field"
 											hide-details
@@ -446,7 +465,7 @@
 											color="primary"
 											:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 											class="dark-field"
-											:label="frappe._('Serial No')"
+											:label="frappe._('Số Serial')"
 											multiple
 											@update:model-value="setSerialNo(item)"
 										></v-autocomplete>
@@ -462,7 +481,7 @@
 											density="compact"
 											variant="outlined"
 											color="primary"
-											:label="frappe._('Batch No. Available QTY')"
+											:label="frappe._('SL Batch có sẵn')"
 											:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 											class="dark-field"
 											hide-details
@@ -475,7 +494,7 @@
 											density="compact"
 											variant="outlined"
 											color="primary"
-											:label="frappe._('Batch No Expiry Date')"
+											:label="frappe._('Ngày hết hạn Batch')"
 											:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 											class="dark-field"
 											hide-details
@@ -493,7 +512,7 @@
 											color="primary"
 											:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 											class="dark-field"
-											:label="frappe._('Batch No')"
+											:label="frappe._('Số Batch')"
 											@update:model-value="setBatchQty(item, $event)"
 											hide-details
 										>
@@ -541,7 +560,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Warehouse')"
+										:label="frappe._('Kho')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -555,7 +574,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Price List Rate')"
+										:label="frappe._('Đơn giá')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -577,7 +596,7 @@
 										density="compact"
 										variant="outlined"
 										color="primary"
-										:label="frappe._('Amount')"
+										:label="frappe._('Thanh toán')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
 										hide-details
@@ -1302,6 +1321,26 @@ export default {
 
 .pack-chip .v-icon {
 	margin-right: 4px !important;
+}
+
+/* Item name display styling */
+.item-name-display {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	min-height: 32px;
+}
+
+.item-name {
+	font-weight: 500;
+	line-height: 1.2;
+	margin-bottom: 2px;
+}
+
+.item-code {
+	font-size: 0.75rem;
+	color: #666;
+	line-height: 1.1;
 }
 
 /* Free item badge styling */

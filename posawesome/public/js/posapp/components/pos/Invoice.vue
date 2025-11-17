@@ -492,11 +492,12 @@ export default {
 				{ title: "Tên", align: "start", sortable: true, key: "item_name", required: true },
 				{ title: "SL", key: "qty", align: "start", required: true },
 				{ title: "ĐVT", key: "uom", align: "start", required: false },
-				{ title: "Giá bán", key: "rate", align: "start", required: true },
+				{ title: "Đơn giá", key: "rate", align: "start", required: true },
 				{ title: "Giá Base", key: "rate_uom_base", align: "start", required: false },
+				{ title: "Thành tiền (*incl VAT)", key: "amount", align: "start", required: true },
 				{ title: "Giảm giá", key: "discount_amount", align: "start", required: false },
-				{ title: "Thành tiền", key: "amount", align: "start", required: true },
-				{ title: "KM trong", key: "posa_is_offer", align: "center", required: false },
+				{ title: "Thanh toán", key: "net_amount", align: "start", required: false },
+				{ title: "KM", key: "posa_is_offer", align: "center", required: false },
 			];
 
 			// Initialize selected columns if empty
@@ -588,8 +589,8 @@ export default {
 				}
 			});
 
-			// Always include UOM, Discount Amount, and RATE_UOM_BASE columns
-			const alwaysIncludeKeys = ["uom", "discount_amount", "rate_uom_base"];
+			// Always include UOM, Discount Amount, RATE_UOM_BASE, and net_amount columns
+			const alwaysIncludeKeys = ["uom", "discount_amount", "rate_uom_base", "net_amount"];
 			alwaysIncludeKeys.forEach((key) => {
 				if (!this.selected_columns.includes(key)) {
 					this.selected_columns.push(key);
