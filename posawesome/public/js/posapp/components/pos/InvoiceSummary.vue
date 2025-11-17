@@ -7,7 +7,7 @@
 		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
 	>
 		<!-- Row 1: All numeric fields - Total Qty, Additional Discount, Items Discount, Total -->
-		<v-row dense class="mb-0">
+		<v-row dense class="mb-0 row-1-compact">
 			<v-col cols="12">
 				<v-row dense>
 					<!-- Total Qty -->
@@ -644,14 +644,35 @@ export default {
 	margin-bottom: 2px !important;
 }
 
-/* Dense row styling */
+/* Dense row styling - compact spacing for Row 1 */
 .v-row--dense > .v-col,
 .v-row--dense > [class*="v-col-"] {
 	padding: 1px;
 }
 
 .v-row--dense {
-	margin: -2px;
+	margin: -1px;
+}
+
+/* Specific styling for Row 1 numeric fields */
+.v-row.dense.mb-0 .v-col {
+	padding: 1px !important;
+	margin: 0 !important;
+}
+
+/* Row 1 compact layout */
+.row-1-compact {
+	display: flex !important;
+	flex-wrap: nowrap !important;
+	align-items: stretch !important;
+	gap: 1px !important;
+}
+
+.row-1-compact .v-col {
+	flex: 1 !important;
+	min-width: 0 !important;
+	padding: 1px !important;
+	margin: 0 !important;
 }
 
 /* Button spacing */
@@ -788,17 +809,17 @@ export default {
 	font-size: 1.5rem !important;
 }
 
-/* Standard text field styling - match ItemsSelector */
+/* Standard text field styling - compact size for Row 1 */
 .standard-text-field :deep(.v-field__input) {
-	font-size: 1.4rem !important;
-	font-weight: 700 !important;
-	min-height: 60px !important;
+	font-size: 0.9rem !important;
+	font-weight: 600 !important;
+	min-height: 45px !important;
 }
 
 .standard-text-field :deep(.v-field__input input) {
-	font-size: 1.4rem !important;
-	font-weight: 700 !important;
-	min-height: 60px !important;
+	font-size: 0.9rem !important;
+	font-weight: 600 !important;
+	min-height: 45px !important;
 }
 
 /* Large font for Total field */
@@ -874,6 +895,33 @@ export default {
 	height: 280px !important;
 	overflow-y: auto !important;
 	/* background: blueviolet !important; */
+}
+
+/* Row 1 specific responsive adjustments */
+@media (max-width: 1200px) {
+	/* Compact Row 1 for smaller screens */
+	.v-row.dense.mb-0 .standard-text-field :deep(.v-field__input) {
+		font-size: 0.8rem !important;
+		min-height: 40px !important;
+	}
+
+	.v-row.dense.mb-0 .standard-text-field :deep(.v-field__input input) {
+		font-size: 0.8rem !important;
+		min-height: 40px !important;
+	}
+}
+
+@media (max-width: 1024px) {
+	/* Further compact for tablets */
+	.v-row.dense.mb-0 .standard-text-field :deep(.v-field__input) {
+		font-size: 0.75rem !important;
+		min-height: 38px !important;
+	}
+
+	.v-row.dense.mb-0 .standard-text-field :deep(.v-field__input input) {
+		font-size: 0.75rem !important;
+		min-height: 38px !important;
+	}
 }
 
 /* Mobile responsive adjustments for sticky */
