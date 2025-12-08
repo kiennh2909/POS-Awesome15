@@ -689,7 +689,7 @@
 						{{ __("THANH TOÁN VN 2") }}
 					</v-btn>
 				</v-col>
-				<v-row align="start" no-gutters class="pa-1">
+				<v-row align="start" no-gutters class="pa-1" v-if="isVietnamCountry">
 					<v-col cols="6">
 						<v-btn
 							block
@@ -701,7 +701,7 @@
 							QR Bank
 						</v-btn>
 					</v-col>
-					<v-col cols="6" class="pl-1">
+					<v-col cols="6" class="pl-1" v-if="isVietnamCountry">
 						<v-btn
 							block
 							size="large"
