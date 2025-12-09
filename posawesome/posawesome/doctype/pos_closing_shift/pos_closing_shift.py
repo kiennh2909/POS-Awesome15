@@ -82,21 +82,41 @@ class POSClosingShift(Document):
             frappe.throw(_("Shift Report '{0}' does not exist").format(self.shift_report))
 
         # Check shift report verification status
+        # Check shift report verification status
         shift_report_status = frappe.db.get_value("POS Shift Report", self.shift_report, "verification_status")
         if shift_report_status != "Verified":
-            log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: VALIDATE_SHIFT_REPORT_NOT_VERIFIED - Shift report {self.shift_report} status: {shift_report_status}")
-            frappe.throw(_("Shift Report must be verified before closing shift. Current status: {0}").format(shift_report_status or "Pending"))
+            # ✅ KIỂM TRA NẾU KHÔNG CÓ INVOICES → TỰ ĐỘNG VERIFY
+            shift_report_doc = frappe.get_doc("POS Shift Report", self.shift_report)
+            invoice_count = getattr(shift_report_doc, 'invoice_count', 0)
+            
+            if invoice_count == 0:
+                # Tự động verify shift report trống
+                shift_report_doc.verification_status = "Verified"
+                shift_report_doc.verified_by = frappe.session.user
+                shift_report_doc.verified_at = frappe.utils.now()
+                shift_report_doc.notes = shift_report_doc.notes or "Auto-verified: No transactions (accidental shift opening)"
+                shift_report_doc.save(ignore_permissions=True)
+                
+                log.info(f"[SHIFT_CLOSE_WORKFLOW] AUTO_VERIFY - Auto-verified empty shift report {self.shift_report} during closing")
+            else:
+                log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: VALIDATE_SHIFT_REPORT_NOT_VERIFIED - Shift report {self.shift_report} status: {shift_report_status}")
+                frappe.throw(_("Shift Report must be verified before closing shift. Current status: {0}").format(shift_report_status or "Pending"))
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 10: VALIDATE_SHIFT_REPORT_VERIFIED - Shift report {self.shift_report} is verified")
+        # shift_report_status = frappe.db.get_value("POS Shift Report", self.shift_report, "verification_status")
+        # if shift_report_status != "Verified":
+        #     log.error(f"[SHIFT_CLOSE_WORKFLOW] ERROR: VALIDATE_SHIFT_REPORT_NOT_VERIFIED - Shift report {self.shift_report} status: {shift_report_status}")
+        #     frappe.throw(_("Shift Report must be verified before closing shift. Current status: {0}").format(shift_report_status or "Pending"))
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 11: VALIDATE_UPDATE_RECONCILIATION - Updating payment reconciliation")
-        self.update_payment_reconciliation()
+        # log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 10: VALIDATE_SHIFT_REPORT_VERIFIED - Shift report {self.shift_report} is verified")
 
-        # Ensure JSON fields have valid values
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 12: VALIDATE_ENSURE_JSON_FIELDS - Ensuring JSON fields have valid values")
-        self.ensure_json_fields_valid()
+        # log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 11: VALIDATE_UPDATE_RECONCILIATION - Updating payment reconciliation")
+        # self.update_payment_reconciliation()
 
-        log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 13: VALIDATE_COMPLETED - POS Closing Shift {self.name} validation completed successfully")
+        # # Ensure JSON fields have valid values
+        # log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 12: VALIDATE_ENSURE_JSON_FIELDS - Ensuring JSON fields have valid values")
+        # self.ensure_json_fields_valid()
+
+        # log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 13: VALIDATE_COMPLETED - POS Closing Shift {self.name} validation completed successfully")
 
     def update_payment_reconciliation(self):
         log.info(f"[SHIFT_CLOSE_WORKFLOW] Step 14: UPDATE_PAYMENT_RECONCILIATION_START - POS Closing Shift {self.name}")
