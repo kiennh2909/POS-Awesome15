@@ -885,14 +885,15 @@ export default {
 					// ✅ Add item với UOM và Price đã được đảm bảo chính xác
 					await this.add_item(item);
 
-					// Show success message
-					frappe.show_alert(
-						{
-							message: `Thêm giỏ hàng thành công : ${item.item_name} (${item.uom})`,
-							indicator: "green",
-						},
-						3,
-					);
+					// Bỏ hộp thông báo để tăng tốc độ
+					// // Show success message
+					// frappe.show_alert(
+					// 	{
+					// 		message: `Thêm giỏ hàng thành công : ${item.item_name} (${item.uom})`,
+					// 		indicator: "green",
+					// 	},
+					// 	3,
+					// );
 
 					// Clear search state
 					this.clearSearchState();
@@ -2187,14 +2188,15 @@ export default {
 					console.info("[ItemsSelector] ➕ Add mode: Adding item to invoice");
 					await this.add_item(item);
 
-					// Show success message
-					frappe.show_alert(
-						{
-							message: `Added: ${item.item_name}`,
-							indicator: "green",
-						},
-						3,
-					);
+					// Bỏ hộp thông báo để tăng tốc độ
+					// // Show success message
+					// frappe.show_alert(
+					// 	{
+					// 		message: `Added: ${item.item_name}`,
+					// 		indicator: "green",
+					// 	},
+					// 	3,
+					// );
 				} else {
 					// Remove mode - emit event to remove item from invoice with scan mode
 					console.info(
