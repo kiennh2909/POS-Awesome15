@@ -438,7 +438,7 @@ export default {
 		current_search_controller: null,
 		// Debounce for barcode scanning to prevent duplicate scans
 		lastScanTime: 0,
-		scanDebounceMs: 200,
+		scanDebounceMs: 160,
 	}),
 
 	watch: {
@@ -2167,9 +2167,9 @@ export default {
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
 			const now = Date.now();
-			if (this._lastScanCode === scannedCode && now - this._lastScanAt < 200) {
+			if (this._lastScanCode === scannedCode && now - this._lastScanAt < 160) {
 				console.warn("Duplicate scan suppressed:", scannedCode);
-				return; // chống double-click <200ms
+				return; // chống double-click <160ms
 			}
 			this._lastScanCode = scannedCode;
 			this._lastScanAt = now;
