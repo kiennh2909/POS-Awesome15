@@ -9,17 +9,10 @@ export default {
 	},
 
 	add_item(item, scanMode = null) {
-		// Get scan mode from ItemsSelector via eventBus if not provided
-		if (scanMode === null) {
-			// Listen for scan mode from ItemsSelector
-			this.eventBus.emit("get_scan_mode");
-			// For now, default to add mode if not specified
-			scanMode = true;
-		}
+		// Luôn mặc định scanMode = true (Add mode), bỏ logic scan mode
+		scanMode = true;
 
-		console.log(
-			`[Invoice.add_item] Processing item ${item.item_code} in ${scanMode ? "Add" : "Remove"} mode`,
-		);
+		console.log(`[Invoice.add_item] Processing item ${item.item_code} in Add mode only`);
 
 		if (!item.uom) {
 			item.uom = item.stock_uom;
@@ -74,17 +67,12 @@ export default {
 				this.set_batch_qty(new_item, new_item.batch_no, false);
 			}
 
-			// Apply scan mode logic for new items
-			if (!scanMode) {
-				// Remove mode: set negative quantity for new items
+			// Luôn Add mode: keep positive quantity (default behavior)
+			if (this.isReturnInvoice) {
 				new_item.qty = -Math.abs(new_item.qty || 1);
-			} else {
-				// Add mode: keep positive quantity (default behavior)
-				if (this.isReturnInvoice) {
-					new_item.qty = -Math.abs(new_item.qty || 1);
-				}
 			}
 
+			// Tối ưu vị trí: Thêm vào đầu mảng để item mới luôn ở vị trí đầu tiên
 			this.items.unshift(new_item);
 			// Force update of item rates when item is first added
 			this.update_item_detail(new_item, true);
@@ -116,22 +104,12 @@ export default {
 				item.to_set_serial_no = null;
 			}
 
-			// Apply scan mode logic for existing items
+			// Luôn Add mode: increase quantity
 			const qty_change = item.qty || 1;
-			if (!scanMode) {
-				// Remove mode: decrease quantity
-				if (this.isReturnInvoice) {
-					cur_item.qty -= qty_change; // Make more negative for returns
-				} else {
-					cur_item.qty -= qty_change; // Decrease for normal invoices
-				}
+			if (this.isReturnInvoice) {
+				cur_item.qty -= qty_change; // Make more negative for returns
 			} else {
-				// Add mode: increase quantity (original behavior)
-				if (this.isReturnInvoice) {
-					cur_item.qty -= qty_change; // Make more negative for returns
-				} else {
-					cur_item.qty += qty_change; // Increase for normal invoices
-				}
+				cur_item.qty += qty_change; // Increase for normal invoices
 			}
 
 			this.calc_stock_qty(cur_item, cur_item.qty);
@@ -142,6 +120,12 @@ export default {
 			}
 
 			this.set_serial_no(cur_item);
+
+			// Tối ưu: Di chuyển item đã tồn tại lên vị trí đầu tiên
+			// Remove item từ vị trí cũ
+			this.items.splice(index, 1);
+			// Thêm lại vào đầu mảng
+			this.items.unshift(cur_item);
 		}
 
 		this.$forceUpdate();
@@ -154,10 +138,10 @@ export default {
 			this.expanded = [new_item.posa_row_id];
 		}
 
-		// Apply highlight effect for the affected item
-		if (target_item) {
-			this.applyItemHighlight(target_item.posa_row_id, scanMode);
-		}
+		// Bỏ highlight để tăng tốc độ
+		// if (target_item) {
+		//     this.applyItemHighlight(target_item.posa_row_id, scanMode);
+		// }
 	},
 
 	// Apply highlight effect with green background and enlarged font for quantity and amount
