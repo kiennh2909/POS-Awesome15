@@ -682,20 +682,25 @@ export default {
 				this.first_search = (newValue || "").trim();
 			}, 300), // Increased debounce time to prevent rapid consecutive inputs
 		},
+		// Computed property cho hộp nhập số lượng (QTY) - tạm thời comment cơ chế làm tròn
+		// - Khi hide_qty_decimals = true: Làm tròn xuống số nguyên bằng Math.trunc() (loại bỏ phần thập phân, không làm tròn lên)
+		// - Khi hide_qty_decimals = false: Giữ nguyên giá trị thập phân
 		debounce_qty: {
 			get() {
 				// Display the raw quantity while typing to avoid forced decimal format
 				if (this.qty === null || this.qty === "") return "";
-				return this.hide_qty_decimals ? Math.trunc(this.qty) : this.qty;
+				// Tạm thời comment cơ chế làm tròn: return this.hide_qty_decimals ? Math.trunc(this.qty) : this.qty;
+				return this.qty; // Không làm tròn, giữ nguyên giá trị
 			},
 			set: _.debounce(function (value) {
 				let parsed = parseFloat(String(value).replace(/,/g, ""));
 				if (isNaN(parsed)) {
 					parsed = null;
 				}
-				if (this.hide_qty_decimals && parsed != null) {
-					parsed = Math.trunc(parsed);
-				}
+				// Tạm thời comment cơ chế làm tròn:
+				// if (this.hide_qty_decimals && parsed != null) {
+				//     parsed = Math.trunc(parsed); // Làm tròn xuống số nguyên
+				// }
 				this.qty = parsed;
 			}, 300), // Increased debounce time to match search debounce
 		},

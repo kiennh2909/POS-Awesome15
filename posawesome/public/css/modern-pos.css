@@ -1,0 +1,108 @@
+/* Modern POS Design System */
+:root {
+  /* Brand Colors */
+  --pos-primary: #1a237e;     /* Deep Blue */
+  --pos-primary-light: #534bae;
+  --pos-primary-dark: #000051;
+  
+  --pos-accent: #00c853;      /* Green for Pay/Success */
+  --pos-accent-hover: #009624;
+  
+  --pos-warning: #ffab00;     /* Amber */
+  --pos-error: #d50000;       /* Red */
+
+  /* Backgrounds */
+  --pos-bg-main: #f5f6fa;
+  --pos-bg-card: #ffffff;
+  --pos-bg-secondary: #eceff1;
+
+  /* Typography */
+  --pos-font-family: 'Roboto', 'Inter', sans-serif;
+  --pos-text-main: #263238;
+  --pos-text-muted: #78909c;
+
+  /* Spacing & Borders */
+  --pos-radius: 12px;
+  --pos-radius-sm: 8px;
+  --pos-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --pos-shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.12);
+  --pos-border: 1px solid #cfd8dc;
+}
+
+/* Dark Mode Overrides */
+.theme--dark {
+  --pos-bg-main: #121212;
+  --pos-bg-card: #1e1e1e;
+  --pos-bg-secondary: #2c2c2c;
+  --pos-text-main: #eceff1;
+  --pos-text-muted: #b0bec5;
+  --pos-border: 1px solid #424242;
+}
+
+/* Global Reset/Utils */
+.pos-app {
+  font-family: var(--pos-font-family) !important;
+  background-color: var(--pos-bg-main);
+  color: var(--pos-text-main);
+}
+
+/* Modern Card */
+.pos-card {
+  background: var(--pos-bg-card);
+  border-radius: var(--pos-radius);
+  box-shadow: var(--pos-shadow);
+  border: var(--pos-border);
+  transition: all 0.2s ease;
+}
+
+.pos-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--pos-shadow-hover);
+}
+
+/* Modern Buttons */
+.pos-btn {
+  border-radius: var(--pos-radius-sm) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px !important;
+  text-transform: none !important;
+  height: 48px !important;
+  box-shadow: none !important;
+}
+
+.pos-btn-large {
+  height: 64px !important;
+  font-size: 1.25rem !important;
+}
+
+.pos-btn-primary {
+  background-color: var(--pos-primary) !important;
+  color: white !important;
+}
+
+.pos-btn-success {
+  background-color: var(--pos-accent) !important;
+  color: white !important;
+}
+
+/* Input Fields */
+.pos-input .v-field__outline {
+  --v-field-border-opacity: 0.15;
+}
+
+.pos-input.v-field--focused .v-field__outline {
+  --v-field-border-opacity: 0.5;
+  color: var(--pos-primary);
+}
+
+/* Text Utilities */
+.text-price {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 700;
+  color: var(--pos-primary);
+}
+
+.text-qty {
+  font-weight: bold;
+  color: var(--pos-text-muted);
+}
