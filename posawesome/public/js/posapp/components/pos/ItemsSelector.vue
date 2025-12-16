@@ -438,7 +438,7 @@ export default {
 		current_search_controller: null,
 		// Debounce for barcode scanning to prevent duplicate scans
 		lastScanTime: 0,
-		scanDebounceMs: 500,
+		scanDebounceMs: 200,
 	}),
 
 	watch: {
@@ -1404,24 +1404,25 @@ export default {
 				this.eventBus.emit("add_item", item, this.scan_add_mode);
 				this.qty = 1;
 
-				// Highlight item in invoice table - chuyển màu xanh, font tăng 1.5 lần
-				setTimeout(() => {
-					console.log("[ItemsSelector] 🎯 Highlighting added item:", item.item_code);
-					console.log("[ItemsSelector] Scan mode:", this.scan_add_mode);
+				// Bỏ highlight hoàn toàn để tăng tốc độ
+				// // Highlight item in invoice table - chuyển màu xanh, font tăng 1.5 lần
+				// setTimeout(() => {
+				// 	console.log("[ItemsSelector] 🎯 Highlighting added item:", item.item_code);
+				// 	console.log("[ItemsSelector] Scan mode:", this.scan_add_mode);
 
-					// Emit to both event names for compatibility
-					this.eventBus.emit("highlight_invoice_item", {
-						itemRowId: item.item_code,
-						scanMode: this.scan_add_mode,
-						duration: 1000, // Changed from 2000 to 1000 ms
-						enlargeFont: true,
-					});
+				// 	// Emit to both event names for compatibility
+				// 	this.eventBus.emit("highlight_invoice_item", {
+				// 		itemRowId: item.item_code,
+				// 		scanMode: this.scan_add_mode,
+				// 		duration: 1000, // Changed from 2000 to 1000 ms
+				// 		enlargeFont: true,
+				// 	});
 
-					// Also emit the old event name for backward compatibility
-					this.eventBus.emit("highlight_scanned_item", item.item_code);
+				// 	// Also emit the old event name for backward compatibility
+				// 	this.eventBus.emit("highlight_scanned_item", item.item_code);
 
-					console.log("[ItemsSelector] ✅ Highlight event emitted successfully");
-				}, 1000);
+				// 	console.log("[ItemsSelector] ✅ Highlight event emitted successfully");
+				// }, 1000);
 			}
 		},
 		async enter_event() {
@@ -1489,23 +1490,24 @@ export default {
 			this.flags.batch_no = null;
 			this.qty = 1; // Ensure qty is reset
 
-			// Highlight item in invoice table for Enter/search flow
-			setTimeout(() => {
-				console.log("[ItemsSelector] 🎯 Highlighting item from Enter/search:", new_item.item_code);
+			// Bỏ highlight hoàn toàn để tăng tốc độ
+			// // Highlight item in invoice table for Enter/search flow
+			// setTimeout(() => {
+			// 	console.log("[ItemsSelector] 🎯 Highlighting item from Enter/search:", new_item.item_code);
 
-				// Emit to both event names for compatibility
-				this.eventBus.emit("highlight_invoice_item", {
-					itemRowId: new_item.item_code,
-					scanMode: this.scan_add_mode,
-					duration: 1000, // 1 second highlight
-					enlargeFont: true,
-				});
+			// 	// Emit to both event names for compatibility
+			// 	this.eventBus.emit("highlight_invoice_item", {
+			// 		itemRowId: new_item.item_code,
+			// 		scanMode: this.scan_add_mode,
+			// 		duration: 1000, // 1 second highlight
+			// 		enlargeFont: true,
+			// 	});
 
-				// Also emit the old event name for backward compatibility
-				this.eventBus.emit("highlight_scanned_item", new_item.item_code);
+			// 	// Also emit the old event name for backward compatibility
+			// 	this.eventBus.emit("highlight_scanned_item", new_item.item_code);
 
-				console.log("[ItemsSelector] ✅ Highlight event emitted for Enter/search successfully");
-			}, 1000);
+			// 	console.log("[ItemsSelector] ✅ Highlight event emitted for Enter/search successfully");
+			// }, 1000);
 
 			// Clear search field after successfully adding an item
 			this.clearSearch();
@@ -2164,9 +2166,9 @@ export default {
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
 			const now = Date.now();
-			if (this._lastScanCode === scannedCode && now - this._lastScanAt < 400) {
+			if (this._lastScanCode === scannedCode && now - this._lastScanAt < 200) {
 				console.warn("Duplicate scan suppressed:", scannedCode);
-				return; // chống double-click <400ms
+				return; // chống double-click <200ms
 			}
 			this._lastScanCode = scannedCode;
 			this._lastScanAt = now;
