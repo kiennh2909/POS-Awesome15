@@ -1148,12 +1148,6 @@ export default {
 				},
 			});
 		},
-		selectSingleInvoice(item) {
-			if (item && item.voucher_no) {
-				this.eventBus.emit("set_invoice", item);
-				this.$nextTick(() => this.$forceUpdate());
-			}
-		},
 		isInvoiceSelected(item) {
 			return this.selected_invoices.some((i) => i.voucher_no === item.voucher_no);
 		},

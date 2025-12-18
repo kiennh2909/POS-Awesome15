@@ -945,19 +945,6 @@ export default {
 			};
 			return descriptions[offerType] || offerType.toLowerCase();
 		},
-
-		formatDate(dateString) {
-			if (!dateString) return "N/A";
-			try {
-				const date = new Date(dateString);
-				return date.toLocaleDateString("vi-VN", {
-					day: "2-digit",
-					month: "2-digit",
-					year: "numeric",
-				});
-			} catch (e) {
-				return dateString;
-			}
 		},
 		getDiscountDetails(offer) {
 			if (!offer.discount_type) return null;
