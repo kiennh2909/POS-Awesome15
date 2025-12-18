@@ -1093,7 +1093,7 @@ export default {
 
 			content += `</div>`;
 			return content;
-		}
+		};
 	},
 
 	// Removed watch for pos_offers - no longer auto-applying offers in dialog
