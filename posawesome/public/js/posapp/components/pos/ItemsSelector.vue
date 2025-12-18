@@ -653,11 +653,6 @@ export default {
 		numpad_visible: false,
 		numpad_display: '',
 		numpad_original_qty: null,
-		
-		// 🆕 Highlight System State
-		highlight_debounce_timer: null,
-		last_highlight_item: null,
-		rapid_scan_mode: false,
 	}),
 
 	watch: {
@@ -1908,9 +1903,25 @@ export default {
 				this.eventBus.emit("add_item", item, this.scan_add_mode);
 				this.qty = 1;
 
-				// 🆕 Smart Highlight System - Restored and Enhanced
-				this.triggerSmartHighlight(item, 'new_item');
-			}
+				// Bỏ highlight hoàn toàn để tăng tốc độ
+				// // Highlight item in invoice table - chuyển màu xanh, font tăng 1.5 lần
+				// setTimeout(() => {
+				// 	console.log("[ItemsSelector] 🎯 Highlighting added item:", item.item_code);
+				// 	console.log("[ItemsSelector] Scan mode:", this.scan_add_mode);
+
+				// 	// Emit to both event names for compatibility
+				// 	this.eventBus.emit("highlight_invoice_item", {
+				// 		itemRowId: item.item_code,
+				// 		scanMode: this.scan_add_mode,
+				// 		duration: 1000, // Changed from 2000 to 1000 ms
+				// 		enlargeFont: true,
+				// 	});
+
+				// 	// Also emit the old event name for backward compatibility
+				// 	this.eventBus.emit("highlight_scanned_item", item.item_code);
+
+				// 	console.log("[ItemsSelector] ✅ Highlight event emitted successfully");
+				// }, 1000);
 			}
 		},
 		async enter_event() {
@@ -1978,8 +1989,24 @@ export default {
 			this.flags.batch_no = null;
 			this.qty = 1; // Ensure qty is reset
 
-			// 🆕 Smart Highlight for Enter/search flow
-			this.triggerSmartHighlight(new_item, 'new_item');
+			// Bỏ highlight hoàn toàn để tăng tốc độ
+			// // Highlight item in invoice table for Enter/search flow
+			// setTimeout(() => {
+			// 	console.log("[ItemsSelector] 🎯 Highlighting item from Enter/search:", new_item.item_code);
+
+			// 	// Emit to both event names for compatibility
+			// 	this.eventBus.emit("highlight_invoice_item", {
+			// 		itemRowId: new_item.item_code,
+			// 		scanMode: this.scan_add_mode,
+			// 		duration: 1000, // 1 second highlight
+			// 		enlargeFont: true,
+			// 	});
+
+			// 	// Also emit the old event name for backward compatibility
+			// 	this.eventBus.emit("highlight_scanned_item", new_item.item_code);
+
+			// 	console.log("[ItemsSelector] ✅ Highlight event emitted for Enter/search successfully");
+			// }, 1000);
 
 			// Clear search field after successfully adding an item
 			this.clearSearch();
@@ -2796,90 +2823,6 @@ export default {
 			
 			console.info('[NumPad] Enter pressed, qty set to:', value);
 		},
-		
-		// 🎯 SMART HIGHLIGHT SYSTEM
-		triggerSmartHighlight(item, type = 'new_item') {
-			const now = Date.now();
-			const itemCode = item.item_code;
-			
-			// Detect rapid scanning of same item
-			const isRapidScan = this.last_highlight_item === itemCode && 
-							   (now - this._lastScanAt) < 1000;
-			
-			if (isRapidScan) {
-				this.rapid_scan_mode = true;
-				// For rapid scan, only pulse quantity - no full highlight
-				this.pulseQuantityOnly(itemCode);
-				
-				// Reset rapid mode after 2 seconds of no activity
-				clearTimeout(this.highlight_debounce_timer);
-				this.highlight_debounce_timer = setTimeout(() => {
-					this.rapid_scan_mode = false;
-				}, 2000);
-				
-				return;
-			}
-			
-			// Normal highlight for new items or first scan of existing items
-			this.rapid_scan_mode = false;
-			this.last_highlight_item = itemCode;
-			
-			// Delay highlight to ensure item is rendered in DOM
-			setTimeout(() => {
-				if (type === 'new_item') {
-					this.highlightNewItem(itemCode);
-				} else {
-					this.highlightExistingItem(itemCode);
-				}
-			}, 150);
-		},
-		
-		highlightNewItem(itemCode) {
-			console.info('[Highlight] New item added to TOP:', itemCode);
-			
-			// New items are always at top (index 0), so no scroll needed
-			this.eventBus.emit("highlight_invoice_item", {
-				itemRowId: itemCode,
-				type: 'new_item',
-				position: 'top',
-				duration: 1200,
-				effects: {
-					background: true,
-					pulse: true,
-					scroll: false, // No scroll needed for top items
-				}
-			});
-		},
-		
-		highlightExistingItem(itemCode) {
-			console.info('[Highlight] Existing item quantity updated:', itemCode);
-			
-			this.eventBus.emit("highlight_invoice_item", {
-				itemRowId: itemCode,
-				type: 'existing_item',
-				duration: 800,
-				effects: {
-					background: true,
-					pulse: true,
-					scroll: true, // May need scroll to bring into view
-				}
-			});
-		},
-		
-		pulseQuantityOnly(itemCode) {
-			console.info('[Highlight] Rapid scan - pulse quantity only:', itemCode);
-			
-			this.eventBus.emit("highlight_invoice_item", {
-				itemRowId: itemCode,
-				type: 'rapid_scan',
-				duration: 300,
-				effects: {
-					background: false,
-					pulse: true,
-					scroll: false,
-				}
-			});
-		},
 
 		startCameraScanning() {
 			if (this.$refs.cameraScanner) {
@@ -3027,10 +2970,15 @@ export default {
 					console.info("[ItemsSelector] ➕ Add mode: Adding item to invoice");
 					await this.add_item(item);
 
-					// 🆕 Smart Highlight for scanned items
-					// Note: add_item already triggers highlight for new items
-					// For existing items, we need to detect and highlight differently
-					// This will be handled by the invoice component's merge logic
+					// Bỏ hộp thông báo để tăng tốc độ
+					// // Show success message
+					// frappe.show_alert(
+					// 	{
+					// 		message: `Added: ${item.item_name}`,
+					// 		indicator: "green",
+					// 	},
+					// 	3,
+					// );
 				} else {
 					// Remove mode - emit event to remove item from invoice with scan mode
 					console.info(

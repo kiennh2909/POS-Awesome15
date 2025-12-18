@@ -62,9 +62,6 @@ export default {
 			newItem.to_set_serial_no = null;
 		}
 
-		// Store old quantity for comparison
-		const oldQty = existingItem.qty;
-
 		// For returns, subtract from quantity to make it more negative
 		if (this.isReturnInvoice) {
 			existingItem.qty -= newItem.qty || 1;
@@ -82,29 +79,6 @@ export default {
 		if (existingItem.uom && existingItem.uom !== existingItem.stock_uom) {
 			this.calc_uom(existingItem, existingItem.uom);
 		}
-
-		// 🆕 Trigger highlight for existing item quantity update
-		console.log("Existing item quantity updated:", {
-			item_code: existingItem.item_code,
-			old_qty: oldQty,
-			new_qty: existingItem.qty,
-			position: this.items.findIndex(item => item.posa_row_id === existingItem.posa_row_id)
-		});
-
-		// Emit highlight event for existing item
-		setTimeout(() => {
-			this.eventBus.emit("highlight_invoice_item", {
-				itemRowId: existingItem.item_code,
-				rowId: existingItem.posa_row_id,
-				type: 'existing_item',
-				duration: 800,
-				effects: {
-					background: true,
-					pulse: true,
-					scroll: true, // May need scroll to bring into view
-				}
-			});
-		}, 100);
 
 		// Ensure Vue watcher is triggered after all updates complete (if not already applying)
 		if (!this.isApplyingDiscount) {
@@ -367,12 +341,11 @@ export default {
 
 			// Tax information will be handled by ERPNext default tax mechanism
 
-			// 🆕 Insert new item at TOP of cart for better UX (unshift instead of push)
-			this.items.unshift(new_item);
-			console.log("Item inserted at TOP (index 0)", {
+			// Add item to end of array to maintain order (push instead of unshift)
+			this.items.push(new_item);
+			console.log("Item inserted at", this.items.length - 1, {
 				code: new_item.item_code,
 				rate: new_item.rate,
-				total_items: this.items.length,
 			});
 			// Force update of item rates when item is first added
 			console.log("Before update_item_detail - Initial item state", {
@@ -412,29 +385,6 @@ export default {
 
 			// Finalize new item setup
 			this.finalizeNewItem(new_item);
-
-			// 🆕 Trigger highlight for new item at TOP
-			console.log("New item added to TOP of cart:", {
-				item_code: new_item.item_code,
-				position: 0, // Always at top due to unshift
-				total_items: this.items.length
-			});
-
-			// Emit highlight event for new item
-			setTimeout(() => {
-				this.eventBus.emit("highlight_invoice_item", {
-					itemRowId: new_item.item_code,
-					rowId: new_item.posa_row_id,
-					type: 'new_item',
-					position: 'top',
-					duration: 1200,
-					effects: {
-						background: true,
-						pulse: true,
-						scroll: false, // No scroll needed for top items
-					}
-				});
-			}, 100);
 		} else {
 			this.mergeWithExistingItem(this.items[index], item);
 		}
