@@ -62,6 +62,9 @@ export default {
 			newItem.to_set_serial_no = null;
 		}
 
+		// Store old quantity for comparison
+		const oldQty = existingItem.qty;
+
 		// For returns, subtract from quantity to make it more negative
 		if (this.isReturnInvoice) {
 			existingItem.qty -= newItem.qty || 1;
@@ -79,6 +82,29 @@ export default {
 		if (existingItem.uom && existingItem.uom !== existingItem.stock_uom) {
 			this.calc_uom(existingItem, existingItem.uom);
 		}
+
+		// 🆕 Trigger highlight for existing item quantity update
+		console.log("Existing item quantity updated:", {
+			item_code: existingItem.item_code,
+			old_qty: oldQty,
+			new_qty: existingItem.qty,
+			position: this.items.findIndex(item => item.posa_row_id === existingItem.posa_row_id)
+		});
+
+		// Emit highlight event for existing item
+		setTimeout(() => {
+			this.eventBus.emit("highlight_invoice_item", {
+				itemRowId: existingItem.item_code,
+				rowId: existingItem.posa_row_id,
+				type: 'existing_item',
+				duration: 800,
+				effects: {
+					background: true,
+					pulse: true,
+					scroll: true, // May need scroll to bring into view
+				}
+			});
+		}, 100);
 
 		// Ensure Vue watcher is triggered after all updates complete (if not already applying)
 		if (!this.isApplyingDiscount) {
@@ -319,7 +345,12 @@ export default {
 		}
 
 		let new_item;
+		// 🎯 RULE CHUẨN: Chỉ NEW ITEMS lên đầu, EXISTING ITEMS giữ nguyên vị trí
+		// 🔧 Config option: pos_profile.posa_reorder_on_every_scan (default: false)
+		const shouldReorderExisting = this.pos_profile?.posa_reorder_on_every_scan || false;
+
 		if (index === -1 || this.new_line) {
+			// ✅ NEW ITEM: Chưa có trong giỏ → Thêm lên đầu để thấy ngay
 			new_item = this.get_new_item(item);
 			// Handle serial number logic
 			if (item.has_serial_no && item.to_set_serial_no) {
@@ -341,11 +372,14 @@ export default {
 
 			// Tax information will be handled by ERPNext default tax mechanism
 
-			// Add item to end of array to maintain order (push instead of unshift)
-			this.items.push(new_item);
-			console.log("Item inserted at", this.items.length - 1, {
+			// 🆕 Insert NEW item at TOP of cart (unshift)
+			// ✅ Lý do: Thu ngân thấy ngay item vừa thêm, kiểm soát tốt hơn
+			// ✅ Chỉ áp dụng cho NEW items, KHÔNG reorder existing items
+			this.items.unshift(new_item);
+			console.log("✅ NEW ITEM inserted at TOP (index 0)", {
 				code: new_item.item_code,
 				rate: new_item.rate,
+				total_items: this.items.length,
 			});
 			// Force update of item rates when item is first added
 			console.log("Before update_item_detail - Initial item state", {
@@ -360,7 +394,7 @@ export default {
 			// Từ API get_item_by_barcode_exact (nếu scan barcode)
 			// Từ local items cache (nếu tìm thấy trong this.items)
 			// Từ exact item code match
-			
+
 			//Giai Đoạn 2: Cập Nhật Giá Chính Xác Từ Server(update_item_detail)
 
 			this.update_item_detail(new_item, true);
@@ -385,8 +419,74 @@ export default {
 
 			// Finalize new item setup
 			this.finalizeNewItem(new_item);
+
+			// 🆕 Trigger highlight for new item at TOP
+			console.log("New item added to TOP of cart:", {
+				item_code: new_item.item_code,
+				position: 0, // Always at top due to unshift
+				total_items: this.items.length
+			});
+
+			// Emit highlight event for new item
+			setTimeout(() => {
+				this.eventBus.emit("highlight_invoice_item", {
+					itemRowId: new_item.item_code,
+					rowId: new_item.posa_row_id,
+					type: 'new_item',
+					position: 'top',
+					duration: 1200,
+					effects: {
+						background: true,
+						pulse: true,
+						scroll: false, // No scroll needed for top items
+					}
+				});
+			}, 100);
 		} else {
-			this.mergeWithExistingItem(this.items[index], item);
+			// ✅ EXISTING ITEM: Đã có trong giỏ
+			if (shouldReorderExisting) {
+				// 🔧 OPTIONAL: Reorder existing item to top (for small shops)
+				console.log("🔧 REORDER MODE: Moving existing item to top", {
+					code: item.item_code,
+					old_position: index,
+					new_position: 0
+				});
+
+				// Remove from current position and add to top
+				const existingItem = this.items[index];
+				this.items.splice(index, 1);
+
+				// Merge quantities
+				existingItem.qty += item.qty || 1;
+				this.calc_stock_qty(existingItem, existingItem.qty);
+
+				// Add to top
+				this.items.unshift(existingItem);
+
+				// Trigger highlight for moved item
+				setTimeout(() => {
+					this.eventBus.emit("highlight_invoice_item", {
+						itemRowId: existingItem.item_code,
+						rowId: existingItem.posa_row_id,
+						type: 'reordered_item',
+						duration: 1000,
+						effects: {
+							background: true,
+							pulse: true,
+							scroll: false, // No scroll needed for top
+						}
+					});
+				}, 100);
+			} else {
+				// ✅ DEFAULT: KHÔNG reorder, chỉ tăng SL (RECOMMENDED)
+				// ✅ Lý do: Giữ ổn định thị giác, tránh loạn danh sách
+				console.log("✅ EXISTING ITEM quantity update (no reorder)", {
+					code: item.item_code,
+					current_position: index,
+					action: "merge_quantity"
+				});
+				this.mergeWithExistingItem(this.items[index], item);
+			}
 		}
 		this.$forceUpdate();
 
@@ -1522,9 +1622,9 @@ export default {
 							vm.eventBus.emit("show_message", {
 								title: __(
 									"Exchange rate date " +
-										vm.exchange_rate_date +
-										" differs from posting date " +
-										posting_backend,
+									vm.exchange_rate_date +
+									" differs from posting date " +
+									posting_backend,
 								),
 								color: "warning",
 							});
@@ -1560,9 +1660,9 @@ export default {
 							vm.eventBus.emit("show_message", {
 								title: __(
 									"Exchange rate date " +
-										vm.exchange_rate_date +
-										" differs from posting date " +
-										posting_backend,
+									vm.exchange_rate_date +
+									" differs from posting date " +
+									posting_backend,
 								),
 								color: "warning",
 							});
@@ -3014,10 +3114,10 @@ export default {
 		const offer =
 			this.posOffers && Array.isArray(this.posOffers)
 				? this.posOffers.find((o) => {
-						if (!o || !o.items) return false;
-						const items = typeof o.items === "string" ? JSON.parse(o.items) : o.items;
-						return Array.isArray(items) && items.includes(item.posa_row_id);
-					})
+					if (!o || !o.items) return false;
+					const items = typeof o.items === "string" ? JSON.parse(o.items) : o.items;
+					return Array.isArray(items) && items.includes(item.posa_row_id);
+				})
 				: null;
 
 		console.log("calc_uom: found offer for item", {

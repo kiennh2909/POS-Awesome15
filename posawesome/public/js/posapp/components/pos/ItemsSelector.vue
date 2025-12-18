@@ -30,23 +30,37 @@
 					<v-row class="items">
 						<v-col class="pb-0">
 							<v-text-field
+								ref="searchInput"
+								v-model="debounce_search"
+								:placeholder="dynamicPlaceholder"
+								:hint="dynamicHint"
 								density="compact"
 								clearable
 								autofocus
 								variant="solo"
 								color="primary"
-								:label="frappe._('Search Items')"
-								hint="Search by item code, serial number, batch no or barcode"
-								hide-details
-								v-model="debounce_search"
-								@keydown.esc="esc_event"
-								@keydown.enter="search_onchange"
+								hide-details="auto"
+								@keydown="handleKeyDown"
+								@focus="handleSearchFocus"
+								@blur="handleSearchBlur"
 								@click:clear="clearSearch"
-								prepend-inner-icon="mdi-magnify"
-								@focus="handleItemSearchFocus"
-								ref="debounce_search"
-								class="standard-text-field"
+								class="barcode-input"
+								:class="`search-mode-${search_mode}`"
 							>
+								<!-- Mode indicator icon -->
+								<template v-slot:prepend-inner>
+									<v-icon :color="modeColor" size="small">
+										{{ modeIcon }}
+									</v-icon>
+								</template>
+								
+								<!-- Keyboard hint -->
+								<template v-slot:append-inner>
+									<span class="keyboard-hint text-caption">
+										{{ search_mode === 'barcode' ? 'F3: Text' : 'F3: Barcode' }}
+									</span>
+								</template>
+							</v-text-field>
 								<!-- Add camera scan button if enabled -->
 								<template v-slot:append-inner v-if="pos_profile.posa_enable_camera_scanning">
 									<v-btn
@@ -63,6 +77,7 @@
 						</v-col>
 						<v-col cols="4" class="pb-0" v-if="pos_profile.posa_input_qty">
 							<v-text-field
+								ref="qtyInput"
 								density="compact"
 								variant="solo"
 								color="primary"
@@ -70,12 +85,69 @@
 								hide-details
 								v-model="debounce_qty"
 								type="text"
-								@keydown.enter="enter_event"
-								@keydown.esc="esc_event"
-								@focus="clearQty"
-								class="standard-text-field"
-							></v-text-field>
+								readonly
+								@click="showNumPad"
+								@focus="showNumPad"
+								class="standard-text-field qty-input-field"
+								style="cursor: pointer;"
+							>
+								<template v-slot:append-inner>
+									<v-icon size="small" color="primary">mdi-calculator</v-icon>
+								</template>
+							</v-text-field>
 						</v-col>
+						
+						<!-- 🆕 Search Results List (thay thế popup) -->
+						<v-col cols="12" v-if="search_results_visible && search_results.length > 0" class="pt-0">
+							<v-expand-transition>
+								<v-card 
+									class="search-results-card"
+									elevation="4"
+								>
+									<v-card-title class="py-2">
+										<span class="text-subtitle-1">
+											Tìm thấy {{ search_results.length }} sản phẩm
+										</span>
+										<v-spacer></v-spacer>
+										<span class="text-caption keyboard-hint">
+											↑↓ Chọn • Enter: Thêm • Esc: Đóng
+										</span>
+									</v-card-title>
+									
+									<v-list class="search-results-list" max-height="300" style="overflow-y: auto;">
+										<v-list-item
+											v-for="(item, index) in search_results"
+											:key="item.item_code"
+											:class="{ 'selected-result': index === selected_result_index }"
+											@click="selectSearchResult(index)"
+											class="search-result-item"
+										>
+											<template v-slot:prepend>
+												<v-img
+													:src="item.image || '/assets/posawesome/js/posapp/components/pos/placeholder-image.png'"
+													width="40"
+													height="40"
+													class="rounded"
+												></v-img>
+											</template>
+											
+											<v-list-item-title>{{ item.item_name }}</v-list-item-title>
+											<v-list-item-subtitle>
+												{{ item.item_code }} • 
+												{{ format_currency(item.rate, pos_profile.currency) }}
+											</v-list-item-subtitle>
+											
+											<template v-slot:append>
+												<span class="text-caption">
+													{{ item.actual_qty || 0 }} {{ item.stock_uom }}
+												</span>
+											</template>
+										</v-list-item>
+									</v-list>
+								</v-card>
+							</v-expand-transition>
+						</v-col>
+						
 						<v-col cols="12" class="dynamic-margin-xs">
 							<div class="settings-container">
 								<v-btn
@@ -349,6 +421,127 @@
 			:scan-type="pos_profile.posa_camera_scan_type || 'Both'"
 			@barcode-scanned="onBarcodeScanned"
 		/>
+		
+		<!-- 🆕 NumPad Popup for Quantity Input -->
+		<v-dialog 
+			v-model="numpad_visible" 
+			max-width="400px"
+			persistent
+			:fullscreen="$vuetify.display.mobile"
+		>
+			<v-card class="numpad-card">
+				<v-card-title class="text-center py-3">
+					<span class="text-h6">Nhập Số Lượng</span>
+					<v-spacer></v-spacer>
+					<v-btn 
+						icon="mdi-close" 
+						variant="text" 
+						size="small"
+						@click="hideNumPad"
+					></v-btn>
+				</v-card-title>
+				
+				<v-card-text class="pa-4">
+					<!-- Display current value -->
+					<v-text-field
+						v-model="numpad_display"
+						variant="outlined"
+						readonly
+						class="numpad-display text-center"
+						:style="{ fontSize: '2rem', fontWeight: 'bold' }"
+					></v-text-field>
+					
+					<!-- NumPad Grid -->
+					<div class="numpad-grid mt-4">
+						<!-- Row 1: 7, 8, 9 -->
+						<v-btn 
+							v-for="num in [7, 8, 9]" 
+							:key="num"
+							@click="numpadInput(num)"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+						>
+							{{ num }}
+						</v-btn>
+						
+						<!-- Row 2: 4, 5, 6 -->
+						<v-btn 
+							v-for="num in [4, 5, 6]" 
+							:key="num"
+							@click="numpadInput(num)"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+						>
+							{{ num }}
+						</v-btn>
+						
+						<!-- Row 3: 1, 2, 3 -->
+						<v-btn 
+							v-for="num in [1, 2, 3]" 
+							:key="num"
+							@click="numpadInput(num)"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+						>
+							{{ num }}
+						</v-btn>
+						
+						<!-- Row 4: ., 0, Backspace -->
+						<v-btn 
+							@click="numpadInput('.')"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+						>
+							•
+						</v-btn>
+						
+						<v-btn 
+							@click="numpadInput(0)"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+						>
+							0
+						</v-btn>
+						
+						<v-btn 
+							@click="numpadBackspace"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+							color="warning"
+						>
+							<v-icon>mdi-backspace</v-icon>
+						</v-btn>
+						
+						<!-- Row 5: Clear, Enter -->
+						<v-btn 
+							@click="numpadClear"
+							class="numpad-btn numpad-btn-wide"
+							size="large"
+							variant="outlined"
+							color="error"
+						>
+							CLEAR (C)
+						</v-btn>
+						
+						<v-btn 
+							@click="numpadEnter"
+							class="numpad-btn numpad-btn-wide"
+							size="large"
+							variant="tonal"
+							color="success"
+						>
+							ENTER
+						</v-btn>
+					</div>
+				</v-card-text>
+			</v-card>
+		</v-dialog>
 	</div>
 </template>
 
@@ -439,6 +632,32 @@ export default {
 		// Debounce for barcode scanning to prevent duplicate scans
 		lastScanTime: 0,
 		scanDebounceMs: 160,
+		
+		// 🆕 Search Mode Management
+		search_mode: 'barcode', // 'barcode' | 'text'
+		
+		// 🆕 Keyboard State
+		f2_enabled: true,
+		f3_enabled: true,
+		
+		// 🆕 Search Results State (thay thế popup)
+		search_results: [],
+		search_results_visible: false,
+		selected_result_index: 0,
+		
+		// 🆕 UI State
+		current_focus_element: null,
+		is_processing_barcode: false,
+		
+		// 🆕 NumPad State
+		numpad_visible: false,
+		numpad_display: '',
+		numpad_original_qty: null,
+		
+		// 🆕 Highlight System State
+		highlight_debounce_timer: null,
+		last_highlight_item: null,
+		rapid_scan_mode: false,
 	}),
 
 	watch: {
@@ -548,6 +767,28 @@ export default {
 		headers() {
 			return this.getItemsHeaders();
 		},
+		
+		// 🆕 Dynamic UI Properties
+		dynamicPlaceholder() {
+			return this.search_mode === 'barcode' 
+				? 'Quét / nhập Barcode'
+				: 'Nhập tên / SKU sản phẩm';
+		},
+		
+		dynamicHint() {
+			return this.search_mode === 'barcode'
+				? 'F3 – Chuyển sang tìm theo Tên / SKU'
+				: 'F3 – Quay về quét Barcode';
+		},
+		
+		modeIcon() {
+			return this.search_mode === 'barcode' ? 'mdi-barcode-scan' : 'mdi-magnify';
+		},
+		
+		modeColor() {
+			return this.search_mode === 'barcode' ? 'primary' : 'orange';
+		},
+		
 		filtered_items() {
 			this.search = this.get_search(this.first_search).trim();
 			if (!this.pos_profile.pose_use_limit_search) {
@@ -679,7 +920,12 @@ export default {
 				return this.first_search;
 			},
 			set: _.debounce(function (newValue) {
-				this.first_search = (newValue || "").trim();
+				// Only trim in barcode mode
+				if (this.search_mode === 'barcode') {
+					this.first_search = (newValue || "").trim();
+				} else {
+					this.first_search = newValue || "";
+				}
 			}, 300), // Increased debounce time to prevent rapid consecutive inputs
 		},
 		// Computed property cho hộp nhập số lượng (QTY) - fix bug xóa dấu thập phân khi nhập
@@ -748,6 +994,255 @@ export default {
 			return /^\d{6,18}$/.test(cleanCode);
 		},
 
+		// 🎹 KEYBOARD EVENT HANDLERS
+		handleKeyDown(event) {
+			// Prevent default for special keys
+			if (['F2', 'F3', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+				event.preventDefault();
+			}
+			
+			switch(event.key) {
+				case 'F2':
+					this.handleF2Reset();
+					break;
+				case 'F3':
+					this.handleF3SearchToggle();
+					break;
+				case 'Enter':
+					event.preventDefault();
+					this.handleEnterKey();
+					break;
+				case 'Escape':
+					event.preventDefault();
+					this.handleEscapeKey();
+					break;
+				case 'ArrowUp':
+					if (this.search_results_visible) {
+						this.navigateResults(-1);
+					}
+					break;
+				case 'ArrowDown':
+					if (this.search_results_visible) {
+						this.navigateResults(1);
+					}
+					break;
+			}
+		},
+		
+		// Global keyboard listener
+		globalKeyHandler(event) {
+			// Handle NumPad keyboard input
+			if (this.numpad_visible) {
+				this.handleNumPadKeyboard(event);
+				return;
+			}
+			
+			// Handle F2/F3 globally, even when input not focused
+			if (event.key === 'F2' || event.key === 'F3') {
+				event.preventDefault();
+				this.handleKeyDown(event);
+			}
+		},
+		
+		// Handle keyboard input when NumPad is visible
+		handleNumPadKeyboard(event) {
+			event.preventDefault();
+			
+			const key = event.key;
+			
+			// Numbers 0-9
+			if (/^[0-9]$/.test(key)) {
+				this.numpadInput(parseInt(key));
+			}
+			// Decimal point
+			else if (key === '.' || key === ',') {
+				this.numpadInput('.');
+			}
+			// Backspace
+			else if (key === 'Backspace') {
+				this.numpadBackspace();
+			}
+			// Clear (Delete key)
+			else if (key === 'Delete') {
+				this.numpadClear();
+			}
+			// Enter
+			else if (key === 'Enter') {
+				this.numpadEnter();
+			}
+			// Escape - close NumPad
+			else if (key === 'Escape') {
+				this.hideNumPad();
+			}
+			// C key for clear
+			else if (key.toLowerCase() === 'c') {
+				this.numpadClear();
+			}
+		},
+		
+		// 🔹 F2 - SMART RESET TO SELLING
+		handleF2Reset() {
+			if (!this.f2_enabled) return;
+			
+			console.info('[F2] Smart reset to selling mode');
+			
+			// 1️⃣ Hide search results (thay vì đóng popup)
+			this.hideSearchResults();
+			
+			// 🆕 Close NumPad if open
+			if (this.numpad_visible) {
+				this.hideNumPad();
+				return; // NumPad will handle focus return
+			}
+			
+			// 2️⃣ Clear all focus states
+			this.clearAllFocus();
+			
+			// 3️⃣ Reset to barcode mode
+			this.search_mode = 'barcode';
+			
+			// 4️⃣ Clear search input
+			this.clearSearch();
+			
+			// 5️⃣ Focus back to search input
+			this.focusSearchInput();
+			
+			// 6️⃣ Reset processing states
+			this.resetProcessingStates();
+			
+			// Show feedback
+			frappe.show_alert({
+				message: 'Quay về bán hàng',
+				indicator: 'blue'
+			}, 1);
+		},
+		
+		// 🔹 F3 - SEARCH MODE TOGGLE
+		handleF3SearchToggle() {
+			if (!this.f3_enabled) return;
+			
+			console.info('[F3] Toggling search mode');
+			
+			// Toggle mode
+			const oldMode = this.search_mode;
+			this.search_mode = this.search_mode === 'barcode' ? 'text' : 'barcode';
+			
+			// Hide search results when switching modes
+			this.hideSearchResults();
+			
+			// Clear current search
+			this.clearSearch();
+			
+			// Keep focus on input
+			this.$nextTick(() => {
+				this.focusSearchInput();
+			});
+			
+			// Show mode change feedback
+			const newModeText = this.search_mode === 'barcode' ? 'Quét Barcode' : 'Tìm kiếm Text';
+			frappe.show_alert({
+				message: `Chuyển sang: ${newModeText}`,
+				indicator: this.modeColor
+			}, 2);
+		},
+		
+		// 🎯 ENTER KEY ROUTER
+		handleEnterKey() {
+			if (this.search_results_visible) {
+				// Có kết quả tìm kiếm đang hiển thị
+				this.selectCurrentResult();
+			} else if (this.search_mode === 'barcode') {
+				this.handleBarcodeEnter();
+			} else {
+				this.handleTextSearchEnter();
+			}
+		},
+		
+		handleEscapeKey() {
+			if (this.search_results_visible) {
+				this.hideSearchResults();
+				this.focusSearchInput();
+			} else {
+				this.clearSearch();
+				this.focusSearchInput();
+			}
+		},
+		
+		// 📱 BARCODE MODE ENTER
+		async handleBarcodeEnter() {
+			const barcode = this.debounce_search.trim();
+			
+			if (!barcode) return;
+			
+			// Prevent double processing
+			if (this.is_processing_barcode) return;
+			this.is_processing_barcode = true;
+			
+			try {
+				console.info('[Barcode Mode] Processing:', barcode);
+				
+				// Validate barcode format
+				if (!this.isValidBarcode(barcode)) {
+					this.showError('Mã vạch không hợp lệ', 'red');
+					this.selectAllSearchText();
+					return;
+				}
+				
+				// Find item by barcode
+				const item = await this.findItemByBarcode(barcode);
+				
+				if (item) {
+					// ✅ Found - add to cart
+					await this.addItemToCart(item);
+					this.showSuccess(`Đã thêm: ${item.item_name}`);
+					this.clearSearchAndRefocus();
+				} else {
+					// ❌ Not found
+					this.showError('Không tìm thấy sản phẩm', 'red');
+					this.selectAllSearchText();
+				}
+				
+			} catch (error) {
+				console.error('[Barcode Mode] Error:', error);
+				this.showError('Lỗi xử lý mã vạch', 'red');
+			} finally {
+				this.is_processing_barcode = false;
+			}
+		},
+		
+		// 🔍 TEXT SEARCH MODE ENTER
+		async handleTextSearchEnter() {
+			const searchTerm = this.debounce_search.trim();
+			
+			if (!searchTerm || searchTerm.length < 2) {
+				this.showError('Nhập ít nhất 2 ký tự', 'orange');
+				return;
+			}
+			
+			try {
+				console.info('[Text Mode] Searching:', searchTerm);
+				
+				const results = await this.searchItemsByText(searchTerm);
+				
+				if (results.length === 0) {
+					this.showError('Không tìm thấy sản phẩm', 'orange');
+					this.selectAllSearchText();
+				} else if (results.length === 1) {
+					// ✅ Single result - add directly
+					await this.addItemToCart(results[0]);
+					this.showSuccess(`Đã thêm: ${results[0].item_name}`);
+					this.clearSearchAndRefocus();
+				} else {
+					// 📋 Multiple results - show list
+					this.showSearchResults(results);
+				}
+				
+			} catch (error) {
+				console.error('[Text Mode] Error:', error);
+				this.showError('Lỗi tìm kiếm', 'orange');
+			}
+		},
+		
 		// Helper method để tiếp tục với normal search logic (không phải barcode)
 		continueWithNormalSearch(fromScanner) {
 			if (this.pos_profile.pose_use_limit_search) {
@@ -1413,25 +1908,9 @@ export default {
 				this.eventBus.emit("add_item", item, this.scan_add_mode);
 				this.qty = 1;
 
-				// Bỏ highlight hoàn toàn để tăng tốc độ
-				// // Highlight item in invoice table - chuyển màu xanh, font tăng 1.5 lần
-				// setTimeout(() => {
-				// 	console.log("[ItemsSelector] 🎯 Highlighting added item:", item.item_code);
-				// 	console.log("[ItemsSelector] Scan mode:", this.scan_add_mode);
-
-				// 	// Emit to both event names for compatibility
-				// 	this.eventBus.emit("highlight_invoice_item", {
-				// 		itemRowId: item.item_code,
-				// 		scanMode: this.scan_add_mode,
-				// 		duration: 1000, // Changed from 2000 to 1000 ms
-				// 		enlargeFont: true,
-				// 	});
-
-				// 	// Also emit the old event name for backward compatibility
-				// 	this.eventBus.emit("highlight_scanned_item", item.item_code);
-
-				// 	console.log("[ItemsSelector] ✅ Highlight event emitted successfully");
-				// }, 1000);
+				// 🆕 Smart Highlight System - Restored and Enhanced
+				this.triggerSmartHighlight(item, 'new_item');
+			}
 			}
 		},
 		async enter_event() {
@@ -1499,24 +1978,8 @@ export default {
 			this.flags.batch_no = null;
 			this.qty = 1; // Ensure qty is reset
 
-			// Bỏ highlight hoàn toàn để tăng tốc độ
-			// // Highlight item in invoice table for Enter/search flow
-			// setTimeout(() => {
-			// 	console.log("[ItemsSelector] 🎯 Highlighting item from Enter/search:", new_item.item_code);
-
-			// 	// Emit to both event names for compatibility
-			// 	this.eventBus.emit("highlight_invoice_item", {
-			// 		itemRowId: new_item.item_code,
-			// 		scanMode: this.scan_add_mode,
-			// 		duration: 1000, // 1 second highlight
-			// 		enlargeFont: true,
-			// 	});
-
-			// 	// Also emit the old event name for backward compatibility
-			// 	this.eventBus.emit("highlight_scanned_item", new_item.item_code);
-
-			// 	console.log("[ItemsSelector] ✅ Highlight event emitted for Enter/search successfully");
-			// }, 1000);
+			// 🆕 Smart Highlight for Enter/search flow
+			this.triggerSmartHighlight(new_item, 'new_item');
 
 			// Clear search field after successfully adding an item
 			this.clearSearch();
@@ -1830,6 +2293,12 @@ export default {
 			}
 			this.lastScanTime = now;
 
+			// 🆕 Force barcode mode when scanner is used
+			this.search_mode = 'barcode';
+			
+			// Hide any search results
+			this.hideSearchResults();
+
 			// Thay trigger_onscan để không đụng first_search/search, không gọi enter_event
 			this.search_from_scanner = true; // chỉ để UI biết nguồn từ scanner
 			this.processScannedItem(sCode); // pipeline duy nhất
@@ -2040,6 +2509,110 @@ export default {
 			}
 		},
 
+		// 📋 SEARCH RESULTS NAVIGATION
+		showSearchResults(results) {
+			this.search_results = results.slice(0, 10); // Limit to 10 results
+			this.search_results_visible = true;
+			this.selected_result_index = 0;
+			
+			// Show navigation hint
+			frappe.show_alert({
+				message: `${results.length} kết quả. Dùng ↑↓ để chọn`,
+				indicator: 'blue'
+			}, 3);
+		},
+
+		navigateResults(direction) {
+			if (!this.search_results_visible || this.search_results.length === 0) return;
+			
+			const newIndex = this.selected_result_index + direction;
+			
+			if (newIndex >= 0 && newIndex < this.search_results.length) {
+				this.selected_result_index = newIndex;
+				
+				// Scroll selected item into view
+				this.$nextTick(() => {
+					const selectedElement = document.querySelector('.selected-result');
+					if (selectedElement) {
+						selectedElement.scrollIntoView({ 
+							behavior: 'smooth', 
+							block: 'nearest' 
+						});
+					}
+				});
+			}
+		},
+
+		selectSearchResult(index) {
+			this.selected_result_index = index;
+			this.selectCurrentResult();
+		},
+
+		async selectCurrentResult() {
+			if (!this.search_results_visible || this.search_results.length === 0) return;
+			
+			const selectedItem = this.search_results[this.selected_result_index];
+			if (!selectedItem) return;
+			
+			try {
+				await this.addItemToCart(selectedItem);
+				this.showSuccess(`Đã thêm: ${selectedItem.item_name}`);
+				this.hideSearchResults();
+				this.clearSearchAndRefocus();
+			} catch (error) {
+				console.error('Error adding selected item:', error);
+				this.showError('Lỗi thêm sản phẩm', 'red');
+			}
+		},
+
+		hideSearchResults() {
+			this.search_results_visible = false;
+			this.search_results = [];
+			this.selected_result_index = 0;
+		},
+		
+		// 🔍 SEARCH LOGIC
+		async findItemByBarcode(barcode) {
+			// Try API exact match first
+			try {
+				const apiResult = await this.fetchExactBarcodeAndAdd(barcode);
+				if (apiResult) return apiResult;
+			} catch (error) {
+				console.warn('API barcode search failed:', error);
+			}
+			
+			// Fallback to local search
+			return this.items.find(item => 
+				item.item_barcode?.some(bc => bc.barcode === barcode)
+			);
+		},
+
+		async searchItemsByText(searchTerm) {
+			const term = searchTerm.toLowerCase();
+			
+			// Search in item code and name
+			const results = this.items.filter(item => {
+				const codeMatch = item.item_code.toLowerCase().includes(term);
+				const nameMatch = item.item_name.toLowerCase().includes(term);
+				return codeMatch || nameMatch;
+			});
+			
+			// Sort by relevance (exact matches first)
+			return results.sort((a, b) => {
+				const aCodeExact = a.item_code.toLowerCase() === term;
+				const bCodeExact = b.item_code.toLowerCase() === term;
+				const aNameExact = a.item_name.toLowerCase() === term;
+				const bNameExact = b.item_name.toLowerCase() === term;
+				
+				if (aCodeExact && !bCodeExact) return -1;
+				if (bCodeExact && !aCodeExact) return 1;
+				if (aNameExact && !bNameExact) return -1;
+				if (bNameExact && !aNameExact) return 1;
+				
+				return a.item_name.localeCompare(b.item_name);
+			}).slice(0, 20); // Limit results
+		},
+		
 		restoreSearch() {
 			if (this.first_search === "") {
 				this.first_search = this.search_backup;
@@ -2047,13 +2620,265 @@ export default {
 				// No need to reload items when focus is lost
 			}
 		},
-		handleItemSearchFocus() {
-			// Don't clear search on focus to allow typing long search terms
-			// The search will be cleared after successful operations via clearSearchState()
+		
+		// 🎯 FOCUS MANAGEMENT
+		handleSearchFocus() {
+			this.current_focus_element = 'search_input';
+		},
+
+		handleSearchBlur() {
+			// Don't clear focus immediately - may be navigating to results
+			setTimeout(() => {
+				if (this.current_focus_element === 'search_input') {
+					this.current_focus_element = null;
+				}
+			}, 100);
 		},
 
 		clearQty() {
+			// This method is now handled by NumPad
+			// Keep for backward compatibility
 			this.qty = null;
+		},
+		
+		// 🧹 HELPER METHODS
+		clearAllFocus() {
+			// Clear any focused elements
+			if (document.activeElement && document.activeElement.blur) {
+				document.activeElement.blur();
+			}
+			this.current_focus_element = null;
+		},
+
+		resetProcessingStates() {
+			this.is_processing_barcode = false;
+			this.processing_scan = false;
+			this.search_from_scanner = false;
+		},
+
+		focusSearchInput() {
+			this.$nextTick(() => {
+				if (this.$refs.searchInput) {
+					this.$refs.searchInput.focus();
+				}
+			});
+		},
+
+		clearSearchAndRefocus() {
+			this.clearSearch();
+			setTimeout(() => {
+				this.focusSearchInput();
+			}, 100);
+		},
+
+		selectAllSearchText() {
+			this.$nextTick(() => {
+				if (this.$refs.searchInput && this.$refs.searchInput.$el) {
+					const input = this.$refs.searchInput.$el.querySelector('input');
+					if (input) {
+						input.select();
+					}
+				}
+			});
+		},
+		
+		// 🎨 FEEDBACK METHODS
+		showSuccess(message) {
+			frappe.show_alert({
+				message: message,
+				indicator: 'green'
+			}, 2);
+		},
+
+		showError(message, color = 'red') {
+			frappe.show_alert({
+				message: message,
+				indicator: color
+			}, 3);
+		},
+
+		async addItemToCart(item) {
+			// Use existing add_item method
+			await this.add_item(item);
+		},
+		
+		// 🧮 NUMPAD METHODS
+		showNumPad() {
+			// Store original quantity
+			this.numpad_original_qty = this.qty;
+			
+			// Set display value
+			this.numpad_display = this.qty ? String(this.qty) : '';
+			
+			// Show NumPad
+			this.numpad_visible = true;
+			
+			// Disable F2/F3 while NumPad is open
+			this.f2_enabled = false;
+			this.f3_enabled = false;
+			
+			console.info('[NumPad] Opened with value:', this.numpad_display);
+		},
+		
+		hideNumPad() {
+			this.numpad_visible = false;
+			
+			// Re-enable F2/F3
+			this.f2_enabled = true;
+			this.f3_enabled = true;
+			
+			// Focus back to barcode input
+			this.$nextTick(() => {
+				this.focusSearchInput();
+			});
+			
+			console.info('[NumPad] Closed, focus returned to barcode input');
+		},
+		
+		numpadInput(value) {
+			// Handle decimal point
+			if (value === '.') {
+				if (this.numpad_display.includes('.')) {
+					return; // Already has decimal point
+				}
+				if (!this.numpad_display) {
+					this.numpad_display = '0.';
+					return;
+				}
+			}
+			
+			// Handle numbers
+			if (this.numpad_display === '0' && value !== '.') {
+				this.numpad_display = String(value);
+			} else {
+				this.numpad_display += String(value);
+			}
+			
+			console.info('[NumPad] Input:', value, 'Display:', this.numpad_display);
+		},
+		
+		numpadBackspace() {
+			if (this.numpad_display.length > 0) {
+				this.numpad_display = this.numpad_display.slice(0, -1);
+			}
+			console.info('[NumPad] Backspace, Display:', this.numpad_display);
+		},
+		
+		numpadClear() {
+			this.numpad_display = '';
+			console.info('[NumPad] Cleared');
+		},
+		
+		numpadEnter() {
+			// Validate input
+			let value = parseFloat(this.numpad_display);
+			
+			if (isNaN(value) || value <= 0) {
+				// Invalid input - show error
+				frappe.show_alert({
+					message: 'Số lượng không hợp lệ',
+					indicator: 'red'
+				}, 2);
+				return;
+			}
+			
+			// Apply quantity
+			this.qty = value;
+			
+			// Show success feedback
+			frappe.show_alert({
+				message: `Số lượng: ${value}`,
+				indicator: 'green'
+			}, 1);
+			
+			// Close NumPad and return focus to barcode input
+			this.hideNumPad();
+			
+			console.info('[NumPad] Enter pressed, qty set to:', value);
+		},
+		
+		// 🎯 SMART HIGHLIGHT SYSTEM
+		triggerSmartHighlight(item, type = 'new_item') {
+			const now = Date.now();
+			const itemCode = item.item_code;
+			
+			// Detect rapid scanning of same item
+			const isRapidScan = this.last_highlight_item === itemCode && 
+							   (now - this._lastScanAt) < 1000;
+			
+			if (isRapidScan) {
+				this.rapid_scan_mode = true;
+				// For rapid scan, only pulse quantity - no full highlight
+				this.pulseQuantityOnly(itemCode);
+				
+				// Reset rapid mode after 2 seconds of no activity
+				clearTimeout(this.highlight_debounce_timer);
+				this.highlight_debounce_timer = setTimeout(() => {
+					this.rapid_scan_mode = false;
+				}, 2000);
+				
+				return;
+			}
+			
+			// Normal highlight for new items or first scan of existing items
+			this.rapid_scan_mode = false;
+			this.last_highlight_item = itemCode;
+			
+			// Delay highlight to ensure item is rendered in DOM
+			setTimeout(() => {
+				if (type === 'new_item') {
+					this.highlightNewItem(itemCode);
+				} else {
+					this.highlightExistingItem(itemCode);
+				}
+			}, 150);
+		},
+		
+		highlightNewItem(itemCode) {
+			console.info('[Highlight] New item added to TOP:', itemCode);
+			
+			// New items are always at top (index 0), so no scroll needed
+			this.eventBus.emit("highlight_invoice_item", {
+				itemRowId: itemCode,
+				type: 'new_item',
+				position: 'top',
+				duration: 1200,
+				effects: {
+					background: true,
+					pulse: true,
+					scroll: false, // No scroll needed for top items
+				}
+			});
+		},
+		
+		highlightExistingItem(itemCode) {
+			console.info('[Highlight] Existing item quantity updated:', itemCode);
+			
+			this.eventBus.emit("highlight_invoice_item", {
+				itemRowId: itemCode,
+				type: 'existing_item',
+				duration: 800,
+				effects: {
+					background: true,
+					pulse: true,
+					scroll: true, // May need scroll to bring into view
+				}
+			});
+		},
+		
+		pulseQuantityOnly(itemCode) {
+			console.info('[Highlight] Rapid scan - pulse quantity only:', itemCode);
+			
+			this.eventBus.emit("highlight_invoice_item", {
+				itemRowId: itemCode,
+				type: 'rapid_scan',
+				duration: 300,
+				effects: {
+					background: false,
+					pulse: true,
+					scroll: false,
+				}
+			});
 		},
 
 		startCameraScanning() {
@@ -2071,6 +2896,12 @@ export default {
 				return;
 			}
 			this.lastScanTime = now;
+
+			// 🆕 Force barcode mode when camera scanner is used
+			this.search_mode = 'barcode';
+			
+			// Hide search results
+			this.hideSearchResults();
 
 			// Use same pipeline as hardware scanner for consistency
 			this.search_from_scanner = true;
@@ -2196,15 +3027,10 @@ export default {
 					console.info("[ItemsSelector] ➕ Add mode: Adding item to invoice");
 					await this.add_item(item);
 
-					// Bỏ hộp thông báo để tăng tốc độ
-					// // Show success message
-					// frappe.show_alert(
-					// 	{
-					// 		message: `Added: ${item.item_name}`,
-					// 		indicator: "green",
-					// 	},
-					// 	3,
-					// );
+					// 🆕 Smart Highlight for scanned items
+					// Note: add_item already triggers highlight for new items
+					// For existing items, we need to detect and highlight differently
+					// This will be handled by the invoice component's merge logic
 				} else {
 					// Remove mode - emit event to remove item from invoice with scan mode
 					console.info(
@@ -2537,6 +3363,15 @@ export default {
 		this.scan_barcoud();
 		// grid layout adjusts automatically with CSS, set items per page based on device size
 		this.adjustItemsPerPage(this.windowWidth, this.windowHeight);
+		
+		// 🆕 Add global keyboard listener
+		document.addEventListener('keydown', this.globalKeyHandler);
+		
+		// Auto-focus search input
+		this.focusSearchInput();
+		
+		// Set initial mode
+		this.search_mode = 'barcode';
 	},
 
 	beforeUnmount() {
@@ -2574,6 +3409,9 @@ export default {
 		if (this.itemWorker) {
 			this.itemWorker.terminate();
 		}
+
+		// 🆕 Remove global keyboard listener
+		document.removeEventListener('keydown', this.globalKeyHandler);
 
 		this.eventBus.off("update_currency");
 		this.eventBus.off("server-online");
@@ -2960,6 +3798,108 @@ export default {
 	font-size: 28px !important;
 }
 
+/* 🆕 Barcode input styling */
+.barcode-input :deep(.v-field__input) {
+	font-size: 1.4rem !important;
+	font-weight: 700 !important;
+	min-height: 60px !important;
+}
+
+.barcode-input :deep(.v-field__input input) {
+	font-size: 1.4rem !important;
+	font-weight: 700 !important;
+	min-height: 60px !important;
+}
+
+/* Mode-specific border colors */
+.search-mode-barcode .barcode-input :deep(.v-field__outline) {
+	border-left: 4px solid rgb(var(--v-theme-primary)) !important;
+}
+
+.search-mode-text .barcode-input :deep(.v-field__outline) {
+	border-left: 4px solid rgb(var(--v-theme-orange)) !important;
+}
+
+/* Keyboard hint styling */
+.keyboard-hint {
+	font-size: 0.75rem !important;
+	color: rgba(var(--v-theme-on-surface), 0.6) !important;
+	font-style: italic;
+}
+
+/* Search results styling */
+.search-results-card {
+	border: 2px solid rgb(var(--v-theme-primary));
+	border-radius: 8px !important;
+}
+
+.search-results-list {
+	max-height: 300px;
+	overflow-y: auto;
+}
+
+.search-result-item {
+	transition: background-color 0.2s ease;
+	cursor: pointer;
+}
+
+.search-result-item:hover,
+.search-result-item.selected-result {
+	background-color: rgba(var(--v-theme-primary), 0.1) !important;
+}
+
+.selected-result {
+	border-left: 4px solid rgb(var(--v-theme-primary)) !important;
+}
+
+/* 🆕 NumPad Styling */
+.numpad-card {
+	border-radius: 16px !important;
+}
+
+.numpad-display :deep(.v-field__input) {
+	text-align: center !important;
+	font-size: 2rem !important;
+	font-weight: bold !important;
+	color: rgb(var(--v-theme-primary)) !important;
+}
+
+.numpad-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 12px;
+	max-width: 300px;
+	margin: 0 auto;
+}
+
+.numpad-btn {
+	aspect-ratio: 1;
+	font-size: 1.5rem !important;
+	font-weight: bold !important;
+	min-height: 60px !important;
+	border-radius: 12px !important;
+	transition: all 0.2s ease !important;
+}
+
+.numpad-btn:hover {
+	transform: scale(1.05) !important;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.numpad-btn-wide {
+	grid-column: span 2;
+	aspect-ratio: 2/1;
+}
+
+/* QTY Input Field Styling */
+.qty-input-field {
+	cursor: pointer !important;
+}
+
+.qty-input-field :deep(.v-field__input) {
+	cursor: pointer !important;
+}
+
 /* Standard text field styling - match InvoiceSummary */
 .standard-text-field :deep(.v-field__input) {
 	font-size: 1.4rem !important;
@@ -3007,6 +3947,30 @@ export default {
 
 	.icon-link-btn .v-icon {
 		font-size: 24px !important;
+	}
+
+	.barcode-input :deep(.v-field__input) {
+		font-size: 1.2rem !important;
+		min-height: 50px !important;
+	}
+	
+	.barcode-input :deep(.v-field__input input) {
+		font-size: 1.2rem !important;
+		min-height: 50px !important;
+	}
+	
+	.keyboard-hint {
+		display: none; /* Hide on mobile */
+	}
+	
+	/* NumPad responsive */
+	.numpad-btn {
+		min-height: 50px !important;
+		font-size: 1.3rem !important;
+	}
+	
+	.numpad-display :deep(.v-field__input) {
+		font-size: 1.8rem !important;
 	}
 
 	.standard-text-field :deep(.v-field__input) {

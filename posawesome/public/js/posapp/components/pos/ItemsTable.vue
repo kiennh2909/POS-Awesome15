@@ -36,7 +36,7 @@
 
 			<!-- Quantity column -->
 			<template v-slot:item.qty="{ item }">
-				<div class="amount-value">
+				<div class="amount-value qty-cell" data-qty-cell>
 					{{ formatFloat(item.qty, hide_qty_decimals ? 0 : undefined) }}
 				</div>
 			</template>
@@ -739,11 +739,13 @@ export default {
 		// Listen for highlight events
 		this.eventBus.on("highlight_invoice_item", (data) => {
 			console.log("[ItemsTable] 📨 Received highlight_invoice_item event:", data);
-			this.highlightItem(data.itemRowId);
+			// Pass full data object to enhanced highlightItem method
+			this.highlightItem(data);
 		});
 
 		this.eventBus.on("highlight_scanned_item", (itemCode) => {
 			console.log("[ItemsTable] 📨 Received old highlight_scanned_item event for:", itemCode);
+			// Backward compatibility - pass as string
 			this.highlightItem(itemCode);
 		});
 	},
@@ -805,29 +807,141 @@ export default {
 			}
 		},
 
-		highlightItem(key) {
-			const idx = this.items.findIndex((it) => it.posa_row_id === key || it.item_code === key);
-			if (idx < 0) return;
+		// 🆕 Enhanced Highlight Item with Smart Effects
+		highlightItem(keyOrData) {
+			// Handle both old format (string) and new format (object)
+			let key, effects, duration, type, position;
+			
+			if (typeof keyOrData === 'string') {
+				// Old format - backward compatibility
+				key = keyOrData;
+				effects = { background: true, pulse: true, scroll: true };
+				duration = 1200;
+				type = 'legacy';
+			} else {
+				// New format with enhanced options
+				key = keyOrData.itemRowId || keyOrData.rowId;
+				effects = keyOrData.effects || { background: true, pulse: true, scroll: true };
+				duration = keyOrData.duration || 1200;
+				type = keyOrData.type || 'unknown';
+				position = keyOrData.position;
+			}
 
-			this.highlightedRowId = this.items[idx].posa_row_id;
+			const idx = this.items.findIndex((it) => it.posa_row_id === key || it.item_code === key);
+			if (idx < 0) {
+				console.warn('[ItemsTable] Item not found for highlight:', key);
+				return;
+			}
+
+			const item = this.items[idx];
+			console.log(`[ItemsTable] 🎯 Highlighting ${type} item:`, {
+				item_code: item.item_code,
+				index: idx,
+				position: position,
+				effects: effects,
+				duration: duration
+			});
+
+			// Set highlighted row for CSS styling
+			this.highlightedRowId = item.posa_row_id;
 
 			this.$nextTick(() => {
-				// Tìm chính <tr> theo data-row-id đã gắn từ getItemProps
 				const rowEl = this.$el.querySelector(`[data-row-id="${this.highlightedRowId}"]`);
-				if (rowEl && rowEl.scrollIntoView) {
-					rowEl.scrollIntoView({ block: "center", behavior: "smooth" });
-				} else {
-					// Fallback: scroll container của virtual table nếu cần
-					const scroller =
-						this.$el.querySelector(".v-data-table__wrapper") ||
-						this.$el.querySelector(".v-table__wrapper") ||
-						this.$el.querySelector(".v-virtual-scroll");
-					if (scroller)
-						scroller.scrollTop = Math.max(0, rowEl?.offsetTop - scroller.clientHeight / 2 || 0);
+				
+				if (rowEl) {
+					// Apply background highlight if enabled
+					if (effects.background) {
+						this.applyBackgroundHighlight(rowEl, type, duration);
+					}
+					
+					// Apply quantity pulse if enabled
+					if (effects.pulse) {
+						this.applyQuantityPulse(rowEl, type);
+					}
+					
+					// Apply smart scroll if enabled
+					if (effects.scroll) {
+						this.applySmartScroll(rowEl, type, position);
+					}
 				}
 
-				setTimeout(() => (this.highlightedRowId = null), 1200);
+				// Clear highlight after duration
+				setTimeout(() => {
+					this.highlightedRowId = null;
+				}, duration);
 			});
+		},
+
+		// Apply background highlight with different styles per type
+		applyBackgroundHighlight(rowEl, type, duration) {
+			let highlightClass;
+			
+			switch (type) {
+				case 'new_item':
+					highlightClass = 'highlight-new-item';
+					break;
+				case 'existing_item':
+					highlightClass = 'highlight-existing-item';
+					break;
+				case 'reordered_item':
+					highlightClass = 'highlight-reordered-item';
+					break;
+				case 'rapid_scan':
+					return; // No background for rapid scan
+				default:
+					highlightClass = 'highlight-default';
+			}
+			
+			rowEl.classList.add(highlightClass);
+			
+			setTimeout(() => {
+				rowEl.classList.remove(highlightClass);
+			}, duration);
+		},
+
+		// Apply quantity pulse effect
+		applyQuantityPulse(rowEl, type) {
+			const qtyCell = rowEl.querySelector('.qty-cell, [data-qty-cell]');
+			if (qtyCell) {
+				qtyCell.classList.add('pulse-quantity');
+				
+				setTimeout(() => {
+					qtyCell.classList.remove('pulse-quantity');
+				}, 500);
+			}
+		},
+
+		// Apply smart scroll based on item position and type
+		applySmartScroll(rowEl, type, position) {
+			// New items at top don't need scroll
+			if (type === 'new_item' && position === 'top') {
+				console.log('[ItemsTable] Skipping scroll for new item at top');
+				return;
+			}
+			
+			// Check if item is already visible
+			const container = this.$el.querySelector(".v-data-table__wrapper") ||
+							 this.$el.querySelector(".v-table__wrapper") ||
+							 this.$el.querySelector(".v-virtual-scroll");
+			
+			if (container && rowEl) {
+				const containerRect = container.getBoundingClientRect();
+				const rowRect = rowEl.getBoundingClientRect();
+				
+				// Check if row is fully visible
+				const isVisible = rowRect.top >= containerRect.top && 
+								 rowRect.bottom <= containerRect.bottom;
+				
+				if (!isVisible) {
+					console.log('[ItemsTable] Scrolling to bring item into view');
+					rowEl.scrollIntoView({ 
+						block: "center", 
+						behavior: "smooth" 
+					});
+				} else {
+					console.log('[ItemsTable] Item already visible, no scroll needed');
+				}
+			}
 		},
 
 		// Handle offer toggle with debug logging
@@ -1291,10 +1405,86 @@ export default {
 	background-color: var(--surface-secondary);
 }
 
-/* Row highlight styling */
+/* 🆕 Enhanced Row Highlight Styling */
+
+/* Legacy row highlight - backward compatibility */
 :deep(.row-highlight) {
 	animation: flashRow 1.2s ease;
 	border-left: 4px solid #4caf50 !important;
+}
+
+/* New item highlight - green theme for items added to TOP */
+:deep(.highlight-new-item) {
+	animation: flashNewItem 1.2s ease;
+	border-left: 4px solid #4caf50 !important;
+	box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3) !important;
+}
+
+@keyframes flashNewItem {
+	0% {
+		background-color: rgba(76, 175, 80, 0.4);
+		transform: scale(1);
+	}
+	30% {
+		background-color: rgba(76, 175, 80, 0.25);
+		transform: scale(1.02);
+	}
+	70% {
+		background-color: rgba(76, 175, 80, 0.1);
+		transform: scale(1.01);
+	}
+	100% {
+		background-color: transparent;
+		transform: scale(1);
+	}
+}
+
+/* Existing item highlight - blue theme for quantity updates */
+:deep(.highlight-existing-item) {
+	animation: flashExistingItem 0.8s ease;
+	border-left: 4px solid #2196f3 !important;
+}
+
+@keyframes flashExistingItem {
+	0% {
+		background-color: rgba(33, 150, 243, 0.3);
+		transform: scale(1);
+	}
+	50% {
+		background-color: rgba(33, 150, 243, 0.15);
+		transform: scale(1.01);
+	}
+	100% {
+		background-color: transparent;
+		transform: scale(1);
+	}
+}
+
+/* Reordered item highlight - purple theme for moved existing items */
+:deep(.highlight-reordered-item) {
+	animation: flashReorderedItem 1.0s ease;
+	border-left: 4px solid #9c27b0 !important;
+}
+
+@keyframes flashReorderedItem {
+	0% {
+		background-color: rgba(156, 39, 176, 0.3);
+		transform: scale(1);
+	}
+	50% {
+		background-color: rgba(156, 39, 176, 0.15);
+		transform: scale(1.01);
+	}
+	100% {
+		background-color: transparent;
+		transform: scale(1);
+	}
+}
+
+/* Default highlight - fallback */
+:deep(.highlight-default) {
+	animation: flashRow 1.2s ease;
+	border-left: 4px solid #ff9800 !important;
 }
 
 @keyframes flashRow {
@@ -1306,7 +1496,31 @@ export default {
 	}
 }
 
-:deep(.row-highlight) .amount-value {
+/* Quantity pulse effect */
+:deep(.pulse-quantity) {
+	animation: pulseQty 0.5s ease;
+}
+
+@keyframes pulseQty {
+	0% {
+		transform: scale(1);
+		color: inherit;
+	}
+	50% {
+		transform: scale(1.15);
+		color: #4caf50;
+		font-weight: bold;
+	}
+	100% {
+		transform: scale(1);
+		color: inherit;
+	}
+}
+
+/* Enhanced amount styling for highlighted rows */
+:deep(.row-highlight) .amount-value,
+:deep(.highlight-new-item) .amount-value,
+:deep(.highlight-existing-item) .amount-value {
 	font-weight: 700 !important;
 	color: #2e7d32 !important;
 }
