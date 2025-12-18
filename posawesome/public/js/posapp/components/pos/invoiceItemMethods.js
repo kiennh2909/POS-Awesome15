@@ -345,12 +345,7 @@ export default {
 		}
 
 		let new_item;
-		// 🎯 RULE CHUẨN: Chỉ NEW ITEMS lên đầu, EXISTING ITEMS giữ nguyên vị trí
-		// 🔧 Config option: pos_profile.posa_reorder_on_every_scan (default: false)
-		const shouldReorderExisting = this.pos_profile?.posa_reorder_on_every_scan || false;
-
 		if (index === -1 || this.new_line) {
-			// ✅ NEW ITEM: Chưa có trong giỏ → Thêm lên đầu để thấy ngay
 			new_item = this.get_new_item(item);
 			// Handle serial number logic
 			if (item.has_serial_no && item.to_set_serial_no) {
@@ -372,11 +367,9 @@ export default {
 
 			// Tax information will be handled by ERPNext default tax mechanism
 
-			// 🆕 Insert NEW item at TOP of cart (unshift)
-			// ✅ Lý do: Thu ngân thấy ngay item vừa thêm, kiểm soát tốt hơn
-			// ✅ Chỉ áp dụng cho NEW items, KHÔNG reorder existing items
+			// 🆕 Insert new item at TOP of cart for better UX (unshift instead of push)
 			this.items.unshift(new_item);
-			console.log("✅ NEW ITEM inserted at TOP (index 0)", {
+			console.log("Item inserted at TOP (index 0)", {
 				code: new_item.item_code,
 				rate: new_item.rate,
 				total_items: this.items.length,
@@ -443,50 +436,7 @@ export default {
 				});
 			}, 100);
 		} else {
-			// ✅ EXISTING ITEM: Đã có trong giỏ
-			if (shouldReorderExisting) {
-				// 🔧 OPTIONAL: Reorder existing item to top (for small shops)
-				console.log("🔧 REORDER MODE: Moving existing item to top", {
-					code: item.item_code,
-					old_position: index,
-					new_position: 0
-				});
-
-				// Remove from current position and add to top
-				const existingItem = this.items[index];
-				this.items.splice(index, 1);
-
-				// Merge quantities
-				existingItem.qty += item.qty || 1;
-				this.calc_stock_qty(existingItem, existingItem.qty);
-
-				// Add to top
-				this.items.unshift(existingItem);
-
-				// Trigger highlight for moved item
-				setTimeout(() => {
-					this.eventBus.emit("highlight_invoice_item", {
-						itemRowId: existingItem.item_code,
-						rowId: existingItem.posa_row_id,
-						type: 'reordered_item',
-						duration: 1000,
-						effects: {
-							background: true,
-							pulse: true,
-							scroll: false, // No scroll needed for top
-						}
-					});
-				}, 100);
-			} else {
-				// ✅ DEFAULT: KHÔNG reorder, chỉ tăng SL (RECOMMENDED)
-				// ✅ Lý do: Giữ ổn định thị giác, tránh loạn danh sách
-				console.log("✅ EXISTING ITEM quantity update (no reorder)", {
-					code: item.item_code,
-					current_position: index,
-					action: "merge_quantity"
-				});
-				this.mergeWithExistingItem(this.items[index], item);
-			}
+			this.mergeWithExistingItem(this.items[index], item);
 		}
 		this.$forceUpdate();
 

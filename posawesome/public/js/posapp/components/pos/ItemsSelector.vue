@@ -3266,7 +3266,7 @@ export default {
 			} catch (e) {
 				console.error("Failed to load item selector settings:", e);
 			}
-		};
+		},
 	},
 
 	created: function () {

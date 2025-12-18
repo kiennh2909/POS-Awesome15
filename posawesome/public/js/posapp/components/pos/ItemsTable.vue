@@ -883,9 +883,6 @@ export default {
 				case 'existing_item':
 					highlightClass = 'highlight-existing-item';
 					break;
-				case 'reordered_item':
-					highlightClass = 'highlight-reordered-item';
-					break;
 				case 'rapid_scan':
 					return; // No background for rapid scan
 				default:
@@ -1452,27 +1449,6 @@ export default {
 	}
 	50% {
 		background-color: rgba(33, 150, 243, 0.15);
-		transform: scale(1.01);
-	}
-	100% {
-		background-color: transparent;
-		transform: scale(1);
-	}
-}
-
-/* Reordered item highlight - purple theme for moved existing items */
-:deep(.highlight-reordered-item) {
-	animation: flashReorderedItem 1.0s ease;
-	border-left: 4px solid #9c27b0 !important;
-}
-
-@keyframes flashReorderedItem {
-	0% {
-		background-color: rgba(156, 39, 176, 0.3);
-		transform: scale(1);
-	}
-	50% {
-		background-color: rgba(156, 39, 176, 0.15);
 		transform: scale(1.01);
 	}
 	100% {
