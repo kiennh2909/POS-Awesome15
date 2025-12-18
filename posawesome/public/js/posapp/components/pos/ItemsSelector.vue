@@ -682,7 +682,7 @@ export default {
 				this.first_search = (newValue || "").trim();
 			}, 300), // Increased debounce time to prevent rapid consecutive inputs
 		},
-		// Computed property cho hộp nhập số lượng (QTY) - tạm thời comment cơ chế làm tròn
+		// Computed property cho hộp nhập số lượng (QTY) - fix bug xóa dấu thập phân khi nhập
 		// - Khi hide_qty_decimals = true: Làm tròn xuống số nguyên bằng Math.trunc() (loại bỏ phần thập phân, không làm tròn lên)
 		// - Khi hide_qty_decimals = false: Giữ nguyên giá trị thập phân
 		debounce_qty: {
@@ -693,7 +693,15 @@ export default {
 				return this.qty; // Không làm tròn, giữ nguyên giá trị
 			},
 			set: _.debounce(function (value) {
-				let parsed = parseFloat(String(value).replace(/,/g, ""));
+				let cleanValue = String(value).replace(/,/g, "");
+
+				// Fix bug: Nếu user đang nhập decimal (kết thúc bằng "."), giữ nguyên để tránh mất dấu chấm
+				if (cleanValue.match(/^\d+\.$/)) {
+					this.qty = cleanValue; // Giữ "1.", "2.", etc. như string
+					return;
+				}
+
+				let parsed = parseFloat(cleanValue);
 				if (isNaN(parsed)) {
 					parsed = null;
 				}
