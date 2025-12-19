@@ -68,8 +68,8 @@
 						<div class="price-section">
 							<h3 class="section-title">Giá Trị Hiện Tại</h3>
 							<div class="price-display">
-								<div class="price-label">Đơn Giá</div>
-								<div class="price-value">$ {{ formatPrice(selectedItem?.rate || 65) }}</div>
+								<div class="price-label">Đơn Giá ({{ selectedUom }})</div>
+								<div class="price-value">$ {{ formatPrice(currentPrice) }}</div>
 							</div>
 						</div>
 					</div>
@@ -253,6 +253,36 @@ export default {
 			
 			console.log('[NumPad] Using fallback UOMs:', uomList);
 			return uomList.map(uom => ({ uom }));
+		},
+		
+		// Calculate price based on selected UOM
+		currentPrice() {
+			if (!this.selectedItem) return 0;
+			
+			// Get base rate (price for stock UOM)
+			const baseRate = this.selectedItem.base_rate || this.selectedItem.rate || 0;
+			
+			// Find conversion factor for selected UOM
+			let conversionFactor = 1;
+			
+			if (this.selectedItem.item_uoms && Array.isArray(this.selectedItem.item_uoms)) {
+				const uomData = this.selectedItem.item_uoms.find(u => u.uom === this.selectedUom);
+				if (uomData && uomData.conversion_factor) {
+					conversionFactor = uomData.conversion_factor;
+				}
+			}
+			
+			// Calculate price: base_rate * conversion_factor
+			const calculatedPrice = baseRate * conversionFactor;
+			
+			console.log('[NumPad] Price calculation:', {
+				selectedUom: this.selectedUom,
+				baseRate: baseRate,
+				conversionFactor: conversionFactor,
+				calculatedPrice: calculatedPrice
+			});
+			
+			return calculatedPrice;
 		}
 	},
 	watch: {
@@ -289,6 +319,11 @@ export default {
 			
 			// Update local state
 			this.selectedUom = uom;
+			
+			// Force price recalculation by triggering computed property
+			this.$nextTick(() => {
+				console.log('[NumPad] Price updated to:', this.currentPrice, 'for UOM:', uom);
+			});
 			
 			// Immediately emit UOM change event to update cart
 			this.$emit('update-field', {
