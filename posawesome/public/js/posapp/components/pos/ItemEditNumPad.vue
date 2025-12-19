@@ -45,11 +45,6 @@
 									{{ uom.uom || uom }}
 								</v-btn>
 							</div>
-							<!-- Debug Info (remove after testing) -->
-							<div class="debug-info text-caption mt-2">
-								<div>UOMs: {{ availableUoms.length }}</div>
-								<div>Current: {{ selectedUom }}</div>
-							</div>
 						</div>
 
 						<!-- Item Information -->
@@ -76,20 +71,6 @@
 								<div class="price-label">Đơn Giá</div>
 								<div class="price-value">$ {{ formatPrice(selectedItem?.rate || 65) }}</div>
 							</div>
-						</div>
-
-						<!-- Close Button -->
-						<div class="close-section">
-							<v-btn
-								color="error"
-								variant="outlined"
-								class="close-popup-btn"
-								@click="closeNumPad"
-								block
-							>
-								<v-icon class="mr-2">mdi-close</v-icon>
-								ĐÓNG
-							</v-btn>
 						</div>
 					</div>
 
@@ -183,6 +164,20 @@
 								>
 									<v-icon class="mr-2">mdi-check</v-icon>
 									ENTER - XÁC NHẬN
+								</v-btn>
+							</div>
+
+							<!-- Row 7: CLOSE -->
+							<div class="numpad-row">
+								<v-btn 
+									class="numpad-btn close-btn-right" 
+									@click="closeNumPad"
+									block
+									variant="outlined"
+									color="error"
+								>
+									<v-icon class="mr-2">mdi-close</v-icon>
+									ĐÓNG
 								</v-btn>
 							</div>
 						</div>
@@ -648,17 +643,19 @@ export default {
 	color: #856404;
 }
 
-/* Close Section */
-.close-section {
-	margin-top: 16px;
-	padding-top: 16px;
-	border-top: 1px dashed rgba(0, 0, 0, 0.1);
-}
-
-.close-popup-btn {
-	height: 40px !important;
+/* Close Button in Right Panel */
+.close-btn-right {
+	height: 45px !important;
 	font-weight: 600 !important;
 	text-transform: none !important;
+	margin-top: 8px !important;
+	border: 2px solid #f44336 !important;
+	color: #f44336 !important;
+}
+
+.close-btn-right:hover {
+	background: #f44336 !important;
+	color: white !important;
 }
 
 /* Right Panel */
