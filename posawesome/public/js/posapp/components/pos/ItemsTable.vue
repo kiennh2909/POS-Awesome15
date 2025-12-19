@@ -24,6 +24,7 @@
 			:item-class="getRowClass"
 			:item-props="getItemProps"
 			@update:expanded="$emit('update:expanded', $event)"
+			@click:row="handleRowClick"
 			:search="itemSearch"
 		>
 			<!-- Name column (Tên + Mã Barcode) -->
@@ -618,12 +619,27 @@
 				</td>
 			</template>
 		</v-data-table-virtual>
+
+		<!-- 🆕 Item Edit NumPad -->
+		<ItemEditNumPad
+			:visible="numpadVisible"
+			:selected-item="selectedItemForEdit"
+			:initial-field="initialEditField"
+			@update-field="handleUpdateField"
+			@delete-item="handleDeleteItem"
+			@close="closeNumPad"
+		/>
 	</div>
 </template>
 
 <script>
+import ItemEditNumPad from './ItemEditNumPad.vue';
+
 export default {
 	name: "ItemsTable",
+	components: {
+		ItemEditNumPad
+	},
 	props: {
 		headers: Array,
 		items: Array,
@@ -665,6 +681,11 @@ export default {
 			highlightedItems: new Map(), // Map<itemCode, highlightConfig>
 			highlightTimers: new Map(), // Map<itemCode, timerId>
 			lastHighlightTime: new Map(), // Map<itemCode, timestamp> for debouncing
+			
+			// 🆕 NumPad State
+			numpadVisible: false,
+			selectedItemForEdit: null,
+			initialEditField: 'qty'
 		};
 	},
 	computed: {
@@ -1077,6 +1098,131 @@ export default {
 			const afterDiscount = (item.qty * (this.getRateUomBase(item) * (item.conversion_factor || 1))) - (item.discount_amount || 0);
 			const vatAmount = afterDiscount * ((item.custom_vat_rate || 0) / 100);
 			return afterDiscount + vatAmount;
+		},
+
+		// 🆕 NUMPAD INTEGRATION METHODS
+
+		// Handle row click to open NumPad
+		handleRowClick(event, { item }) {
+			console.log('[ItemsTable] 🔢 Row clicked for NumPad:', item.item_code);
+			
+			// Prevent expanding if NumPad should open
+			event.stopPropagation();
+			
+			this.selectedItemForEdit = item;
+			this.initialEditField = 'qty'; // Default to quantity (80-90% of operations)
+			this.numpadVisible = true;
+			
+			console.log('[ItemsTable] ✅ NumPad opened for item:', {
+				item_code: item.item_code,
+				item_name: item.item_name,
+				current_qty: item.qty,
+				current_rate: item.rate,
+				current_discount: item.discount_percentage
+			});
+		},
+
+		// Handle field update from NumPad
+		handleUpdateField({ field, value, item }) {
+			console.log('[ItemsTable] 📝 Updating field from NumPad:', {
+				field,
+				value,
+				item_code: item.item_code,
+				old_value: item[field]
+			});
+
+			switch (field) {
+				case 'qty':
+					this.updateItemQty(item, value);
+					break;
+				case 'rate':
+					this.updateItemRate(item, value);
+					break;
+				case 'discount_percentage':
+					this.updateItemDiscount(item, value);
+					break;
+				default:
+					console.warn('[ItemsTable] ⚠️ Unknown field:', field);
+			}
+
+			// Keep NumPad open for further edits
+			// User can close with ESC or click close button
+			console.log('[ItemsTable] ✅ Field updated, NumPad remains open');
+		},
+
+		// Update item quantity
+		updateItemQty(item, newQty) {
+			console.log('[ItemsTable] 📊 Updating quantity:', {
+				item_code: item.item_code,
+				old_qty: item.qty,
+				new_qty: newQty
+			});
+
+			// Use existing setFormatedQty method
+			this.setFormatedQty(item, 'qty', null, false, newQty);
+			this.calcStockQty(item, newQty);
+
+			// Trigger discount calculation (same as INCREASE/DECREASE buttons)
+			if (!this.$parent.isApplyingDiscount) {
+				console.log('[ItemsTable] 🔄 Triggering discount calculation for NumPad qty update');
+				this.$parent.$nextTick(() => {
+					setTimeout(() => {
+						this.$parent.calculateDiscountsDebounced();
+						console.log('[ItemsTable] ✅ calculateDiscountsDebounced() called for NumPad qty update');
+					}, 10);
+				});
+			} else {
+				console.log('[ItemsTable] ⏭️ Skipping discount calculation - isApplyingDiscount is true');
+			}
+
+			// Force UI update
+			this.$forceUpdate();
+		},
+
+		// Update item rate
+		updateItemRate(item, newRate) {
+			console.log('[ItemsTable] 💰 Updating rate:', {
+				item_code: item.item_code,
+				old_rate: item.rate,
+				new_rate: newRate
+			});
+
+			// Use existing setFormatedCurrency method
+			this.setFormatedCurrency(item, 'rate', null, false, { target: { value: newRate } });
+			this.calcPrices(item, newRate, { target: { value: newRate } });
+
+			// Force UI update
+			this.$forceUpdate();
+		},
+
+		// Update item discount
+		updateItemDiscount(item, newDiscount) {
+			console.log('[ItemsTable] 🏷️ Updating discount:', {
+				item_code: item.item_code,
+				old_discount: item.discount_percentage,
+				new_discount: newDiscount
+			});
+
+			// Use existing setFormatedCurrency method for discount
+			this.setFormatedCurrency(item, 'discount_percentage', null, false, { target: { value: newDiscount } });
+			this.calcPrices(item, newDiscount, { target: { value: newDiscount } });
+
+			// Force UI update
+			this.$forceUpdate();
+		},
+
+		// Handle delete item from NumPad
+		handleDeleteItem(item) {
+			console.log('[ItemsTable] 🗑️ Deleting item from NumPad:', item.item_code);
+			this.removeItem(item);
+			this.closeNumPad();
+		},
+
+		// Close NumPad
+		closeNumPad() {
+			console.log('[ItemsTable] ❌ Closing NumPad');
+			this.numpadVisible = false;
+			this.selectedItemForEdit = null;
 		},
 	},
 };
@@ -1623,6 +1769,81 @@ export default {
 	}
 	100% {
 		transform: scale(1);
+	}
+}
+
+/* 🆕 NUMPAD INTEGRATION STYLES */
+
+/* Row hover effect for NumPad click indication */
+.modern-items-table :deep(tr:hover) {
+	background-color: var(--table-row-hover);
+	transform: translateY(-1px);
+	box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+	cursor: pointer; /* Indicate clickable for NumPad */
+}
+
+/* Selected row for NumPad editing */
+.modern-items-table :deep(.v-data-table__tr--selected) {
+	background-color: rgba(25, 118, 210, 0.08) !important;
+	border-left: 4px solid #1976d2 !important;
+	position: relative;
+}
+
+.modern-items-table :deep(.v-data-table__tr--selected):before {
+	content: '🔢';
+	position: absolute;
+	left: -2px;
+	top: 50%;
+	transform: translateY(-50%);
+	background: #1976d2;
+	color: white;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 10px;
+	z-index: 2;
+}
+
+/* Dark theme support for selected row */
+:deep(.dark-theme) .modern-items-table :deep(.v-data-table__tr--selected),
+:deep(.v-theme--dark) .modern-items-table :deep(.v-data-table__tr--selected) {
+	background-color: rgba(144, 202, 249, 0.12) !important;
+	border-left: 4px solid #90caf9 !important;
+}
+
+:deep(.dark-theme) .modern-items-table :deep(.v-data-table__tr--selected):before,
+:deep(.v-theme--dark) .modern-items-table :deep(.v-data-table__tr--selected):before {
+	background: #90caf9;
+	color: #1a1a1a;
+}
+
+/* NumPad active indicator */
+.numpad-active-indicator {
+	position: fixed;
+	top: 20px;
+	right: 20px;
+	background: #1976d2;
+	color: white;
+	padding: 8px 16px;
+	border-radius: 20px;
+	font-size: 0.9rem;
+	font-weight: 500;
+	z-index: 9999;
+	animation: slideInRight 0.3s ease;
+	box-shadow: 0 4px 12px rgba(25, 118, 210, 0.3);
+}
+
+@keyframes slideInRight {
+	from {
+		transform: translateX(100%);
+		opacity: 0;
+	}
+	to {
+		transform: translateX(0);
+		opacity: 1;
 	}
 }
 </style>
