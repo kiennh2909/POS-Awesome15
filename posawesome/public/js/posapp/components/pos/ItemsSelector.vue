@@ -1037,13 +1037,25 @@ export default {
 				this.update_items_details(new_value);
 			}
 		},
-		// Automatically search and add item whenever the query changes
+		// Validate barcode input but don't auto-search (require Enter for all)
 		first_search: _.debounce(function (val) {
-			// Always auto-search in barcode mode (F3 opens popup instead of text mode)
-			console.log(`[WATCHER] first_search changed: "${val}", from_scanner: ${this.search_from_scanner}`);
-			console.log('[WATCHER] Triggering auto-search');
-			this.queueSearch(val, this.search_from_scanner);
-		}, 300), // Increased debounce time to match search debounce
+			console.log(`[WATCHER] first_search changed: "${val}"`);
+			
+			// Only validate, don't auto-search - user must press Enter
+			if (val && val.trim()) {
+				const barcode = val.trim();
+				if (this.isValidBarcode(barcode)) {
+					console.log('[WATCHER] Valid barcode detected, press Enter to add');
+					// Show hint for valid barcode
+					if (!this.search_from_scanner) {
+						frappe.show_alert({
+							message: 'Barcode hợp lệ. Nhấn Enter để thêm.',
+							indicator: 'blue'
+						}, 2);
+					}
+				}
+			}
+		}, 300), // Validate only, no auto-search
 
 		// Refresh item prices whenever the user changes currency
 		selected_currency() {
@@ -1069,11 +1081,11 @@ export default {
 		
 		// 🆕 Dynamic UI Properties
 		dynamicPlaceholder() {
-			return 'Quét / nhập Barcode (F3: Popup tìm kiếm)';
+			return 'Nhập Barcode → Enter để thêm (F3: Popup tìm kiếm)';
 		},
 		
 		dynamicHint() {
-			return 'F3 – Mở popup tìm kiếm nâng cao';
+			return 'Tất cả barcode đều cần Enter để thêm • F3 – Popup tìm kiếm';
 		},
 		
 		modeIcon() {
@@ -1525,46 +1537,37 @@ export default {
 			}
 		},
 		
-		// 📱 BARCODE MODE ENTER
+		// 📱 UNIFIED BARCODE ENTER HANDLER (All Sources: Manual, Hardware, Camera)
 		async handleBarcodeEnter() {
 			const barcode = this.debounce_search.trim();
 			
-			if (!barcode) return;
-			
-			// Prevent double processing
-			if (this.is_processing_barcode) return;
-			this.is_processing_barcode = true;
-			
-			try {
-				console.info('[Barcode Mode] Processing:', barcode);
-				
-				// Validate barcode format
-				if (!this.isValidBarcode(barcode)) {
-					this.showError('Mã vạch không hợp lệ', 'red');
-					this.selectAllSearchText();
-					return;
-				}
-				
-				// Find item by barcode
-				const item = await this.findItemByBarcode(barcode);
-				
-				if (item) {
-					// ✅ Found - add to cart
-					await this.addItemToCart(item);
-					this.showSuccess(`Đã thêm: ${item.item_name}`);
-					this.clearSearchAndRefocus();
-				} else {
-					// ❌ Not found
-					this.showError('Không tìm thấy sản phẩm', 'red');
-					this.selectAllSearchText();
-				}
-				
-			} catch (error) {
-				console.error('[Barcode Mode] Error:', error);
-				this.showError('Lỗi xử lý mã vạch', 'red');
-			} finally {
-				this.is_processing_barcode = false;
+			// Validate input
+			if (!barcode) {
+				this.showError('Vui lòng nhập barcode', 'orange');
+				return;
 			}
+			
+			// Validate barcode format
+			if (!this.isValidBarcode(barcode)) {
+				this.showError('Mã vạch không hợp lệ', 'red');
+				this.selectAllSearchText();
+				return;
+			}
+			
+			// Show processing feedback
+			const source = this.search_from_scanner ? 'Scanner' : 'Manual';
+			frappe.show_alert({
+				message: `${source}: Đang tìm kiếm ${barcode}...`,
+				indicator: 'blue'
+			}, 1);
+			
+			console.info(`[${source} Barcode] Processing:`, barcode);
+			
+			// Use unified processing pipeline (same as scanner auto-add before)
+			await this.processScannedItem(barcode);
+			
+			// Clear scanner flag
+			this.search_from_scanner = false;
 		},
 		
 
@@ -2647,15 +2650,29 @@ export default {
 			}
 			this.lastScanTime = now;
 
+			console.info("[Hardware Scanner] Barcode scanned:", sCode);
+
 			// 🆕 Force barcode mode when scanner is used
 			this.search_mode = 'barcode';
 			
 			// Hide any search results
 			this.hideSearchResults();
 
-			// Thay trigger_onscan để không đụng first_search/search, không gọi enter_event
-			this.search_from_scanner = true; // chỉ để UI biết nguồn từ scanner
-			this.processScannedItem(sCode); // pipeline duy nhất
+			// 🔄 NEW: Set barcode to input and wait for Enter (unified behavior)
+			this.first_search = sCode.trim();
+			this.debounce_search = sCode.trim();
+			
+			// Focus input for Enter
+			this.focusSearchInput();
+			
+			// Show feedback
+			frappe.show_alert({
+				message: 'Hardware Scanner: Nhấn Enter để thêm vào giỏ hàng',
+				indicator: 'blue'
+			}, 3);
+			
+			// Mark as from scanner for Enter handler
+			this.search_from_scanner = true;
 		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
@@ -3324,12 +3341,12 @@ export default {
 			}
 		},
 		onBarcodeScanned(scannedCode) {
-			console.info("Barcode scanned:", scannedCode);
+			console.info("[Camera Scanner] Barcode scanned:", scannedCode);
 
 			// Debounce to prevent duplicate scans within short time period
 			const now = Date.now();
 			if (now - this.lastScanTime < this.scanDebounceMs) {
-				console.log("Ignoring duplicate scan within debounce period");
+				console.log("Ignoring duplicate camera scan within debounce period");
 				return;
 			}
 			this.lastScanTime = now;
@@ -3340,18 +3357,21 @@ export default {
 			// Hide search results
 			this.hideSearchResults();
 
-			// Use same pipeline as hardware scanner for consistency
-			this.search_from_scanner = true;
-			this.processScannedItem(scannedCode);
+			// 🔄 NEW: Set barcode to input and wait for Enter (unified behavior)
+			this.first_search = scannedCode.trim();
+			this.debounce_search = scannedCode.trim();
+			
+			// Focus input for Enter
+			this.focusSearchInput();
 
 			// Show scanning feedback
-			frappe.show_alert(
-				{
-					message: `Scanning for: ${scannedCode}`,
-					indicator: "blue",
-				},
-				2,
-			);
+			frappe.show_alert({
+				message: `Camera Scanner: Nhấn Enter để thêm vào giỏ hàng`,
+				indicator: "blue",
+			}, 3);
+			
+			// Mark as from scanner for Enter handler
+			this.search_from_scanner = true;
 		},
 		async processScannedItem(scannedCode) {
 			try {
