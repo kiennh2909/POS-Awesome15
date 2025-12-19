@@ -1515,11 +1515,8 @@ export default {
 			// 6️⃣ Reset processing states
 			this.resetProcessingStates();
 			
-			// Show feedback
-			frappe.show_alert({
-				message: 'F2: Chế độ Barcode + Focus',
-				indicator: 'primary'
-			}, 1);
+			// Show feedback - removed for speed
+			console.info('[F2] Mode set to Barcode + Focus');
 			
 			console.info('[F2] Mode set to:', this.search_mode);
 		}, 200), // Debounce 200ms to prevent multiple calls
@@ -1549,11 +1546,8 @@ export default {
 				this.focusSearchInput();
 			});
 			
-			// Show mode change feedback
-			frappe.show_alert({
-				message: 'F3: Chế độ Tìm kiếm Text (click để chọn → xác nhận)',
-				indicator: 'orange'
-			}, 2);
+			// Show mode change feedback - removed for speed
+			console.info('[F3] Mode set to Text Search');
 			
 			console.info('[F3] Mode set to:', this.search_mode);
 		}, 200), // Debounce 200ms to prevent multiple calls
@@ -1591,7 +1585,7 @@ export default {
 			this.is_processing_barcode = true;
 			
 			try {
-				console.info('[Barcode Mode] Processing:', barcode);
+				console.info('[Manual Barcode Entry] Processing:', barcode);
 				
 				// Validate barcode format
 				if (!this.isValidBarcode(barcode)) {
@@ -1606,17 +1600,17 @@ export default {
 				if (item) {
 					// ✅ Found - add to cart
 					await this.addItemToCart(item);
-					this.showSuccess(`Đã thêm: ${item.item_name}`);
+					this.showSuccess(`✅ Đã thêm vào giỏ hàng: ${item.item_name}`);
 					this.clearSearchAndRefocus();
 				} else {
 					// ❌ Not found
-					this.showError('Không tìm thấy sản phẩm', 'red');
+					this.showError('❌ Không tìm thấy sản phẩm với mã vạch này', 'red');
 					this.selectAllSearchText();
 				}
 				
 			} catch (error) {
-				console.error('[Barcode Mode] Error:', error);
-				this.showError('Lỗi xử lý mã vạch', 'red');
+				console.error('[Manual Barcode Entry] Error:', error);
+				this.showError('❌ Lỗi xử lý mã vạch', 'red');
 			} finally {
 				this.is_processing_barcode = false;
 			}
@@ -1647,10 +1641,8 @@ export default {
 					// 📋 Multiple results - show list for selection
 					console.info('[Text Mode] Multiple results - showing selection list');
 					this.showSearchResults(results, false); // false = allow selection
-					frappe.show_alert({
-						message: `Tìm thấy ${results.length} sản phẩm. Click để chọn.`,
-						indicator: 'blue'
-					}, 3);
+					// Alert removed for speed
+					console.info(`[Text Search] Found ${results.length} products`);
 				}
 				
 			} catch (error) {
@@ -1690,46 +1682,12 @@ export default {
 		},
 
 		// Helper method để tiếp tục với local search logic
+		// 🚫 DEPRECATED: continueWithLocalSearch - Không còn sử dụng
+		/*
 		async continueWithLocalSearch(searchKey) {
-			// ƯU TIÊN 2: Exact Barcode trong local items (fallback nếu API fail)
-			let foundItem = this.items.find(
-				(item) => item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey),
-			);
-
-			if (foundItem) {
-				console.info("Found item by exact barcode (local):", foundItem);
-				// Set UOM theo posa_uom của barcode
-				let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
-				if (barcodeData && barcodeData.posa_uom) {
-					foundItem.uom = barcodeData.posa_uom;
-				}
-				await this.addScannedItemToInvoice(foundItem, searchKey);
-				return;
-			}
-
-			// ƯU TIÊN 3: Exact Item Code (case-insensitive)
-			foundItem = this.items.find((item) => item.item_code.toLowerCase() === searchKey.toLowerCase());
-
-			if (foundItem) {
-				console.info("Found item by exact item code:", foundItem);
-				await this.addScannedItemToInvoice(foundItem, searchKey);
-				return;
-			}
-
-			// ƯU TIÊN 4: Mở rộng / Gợi ý (fuzzy) - chỉ khi không có exact match
-			const searchResults = this.searchItemsByCode(searchKey);
-
-			if (searchResults.length === 1) {
-				console.info("Found item by fuzzy search:", searchResults[0]);
-				await this.addScannedItemToInvoice(searchResults[0], searchKey);
-			} else if (searchResults.length > 1) {
-				// Multiple matches - show selection dialog
-				this.showMultipleItemsDialog(searchResults, searchKey);
-			} else {
-				// No matches found
-				this.handleItemNotFound(searchKey);
-			}
+			// Method này đã được thay thế bằng luồng thống nhất handleBarcodeEnter()
 		},
+		*/
 
 		// Method gọi API exact barcode và add item nếu tìm thấy
 		// ✅ ĐẢM BẢO: UOM và Price từ backend đã chính xác, không cần xử lý thêm
@@ -1766,13 +1724,8 @@ export default {
 							"[ItemsSelector] ❌ Backend returned item without UOM:",
 							item.item_code,
 						);
-						frappe.show_alert(
-							{
-								message: `Error: Item ${item.item_name} missing UOM`,
-								indicator: "red",
-							},
-							5,
-						);
+						// Error alert removed for speed
+						console.error(`[Barcode] Item ${item.item_name} missing UOM`);
 						return false;
 					}
 
@@ -1785,13 +1738,8 @@ export default {
 								item.uom,
 								"not in item_uoms",
 							);
-							frappe.show_alert(
-								{
-									message: `Error: Invalid UOM for item ${item.item_name}`,
-									indicator: "red",
-								},
-								5,
-							);
+							// Error alert removed for speed
+							console.error(`[Barcode] Invalid UOM for item ${item.item_name}`);
 							return false;
 						}
 					}
@@ -2737,15 +2685,24 @@ export default {
 			}
 			this.lastScanTime = now;
 
-			// 🆕 Force barcode mode when scanner is used
-			this.search_mode = 'barcode';
-			
-			// Hide any search results
-			this.hideSearchResults();
+			console.info('[Hardware Scanner] Scanned barcode:', sCode);
 
-			// Thay trigger_onscan để không đụng first_search/search, không gọi enter_event
-			this.search_from_scanner = true; // chỉ để UI biết nguồn từ scanner
-			this.processScannedItem(sCode); // pipeline duy nhất
+			// 🆕 THỐNG NHẤT: Đưa barcode vào search input, yêu cầu nhấn Enter
+			this.search_mode = 'barcode';
+			this.hideSearchResults();
+			
+			// Đưa barcode vào search input
+			this.debounce_search = sCode.trim();
+			this.first_search = sCode.trim();
+			
+			// Focus vào search input và highlight text
+			this.$nextTick(() => {
+				this.focusSearchInput();
+				this.selectAllSearchText();
+			});
+			
+			// Alert removed for speed - hardware scanner should be instant
+			console.info(`[Hardware Scanner] Scanned: ${sCode}`);
 		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
@@ -2939,7 +2896,7 @@ export default {
 			} else {
 				// Ensure qty is reset before enter_event to prevent decimal issues
 				this.qty = 1;
-				// KHÔNG auto-add khi đến từ scanner (đã xử lý trong processScannedItem)
+				// 🆕 THỐNG NHẤT: Tất cả scanner đều đưa vào search input, không auto-add
 				if (!fromScanner && query.length >= 3) {
 					this.enter_event();
 				}
@@ -2968,11 +2925,8 @@ export default {
 			this.selected_result_index = 0;
 			this.search_results_view_only = viewOnlyMode; // Track if this is view-only mode
 			
-			// Show navigation hint - always allow selection in Text Search mode
-			frappe.show_alert({
-				message: `${results.length} kết quả. Click để chọn và xác nhận.`,
-				indicator: 'blue'
-			}, 3);
+			// Navigation hint removed for speed
+			console.info(`[Search Results] ${results.length} results displayed`);
 		},
 
 		navigateResults(direction) {
@@ -3132,17 +3086,13 @@ export default {
 		
 		// 🎨 FEEDBACK METHODS
 		showSuccess(message) {
-			frappe.show_alert({
-				message: message,
-				indicator: 'green'
-			}, 2);
+			// Alert removed for speed
+			console.info(`[Success] ${message}`);
 		},
 
 		showError(message, color = 'red') {
-			frappe.show_alert({
-				message: message,
-				indicator: color
-			}, 3);
+			// Alert removed for speed
+			console.error(`[Error] ${message}`);
 		},
 
 		async addItemToCart(item) {
@@ -3303,22 +3253,16 @@ export default {
 			let value = parseFloat(this.numpad_display);
 			
 			if (isNaN(value) || value <= 0) {
-				// Invalid input - show error
-				frappe.show_alert({
-					message: 'Số lượng không hợp lệ',
-					indicator: 'red'
-				}, 2);
+				// Invalid input - error removed for speed
+				console.error('[NumPad] Invalid quantity input');
 				return;
 			}
 			
 			// Apply quantity
 			this.qty = value;
 			
-			// Show success feedback with mode info
-			frappe.show_alert({
-				message: `Số lượng: ${value} • Chế độ: Quét Barcode`,
-				indicator: 'green'
-			}, 2);
+			// Success feedback removed for speed
+			console.info(`[NumPad] Quantity set to: ${value} - Barcode mode`);
 			
 			// Close NumPad and return focus to barcode input (will auto-switch to barcode mode)
 			this.hideNumPad();
@@ -3382,11 +3326,8 @@ export default {
 			let value = parseFloat(this.product_numpad_display);
 			
 			if (isNaN(value) || value <= 0) {
-				// Invalid input - show error
-				frappe.show_alert({
-					message: 'Số lượng không hợp lệ',
-					indicator: 'red'
-				}, 2);
+				// Invalid input - error removed for speed
+				console.error('[Product NumPad] Invalid quantity input');
 				return;
 			}
 			
@@ -3394,11 +3335,8 @@ export default {
 			this.product_quantity = value;
 			this.product_quantity_display = String(value);
 			
-			// Show success feedback
-			frappe.show_alert({
-				message: `Số lượng sản phẩm: ${value}`,
-				indicator: 'green'
-			}, 2);
+			// Success feedback removed for speed
+			console.info(`[Product NumPad] Quantity set to: ${value}`);
 			
 			// Close Product NumPad
 			this.hideProductNumPad();
@@ -3431,207 +3369,63 @@ export default {
 			console.info('[Popup] Adding item from popup:', item.item_name);
 			try {
 				await this.add_item(item);
-				frappe.show_alert({
-					message: `Đã thêm: ${item.item_name}`,
-					indicator: 'green'
-				}, 2);
+				// Success alert removed for speed
+				console.info(`[Popup] Successfully added: ${item.item_name}`);
 			} catch (error) {
 				console.error('[Popup] Error adding item:', error);
-				frappe.show_alert({
-					message: `Lỗi thêm sản phẩm: ${error.message}`,
-					indicator: 'red'
-				}, 3);
+				// Error alert removed for speed
+				console.error(`[Popup] Failed to add product: ${error.message}`);
 			}
 		},
 		onBarcodeScanned(scannedCode) {
-			console.info("Barcode scanned:", scannedCode);
+			console.info("Camera Scanner: Barcode scanned:", scannedCode);
 
 			// Debounce to prevent duplicate scans within short time period
 			const now = Date.now();
 			if (now - this.lastScanTime < this.scanDebounceMs) {
-				console.log("Ignoring duplicate scan within debounce period");
+				console.log("Ignoring duplicate camera scan within debounce period");
 				return;
 			}
 			this.lastScanTime = now;
 
-			// 🆕 Force barcode mode when camera scanner is used
+			// 🆕 THỐNG NHẤT: Đưa barcode vào search input, yêu cầu nhấn Enter
 			this.search_mode = 'barcode';
-			
-			// Hide search results
 			this.hideSearchResults();
-
-			// Use same pipeline as hardware scanner for consistency
-			this.search_from_scanner = true;
-			this.processScannedItem(scannedCode);
-
-			// Show scanning feedback
-			frappe.show_alert(
-				{
-					message: `Scanning for: ${scannedCode}`,
-					indicator: "blue",
-				},
-				2,
-			);
-		},
-		async processScannedItem(scannedCode) {
-			try {
-				// CHỐT KHOÁ: chặn double add do các đường gọi trùng
-				if (this.processing_scan) return;
-				this.processing_scan = true;
-
-				// Chuẩn hoá input: trim, bỏ khoảng trắng, chuẩn hoá -/space, giữ leading zero
-				let normalizedCode = scannedCode.trim().replace(/[-\s]/g, "");
-
-				// Simplified: Always use qty = 1, no scale weight parsing
-				let searchKey = normalizedCode;
-
-				// ƯU TIÊN 1: Gọi API exact barcode từ server trước
-				if (this.looksLikeBarcode(searchKey)) {
-					console.info("[ItemsSelector] 🔍 Trying exact barcode API first for:", searchKey);
-					const exactMatch = await this.fetchExactBarcodeAndAdd(searchKey);
-					if (exactMatch) {
-						console.info("[ItemsSelector] ✅ Exact barcode API found and added item");
-						return; // Đã xử lý xong, không cần tìm tiếp
-					}
-					console.info(
-						"[ItemsSelector] ❌ Exact barcode API not found, falling back to local search",
-					);
-					// Tiếp tục với logic local search
-					await this.continueWithLocalSearch(searchKey);
-					return;
-				}
-
-				// ƯU TIÊN 2: Exact Barcode trong local items (fallback nếu API fail)
-				let foundItem = this.items.find(
-					(item) => item.item_barcode && item.item_barcode.some((bc) => bc.barcode === searchKey),
-				);
-
-				if (foundItem) {
-					console.info("Found item by exact barcode (local):", foundItem);
-					// Set UOM theo posa_uom của barcode
-					let barcodeData = foundItem.item_barcode.find((bc) => bc.barcode === searchKey);
-					if (barcodeData && barcodeData.posa_uom) {
-						foundItem.uom = barcodeData.posa_uom;
-					}
-					await this.addScannedItemToInvoice(foundItem, scannedCode);
-					return;
-				}
-
-				// ƯU TIÊN 3: Exact Item Code (case-insensitive)
-				foundItem = this.items.find(
-					(item) => item.item_code.toLowerCase() === searchKey.toLowerCase(),
-				);
-
-				if (foundItem) {
-					console.info("Found item by exact item code:", foundItem);
-					await this.addScannedItemToInvoice(foundItem, scannedCode);
-					return;
-				}
-
-				// ƯU TIÊN 4: Mở rộng / Gợi ý (fuzzy) - chỉ khi không có exact match
-				const searchResults = this.searchItemsByCode(searchKey);
-
-				if (searchResults.length === 1) {
-					console.info("Found item by fuzzy search:", searchResults[0]);
-					await this.addScannedItemToInvoice(searchResults[0], scannedCode);
-				} else if (searchResults.length > 1) {
-					// Multiple matches - show selection dialog
-					this.showMultipleItemsDialog(searchResults, scannedCode);
-				} else {
-					// No matches found
-					this.handleItemNotFound(scannedCode);
-				}
-			} catch (error) {
-				console.error("Error processing scanned item:", error);
-				this.handleItemNotFound(scannedCode);
-			} finally {
-				// Always release the processing lock
-				this.processing_scan = false;
-				this.search_from_scanner = false;
-			}
-		},
-		searchItemsByCode(code) {
-			return this.items.filter((item) => {
-				const searchTerm = code.toLowerCase();
-				return (
-					item.item_code.toLowerCase().includes(searchTerm) ||
-					item.item_name.toLowerCase().includes(searchTerm) ||
-					(item.item_barcode &&
-						item.item_barcode.some((bc) => bc.barcode.toLowerCase().includes(searchTerm)))
-				);
+			
+			// Đưa barcode vào search input
+			this.debounce_search = scannedCode.trim();
+			this.first_search = scannedCode.trim();
+			
+			// Focus vào search input và highlight text
+			this.$nextTick(() => {
+				this.focusSearchInput();
+				this.selectAllSearchText();
 			});
+			
+			// Alert removed for speed - camera scanner should be instant
+			console.info(`[Camera Scanner] Scanned: ${scannedCode}`);
 		},
+		// 🚫 DEPRECATED: processScannedItem - Không còn sử dụng do thống nhất luồng Enter
+		// Tất cả scanner (hardware, camera, manual) đều đưa barcode vào search input
+		// và yêu cầu nhấn Enter để xử lý thông qua handleBarcodeEnter()
+		/*
+		async processScannedItem(scannedCode) {
+			// Method này đã được thay thế bằng luồng thống nhất:
+			// Scanner → Search Input → Enter → handleBarcodeEnter()
+		},
+		*/
+		// 🚫 DEPRECATED: searchItemsByCode - Không còn sử dụng
+		/*
+		searchItemsByCode(code) {
+			// Method này đã được thay thế bằng luồng thống nhất handleBarcodeEnter()
+		},
+		*/
+		// 🚫 DEPRECATED: addScannedItemToInvoice - Không còn sử dụng
+		/*
 		async addScannedItemToInvoice(item, scannedCode) {
-			const now = Date.now();
-			if (this._lastScanCode === scannedCode && now - this._lastScanAt < 160) {
-				console.warn("Duplicate scan suppressed:", scannedCode);
-				return; // chống double-click <160ms
-			}
-			this._lastScanCode = scannedCode;
-			this._lastScanAt = now;
-
-			console.info(
-				"[ItemsSelector] 🔄 Processing scanned item:",
-				item.item_code,
-				"with code:",
-				scannedCode,
-			);
-			console.info("[ItemsSelector] Current scan mode:", this.scan_add_mode ? "Add" : "Remove");
-
-			try {
-				if (this.scan_add_mode) {
-					// Add mode - use existing add_item method
-					console.info("[ItemsSelector] ➕ Add mode: Adding item to invoice");
-					await this.add_item(item);
-
-					// Bỏ hộp thông báo để tăng tốc độ
-					// // Show success message
-					// frappe.show_alert(
-					// 	{
-					// 		message: `Added: ${item.item_name}`,
-					// 		indicator: "green",
-					// 	},
-					// 	3,
-					// );
-				} else {
-					// Remove mode - emit event to remove item from invoice with scan mode
-					console.info(
-						"[ItemsSelector] ➖ Remove mode: Emitting remove_item_by_code for:",
-						item.item_code,
-					);
-					this.eventBus.emit("remove_item_by_code", item.item_code, this.scan_add_mode);
-
-					// Show success message
-					frappe.show_alert(
-						{
-							message: `Remove request sent for: ${item.item_name}`,
-							indicator: "orange",
-						},
-						3,
-					);
-				}
-
-				// Clear search after successful operation and refocus input
-				this.clearSearch();
-
-				// Use setTimeout to prevent UI blocking
-				setTimeout(() => {
-					if (this.$refs.debounce_search) {
-						this.$refs.debounce_search.focus();
-					}
-				}, 150);
-			} catch (error) {
-				console.error("[ItemsSelector] ❌ Error processing scanned item:", error);
-				const action = this.scan_add_mode ? "adding" : "removing";
-				frappe.show_alert(
-					{
-						message: `Error ${action} item: ${item.item_name}`,
-						indicator: "red",
-					},
-					3,
-				);
-			}
+			// Method này đã được thay thế bằng luồng thống nhất handleBarcodeEnter() → addItemToCart()
 		},
+		*/
 		showMultipleItemsDialog(items, scannedCode) {
 			// Create a dialog to let user choose from multiple matches
 			const mode = this.scan_add_mode ? "Add" : "Remove";
@@ -3687,14 +3481,8 @@ export default {
 		handleItemNotFound(scannedCode) {
 			console.warn("Item not found for scanned code:", scannedCode);
 
-			// Show error message
-			frappe.show_alert(
-				{
-					message: `Item not found: ${scannedCode}`,
-					indicator: "red",
-				},
-				5,
-			);
+			// Error message removed for speed
+			console.error(`[Item Search] Item not found: ${scannedCode}`);
 
 			// Keep the search term for manual search but don't trigger_onscan to avoid loops
 			this.first_search = scannedCode;
@@ -3710,13 +3498,8 @@ export default {
 
 		onScanModeChange() {
 			const mode = this.scan_add_mode ? "Add Mode" : "Remove Mode";
-			frappe.show_alert(
-				{
-					message: `Switched to ${mode}`,
-					indicator: this.scan_add_mode ? "green" : "orange",
-				},
-				2,
-			);
+			// Alert removed for speed
+			console.info(`[Scan Mode] Switched to ${mode}`);
 		},
 
 		setScanMode(isAddMode) {
@@ -3729,13 +3512,8 @@ export default {
 			const mode = this.scan_add_mode ? "Add Mode" : "Remove Mode";
 			console.info(`[ItemsSelector] Mode switched to: ${mode}`);
 
-			frappe.show_alert(
-				{
-					message: `Switched to ${mode}`,
-					indicator: this.scan_add_mode ? "green" : "orange",
-				},
-				2,
-			);
+			// Alert removed for speed
+			console.info(`[Scan Mode] Switched to ${mode}`);
 
 			console.info(`[ItemsSelector] Scan mode change completed`);
 		},
