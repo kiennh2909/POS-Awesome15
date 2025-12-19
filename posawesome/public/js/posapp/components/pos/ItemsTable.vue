@@ -660,6 +660,11 @@ export default {
 			dragOverIndex: null,
 			isDragging: false,
 			highlightedRowId: null,
+			
+			// 🆕 Smart Highlight System
+			highlightedItems: new Map(), // Map<itemCode, highlightConfig>
+			highlightTimers: new Map(), // Map<itemCode, timerId>
+			lastHighlightTime: new Map(), // Map<itemCode, timestamp> for debouncing
 		};
 	},
 	computed: {
@@ -746,6 +751,12 @@ export default {
 			console.log("[ItemsTable] 📨 Received old highlight_scanned_item event for:", itemCode);
 			this.highlightItem(itemCode);
 		});
+		
+		// 🆕 Listen for smart highlight events
+		this.eventBus.on("smart_highlight_item", (config) => {
+			console.log("[ItemsTable] 📨 Received smart_highlight_item event:", config);
+			this.handleSmartHighlight(config);
+		});
 	},
 	beforeUnmount() {
 		// Cleanup event listeners
@@ -753,11 +764,143 @@ export default {
 			this.eventBus.off("force_items_table_update");
 			this.eventBus.off("highlight_invoice_item");
 			this.eventBus.off("highlight_scanned_item");
+			this.eventBus.off("smart_highlight_item"); // 🆕 Cleanup smart highlight
+		}
+		
+		// 🆕 Cleanup highlight timers
+		this.highlightTimers.forEach(timer => clearTimeout(timer));
+		this.highlightTimers.clear();
+		this.highlightedItems.clear();
 		}
 	},
 	methods: {
 		getRowClass(item) {
+			// 🆕 Enhanced row class with smart highlight types
+			const highlightConfig = this.highlightedItems.get(item.item_code);
+			
+			if (highlightConfig) {
+				if (highlightConfig.highlightType === 'new_item') {
+					return 'row-highlight-new-item';
+				} else if (highlightConfig.highlightType === 'quantity_update') {
+					return 'row-highlight-quantity-update';
+				}
+			}
+			
+			// Fallback to old system
 			return this.highlightedRowId === item.posa_row_id ? "row-highlight" : "";
+		},
+		
+		// 🆕 SMART HIGHLIGHT SYSTEM
+		handleSmartHighlight(config) {
+			const { itemCode, rowId, isNewItem, duration, highlightType, newQuantity } = config;
+			
+			console.log('[ItemsTable] 🎯 Smart highlight triggered:', {
+				itemCode,
+				isNewItem,
+				highlightType,
+				duration
+			});
+			
+			// Debounce rapid scans of same item
+			const now = Date.now();
+			const lastTime = this.lastHighlightTime.get(itemCode) || 0;
+			
+			if (now - lastTime < 300 && highlightType === 'quantity_update') {
+				console.log('[ItemsTable] ⏭️ Debouncing rapid scan of same item');
+				// Extend existing highlight instead of creating new one
+				this.extendHighlight(itemCode, duration);
+				return;
+			}
+			
+			this.lastHighlightTime.set(itemCode, now);
+			
+			// Clear existing timer for this item
+			const existingTimer = this.highlightTimers.get(itemCode);
+			if (existingTimer) {
+				clearTimeout(existingTimer);
+			}
+			
+			// Set highlight config
+			this.highlightedItems.set(itemCode, {
+				isNewItem,
+				highlightType,
+				newQuantity,
+				startTime: now
+			});
+			
+			// Force update to apply CSS classes
+			this.$forceUpdate();
+			
+			// Scroll item into view if needed
+			this.$nextTick(() => {
+				this.scrollItemIntoView(itemCode, isNewItem);
+			});
+			
+			// Set timer to remove highlight
+			const timer = setTimeout(() => {
+				this.highlightedItems.delete(itemCode);
+				this.highlightTimers.delete(itemCode);
+				this.$forceUpdate();
+				console.log('[ItemsTable] ✅ Highlight removed for:', itemCode);
+			}, duration);
+			
+			this.highlightTimers.set(itemCode, timer);
+		},
+		
+		extendHighlight(itemCode, additionalDuration) {
+			const existingTimer = this.highlightTimers.get(itemCode);
+			if (existingTimer) {
+				clearTimeout(existingTimer);
+			}
+			
+			const timer = setTimeout(() => {
+				this.highlightedItems.delete(itemCode);
+				this.highlightTimers.delete(itemCode);
+				this.$forceUpdate();
+			}, additionalDuration);
+			
+			this.highlightTimers.set(itemCode, timer);
+		},
+		
+		scrollItemIntoView(itemCode, isNewItem) {
+			// Find the row element
+			const tableElement = this.$el.querySelector('.modern-items-table');
+			if (!tableElement) return;
+			
+			// Find item in items array
+			const itemIndex = this.items.findIndex(item => item.item_code === itemCode);
+			if (itemIndex === -1) return;
+			
+			// For new items at top (index 0), no scroll needed - already visible
+			if (isNewItem && itemIndex === 0) {
+				console.log('[ItemsTable] 📍 New item at top, no scroll needed');
+				return;
+			}
+			
+			// For existing items, check if visible
+			const rows = tableElement.querySelectorAll('tbody tr');
+			const targetRow = rows[itemIndex];
+			
+			if (!targetRow) return;
+			
+			// Check if row is in viewport
+			const rect = targetRow.getBoundingClientRect();
+			const containerRect = tableElement.getBoundingClientRect();
+			
+			const isVisible = (
+				rect.top >= containerRect.top &&
+				rect.bottom <= containerRect.bottom
+			);
+			
+			if (!isVisible) {
+				console.log('[ItemsTable] 📜 Scrolling item into view:', itemCode);
+				targetRow.scrollIntoView({
+					behavior: 'smooth',
+					block: 'center'
+				});
+			} else {
+				console.log('[ItemsTable] ✅ Item already visible, no scroll needed');
+			}
 		},
 		getItemProps(item) {
 			return {
@@ -1291,7 +1434,79 @@ export default {
 	background-color: var(--surface-secondary);
 }
 
-/* Row highlight styling */
+/* 🆕 SMART HIGHLIGHT SYSTEM - Multi-Cue Feedback */
+
+/* NEW ITEM Highlight - Blue theme for new additions */
+:deep(.row-highlight-new-item) {
+	animation: flashNewItem 1.2s ease;
+	border-left: 4px solid #2196f3 !important; /* Blue for new items */
+	background: linear-gradient(90deg, rgba(33, 150, 243, 0.1) 0%, transparent 100%) !important;
+}
+
+@keyframes flashNewItem {
+	0% {
+		background-color: rgba(33, 150, 243, 0.3);
+		transform: scale(1.02);
+	}
+	50% {
+		background-color: rgba(33, 150, 243, 0.15);
+	}
+	100% {
+		background-color: transparent;
+		transform: scale(1);
+	}
+}
+
+/* QUANTITY UPDATE Highlight - Green theme for updates */
+:deep(.row-highlight-quantity-update) {
+	animation: flashQuantityUpdate 0.8s ease;
+	border-left: 4px solid #4caf50 !important; /* Green for quantity updates */
+}
+
+@keyframes flashQuantityUpdate {
+	0% {
+		background-color: rgba(76, 175, 80, 0.2);
+	}
+	50% {
+		background-color: rgba(76, 175, 80, 0.1);
+	}
+	100% {
+		background-color: transparent;
+	}
+}
+
+/* Quantity column pulse effect for updates */
+:deep(.row-highlight-quantity-update) .amount-value {
+	animation: pulseQuantity 0.6s ease;
+	font-weight: 700 !important;
+	color: #2e7d32 !important;
+}
+
+@keyframes pulseQuantity {
+	0% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.1);
+		color: #1b5e20 !important;
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+
+/* Enhanced new item styling */
+:deep(.row-highlight-new-item) .item-name {
+	font-weight: 600 !important;
+	color: #1976d2 !important;
+}
+
+:deep(.row-highlight-new-item) .amount-value {
+	font-weight: 700 !important;
+	color: #1976d2 !important;
+}
+
+/* Legacy highlight styling (fallback) */
 :deep(.row-highlight) {
 	animation: flashRow 1.2s ease;
 	border-left: 4px solid #4caf50 !important;

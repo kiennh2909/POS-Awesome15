@@ -367,3 +367,89 @@ handleF2Reset() {
 **Keyboard Support: ✅ FULL**
 **F2 Integration: ✅ SEAMLESS**
 **Production Ready: ✅ YES**
+
+---
+
+## 🆕 **ENHANCED: Auto Barcode Mode Return**
+
+### **Updated Workflow:**
+```
+1. User in any mode → Click QTY → NumPad opens
+2. Input quantity: 2.5 → Press Enter  
+3. ✅ Quantity applied: 2.5
+4. ✅ NumPad closes
+5. ✅ Auto-switch to Barcode Mode (regardless of previous mode)
+6. ✅ Focus returns to Barcode input
+7. ✅ Ready for next barcode scan immediately
+```
+
+### **Implementation Details:**
+```javascript
+hideNumPad() {
+    this.numpad_visible = false;
+    
+    // 🆕 ALWAYS return to Barcode mode when closing NumPad
+    this.search_mode = 'barcode';
+    
+    // Clear any search results
+    this.hideSearchResults();
+    
+    // Focus back to barcode input
+    this.focusSearchInput();
+}
+
+numpadEnter() {
+    // Apply quantity
+    this.qty = value;
+    
+    // Enhanced feedback with mode info
+    frappe.show_alert({
+        message: `Số lượng: ${value} • Chế độ: Quét Barcode`,
+        indicator: 'green'
+    }, 2);
+    
+    // Close and auto-switch to barcode mode
+    this.hideNumPad();
+}
+```
+
+### **Benefits:**
+- ✅ **Consistent workflow**: Always return to fastest input method (barcode)
+- ✅ **No mode confusion**: User always knows they're in barcode mode after QTY input
+- ✅ **Optimal speed**: Barcode scanning is fastest, so default to it
+- ✅ **Clear feedback**: Alert shows both quantity and current mode
+- ✅ **F2 Integration**: F2 also closes NumPad and returns to Barcode mode
+
+### **Testing Scenarios:**
+
+#### **Scenario 1: From Text Mode**
+```
+1. User in Text Mode (orange border)
+2. Click QTY → NumPad opens
+3. Input "3.5" → Enter
+4. ✅ Alert: "Số lượng: 3.5 • Chế độ: Quét Barcode"
+5. ✅ Input shows blue border (Barcode mode)
+6. ✅ Ready to scan barcode
+```
+
+#### **Scenario 2: From Barcode Mode**  
+```
+1. User in Barcode Mode (blue border)
+2. Click QTY → NumPad opens
+3. Input "2" → Enter
+4. ✅ Alert: "Số lượng: 2 • Chế độ: Quét Barcode"
+5. ✅ Stays in Barcode mode
+6. ✅ Ready to scan barcode
+```
+
+#### **Scenario 3: F2 Reset with NumPad Open**
+```
+1. NumPad is open with input "1.5"
+2. Press F2
+3. ✅ NumPad closes immediately
+4. ✅ Returns to Barcode mode
+5. ✅ Focus on search input
+6. ✅ Ready for next operation
+```
+
+**🎯 Result: Consistent, predictable workflow that always optimizes for speed!**

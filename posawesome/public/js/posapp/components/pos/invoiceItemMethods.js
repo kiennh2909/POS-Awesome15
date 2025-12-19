@@ -48,6 +48,19 @@ export default {
 	mergeWithExistingItem(existingItem, newItem) {
 		this.update_items_details([existingItem]);
 
+		// 🆕 Performance: Track rapid scanning for debounce
+		const now = Date.now();
+		const itemCode = existingItem.item_code;
+
+		if (!this._rapidScanTracker) {
+			this._rapidScanTracker = new Map();
+		}
+
+		const lastScanTime = this._rapidScanTracker.get(itemCode) || 0;
+		const isRapidScan = (now - lastScanTime) < 500; // 500ms threshold
+
+		this._rapidScanTracker.set(itemCode, now);
+
 		// Serial number logic for existing item
 		if (newItem.has_serial_no && newItem.to_set_serial_no) {
 			if (existingItem.serial_no_selected.includes(newItem.to_set_serial_no)) {
@@ -69,6 +82,21 @@ export default {
 			existingItem.qty += newItem.qty || 1;
 		}
 		this.calc_stock_qty(existingItem, existingItem.qty);
+
+		// 🆕 HIGHLIGHT existing item when quantity updated (with performance optimization)
+		setTimeout(() => {
+			console.log("[Invoice] 🎯 Highlighting existing item quantity update:", existingItem.item_code);
+
+			this.eventBus.emit("smart_highlight_item", {
+				itemCode: existingItem.item_code,
+				rowId: existingItem.posa_row_id,
+				isNewItem: false, // This is quantity update of existing item
+				duration: isRapidScan ? 600 : 800, // Shorter duration for rapid scans
+				highlightType: "quantity_update",
+				newQuantity: existingItem.qty,
+				isRapidScan: isRapidScan
+			});
+		}, isRapidScan ? 50 : 100); // Faster feedback for rapid scans
 
 		// Update batch quantity if needed
 		if (existingItem.has_batch_no && existingItem.batch_no) {
@@ -341,12 +369,27 @@ export default {
 
 			// Tax information will be handled by ERPNext default tax mechanism
 
-			// Add item to end of array to maintain order (push instead of unshift)
-			this.items.push(new_item);
-			console.log("Item inserted at", this.items.length - 1, {
+			// 🆕 Add NEW item to TOP of cart for better UX (unshift instead of push)
+			this.items.unshift(new_item);
+			console.log("✅ NEW item inserted at TOP (index 0):", {
 				code: new_item.item_code,
 				rate: new_item.rate,
+				position: "TOP"
 			});
+
+			// 🆕 HIGHLIGHT new item immediately after insertion
+			setTimeout(() => {
+				console.log("[Invoice] 🎯 Highlighting NEW item at top:", new_item.item_code);
+
+				this.eventBus.emit("smart_highlight_item", {
+					itemCode: new_item.item_code,
+					rowId: new_item.posa_row_id,
+					isNewItem: true, // This is a brand new item
+					duration: 1200, // Longer duration for new items
+					highlightType: "new_item",
+					position: "top"
+				});
+			}, 200); // Slight delay to ensure DOM is updated
 			// Force update of item rates when item is first added
 			console.log("Before update_item_detail - Initial item state", {
 				Item_code: new_item.item_code,

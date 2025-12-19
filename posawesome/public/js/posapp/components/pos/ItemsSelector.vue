@@ -1903,25 +1903,21 @@ export default {
 				this.eventBus.emit("add_item", item, this.scan_add_mode);
 				this.qty = 1;
 
-				// Bỏ highlight hoàn toàn để tăng tốc độ
-				// // Highlight item in invoice table - chuyển màu xanh, font tăng 1.5 lần
-				// setTimeout(() => {
-				// 	console.log("[ItemsSelector] 🎯 Highlighting added item:", item.item_code);
-				// 	console.log("[ItemsSelector] Scan mode:", this.scan_add_mode);
+				// 🆕 RESTORE Smart Highlight System
+				setTimeout(() => {
+					console.log("[ItemsSelector] 🎯 Smart highlighting item:", item.item_code);
+					
+					// Emit enhanced highlight event with UX-optimized parameters
+					this.eventBus.emit("smart_highlight_item", {
+						itemCode: item.item_code,
+						scanMode: this.scan_add_mode,
+						isNewItem: true, // This is always a new add from ItemsSelector
+						duration: 1200, // Slightly longer for better visibility
+						highlightType: "new_item" // Distinguish from quantity updates
+					});
 
-				// 	// Emit to both event names for compatibility
-				// 	this.eventBus.emit("highlight_invoice_item", {
-				// 		itemRowId: item.item_code,
-				// 		scanMode: this.scan_add_mode,
-				// 		duration: 1000, // Changed from 2000 to 1000 ms
-				// 		enlargeFont: true,
-				// 	});
-
-				// 	// Also emit the old event name for backward compatibility
-				// 	this.eventBus.emit("highlight_scanned_item", item.item_code);
-
-				// 	console.log("[ItemsSelector] ✅ Highlight event emitted successfully");
-				// }, 1000);
+					console.log("[ItemsSelector] ✅ Smart highlight event emitted");
+				}, 150); // Reduced delay for faster feedback
 			}
 		},
 		async enter_event() {
@@ -2745,6 +2741,7 @@ export default {
 			this.f3_enabled = false;
 			
 			console.info('[NumPad] Opened with value:', this.numpad_display);
+			console.info('[NumPad] Current search mode:', this.search_mode, '(will return to Barcode mode on close)');
 		},
 		
 		hideNumPad() {
@@ -2754,12 +2751,18 @@ export default {
 			this.f2_enabled = true;
 			this.f3_enabled = true;
 			
+			// 🆕 ALWAYS return to Barcode mode when closing NumPad
+			this.search_mode = 'barcode';
+			
+			// Clear any search results that might be showing
+			this.hideSearchResults();
+			
 			// Focus back to barcode input
 			this.$nextTick(() => {
 				this.focusSearchInput();
 			});
 			
-			console.info('[NumPad] Closed, focus returned to barcode input');
+			console.info('[NumPad] Closed, returned to BARCODE mode with focus on search input');
 		},
 		
 		numpadInput(value) {
@@ -2812,16 +2815,16 @@ export default {
 			// Apply quantity
 			this.qty = value;
 			
-			// Show success feedback
+			// Show success feedback with mode info
 			frappe.show_alert({
-				message: `Số lượng: ${value}`,
+				message: `Số lượng: ${value} • Chế độ: Quét Barcode`,
 				indicator: 'green'
-			}, 1);
+			}, 2);
 			
-			// Close NumPad and return focus to barcode input
+			// Close NumPad and return focus to barcode input (will auto-switch to barcode mode)
 			this.hideNumPad();
 			
-			console.info('[NumPad] Enter pressed, qty set to:', value);
+			console.info('[NumPad] Enter pressed, qty set to:', value, '- Switched to Barcode mode');
 		},
 
 		startCameraScanning() {
