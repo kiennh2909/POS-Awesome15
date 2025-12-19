@@ -1038,12 +1038,18 @@ export default {
 				this.update_items_details(new_value);
 			}
 		},
-		// 🚫 DISABLED: Auto-search watcher để thống nhất luồng - tất cả đều phải nhấn Enter
+		// Automatically search and add item whenever the query changes
 		first_search: _.debounce(function (val) {
-			console.log(`[WATCHER] first_search changed: "${val}", mode: ${this.search_mode}`);
-			console.log('[WATCHER] Auto-search DISABLED - User must press Enter for all input methods');
-			// Không còn auto-search, tất cả đều phải nhấn Enter để thống nhất workflow
-		}, 300),
+			// Only auto-search in barcode mode or when from scanner
+			// In text mode, user must press Enter to search
+			console.log(`[WATCHER] first_search changed: "${val}", mode: ${this.search_mode}, from_scanner: ${this.search_from_scanner}`);
+			if (this.search_mode === 'barcode' || this.search_from_scanner) {
+				console.log('[WATCHER] Triggering auto-search');
+				this.queueSearch(val, this.search_from_scanner);
+			} else {
+				console.log('[WATCHER] Text mode - no auto-search, waiting for Enter');
+			}
+		}, 300), // Increased debounce time to match search debounce
 
 		// Refresh item prices whenever the user changes currency
 		selected_currency() {
@@ -1795,9 +1801,8 @@ export default {
 						throw new Error("Search cancelled");
 					}
 
-					// 🚫 DISABLED: Auto-add để thống nhất luồng - tất cả đều phải nhấn Enter
-					console.info("[ItemsSelector] 🚫 AUTO-ADD DISABLED - User must press Enter to add item");
-					// await this.add_item(item);
+					// ✅ Add item với UOM và Price đã được đảm bảo chính xác
+					await this.add_item(item);
 
 					// Bỏ hộp thông báo để tăng tốc độ
 					// // Show success message
@@ -1812,7 +1817,7 @@ export default {
 					// Clear search state
 					this.clearSearchState();
 
-					return item; // Return item data instead of boolean (không auto-add nữa)
+					return true; // Match found and added
 				} else {
 					console.info("[ItemsSelector] ❌ No exact barcode match for:", rawCode);
 					return false; // No match found
@@ -2424,10 +2429,13 @@ export default {
 			this.clearSearch();
 			this.$refs.debounce_search.focus();
 		},
-		// 🚫 DISABLED: search_onchange để thống nhất luồng - tất cả đều phải nhấn Enter
 		search_onchange: _.debounce(async function (newSearchTerm) {
-			console.log('[search_onchange] DISABLED - User must press Enter for all searches');
-			// Không còn auto-search, tất cả đều phải nhấn Enter để thống nhất workflow
+			const vm = this;
+
+			// Use queue system to eliminate race conditions completely
+			const query = typeof newSearchTerm === "string" ? newSearchTerm : vm.first_search;
+			const fromScanner = vm.search_from_scanner;
+			vm.queueSearch(query, fromScanner);
 		}, 300),
 
 		get_item_qty(first_search) {
@@ -2729,26 +2737,15 @@ export default {
 			}
 			this.lastScanTime = now;
 
-			console.info('[Hardware Scanner] Scanned code:', sCode);
-			
-			// 🆕 THỐNG NHẤT: Hardware scanner chỉ điền vào input, KHÔNG tự động add
+			// 🆕 Force barcode mode when scanner is used
 			this.search_mode = 'barcode';
+			
+			// Hide any search results
 			this.hideSearchResults();
-			
-			// Điền barcode vào input và focus
-			this.first_search = sCode.trim();
-			this.search = sCode.trim();
-			
-			// Focus vào input để user có thể nhấn Enter
-			this.$nextTick(() => {
-				this.focusSearchInput();
-			});
-			
-			// Hiển thị thông báo hướng dẫn
-			frappe.show_alert({
-				message: `Hardware Scanner: ${sCode} - Nhấn Enter để thêm vào giỏ hàng`,
-				indicator: 'blue'
-			}, 3);
+
+			// Thay trigger_onscan để không đụng first_search/search, không gọi enter_event
+			this.search_from_scanner = true; // chỉ để UI biết nguồn từ scanner
+			this.processScannedItem(sCode); // pipeline duy nhất
 		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
@@ -2899,10 +2896,20 @@ export default {
 
 				if (exactItem) {
 					console.info(`[ItemsSelector] ✅ Found exact barcode match: ${exactItem.item_code}`);
-					console.info(`[ItemsSelector] 🚫 AUTO-ADD DISABLED - User must press Enter to add item`);
-					// 🚫 DISABLED: Auto-add để thống nhất luồng - tất cả đều phải nhấn Enter
-					// await this.add_item(exactItem);
-					// this.clearSearchState();
+
+					// Set UOM from barcode data
+					const barcodeData = exactItem.item_barcode.find((bc) => bc.barcode === trimmedQuery);
+					if (barcodeData && barcodeData.posa_uom) {
+						exactItem.uom = barcodeData.posa_uom;
+					}
+
+					// Check cancellation before adding item
+					if (this.current_search_id !== searchId) {
+						throw new Error("Search cancelled");
+					}
+
+					await this.add_item(exactItem);
+					this.clearSearchState();
 					return;
 				}
 
@@ -2932,11 +2939,10 @@ export default {
 			} else {
 				// Ensure qty is reset before enter_event to prevent decimal issues
 				this.qty = 1;
-				// 🚫 DISABLED: Auto-add để thống nhất luồng - tất cả đều phải nhấn Enter
-				console.info(`[ItemsSelector] 🚫 AUTO-ADD DISABLED - User must press Enter for all searches`);
-				// if (!fromScanner && query.length >= 3) {
-				//     this.enter_event();
-				// }
+				// KHÔNG auto-add khi đến từ scanner (đã xử lý trong processScannedItem)
+				if (!fromScanner && query.length >= 3) {
+					this.enter_event();
+				}
 
 				// Update item details after search
 				if (this.filtered_items && this.filtered_items.length > 0) {
@@ -3438,38 +3444,36 @@ export default {
 			}
 		},
 		onBarcodeScanned(scannedCode) {
-			console.info("Camera Scanner - Barcode scanned:", scannedCode);
+			console.info("Barcode scanned:", scannedCode);
 
 			// Debounce to prevent duplicate scans within short time period
 			const now = Date.now();
 			if (now - this.lastScanTime < this.scanDebounceMs) {
-				console.log("Ignoring duplicate camera scan within debounce period");
+				console.log("Ignoring duplicate scan within debounce period");
 				return;
 			}
 			this.lastScanTime = now;
 
-			// 🆕 THỐNG NHẤT: Camera scanner chỉ điền vào input, KHÔNG tự động add
+			// 🆕 Force barcode mode when camera scanner is used
 			this.search_mode = 'barcode';
+			
+			// Hide search results
 			this.hideSearchResults();
-			
-			// Điền barcode vào input và focus
-			this.first_search = scannedCode.trim();
-			this.search = scannedCode.trim();
-			
-			// Focus vào input để user có thể nhấn Enter
-			this.$nextTick(() => {
-				this.focusSearchInput();
-			});
 
-			// Show scanning feedback với hướng dẫn
-			frappe.show_alert({
-				message: `Camera Scanner: ${scannedCode} - Nhấn Enter để thêm vào giỏ hàng`,
-				indicator: "green",
-			}, 3);
+			// Use same pipeline as hardware scanner for consistency
+			this.search_from_scanner = true;
+			this.processScannedItem(scannedCode);
+
+			// Show scanning feedback
+			frappe.show_alert(
+				{
+					message: `Scanning for: ${scannedCode}`,
+					indicator: "blue",
+				},
+				2,
+			);
 		},
-		// 🚫 DEPRECATED: Method này không còn được sử dụng sau khi thống nhất luồng scanner
-		// Tất cả scanner giờ đều đi qua handleBarcodeEnter() thông qua Enter key
-		async processScannedItem_DEPRECATED(scannedCode) {
+		async processScannedItem(scannedCode) {
 			try {
 				// CHỐT KHOÁ: chặn double add do các đường gọi trùng
 				if (this.processing_scan) return;
