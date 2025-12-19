@@ -2722,6 +2722,7 @@ export default {
 			this.search_backup = this.first_search;
 			this.first_search = "";
 			this.search = "";
+			this.debounce_search = ""; // Clear the visible textbox
 			// No need to call get_items() again
 		},
 
@@ -2858,7 +2859,7 @@ export default {
 					}
 
 					await this.add_item(exactItem);
-					this.clearSearchState();
+					this.clearSearchAndRefocus(); // Clear and focus for next scan
 					return;
 				}
 
@@ -2868,6 +2869,7 @@ export default {
 					if (exactItem) {
 						console.info(`[ItemsSelector] ✅ Exact barcode API match found`);
 						await this.add_item(exactItem);
+						this.clearSearchAndRefocus(); // Clear and focus for next scan
 						return;
 					}
 				} catch (apiError) {
