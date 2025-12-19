@@ -1,17 +1,18 @@
 <template>
 	<v-dialog 
 		v-model="isVisible" 
-		max-width="1000px"
-		max-height="650px"
+		max-width="900px"
+		max-height="600px"
 		persistent
 		@keydown="handleGlobalKeydown"
 	>
-		<v-card class="numpad-exact-design">
+		<v-card class="item-edit-numpad-redesign">
 			<!-- Header with Teal Background -->
-			<v-card-title class="numpad-header-exact">
+			<v-card-title class="numpad-header">
 				<v-icon class="mr-3" size="large">mdi-package-variant</v-icon>
 				<div class="header-content">
 					<div class="header-title">Chỉnh Sửa Sản Phẩm</div>
+					<div class="header-subtitle">{{ selectedItem?.item_name || 'MANG LA TUOI HA THANH' }}</div>
 				</div>
 				<v-btn 
 					icon="mdi-close" 
@@ -23,36 +24,36 @@
 				></v-btn>
 			</v-card-title>
 
-			<!-- Main Content - 3 Column Layout -->
-			<v-card-text class="pa-0">
-				<div class="three-column-layout">
-					<!-- Left Column: Item Info -->
-					<div class="left-column">
+			<!-- Content -->
+			<v-card-text class="pa-4">
+				<v-row no-gutters>
+					<!-- Left Panel: Item Info -->
+					<v-col cols="4" class="left-panel">
 						<!-- Item Information -->
-						<div class="info-section-exact">
-							<h3 class="section-title-exact">Thông Tin Sản Phẩm</h3>
-							<div class="info-item-exact">
-								<span class="info-label-exact">Mã:</span> 
-								<span class="info-value-exact">{{ selectedItem?.item_code || 'VT181801' }}</span>
+						<div class="info-section">
+							<h3 class="section-title">Thông Tin Sản Phẩm</h3>
+							<div class="info-item">
+								<span class="info-label">Mã:</span> 
+								<span class="info-value">{{ selectedItem?.item_code || '893850105318' }}</span>
 							</div>
-							<div class="info-item-exact">
-								<span class="info-label-exact">Tên:</span> 
-								<span class="info-value-exact">{{ selectedItem?.item_name || '1EGQPIE 蛋塔' }}</span>
+							<div class="info-item">
+								<span class="info-label">Tên:</span> 
+								<span class="info-value">{{ selectedItem?.item_name || 'MANG LA TUOI HA THANH' }}</span>
 							</div>
-							<div class="info-item-exact">
-								<span class="info-label-exact">ĐVT:</span> 
-								<span class="info-value-exact">{{ selectedUom || selectedItem?.uom || '份' }}</span>
+							<div class="info-item">
+								<span class="info-label">ĐVT:</span> 
+								<span class="info-value">{{ selectedUom || selectedItem?.uom || 'Túi' }}</span>
 							</div>
 						</div>
 
-						<!-- Field Selection -->
-						<div class="field-section-exact">
-							<h3 class="section-title-exact">Chọn Trường Chỉnh Sửa</h3>
-							<div class="field-buttons-exact">
+						<!-- Field Selection - Only QTY -->
+						<div class="field-section">
+							<h3 class="section-title">Chọn Trường Chỉnh Sửa</h3>
+							<div class="field-buttons">
 								<v-btn
 									variant="flat"
 									color="teal"
-									class="field-btn-exact active-field-exact"
+									class="field-btn active-field"
 									disabled
 								>
 									<v-icon class="mr-2">mdi-counter</v-icon>
@@ -61,7 +62,7 @@
 								<v-btn
 									variant="outlined"
 									color="grey"
-									class="field-btn-exact disabled-field-exact"
+									class="field-btn disabled-field"
 									disabled
 								>
 									<v-icon class="mr-2">mdi-currency-usd</v-icon>
@@ -70,70 +71,68 @@
 							</div>
 						</div>
 
-						<!-- Current Price Display -->
-						<div class="price-section-exact">
-							<h3 class="section-title-exact">Giá Trị Hiện Tại</h3>
-							<div class="price-display-exact">
-								<div class="price-label-exact">Đơn Giá</div>
-								<div class="price-value-exact">$ {{ formatPrice(selectedItem?.rate || 35) }}</div>
+						<!-- Current Price Display (Read-only) -->
+						<div class="price-section">
+							<h3 class="section-title">Giá Trị Hiện Tại</h3>
+							<div class="price-display">
+								<div class="price-label">Đơn Giá</div>
+								<div class="price-value">$ {{ formatPrice(selectedItem?.rate || 65) }}</div>
 							</div>
 						</div>
-					</div>
 
-					<!-- Middle Column: UOM Selection -->
-					<div class="middle-column">
-						<div class="uom-selection-exact">
-							<v-btn
-								v-for="uom in availableUoms"
-								:key="uom.uom"
-								:variant="selectedUom === uom.uom ? 'flat' : 'outlined'"
-								:color="selectedUom === uom.uom ? 'light-blue' : 'grey'"
-								class="uom-btn-exact"
-								:class="{ 'uom-active': selectedUom === uom.uom }"
-								@click="selectUom(uom.uom)"
-							>
-								<div class="uom-btn-content">
-									<div class="uom-main-text">{{ getUomMainText(uom) }}</div>
-									<div class="uom-sub-text" v-if="getUomSubText(uom)">{{ getUomSubText(uom) }}</div>
-								</div>
-							</v-btn>
+						<!-- UOM Selection Buttons -->
+						<div class="uom-section" v-if="availableUoms.length > 1">
+							<h3 class="section-title">Đơn Vị Tính</h3>
+							<div class="uom-buttons">
+								<v-btn
+									v-for="uom in availableUoms"
+									:key="uom.uom"
+									:variant="selectedUom === uom.uom ? 'flat' : 'outlined'"
+									:color="selectedUom === uom.uom ? 'teal' : 'grey'"
+									class="uom-btn"
+									@click="selectUom(uom.uom)"
+									size="small"
+								>
+									{{ uom.uom }}
+								</v-btn>
+							</div>
 						</div>
-					</div>
+					</v-col>
 
-					<!-- Right Column: NumPad -->
-					<div class="right-column">
+					<!-- Right Panel: NumPad -->
+					<v-col cols="8" class="right-panel">
 						<!-- Quantity Input Display -->
-						<div class="qty-input-exact">
-							<div class="input-label-exact">Nhập Số Lượng</div>
-							<div class="qty-display-exact">
-								<span class="qty-value-exact">{{ displayValue || '19' }}</span>
+						<div class="qty-input-section">
+							<div class="input-label">Nhập Số Lượng</div>
+							<div class="qty-display">
+								<span class="qty-value">{{ displayValue || '0' }}</span>
 							</div>
 						</div>
 
 						<!-- NumPad Grid -->
-						<div class="numpad-grid-exact">
+						<div class="numpad-grid-redesign">
 							<!-- Row 1: Action Buttons -->
-							<div class="numpad-row-exact">
-								<v-btn class="numpad-btn-exact delete-btn-exact" @click="deleteItem">
+							<div class="numpad-row">
+								<v-btn class="numpad-btn delete-btn" @click="deleteItem">
 									DELETE
 								</v-btn>
-								<v-btn class="numpad-btn-exact minus-btn-exact" @click="decreaseValue">
+								<v-btn class="numpad-btn minus-btn" @click="decreaseValue">
 									- -
 								</v-btn>
-								<v-btn class="numpad-btn-exact plus-btn-exact" @click="increaseValue">
+								<v-btn class="numpad-btn plus-btn" @click="increaseValue">
 									+ +
 								</v-btn>
-								<v-btn class="numpad-btn-exact backspace-btn-exact" @click="backspace">
+								<v-btn class="numpad-btn backspace-btn" @click="backspace">
 									<v-icon>mdi-close</v-icon>
 								</v-btn>
 							</div>
 
 							<!-- Row 2: 7, 8, 9 -->
-							<div class="numpad-row-exact">
+							<div class="numpad-row">
 								<v-btn 
 									v-for="num in [7, 8, 9]" 
 									:key="num"
-									class="numpad-btn-exact number-btn-exact" 
+									class="numpad-btn number-btn" 
 									@click="inputNumber(num)"
 								>
 									{{ num }}
@@ -141,11 +140,11 @@
 							</div>
 
 							<!-- Row 3: 4, 5, 6 -->
-							<div class="numpad-row-exact">
+							<div class="numpad-row">
 								<v-btn 
 									v-for="num in [4, 5, 6]" 
 									:key="num"
-									class="numpad-btn-exact number-btn-exact" 
+									class="numpad-btn number-btn" 
 									@click="inputNumber(num)"
 								>
 									{{ num }}
@@ -153,11 +152,11 @@
 							</div>
 
 							<!-- Row 4: 1, 2, 3 -->
-							<div class="numpad-row-exact">
+							<div class="numpad-row">
 								<v-btn 
 									v-for="num in [1, 2, 3]" 
 									:key="num"
-									class="numpad-btn-exact number-btn-exact" 
+									class="numpad-btn number-btn" 
 									@click="inputNumber(num)"
 								>
 									{{ num }}
@@ -165,25 +164,25 @@
 							</div>
 
 							<!-- Row 5: 0, ., 000, CLEAR -->
-							<div class="numpad-row-exact">
-								<v-btn class="numpad-btn-exact number-btn-exact" @click="inputNumber(0)">
+							<div class="numpad-row">
+								<v-btn class="numpad-btn number-btn" @click="inputNumber(0)">
 									0
 								</v-btn>
-								<v-btn class="numpad-btn-exact number-btn-exact" @click="inputDecimal">
+								<v-btn class="numpad-btn number-btn" @click="inputDecimal">
 									.
 								</v-btn>
-								<v-btn class="numpad-btn-exact number-btn-exact" @click="inputTripleZero">
+								<v-btn class="numpad-btn number-btn" @click="inputTripleZero">
 									000
 								</v-btn>
-								<v-btn class="numpad-btn-exact clear-btn-exact" @click="clear">
+								<v-btn class="numpad-btn clear-btn" @click="clear">
 									CLEAR
 								</v-btn>
 							</div>
 
 							<!-- Row 6: ENTER -->
-							<div class="numpad-row-exact">
+							<div class="numpad-row">
 								<v-btn 
-									class="numpad-btn-exact enter-btn-exact" 
+									class="numpad-btn enter-btn" 
 									@click="confirmValue"
 									:disabled="hasError"
 									block
@@ -193,8 +192,8 @@
 								</v-btn>
 							</div>
 						</div>
-					</div>
-				</div>
+					</v-col>
+				</v-row>
 			</v-card-text>
 		</v-card>
 	</v-dialog>
@@ -239,16 +238,10 @@ export default {
 			}
 		},
 		
-		// Get available UOMs for this item - with sample data matching the design
+		// Get available UOMs for this item
 		availableUoms() {
 			if (!this.selectedItem || !this.selectedItem.item_uoms) {
-				// Sample UOMs matching the design
-				return [
-					{ uom: 'CÁI' },
-					{ uom: 'BOX LỐC 6' },
-					{ uom: 'CARTON THÙNG 24' },
-					{ uom: 'CARTON THÙNG 48' }
-				];
+				return [{ uom: this.selectedItem?.uom || 'Túi' }];
 			}
 			return this.selectedItem.item_uoms || [];
 		}
@@ -446,21 +439,6 @@ export default {
 			}
 		},
 		
-		// UOM Text Parsing
-		getUomMainText(uom) {
-			// Parse UOM to get main text (first part)
-			const uomStr = uom.uom || uom;
-			const parts = uomStr.split(' ');
-			return parts[0] || uomStr;
-		},
-		
-		getUomSubText(uom) {
-			// Parse UOM to get sub text (second part)
-			const uomStr = uom.uom || uom;
-			const parts = uomStr.split(' ');
-			return parts.slice(1).join(' ') || '';
-		},
-		
 		// Utility Methods
 		formatPrice(value) {
 			return Math.round(value || 0);
@@ -470,22 +448,20 @@ export default {
 </script>
 
 <style scoped>
-/* Main Container - Exact Design Match */
-.numpad-exact-design {
-	border-radius: 0;
+/* Main Container */
+.item-edit-numpad-redesign {
+	border-radius: 16px;
 	overflow: hidden;
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-	max-height: 650px;
-	background: white;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+	max-height: 600px;
 }
 
-/* Header - Exact Teal Match */
-.numpad-header-exact {
+/* Header Styling - Teal Background */
+.numpad-header {
 	background: linear-gradient(135deg, #26a69a, #00695c) !important;
 	color: white !important;
-	padding: 16px 24px;
-	min-height: 70px;
-	border-radius: 0;
+	padding: 16px 20px;
+	min-height: 60px;
 }
 
 .header-content {
@@ -493,9 +469,15 @@ export default {
 }
 
 .header-title {
-	font-size: 1.4rem;
+	font-size: 1.5rem;
 	font-weight: 600;
-	margin-bottom: 0;
+	margin-bottom: 4px;
+}
+
+.header-subtitle {
+	font-size: 0.9rem;
+	opacity: 0.9;
+	font-weight: 400;
 }
 
 .close-btn {
@@ -506,455 +488,331 @@ export default {
 	background: rgba(255, 255, 255, 0.2) !important;
 }
 
-/* 3-Column Layout - CRITICAL FIX */
-.three-column-layout {
-	display: flex;
-	flex-direction: row;
-	height: 550px;
-	background: white;
-	overflow: hidden;
-}
-
-/* Left Column - Item Info */
-.left-column {
-	width: 300px;
-	min-width: 300px;
-	max-width: 300px;
+/* Left Panel */
+.left-panel {
 	background: #f8f9fa;
-	padding: 20px;
-	border-right: 1px solid #e0e0e0;
-	overflow-y: auto;
-	flex-shrink: 0;
-}
-
-/* Middle Column - UOM Selection - CRITICAL FIX */
-.middle-column {
-	width: 200px;
-	min-width: 200px;
-	max-width: 200px;
-	background: #f0f0f0;
-	padding: 20px 10px;
-	border-right: 1px solid #e0e0e0;
-	display: flex;
-	flex-direction: column;
-	justify-content: flex-start;
-	overflow-y: auto;
-	flex-shrink: 0;
-}
-
-/* Right Column - NumPad */
-.right-column {
-	flex: 1;
-	min-width: 400px;
-	background: white;
-	padding: 20px;
+	border-radius: 12px;
+	padding: 16px;
+	margin-right: 12px;
+	max-height: 480px;
 	overflow-y: auto;
 }
 
-/* Left Column Sections */
-.info-section-exact {
-	margin-bottom: 24px;
-}
-
-.section-title-exact {
+.section-title {
 	font-size: 1rem;
 	font-weight: 600;
 	color: #333;
-	margin-bottom: 12px;
+	margin-bottom: 8px;
 	border-bottom: 2px solid #26a69a;
-	padding-bottom: 4px;
+	padding-bottom: 2px;
 }
 
+/* Item Info Section */
+.info-section {
+	margin-bottom: 16px;
+}
 
-</style>
-
-/* Item Info */
-.info-item-exact {
-	margin-bottom: 8px;
+.info-item {
+	margin-bottom: 6px;
 	font-size: 0.9rem;
 }
 
-.info-label-exact {
+.info-label {
 	font-weight: 600;
 	color: #555;
-	min-width: 40px;
+	min-width: 35px;
 	display: inline-block;
 }
 
-.info-value-exact {
+.info-value {
 	color: #333;
 	font-weight: 500;
 }
 
 /* Field Selection */
-.field-section-exact {
-	margin-bottom: 24px;
+.field-section {
+	margin-bottom: 16px;
 }
 
-.field-buttons-exact {
+.field-buttons {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: 6px;
 }
 
-.field-btn-exact {
+.field-btn {
 	width: 100% !important;
-	height: 44px !important;
+	height: 40px !important;
 	font-weight: 600 !important;
 	text-transform: none !important;
 	justify-content: flex-start !important;
-	font-size: 0.9rem !important;
+	font-size: 0.85rem !important;
 }
 
-.active-field-exact {
+.active-field {
 	background: #26a69a !important;
 	color: white !important;
 }
 
-.disabled-field-exact {
+.disabled-field {
 	opacity: 0.5 !important;
-	background: #f5f5f5 !important;
 }
 
 /* Price Display */
-.price-section-exact {
+.price-section {
 	margin-bottom: 16px;
 }
 
-.price-display-exact {
+.price-display {
 	background: white;
 	border: 2px solid #e0e0e0;
 	border-radius: 8px;
-	padding: 16px;
+	padding: 12px;
 	text-align: center;
 }
 
-.price-label-exact {
-	font-size: 0.9rem;
+.price-label {
+	font-size: 0.8rem;
 	color: #666;
-	margin-bottom: 4px;
+	margin-bottom: 2px;
 }
 
-.price-value-exact {
-	font-size: 1.6rem;
+.price-value {
+	font-size: 1.4rem;
 	font-weight: 700;
 	color: #26a69a;
 }
 
-/* UOM Selection - Middle Column */
-.uom-selection-exact {
+/* UOM Buttons */
+.uom-section {
+	margin-bottom: 16px;
+}
+
+.uom-buttons {
 	display: flex;
-	flex-direction: column;
-	gap: 12px;
-	height: 100%;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
-.uom-btn-exact {
-	width: 100% !important;
-	height: 80px !important;
-	padding: 8px !important;
-	border-radius: 8px !important;
-	text-transform: none !important;
-	background: white !important;
-	border: 2px solid #e0e0e0 !important;
-	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-	transition: all 0.2s ease !important;
+.uom-btn {
+	min-width: 60px !important;
+	height: 36px !important;
+	font-size: 0.85rem !important;
+	font-weight: 600 !important;
 }
 
-.uom-btn-exact:hover {
-	border-color: #26a69a !important;
-	transform: translateY(-1px);
-	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+/* Right Panel */
+.right-panel {
+	padding: 16px;
 }
 
-.uom-btn-exact.uom-active {
-	background: #e3f2fd !important;
-	border-color: #2196f3 !important;
-	color: #1976d2 !important;
+/* Quantity Input Display */
+.qty-input-section {
+	margin-bottom: 16px;
 }
 
-.uom-btn-content {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	height: 100%;
-}
-
-.uom-main-text {
-	font-size: 1.1rem;
-	font-weight: 700;
-	color: #333;
-	margin-bottom: 2px;
-}
-
-.uom-active .uom-main-text {
-	color: #1976d2;
-}
-
-.uom-sub-text {
-	font-size: 0.8rem;
-	font-weight: 500;
-	color: #666;
-	text-align: center;
-	line-height: 1.2;
-}
-
-.uom-active .uom-sub-text {
-	color: #1976d2;
-}
-
-/* Right Column - Quantity Input */
-.qty-input-exact {
-	margin-bottom: 20px;
-}
-
-.input-label-exact {
-	font-size: 1rem;
+.input-label {
+	font-size: 0.9rem;
 	font-weight: 600;
 	color: #555;
-	margin-bottom: 8px;
+	margin-bottom: 6px;
 	text-align: center;
 }
 
-.qty-display-exact {
+.qty-display {
 	background: white;
 	border: 3px solid #26a69a;
 	border-radius: 12px;
-	padding: 16px;
+	padding: 12px;
 	text-align: center;
-	min-height: 70px;
+	min-height: 50px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
-.qty-value-exact {
-	font-size: 2.5rem;
+.qty-value {
+	font-size: 1.8rem;
 	font-weight: 700;
 	color: #333;
 }
 
-/* NumPad Grid - Exact Design */
-.numpad-grid-exact {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
+/* NumPad Grid - Removed duplicate, see Compact Layout section */
 
-.numpad-row-exact {
-	display: flex;
-	gap: 8px;
-}
-
-.numpad-btn-exact {
+.numpad-btn {
 	flex: 1;
-	height: 55px !important;
-	font-size: 1.2rem !important;
+	height: 50px !important;
+	font-size: 1.1rem !important;
 	font-weight: 700 !important;
 	border-radius: 8px !important;
 	text-transform: none !important;
-	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
 	transition: all 0.2s ease !important;
 }
 
-.numpad-btn-exact:hover {
-	transform: translateY(-1px);
-	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15) !important;
+.numpad-btn:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
 }
 
-/* Button Colors - Exact Match */
-.number-btn-exact {
+/* Button Colors */
+.number-btn {
 	background: #26a69a !important;
 	color: white !important;
 }
 
-.number-btn-exact:hover {
+.number-btn:hover {
 	background: #00695c !important;
 }
 
-.delete-btn-exact {
+.delete-btn {
 	background: #f44336 !important;
 	color: white !important;
-	font-size: 0.9rem !important;
 }
 
-.delete-btn-exact:hover {
+.delete-btn:hover {
 	background: #d32f2f !important;
 }
 
-.minus-btn-exact {
+.minus-btn {
 	background: #ff9800 !important;
 	color: white !important;
 }
 
-.minus-btn-exact:hover {
+.minus-btn:hover {
 	background: #f57c00 !important;
 }
 
-.plus-btn-exact {
+.plus-btn {
 	background: #4caf50 !important;
 	color: white !important;
 }
 
-.plus-btn-exact:hover {
+.plus-btn:hover {
 	background: #388e3c !important;
 }
 
-.backspace-btn-exact {
+.backspace-btn {
 	background: #9e9e9e !important;
 	color: white !important;
 }
 
-.backspace-btn-exact:hover {
+.backspace-btn:hover {
 	background: #757575 !important;
 }
 
-.clear-btn-exact {
+.clear-btn {
 	background: #ff9800 !important;
 	color: white !important;
 	font-size: 0.9rem !important;
 }
 
-.clear-btn-exact:hover {
+.clear-btn:hover {
 	background: #f57c00 !important;
 }
 
-.enter-btn-exact {
+.enter-btn {
 	background: #4caf50 !important;
 	color: white !important;
-	height: 50px !important;
+	height: 48px !important;
 	font-size: 1rem !important;
 }
 
-.enter-btn-exact:hover {
+.enter-btn:hover {
 	background: #388e3c !important;
 }
 
-.enter-btn-exact:disabled {
+.enter-btn:disabled {
 	background: #e0e0e0 !important;
 	color: #9e9e9e !important;
 }
 
 /* Dark Theme Support */
-:deep(.v-theme--dark) .three-column-layout {
-	background: #1e1e1e;
-}
-
-:deep(.v-theme--dark) .left-column {
+:deep(.v-theme--dark) .left-panel {
 	background: #2a2a2a;
-	border-right-color: #444;
 }
 
-:deep(.v-theme--dark) .middle-column {
-	background: #333;
-	border-right-color: #444;
-}
-
-:deep(.v-theme--dark) .right-column {
-	background: #1e1e1e;
-}
-
-:deep(.v-theme--dark) .section-title-exact {
+:deep(.v-theme--dark) .section-title {
 	color: #fff;
 }
 
-:deep(.v-theme--dark) .info-label-exact {
+:deep(.v-theme--dark) .info-label {
 	color: #bbb;
 }
 
-:deep(.v-theme--dark) .info-value-exact {
+:deep(.v-theme--dark) .info-value {
 	color: #fff;
 }
 
-:deep(.v-theme--dark) .price-display-exact {
+:deep(.v-theme--dark) .price-display {
 	background: #333;
 	border-color: #555;
 }
 
-:deep(.v-theme--dark) .qty-display-exact {
+:deep(.v-theme--dark) .qty-display {
 	background: #333;
 }
 
-:deep(.v-theme--dark) .qty-value-exact {
+:deep(.v-theme--dark) .qty-value {
 	color: #fff;
 }
 
-:deep(.v-theme--dark) .uom-btn-exact {
-	background: #333 !important;
-	border-color: #555 !important;
+/* Dialog Size Control */
+.v-dialog {
+	align-items: center !important;
 }
 
-:deep(.v-theme--dark) .uom-main-text {
-	color: #fff;
+.v-dialog > .v-overlay__content {
+	max-height: 90vh !important;
+	overflow: hidden !important;
 }
 
-:deep(.v-theme--dark) .uom-sub-text {
-	color: #bbb;
+/* Compact Layout */
+.numpad-grid-redesign {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	max-height: 350px;
+}
+
+.numpad-row {
+	display: flex;
+	gap: 6px;
 }
 
 /* Responsive Design */
-@media (max-width: 1024px) {
-	.three-column-layout {
-		height: auto;
-		min-height: 500px;
-	}
-	
-	.left-column {
-		width: 250px;
-		min-width: 250px;
-		max-width: 250px;
-	}
-	
-	.middle-column {
-		width: 180px;
-		min-width: 180px;
-		max-width: 180px;
-	}
-	
-	.right-column {
-		min-width: 350px;
-	}
-}
-
 @media (max-width: 768px) {
-	.three-column-layout {
-		flex-direction: column;
-		height: auto;
+	.item-edit-numpad-redesign {
+		margin: 8px;
+		max-width: calc(100vw - 16px) !important;
+		max-height: calc(100vh - 16px) !important;
 	}
 	
-	.left-column,
-	.middle-column,
-	.right-column {
-		width: 100% !important;
-		min-width: 100% !important;
-		max-width: 100% !important;
-		border-right: none;
-		border-bottom: 1px solid #e0e0e0;
+	.left-panel {
+		margin-right: 8px;
+		padding: 12px;
+		max-height: 400px;
 	}
 	
-	.middle-column {
-		padding: 15px;
+	.right-panel {
+		padding: 12px;
 	}
 	
-	.uom-selection-exact {
-		flex-direction: row;
-		flex-wrap: wrap;
-		gap: 8px;
+	.numpad-btn {
+		height: 45px !important;
+		font-size: 1rem !important;
 	}
 	
-	.uom-btn-exact {
-		width: calc(50% - 4px) !important;
-		height: 60px !important;
+	.qty-value {
+		font-size: 1.6rem;
 	}
 	
-	.numpad-btn-exact {
-		height: 50px !important;
-		font-size: 1.1rem !important;
+	.price-value {
+		font-size: 1.3rem;
 	}
 	
-	.qty-value-exact {
-		font-size: 2rem;
+	.numpad-grid-redesign {
+		max-height: 300px;
 	}
 }
 </style>
