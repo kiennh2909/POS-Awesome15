@@ -519,12 +519,12 @@
 						<!-- Row 5: Clear, Enter -->
 						<v-btn 
 							@click="numpadClear"
-							class="numpad-btn numpad-btn-wide"
+							class="numpad-btn numpad-btn-wide numpad-clear-btn"
 							size="large"
 							variant="outlined"
 							color="error"
 						>
-							CLEAR (C)
+							CLEAR
 						</v-btn>
 						
 						<v-btn 
@@ -783,7 +783,12 @@ export default {
 		},
 		
 		filtered_items() {
-			this.search = this.get_search(this.first_search).trim();
+			// Only trim in barcode mode, preserve spaces in text mode
+			if (this.search_mode === 'barcode') {
+				this.search = this.get_search(this.first_search).trim();
+			} else {
+				this.search = this.get_search(this.first_search);
+			}
 			if (!this.pos_profile.pose_use_limit_search) {
 				let filtred_list = [];
 				let filtred_group_list = this.items;
@@ -2440,7 +2445,14 @@ export default {
 				throw new Error("Search cancelled");
 			}
 
-			const query = (searchTerm || "").trim();
+			// Only trim in barcode mode or when from scanner
+			// In text mode, preserve user input exactly as typed for auto-search
+			let query;
+			if (this.search_mode === 'barcode' || fromScanner) {
+				query = (searchTerm || "").trim();
+			} else {
+				query = searchTerm || "";
+			}
 
 			if (!query) {
 				this.search_from_scanner = false;
@@ -2454,20 +2466,21 @@ export default {
 				throw new Error("Search cancelled");
 			}
 
-			// Priority: If search term is valid barcode, try exact match first
-			if (this.isValidBarcode(query)) {
-				console.info(`[ItemsSelector] 🔍 Processing barcode search: ${query} (ID: ${searchId})`);
+			// Priority: If search term is valid barcode (check with trimmed version), try exact match first
+			const trimmedQuery = query.trim();
+			if (this.isValidBarcode(trimmedQuery)) {
+				console.info(`[ItemsSelector] 🔍 Processing barcode search: ${trimmedQuery} (ID: ${searchId})`);
 
 				// Try local exact match first
 				const exactItem = this.items.find(
-					(item) => item.item_barcode && item.item_barcode.some((bc) => bc.barcode === query),
+					(item) => item.item_barcode && item.item_barcode.some((bc) => bc.barcode === trimmedQuery),
 				);
 
 				if (exactItem) {
 					console.info(`[ItemsSelector] ✅ Found exact barcode match: ${exactItem.item_code}`);
 
 					// Set UOM from barcode data
-					const barcodeData = exactItem.item_barcode.find((bc) => bc.barcode === query);
+					const barcodeData = exactItem.item_barcode.find((bc) => bc.barcode === trimmedQuery);
 					if (barcodeData && barcodeData.posa_uom) {
 						exactItem.uom = barcodeData.posa_uom;
 					}
@@ -2484,7 +2497,7 @@ export default {
 
 				// Try API exact match
 				try {
-					const exactMatch = await this.fetchExactBarcodeAndAdd(query);
+					const exactMatch = await this.fetchExactBarcodeAndAdd(trimmedQuery);
 					if (exactMatch) {
 						console.info(`[ItemsSelector] ✅ Exact barcode API match found`);
 						return;
@@ -3840,6 +3853,13 @@ export default {
 	aspect-ratio: 2/1;
 }
 
+.numpad-clear-btn {
+	font-size: 1.2rem !important; /* Smaller font for CLEAR button */
+	white-space: nowrap !important; /* Prevent text wrapping */
+	overflow: hidden !important; /* Hide overflow text */
+	text-overflow: ellipsis !important; /* Show ... if text is too long */
+}
+
 /* QTY Input Field Styling */
 .qty-input-field {
 	cursor: pointer !important;
@@ -3916,6 +3936,10 @@ export default {
 	.numpad-btn {
 		min-height: 50px !important;
 		font-size: 1.3rem !important;
+	}
+	
+	.numpad-clear-btn {
+		font-size: 1.0rem !important; /* Even smaller on mobile */
 	}
 	
 	.numpad-display :deep(.v-field__input) {
