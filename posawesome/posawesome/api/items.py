@@ -1487,3 +1487,203 @@ def get_item_by_barcode_exact(barcode, pos_profile=None, price_list=None, custom
     }
 
     return result
+
+@frappe.whitelist()
+def search_items_for_popup(search_term, pos_profile, price_list=None, warehouse=None, limit=50):
+    """
+    Optimized search for Product Search Popup
+    
+    Args:
+        search_term: Search query from user
+        pos_profile: POS Profile name or JSON string
+        price_list: Price list to search in
+        warehouse: Warehouse for stock info
+        limit: Maximum results to return
+    
+    Returns:
+        List of items with match scoring and prioritization
+    """
+    
+    # Validate inputs
+    if not search_term or len(search_term.strip()) < 2:
+        return []
+    
+    search_term = search_term.strip()
+    
+    # Parse POS Profile if JSON string
+    if isinstance(pos_profile, str) and pos_profile.startswith('{'):
+        try:
+            pos_profile_data = json.loads(pos_profile)
+            pos_profile_name = pos_profile_data.get('name')
+            warehouse = warehouse or pos_profile_data.get('warehouse')
+            price_list = price_list or pos_profile_data.get('selling_price_list')
+        except:
+            pos_profile_name = pos_profile
+    else:
+        pos_profile_name = pos_profile
+        
+    # Get POS Profile data if needed
+    if not warehouse or not price_list:
+        profile_doc = frappe.get_doc('POS Profile', pos_profile_name)
+        warehouse = warehouse or profile_doc.warehouse
+        price_list = price_list or profile_doc.selling_price_list
+    
+    # Optimized query with match scoring
+    query = """
+        SELECT 
+            ip.item_code,
+            ip.item_name,
+            ip.price_list_rate as rate,
+            ip.currency,
+            ip.uom as stock_uom,
+            IFNULL(ip.custom_vat_rate, 0) as custom_vat_rate,
+            IFNULL(ip.custom_price_list_rate_after_vat, ip.price_list_rate) as custom_price_list_rate_after_vat,
+            
+            -- Barcode array (JSON format for frontend)
+            CASE 
+                WHEN COUNT(ib.barcode) > 0 THEN
+                    CONCAT('[', 
+                        GROUP_CONCAT(
+                            DISTINCT CONCAT(
+                                '{"barcode":"', ib.barcode, 
+                                '","posa_uom":"', IFNULL(ib.posa_uom, ip.uom), '"}'
+                            )
+                            ORDER BY ib.barcode SEPARATOR ','
+                        ), 
+                    ']')
+                ELSE '[]'
+            END as item_barcode,
+            
+            -- Stock info
+            IFNULL(b.actual_qty, 0) as actual_qty,
+            IFNULL(b.reserved_qty, 0) as reserved_qty,
+            (IFNULL(b.actual_qty, 0) - IFNULL(b.reserved_qty, 0)) as available_qty,
+            b.warehouse,
+            
+            -- Match scoring for prioritization
+            CASE 
+                -- 1️⃣ Exact barcode match (score 100)
+                WHEN EXISTS (
+                    SELECT 1 FROM `tabItem Barcode` ib2 
+                    WHERE ib2.parent = ip.item_code 
+                    AND ib2.barcode = %(search_term)s
+                ) THEN 100
+                
+                -- 2️⃣ Partial barcode match (score 90)
+                WHEN EXISTS (
+                    SELECT 1 FROM `tabItem Barcode` ib2 
+                    WHERE ib2.parent = ip.item_code 
+                    AND ib2.barcode LIKE %(search_pattern)s
+                ) THEN 90
+                
+                -- 3️⃣ SKU starts-with (score 80)
+                WHEN ip.item_code LIKE %(search_start)s THEN 80
+                
+                -- 4️⃣ SKU contains (score 70)
+                WHEN ip.item_code LIKE %(search_pattern)s THEN 70
+                
+                -- 5️⃣ Name exact match (score 60)
+                WHEN LOWER(ip.item_name) = LOWER(%(search_term)s) THEN 60
+                
+                -- 6️⃣ Name starts-with (score 50)
+                WHEN LOWER(ip.item_name) LIKE %(search_start_lower)s THEN 50
+                
+                -- 7️⃣ Name contains (score 40)
+                WHEN LOWER(ip.item_name) LIKE %(search_pattern_lower)s THEN 40
+                
+                ELSE 0
+            END as match_score,
+            
+            -- Discount percentage (default 0)
+            0 as discount_percentage,
+            
+            -- UOM for display
+            IFNULL(ib.posa_uom, ip.uom) as uom
+
+        FROM `tabItem Price` ip
+
+        -- LEFT JOIN để lấy barcode (không bắt buộc)
+        LEFT JOIN `tabItem Barcode` ib ON ip.item_code = ib.parent
+
+        -- LEFT JOIN để lấy tồn kho (không bắt buộc)
+        LEFT JOIN `tabBin` b ON ip.item_code = b.item_code 
+            AND b.warehouse = %(warehouse)s
+
+        WHERE 
+            -- Filter theo Price List và search term
+            ip.price_list = %(price_list)s
+            AND ip.selling = 1
+            AND ip.valid_from <= CURDATE()
+            AND (ip.valid_upto IS NULL OR ip.valid_upto >= CURDATE())
+            
+            -- Search conditions (OR logic)
+            AND (
+                -- Barcode search (exact và partial)
+                EXISTS (
+                    SELECT 1 FROM `tabItem Barcode` ib2 
+                    WHERE ib2.parent = ip.item_code 
+                    AND (
+                        ib2.barcode = %(search_term)s 
+                        OR ib2.barcode LIKE %(search_pattern)s
+                    )
+                )
+                
+                -- SKU search
+                OR ip.item_code LIKE %(search_pattern)s
+                
+                -- Name search (case insensitive)
+                OR LOWER(ip.item_name) LIKE %(search_pattern_lower)s
+            )
+
+        GROUP BY 
+            ip.item_code, ip.item_name, ip.price_list_rate, ip.currency, 
+            ip.uom, ip.custom_vat_rate, ip.custom_price_list_rate_after_vat,
+            b.actual_qty, b.reserved_qty, b.warehouse, ib.posa_uom
+
+        HAVING match_score > 0  -- Chỉ lấy items có match
+
+        ORDER BY 
+            match_score DESC,  -- Ưu tiên theo score
+            ip.item_name ASC   -- Sau đó sort theo tên
+
+        LIMIT %(limit)s
+    """
+    
+    # Parameters
+    params = {
+        'search_term': search_term,
+        'search_pattern': f'%{search_term}%',
+        'search_start': f'{search_term}%',
+        'search_pattern_lower': f'%{search_term.lower()}%',
+        'search_start_lower': f'{search_term.lower()}%',
+        'price_list': price_list,
+        'warehouse': warehouse,
+        'limit': int(limit)
+    }
+    
+    try:
+        # Execute query
+        results = frappe.db.sql(query, params, as_dict=True)
+        
+        # Process results
+        for item in results:
+            # Parse barcode JSON
+            try:
+                item['item_barcode'] = json.loads(item['item_barcode'] or '[]')
+            except:
+                item['item_barcode'] = []
+            
+            # Ensure required fields
+            item['rate'] = flt(item.get('rate', 0))
+            item['actual_qty'] = flt(item.get('actual_qty', 0))
+            item['discount_percentage'] = flt(item.get('discount_percentage', 0))
+            
+            # Add original currency info
+            item['original_currency'] = item.get('currency')
+            item['original_rate'] = item.get('rate')
+            
+        return results
+        
+    except Exception as e:
+        frappe.log_error(f"Popup search error: {str(e)}", "Popup Search API")
+        return []

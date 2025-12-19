@@ -59,6 +59,17 @@
 									<span class="keyboard-hint text-caption">
 										{{ search_mode === 'barcode' ? 'F3: Text' : 'F3: Barcode' }}
 									</span>
+									<!-- Product Search Popup Button -->
+									<v-btn
+										icon="mdi-magnify-plus-outline"
+										size="small"
+										color="orange"
+										variant="text"
+										@click="openProductSearchPopup"
+										:title="__('Advanced Search')"
+										class="ml-1"
+									>
+									</v-btn>
 									<!-- Add camera scan button if enabled -->
 									<v-btn
 										v-if="pos_profile.posa_enable_camera_scanning"
@@ -433,6 +444,16 @@
 			ref="cameraScanner"
 			:scan-type="pos_profile.posa_camera_scan_type || 'Both'"
 			@barcode-scanned="onBarcodeScanned"
+		/>
+		
+		<!-- 🆕 Product Search Popup -->
+		<ProductSearchPopup
+			:visible="product_search_popup_visible"
+			:pos-profile="pos_profile"
+			:price-list="active_price_list"
+			:customer="customer"
+			@close="closeProductSearchPopup"
+			@add-item="onPopupAddItem"
 		/>
 		
 		<!-- 🆕 NumPad Popup for Quantity Input -->
@@ -815,6 +836,7 @@
 import format from "../../format";
 import _ from "lodash";
 import CameraScanner from "./CameraScanner.vue";
+import ProductSearchPopup from "./ProductSearchPopup.vue";
 import { ensurePosProfile } from "../../../utils/pos_profile.js";
 import {
 	saveItemUOMs,
@@ -841,6 +863,7 @@ export default {
 	mixins: [format, responsiveMixin],
 	components: {
 		CameraScanner,
+		ProductSearchPopup,
 	},
 	data: () => ({
 		pos_profile: "",
@@ -911,6 +934,9 @@ export default {
 		search_results_visible: false,
 		selected_result_index: 0,
 		search_results_view_only: false, // Track if results are view-only
+		
+		// 🆕 Product Search Popup State
+		product_search_popup_visible: false,
 		
 		// 🆕 UI State
 		current_focus_element: null,
@@ -3383,6 +3409,38 @@ export default {
 		startCameraScanning() {
 			if (this.$refs.cameraScanner) {
 				this.$refs.cameraScanner.startScanning();
+			}
+		},
+
+		// 🆕 Product Search Popup Methods
+		openProductSearchPopup() {
+			console.info('[Popup] Opening product search popup');
+			this.product_search_popup_visible = true;
+		},
+
+		closeProductSearchPopup() {
+			console.info('[Popup] Closing product search popup');
+			this.product_search_popup_visible = false;
+			// Return focus to main search input
+			this.$nextTick(() => {
+				this.focusSearchInput();
+			});
+		},
+
+		async onPopupAddItem(item) {
+			console.info('[Popup] Adding item from popup:', item.item_name);
+			try {
+				await this.add_item(item);
+				frappe.show_alert({
+					message: `Đã thêm: ${item.item_name}`,
+					indicator: 'green'
+				}, 2);
+			} catch (error) {
+				console.error('[Popup] Error adding item:', error);
+				frappe.show_alert({
+					message: `Lỗi thêm sản phẩm: ${error.message}`,
+					indicator: 'red'
+				}, 3);
 			}
 		},
 		onBarcodeScanned(scannedCode) {
