@@ -738,6 +738,13 @@ export default {
 			// Use queue system to eliminate race conditions
 			this.queueSearch(val, this.search_from_scanner);
 		}, 300), // Increased debounce time to match search debounce
+		
+		// Update this.search when searchTerm changes (without causing reactivity loops)
+		searchTerm(newVal) {
+			if (this.search !== newVal) {
+				this.search = newVal;
+			}
+		},
 
 		// Refresh item prices whenever the user changes currency
 		selected_currency() {
@@ -782,17 +789,22 @@ export default {
 			return this.search_mode === 'barcode' ? 'primary' : 'orange';
 		},
 		
-		filtered_items() {
-			// Only trim in barcode mode, preserve spaces in text mode
+		// Computed property for search term without side effects
+		searchTerm() {
 			if (this.search_mode === 'barcode') {
-				this.search = this.get_search(this.first_search).trim();
+				return this.get_search(this.first_search).trim();
 			} else {
-				this.search = this.get_search(this.first_search);
+				return this.get_search(this.first_search);
 			}
+		},
+		
+		filtered_items() {
+			// Use computed searchTerm to avoid side effects
+			const searchTerm = this.searchTerm;
 			if (!this.pos_profile.pose_use_limit_search) {
 				let filtred_list = [];
 				let filtred_group_list = this.items;
-				if (!this.search || this.search.length < 3) {
+				if (!searchTerm || searchTerm.length < 3) {
 					let filtered = [];
 					if (
 						this.pos_profile.posa_show_template_items &&
@@ -817,11 +829,11 @@ export default {
 					});
 
 					return filtered;
-				} else if (this.search) {
-					const term = this.search.toLowerCase();
+				} else if (searchTerm) {
+					const term = searchTerm.toLowerCase();
 					// Match barcode directly
 					filtred_list = filtred_group_list.filter((item) =>
-						item.item_barcode.some((b) => b.barcode === this.search),
+						item.item_barcode.some((b) => b.barcode === searchTerm),
 					);
 
 					if (filtred_list.length === 0) {
@@ -835,7 +847,7 @@ export default {
 
 					if (filtred_list.length === 0) {
 						// Fallback to partial fuzzy match on name
-						const search_combinations = this.generateWordCombinations(this.search);
+						const search_combinations = this.generateWordCombinations(searchTerm);
 						filtred_list = filtred_group_list.filter((item) => {
 							const nameLower = item.item_name.toLowerCase();
 							return search_combinations.some((element) => {
@@ -849,8 +861,8 @@ export default {
 					if (filtred_list.length === 0 && this.pos_profile.posa_search_serial_no) {
 						filtred_list = filtred_group_list.filter((item) => {
 							for (let element of item.serial_no_data) {
-								if (element.serial_no === this.search) {
-									this.flags.serial_no = this.search;
+								if (element.serial_no === searchTerm) {
+									this.flags.serial_no = searchTerm;
 									return true;
 								}
 							}
@@ -861,8 +873,8 @@ export default {
 					if (filtred_list.length === 0 && this.pos_profile.posa_search_batch_no) {
 						filtred_list = filtred_group_list.filter((item) => {
 							for (let element of item.batch_no_data) {
-								if (element.batch_no === this.search) {
-									this.flags.batch_no = this.search;
+								if (element.batch_no === searchTerm) {
+									this.flags.batch_no = searchTerm;
 									return true;
 								}
 							}
