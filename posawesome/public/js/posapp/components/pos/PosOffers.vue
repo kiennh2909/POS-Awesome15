@@ -945,7 +945,6 @@ export default {
 			};
 			return descriptions[offerType] || offerType.toLowerCase();
 		},
-		},
 		getDiscountDetails(offer) {
 			if (!offer.discount_type) return null;
 
@@ -1093,7 +1092,7 @@ export default {
 
 			content += `</div>`;
 			return content;
-		};
+		},
 	},
 
 	// Removed watch for pos_offers - no longer auto-applying offers in dialog
