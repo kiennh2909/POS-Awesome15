@@ -835,8 +835,8 @@
 import format from "../../format";
 import _ from "lodash";
 import CameraScanner from "./CameraScanner.vue";
-import ProductSearchPopup from "./ProductSearchPopup.vue";
-// import ProductSearchPopupSimple from "./ProductSearchPopupSimple.vue";
+// EMERGENCY FIX: Use fixed version to prevent freeze
+import ProductSearchPopup from "./ProductSearchPopupFixed.vue";
 import { ensurePosProfile } from "../../../utils/pos_profile.js";
 import {
 	saveItemUOMs,
