@@ -7,9 +7,9 @@
 		@keydown="handleGlobalKeydown"
 	>
 		<v-card class="item-edit-numpad-redesign">
-			<!-- Header with Teal Background -->
+			<!-- Header with Teal Background - Compact -->
 			<v-card-title class="numpad-header">
-				<v-icon class="mr-3" size="large">mdi-package-variant</v-icon>
+				<v-icon class="mr-2" size="small">mdi-package-variant</v-icon>
 				<div class="header-content">
 					<div class="header-title">Chỉnh Sửa Sản Phẩm</div>
 					<div class="header-subtitle">{{ selectedItem?.item_name || 'MANG LA TUOI HA THANH' }}</div>
@@ -19,7 +19,7 @@
 					variant="text" 
 					color="white"
 					@click="closeNumPad"
-					size="large"
+					size="small"
 					class="close-btn"
 				></v-btn>
 			</v-card-title>
@@ -484,33 +484,39 @@ export default {
 	flex-direction: column;
 }
 
-/* Header Styling - Teal Background */
+/* Header Styling - Teal Background - Compact */
 .numpad-header {
 	background: linear-gradient(135deg, #26a69a, #00695c) !important;
 	color: white !important;
-	padding: 12px 16px;
-	min-height: 50px;
+	padding: 8px 12px !important;
+	min-height: 40px !important;
+	max-height: 40px !important;
 	flex-shrink: 0;
 }
 
 .header-content {
 	flex-grow: 1;
+	display: flex;
+	align-items: center;
+	gap: 8px;
 }
 
 .header-title {
-	font-size: 1.5rem;
+	font-size: 1.1rem !important;
 	font-weight: 600;
-	margin-bottom: 4px;
+	margin-bottom: 0 !important;
 }
 
 .header-subtitle {
-	font-size: 0.9rem;
-	opacity: 0.9;
+	font-size: 0.85rem !important;
+	opacity: 0.85;
 	font-weight: 400;
 }
 
 .close-btn {
 	background: rgba(255, 255, 255, 0.1) !important;
+	width: 32px !important;
+	height: 32px !important;
 }
 
 .close-btn:hover {
@@ -524,8 +530,8 @@ export default {
 	padding: 12px;
 	width: 33%;
 	flex-shrink: 0;
-	height: 400px;
-	max-height: 400px;
+	height: 420px;
+	max-height: 420px;
 	overflow-y: auto;
 }
 
@@ -645,7 +651,7 @@ export default {
 /* Right Panel */
 .right-panel {
 	padding: 12px;
-	height: 400px;
+	height: 420px;
 	flex: 1;
 	display: flex;
 	flex-direction: column;
@@ -824,7 +830,7 @@ export default {
 /* Content Container */
 .content-container {
 	display: flex;
-	height: 400px;
+	height: 420px;
 	gap: 16px;
 }
 
