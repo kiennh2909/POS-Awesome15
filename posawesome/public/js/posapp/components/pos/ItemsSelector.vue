@@ -554,6 +554,259 @@
 				</v-card-text>
 			</v-card>
 		</v-dialog>
+
+		<!-- 🆕 Product Confirmation Popup -->
+		<v-dialog 
+			v-model="product_confirmation_visible" 
+			max-width="500px"
+			persistent
+			:fullscreen="$vuetify.display.mobile"
+		>
+			<v-card class="product-confirmation-card">
+				<v-card-title class="text-center py-3 bg-primary text-white">
+					<span class="text-h6">Xác Nhận Sản Phẩm</span>
+					<v-spacer></v-spacer>
+					<v-btn 
+						icon="mdi-close" 
+						variant="text" 
+						size="small"
+						color="white"
+						@click="hideProductConfirmation"
+					></v-btn>
+				</v-card-title>
+				
+				<v-card-text class="pa-4" v-if="selected_product">
+					<!-- Product Image and Info -->
+					<div class="d-flex align-center mb-4">
+						<v-img
+							:src="selected_product.image || '/assets/posawesome/js/posapp/components/pos/placeholder-image.png'"
+							width="80"
+							height="80"
+							class="rounded mr-4"
+						></v-img>
+						
+						<div class="flex-grow-1">
+							<h3 class="text-h6 mb-1">{{ selected_product.item_name }}</h3>
+							<p class="text-body-2 text-grey-darken-1 mb-1">{{ selected_product.item_code }}</p>
+							<p class="text-h6 text-primary mb-0">
+								{{ format_currency(selected_product.rate, pos_profile.currency) }}
+								<span v-if="selected_product.custom_vat_rate" class="text-caption text-orange ml-1">
+									(VAT {{ selected_product.custom_vat_rate }}%)
+								</span>
+							</p>
+							<p class="text-caption text-grey-darken-1">
+								Tồn kho: {{ selected_product.actual_qty || 0 }} {{ selected_product.stock_uom }}
+							</p>
+						</div>
+					</div>
+					
+					<!-- Quantity Input -->
+					<v-divider class="mb-4"></v-divider>
+					<div class="quantity-section">
+						<h4 class="text-subtitle-1 mb-3">Số Lượng</h4>
+						
+						<div class="d-flex align-center gap-3">
+							<!-- Decrease Button -->
+							<v-btn
+								icon="mdi-minus"
+								size="large"
+								variant="outlined"
+								color="error"
+								@click="decreaseProductQuantity"
+								:disabled="product_quantity <= 0.1"
+							></v-btn>
+							
+							<!-- Quantity Display/Input -->
+							<v-text-field
+								v-model="product_quantity_display"
+								variant="outlined"
+								class="quantity-input text-center"
+								readonly
+								@click="showProductNumPad"
+								style="cursor: pointer; max-width: 120px;"
+							>
+								<template v-slot:append-inner>
+									<v-icon size="small" color="primary">mdi-calculator</v-icon>
+								</template>
+							</v-text-field>
+							
+							<!-- Increase Button -->
+							<v-btn
+								icon="mdi-plus"
+								size="large"
+								variant="outlined"
+								color="success"
+								@click="increaseProductQuantity"
+							></v-btn>
+						</div>
+						
+						<!-- Quick Quantity Buttons -->
+						<div class="d-flex gap-2 mt-3 justify-center">
+							<v-btn
+								v-for="qty in [1, 2, 5, 10]"
+								:key="qty"
+								@click="setProductQuantity(qty)"
+								size="small"
+								variant="outlined"
+								:color="product_quantity === qty ? 'primary' : 'default'"
+							>
+								{{ qty }}
+							</v-btn>
+						</div>
+					</div>
+					
+					<!-- Total Price -->
+					<v-divider class="my-4"></v-divider>
+					<div class="total-section text-center">
+						<h4 class="text-subtitle-1 mb-2">Tổng Tiền</h4>
+						<p class="text-h5 text-primary font-weight-bold">
+							{{ format_currency(selected_product.rate * product_quantity, pos_profile.currency) }}
+						</p>
+					</div>
+				</v-card-text>
+				
+				<v-card-actions class="pa-4 pt-0">
+					<v-btn 
+						color="error" 
+						variant="outlined" 
+						@click="hideProductConfirmation"
+						class="flex-grow-1"
+					>
+						Hủy
+					</v-btn>
+					<v-btn 
+						color="success" 
+						variant="tonal" 
+						@click="confirmAddProduct"
+						class="flex-grow-1 ml-2"
+						:disabled="!product_quantity || product_quantity <= 0"
+					>
+						Thêm Vào Giỏ Hàng
+					</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
+
+		<!-- 🆕 Product NumPad Popup -->
+		<v-dialog 
+			v-model="product_numpad_visible" 
+			max-width="400px"
+			persistent
+			:fullscreen="$vuetify.display.mobile"
+		>
+			<v-card class="numpad-card">
+				<v-card-title class="text-center py-3">
+					<span class="text-h6">Nhập Số Lượng Sản Phẩm</span>
+					<v-spacer></v-spacer>
+					<v-btn 
+						icon="mdi-close" 
+						variant="text" 
+						size="small"
+						@click="hideProductNumPad"
+					></v-btn>
+				</v-card-title>
+				
+				<v-card-text class="pa-4">
+					<!-- Display current value -->
+					<v-text-field
+						v-model="product_numpad_display"
+						variant="outlined"
+						readonly
+						class="numpad-display text-center"
+						:style="{ fontSize: '2rem', fontWeight: 'bold' }"
+					></v-text-field>
+					
+					<!-- NumPad Grid -->
+					<div class="numpad-grid mt-4">
+						<!-- Row 1: 7, 8, 9 -->
+						<v-btn 
+							v-for="num in [7, 8, 9]" 
+							:key="num"
+							@click="productNumpadInput(num)"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+						>
+							{{ num }}
+						</v-btn>
+						
+						<!-- Row 2: 4, 5, 6 -->
+						<v-btn 
+							v-for="num in [4, 5, 6]" 
+							:key="num"
+							@click="productNumpadInput(num)"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+						>
+							{{ num }}
+						</v-btn>
+						
+						<!-- Row 3: 1, 2, 3 -->
+						<v-btn 
+							v-for="num in [1, 2, 3]" 
+							:key="num"
+							@click="productNumpadInput(num)"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+						>
+							{{ num }}
+						</v-btn>
+						
+						<!-- Row 4: ., 0, Backspace -->
+						<v-btn 
+							@click="productNumpadInput('.')"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+						>
+							•
+						</v-btn>
+						
+						<v-btn 
+							@click="productNumpadInput(0)"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+						>
+							0
+						</v-btn>
+						
+						<v-btn 
+							@click="productNumpadBackspace"
+							class="numpad-btn"
+							size="large"
+							variant="outlined"
+							color="warning"
+						>
+							<v-icon>mdi-backspace</v-icon>
+						</v-btn>
+						
+						<!-- Row 5: Clear, Enter -->
+						<v-btn 
+							@click="productNumpadClear"
+							class="numpad-btn numpad-btn-wide numpad-clear-btn"
+							size="large"
+							variant="outlined"
+							color="error"
+						>
+							CLEAR
+						</v-btn>
+						
+						<v-btn 
+							@click="productNumpadEnter"
+							class="numpad-btn numpad-btn-wide"
+							size="large"
+							variant="tonal"
+							color="success"
+						>
+							ENTER
+						</v-btn>
+					</div>
+				</v-card-text>
+			</v-card>
+		</v-dialog>
 	</div>
 </template>
 
@@ -665,6 +918,16 @@ export default {
 		numpad_visible: false,
 		numpad_display: '',
 		numpad_original_qty: null,
+		
+		// 🆕 Product Confirmation State
+		product_confirmation_visible: false,
+		selected_product: null,
+		product_quantity: 1,
+		product_quantity_display: '1',
+		
+		// 🆕 Product NumPad State
+		product_numpad_visible: false,
+		product_numpad_display: '',
 	}),
 
 	watch: {
@@ -1043,6 +1306,11 @@ export default {
 
 		// 🎹 KEYBOARD EVENT HANDLERS
 		handleKeyDown(event) {
+			// Log F3 key press for debugging
+			if (event.key === 'F3') {
+				console.info('[handleKeyDown] F3 pressed');
+			}
+			
 			// Prevent default for special keys
 			if (['F2', 'F3', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
 				event.preventDefault();
@@ -1053,6 +1321,7 @@ export default {
 					this.handleF2Reset();
 					break;
 				case 'F3':
+					console.info('[handleKeyDown] Calling handleF3SearchToggle');
 					this.handleF3SearchToggle();
 					break;
 				case 'Enter':
@@ -1078,14 +1347,44 @@ export default {
 		
 		// Global keyboard listener
 		globalKeyHandler(event) {
-			// Handle NumPad keyboard input
-			if (this.numpad_visible) {
+			// Log F3 key press for debugging
+			if (event.key === 'F3') {
+				console.info('[Global] F3 pressed, numpad_visible:', this.numpad_visible, 
+					'product_numpad_visible:', this.product_numpad_visible,
+					'product_confirmation_visible:', this.product_confirmation_visible);
+			}
+			
+			// Handle NumPad keyboard input (both regular and product)
+			if (this.numpad_visible || this.product_numpad_visible) {
 				this.handleNumPadKeyboard(event);
+				return;
+			}
+			
+			// Handle Product Confirmation popup keyboard input
+			if (this.product_confirmation_visible) {
+				event.preventDefault();
+				
+				if (event.key === 'Escape') {
+					this.hideProductConfirmation();
+				} else if (event.key === 'Enter') {
+					this.confirmAddProduct();
+				} else if (event.key === '+' || event.key === '=') {
+					this.increaseProductQuantity();
+				} else if (event.key === '-') {
+					this.decreaseProductQuantity();
+				} else if (/^[1-9]$/.test(event.key)) {
+					// Quick quantity selection with number keys
+					const qty = parseInt(event.key);
+					if ([1, 2, 3, 4, 5, 6, 7, 8, 9].includes(qty)) {
+						this.setProductQuantity(qty);
+					}
+				}
 				return;
 			}
 			
 			// Handle F2/F3 globally, even when input not focused
 			if (event.key === 'F2' || event.key === 'F3') {
+				console.info('[Global] Handling F2/F3 globally');
 				event.preventDefault();
 				this.handleKeyDown(event);
 			}
@@ -1097,7 +1396,28 @@ export default {
 			
 			const key = event.key;
 			
-			// Numbers 0-9
+			// Check if Product NumPad is visible
+			if (this.product_numpad_visible) {
+				// Handle Product NumPad keyboard input
+				if (/^[0-9]$/.test(key)) {
+					this.productNumpadInput(parseInt(key));
+				} else if (key === '.' || key === ',') {
+					this.productNumpadInput('.');
+				} else if (key === 'Backspace') {
+					this.productNumpadBackspace();
+				} else if (key === 'Delete') {
+					this.productNumpadClear();
+				} else if (key === 'Enter') {
+					this.productNumpadEnter();
+				} else if (key === 'Escape') {
+					this.hideProductNumPad();
+				} else if (key.toLowerCase() === 'c') {
+					this.productNumpadClear();
+				}
+				return;
+			}
+			
+			// Handle regular NumPad keyboard input
 			if (/^[0-9]$/.test(key)) {
 				this.numpadInput(parseInt(key));
 			}
@@ -1166,9 +1486,13 @@ export default {
 		
 		// 🔹 F3 - SEARCH MODE TOGGLE
 		handleF3SearchToggle() {
-			if (!this.f3_enabled) return;
+			console.info('[F3] handleF3SearchToggle called, f3_enabled:', this.f3_enabled);
+			if (!this.f3_enabled) {
+				console.warn('[F3] F3 is disabled, ignoring');
+				return;
+			}
 			
-			console.info('[F3] Toggling search mode');
+			console.info('[F3] Toggling search mode from:', this.search_mode);
 			
 			// Toggle mode
 			const oldMode = this.search_mode;
@@ -1275,10 +1599,8 @@ export default {
 					this.showError('Không tìm thấy sản phẩm', 'orange');
 					this.selectAllSearchText();
 				} else if (results.length === 1) {
-					// ✅ Single result - add directly
-					await this.addItemToCart(results[0]);
-					this.showSuccess(`Đã thêm: ${results[0].item_name}`);
-					this.clearSearchAndRefocus();
+					// ✅ Single result - show confirmation popup
+					this.showProductConfirmation(results[0]);
 				} else {
 					// 📋 Multiple results - show list
 					this.showSearchResults(results);
@@ -2637,15 +2959,8 @@ export default {
 			const selectedItem = this.search_results[this.selected_result_index];
 			if (!selectedItem) return;
 			
-			try {
-				await this.addItemToCart(selectedItem);
-				this.showSuccess(`Đã thêm: ${selectedItem.item_name}`);
-				this.hideSearchResults();
-				this.clearSearchAndRefocus();
-			} catch (error) {
-				console.error('Error adding selected item:', error);
-				this.showError('Lỗi thêm sản phẩm', 'red');
-			}
+			// 🆕 Show product confirmation popup instead of adding directly
+			this.showProductConfirmation(selectedItem);
 		},
 
 		hideSearchResults() {
@@ -2785,6 +3100,76 @@ export default {
 			await this.add_item(item);
 		},
 		
+		// 🆕 PRODUCT CONFIRMATION METHODS
+		showProductConfirmation(item) {
+			this.selected_product = { ...item };
+			this.product_quantity = 1;
+			this.product_quantity_display = '1';
+			this.product_confirmation_visible = true;
+			
+			// Hide search results
+			this.hideSearchResults();
+			
+			console.info('[Product Confirmation] Showing popup for:', item.item_name);
+		},
+		
+		hideProductConfirmation() {
+			this.product_confirmation_visible = false;
+			this.selected_product = null;
+			this.product_quantity = 1;
+			this.product_quantity_display = '1';
+			
+			// Return focus to search input
+			this.clearSearchAndRefocus();
+			
+			console.info('[Product Confirmation] Popup closed');
+		},
+		
+		async confirmAddProduct() {
+			if (!this.selected_product || !this.product_quantity || this.product_quantity <= 0) {
+				this.showError('Số lượng không hợp lệ', 'red');
+				return;
+			}
+			
+			try {
+				// Set the quantity for the item
+				const itemToAdd = { ...this.selected_product };
+				itemToAdd.qty = this.product_quantity;
+				
+				// Add to cart using existing method
+				await this.add_item(itemToAdd);
+				
+				// Show success message
+				this.showSuccess(`Đã thêm: ${itemToAdd.item_name} (SL: ${this.product_quantity})`);
+				
+				// Hide popup and return to search
+				this.hideProductConfirmation();
+				
+			} catch (error) {
+				console.error('Error adding product:', error);
+				this.showError('Lỗi thêm sản phẩm', 'red');
+			}
+		},
+		
+		// Quantity control methods
+		increaseProductQuantity() {
+			this.product_quantity = parseFloat(this.product_quantity) + 1;
+			this.product_quantity_display = String(this.product_quantity);
+		},
+		
+		decreaseProductQuantity() {
+			const newQty = parseFloat(this.product_quantity) - 1;
+			if (newQty >= 0.1) {
+				this.product_quantity = newQty;
+				this.product_quantity_display = String(this.product_quantity);
+			}
+		},
+		
+		setProductQuantity(qty) {
+			this.product_quantity = qty;
+			this.product_quantity_display = String(qty);
+		},
+		
 		// 🧮 NUMPAD METHODS
 		showNumPad() {
 			// Store original quantity
@@ -2797,8 +3182,10 @@ export default {
 			this.numpad_visible = true;
 			
 			// Disable F2/F3 while NumPad is open
+			console.info('[NumPad] Disabling F2/F3, before - f3_enabled:', this.f3_enabled);
 			this.f2_enabled = false;
 			this.f3_enabled = false;
+			console.info('[NumPad] After disable - f3_enabled:', this.f3_enabled);
 			
 			console.info('[NumPad] Opened with value:', this.numpad_display);
 			console.info('[NumPad] Current search mode:', this.search_mode, '(will return to Barcode mode on close)');
@@ -2808,8 +3195,10 @@ export default {
 			this.numpad_visible = false;
 			
 			// Re-enable F2/F3
+			console.info('[NumPad] Re-enabling F2/F3, before - f3_enabled:', this.f3_enabled);
 			this.f2_enabled = true;
 			this.f3_enabled = true;
+			console.info('[NumPad] After enable - f3_enabled:', this.f3_enabled);
 			
 			// 🆕 ALWAYS return to Barcode mode when closing NumPad
 			this.search_mode = 'barcode';
@@ -2885,6 +3274,86 @@ export default {
 			this.hideNumPad();
 			
 			console.info('[NumPad] Enter pressed, qty set to:', value, '- Switched to Barcode mode');
+		},
+		
+		// 🆕 PRODUCT NUMPAD METHODS
+		showProductNumPad() {
+			// Store current quantity
+			this.product_numpad_display = this.product_quantity_display;
+			
+			// Show Product NumPad
+			this.product_numpad_visible = true;
+			
+			console.info('[Product NumPad] Opened with value:', this.product_numpad_display);
+		},
+		
+		hideProductNumPad() {
+			this.product_numpad_visible = false;
+			
+			console.info('[Product NumPad] Closed');
+		},
+		
+		productNumpadInput(value) {
+			// Handle decimal point
+			if (value === '.') {
+				if (this.product_numpad_display.includes('.')) {
+					return; // Already has decimal point
+				}
+				if (!this.product_numpad_display) {
+					this.product_numpad_display = '0.';
+					return;
+				}
+			}
+			
+			// Handle numbers
+			if (this.product_numpad_display === '0' && value !== '.') {
+				this.product_numpad_display = String(value);
+			} else {
+				this.product_numpad_display += String(value);
+			}
+			
+			console.info('[Product NumPad] Input:', value, 'Display:', this.product_numpad_display);
+		},
+		
+		productNumpadBackspace() {
+			if (this.product_numpad_display.length > 0) {
+				this.product_numpad_display = this.product_numpad_display.slice(0, -1);
+			}
+			console.info('[Product NumPad] Backspace, Display:', this.product_numpad_display);
+		},
+		
+		productNumpadClear() {
+			this.product_numpad_display = '';
+			console.info('[Product NumPad] Cleared');
+		},
+		
+		productNumpadEnter() {
+			// Validate input
+			let value = parseFloat(this.product_numpad_display);
+			
+			if (isNaN(value) || value <= 0) {
+				// Invalid input - show error
+				frappe.show_alert({
+					message: 'Số lượng không hợp lệ',
+					indicator: 'red'
+				}, 2);
+				return;
+			}
+			
+			// Apply quantity to product
+			this.product_quantity = value;
+			this.product_quantity_display = String(value);
+			
+			// Show success feedback
+			frappe.show_alert({
+				message: `Số lượng sản phẩm: ${value}`,
+				indicator: 'green'
+			}, 2);
+			
+			// Close Product NumPad
+			this.hideProductNumPad();
+			
+			console.info('[Product NumPad] Enter pressed, product qty set to:', value);
 		},
 
 		startCameraScanning() {
@@ -3948,6 +4417,42 @@ export default {
 	white-space: nowrap !important; /* Prevent text wrapping */
 	overflow: hidden !important; /* Hide overflow text */
 	text-overflow: ellipsis !important; /* Show ... if text is too long */
+}
+
+/* 🆕 Product Confirmation Popup Styling */
+.product-confirmation-card {
+	border-radius: 16px !important;
+	overflow: hidden;
+}
+
+.quantity-section {
+	background-color: rgba(var(--v-theme-surface), 0.5);
+	border-radius: 12px;
+	padding: 16px;
+}
+
+.quantity-input :deep(.v-field__input) {
+	text-align: center !important;
+	font-size: 1.5rem !important;
+	font-weight: bold !important;
+	color: rgb(var(--v-theme-primary)) !important;
+}
+
+.total-section {
+	background-color: rgba(var(--v-theme-primary), 0.05);
+	border-radius: 12px;
+	padding: 16px;
+}
+
+/* Product confirmation responsive */
+@media (max-width: 768px) {
+	.product-confirmation-card {
+		margin: 8px;
+	}
+	
+	.quantity-input :deep(.v-field__input) {
+		font-size: 1.3rem !important;
+	}
 }
 
 /* QTY Input Field Styling */
