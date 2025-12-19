@@ -29,58 +29,7 @@
 				<div class="content-container">
 					<!-- Left Panel: Item Info -->
 					<div class="left-panel">
-						<!-- Item Information -->
-						<div class="info-section">
-							<h3 class="section-title">Thông Tin Sản Phẩm</h3>
-							<div class="info-item">
-								<span class="info-label">Mã:</span> 
-								<span class="info-value">{{ selectedItem?.item_code || '893850105318' }}</span>
-							</div>
-							<div class="info-item">
-								<span class="info-label">Tên:</span> 
-								<span class="info-value">{{ selectedItem?.item_name || 'MANG LA TUOI HA THANH' }}</span>
-							</div>
-							<div class="info-item">
-								<span class="info-label">ĐVT:</span> 
-								<span class="info-value">{{ selectedUom || selectedItem?.uom || 'Túi' }}</span>
-							</div>
-						</div>
-
-						<!-- Field Selection - Only QTY -->
-						<div class="field-section">
-							<h3 class="section-title">Chọn Trường Chỉnh Sửa</h3>
-							<div class="field-buttons">
-								<v-btn
-									variant="flat"
-									color="teal"
-									class="field-btn active-field"
-									disabled
-								>
-									<v-icon class="mr-2">mdi-counter</v-icon>
-									SỐ LƯỢNG
-								</v-btn>
-								<v-btn
-									variant="outlined"
-									color="grey"
-									class="field-btn disabled-field"
-									disabled
-								>
-									<v-icon class="mr-2">mdi-currency-usd</v-icon>
-									ĐƠN GIÁ
-								</v-btn>
-							</div>
-						</div>
-
-						<!-- Current Price Display (Read-only) -->
-						<div class="price-section">
-							<h3 class="section-title">Giá Trị Hiện Tại</h3>
-							<div class="price-display">
-								<div class="price-label">Đơn Giá</div>
-								<div class="price-value">$ {{ formatPrice(selectedItem?.rate || 65) }}</div>
-							</div>
-						</div>
-
-						<!-- UOM Selection Buttons - Always Show -->
+						<!-- UOM Selection - Moved to Top -->
 						<div class="uom-section">
 							<h3 class="section-title">Đơn Vị Tính</h3>
 							<div class="uom-buttons">
@@ -101,6 +50,46 @@
 								<div>UOMs: {{ availableUoms.length }}</div>
 								<div>Current: {{ selectedUom }}</div>
 							</div>
+						</div>
+
+						<!-- Item Information -->
+						<div class="info-section">
+							<h3 class="section-title">Thông Tin Sản Phẩm</h3>
+							<div class="info-item">
+								<span class="info-label">Mã:</span> 
+								<span class="info-value">{{ selectedItem?.item_code || '893850105318' }}</span>
+							</div>
+							<div class="info-item">
+								<span class="info-label">Tên:</span> 
+								<span class="info-value">{{ selectedItem?.item_name || 'MANG LA TUOI HA THANH' }}</span>
+							</div>
+							<div class="info-item">
+								<span class="info-label">ĐVT:</span> 
+								<span class="info-value">{{ selectedUom || selectedItem?.uom || 'Túi' }}</span>
+							</div>
+						</div>
+
+						<!-- Current Price Display (Read-only) -->
+						<div class="price-section">
+							<h3 class="section-title">Giá Trị Hiện Tại</h3>
+							<div class="price-display">
+								<div class="price-label">Đơn Giá</div>
+								<div class="price-value">$ {{ formatPrice(selectedItem?.rate || 65) }}</div>
+							</div>
+						</div>
+
+						<!-- Close Button -->
+						<div class="close-section">
+							<v-btn
+								color="error"
+								variant="outlined"
+								class="close-popup-btn"
+								@click="closeNumPad"
+								block
+							>
+								<v-icon class="mr-2">mdi-close</v-icon>
+								ĐÓNG
+							</v-btn>
 						</div>
 					</div>
 
@@ -301,15 +290,19 @@ export default {
 		
 		// UOM Selection
 		selectUom(uom) {
-			this.selectedUom = uom;
-			console.log('[NumPad] UOM selected:', uom);
+			console.log('[NumPad] UOM selected:', uom, 'Previous:', this.selectedUom);
 			
-			// Emit UOM change event
+			// Update local state
+			this.selectedUom = uom;
+			
+			// Immediately emit UOM change event to update cart
 			this.$emit('update-field', {
 				field: 'uom',
 				value: uom,
 				item: this.selectedItem
 			});
+			
+			console.log('[NumPad] ✅ UOM update emitted to cart');
 		},
 		
 		// NumPad Input Methods
@@ -389,21 +382,28 @@ export default {
 			
 			const value = parseFloat(this.displayValue);
 			
-			// Emit quantity update
+			console.log('[NumPad] 🚀 ENTER pressed - Confirming values:', {
+				quantity: value,
+				uom: this.selectedUom,
+				original_uom: this.selectedItem?.uom,
+				item_code: this.selectedItem?.item_code
+			});
+			
+			// ALWAYS emit quantity update
 			this.$emit('update-field', {
 				field: 'qty',
 				value: value,
 				item: this.selectedItem
 			});
 			
-			// Emit UOM update if changed
-			if (this.selectedUom !== this.selectedItem?.uom) {
-				this.$emit('update-field', {
-					field: 'uom',
-					value: this.selectedUom,
-					item: this.selectedItem
-				});
-			}
+			// ALWAYS emit UOM update (not just when changed)
+			this.$emit('update-field', {
+				field: 'uom',
+				value: this.selectedUom,
+				item: this.selectedItem
+			});
+			
+			console.log('[NumPad] ✅ Both QTY and UOM updates emitted to cart');
 			
 			// Emit special event for F2 focus after confirmation
 			this.$emit('confirmed-and-close');
@@ -646,6 +646,19 @@ export default {
 	padding: 4px 8px;
 	font-size: 0.7rem;
 	color: #856404;
+}
+
+/* Close Section */
+.close-section {
+	margin-top: 16px;
+	padding-top: 16px;
+	border-top: 1px dashed rgba(0, 0, 0, 0.1);
+}
+
+.close-popup-btn {
+	height: 40px !important;
+	font-weight: 600 !important;
+	text-transform: none !important;
 }
 
 /* Right Panel */
