@@ -506,37 +506,49 @@ export default {
 	background: rgba(255, 255, 255, 0.2) !important;
 }
 
-/* 3-Column Layout */
+/* 3-Column Layout - CRITICAL FIX */
 .three-column-layout {
 	display: flex;
+	flex-direction: row;
 	height: 550px;
 	background: white;
+	overflow: hidden;
 }
 
 /* Left Column - Item Info */
 .left-column {
 	width: 300px;
+	min-width: 300px;
+	max-width: 300px;
 	background: #f8f9fa;
 	padding: 20px;
 	border-right: 1px solid #e0e0e0;
+	overflow-y: auto;
+	flex-shrink: 0;
 }
 
-/* Middle Column - UOM Selection */
+/* Middle Column - UOM Selection - CRITICAL FIX */
 .middle-column {
 	width: 200px;
+	min-width: 200px;
+	max-width: 200px;
 	background: #f0f0f0;
 	padding: 20px 10px;
 	border-right: 1px solid #e0e0e0;
 	display: flex;
 	flex-direction: column;
 	justify-content: flex-start;
+	overflow-y: auto;
+	flex-shrink: 0;
 }
 
 /* Right Column - NumPad */
 .right-column {
 	flex: 1;
+	min-width: 400px;
 	background: white;
 	padding: 20px;
+	overflow-y: auto;
 }
 
 /* Left Column Sections */
@@ -553,314 +565,7 @@ export default {
 	padding-bottom: 4px;
 }
 
-/* Item Info Section */
-.info-section {
-	margin-bottom: 16px;
-}
 
-.info-item {
-	margin-bottom: 6px;
-	font-size: 0.9rem;
-}
-
-.info-label {
-	font-weight: 600;
-	color: #555;
-	min-width: 35px;
-	display: inline-block;
-}
-
-.info-value {
-	color: #333;
-	font-weight: 500;
-}
-
-/* Field Selection */
-.field-section {
-	margin-bottom: 16px;
-}
-
-.field-buttons {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-}
-
-.field-btn {
-	width: 100% !important;
-	height: 40px !important;
-	font-weight: 600 !important;
-	text-transform: none !important;
-	justify-content: flex-start !important;
-	font-size: 0.85rem !important;
-}
-
-.active-field {
-	background: #26a69a !important;
-	color: white !important;
-}
-
-.disabled-field {
-	opacity: 0.5 !important;
-}
-
-/* Price Display */
-.price-section {
-	margin-bottom: 16px;
-}
-
-.price-display {
-	background: white;
-	border: 2px solid #e0e0e0;
-	border-radius: 8px;
-	padding: 12px;
-	text-align: center;
-}
-
-.price-label {
-	font-size: 0.8rem;
-	color: #666;
-	margin-bottom: 2px;
-}
-
-.price-value {
-	font-size: 1.4rem;
-	font-weight: 700;
-	color: #26a69a;
-}
-
-/* UOM Buttons */
-.uom-section {
-	margin-bottom: 16px;
-}
-
-.uom-buttons {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-}
-
-.uom-btn {
-	min-width: 60px !important;
-	height: 36px !important;
-	font-size: 0.85rem !important;
-	font-weight: 600 !important;
-}
-
-/* Right Panel */
-.right-panel {
-	padding: 16px;
-}
-
-/* Quantity Input Display */
-.qty-input-section {
-	margin-bottom: 16px;
-}
-
-.input-label {
-	font-size: 0.9rem;
-	font-weight: 600;
-	color: #555;
-	margin-bottom: 6px;
-	text-align: center;
-}
-
-.qty-display {
-	background: white;
-	border: 3px solid #26a69a;
-	border-radius: 12px;
-	padding: 12px;
-	text-align: center;
-	min-height: 50px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.qty-value {
-	font-size: 1.8rem;
-	font-weight: 700;
-	color: #333;
-}
-
-/* NumPad Grid - Removed duplicate, see Compact Layout section */
-
-.numpad-btn {
-	flex: 1;
-	height: 50px !important;
-	font-size: 1.1rem !important;
-	font-weight: 700 !important;
-	border-radius: 8px !important;
-	text-transform: none !important;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-	transition: all 0.2s ease !important;
-}
-
-.numpad-btn:hover {
-	transform: translateY(-2px);
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-}
-
-/* Button Colors */
-.number-btn {
-	background: #26a69a !important;
-	color: white !important;
-}
-
-.number-btn:hover {
-	background: #00695c !important;
-}
-
-.delete-btn {
-	background: #f44336 !important;
-	color: white !important;
-}
-
-.delete-btn:hover {
-	background: #d32f2f !important;
-}
-
-.minus-btn {
-	background: #ff9800 !important;
-	color: white !important;
-}
-
-.minus-btn:hover {
-	background: #f57c00 !important;
-}
-
-.plus-btn {
-	background: #4caf50 !important;
-	color: white !important;
-}
-
-.plus-btn:hover {
-	background: #388e3c !important;
-}
-
-.backspace-btn {
-	background: #9e9e9e !important;
-	color: white !important;
-}
-
-.backspace-btn:hover {
-	background: #757575 !important;
-}
-
-.clear-btn {
-	background: #ff9800 !important;
-	color: white !important;
-	font-size: 0.9rem !important;
-}
-
-.clear-btn:hover {
-	background: #f57c00 !important;
-}
-
-.enter-btn {
-	background: #4caf50 !important;
-	color: white !important;
-	height: 48px !important;
-	font-size: 1rem !important;
-}
-
-.enter-btn:hover {
-	background: #388e3c !important;
-}
-
-.enter-btn:disabled {
-	background: #e0e0e0 !important;
-	color: #9e9e9e !important;
-}
-
-/* Dark Theme Support */
-:deep(.v-theme--dark) .left-panel {
-	background: #2a2a2a;
-}
-
-:deep(.v-theme--dark) .section-title {
-	color: #fff;
-}
-
-:deep(.v-theme--dark) .info-label {
-	color: #bbb;
-}
-
-:deep(.v-theme--dark) .info-value {
-	color: #fff;
-}
-
-:deep(.v-theme--dark) .price-display {
-	background: #333;
-	border-color: #555;
-}
-
-:deep(.v-theme--dark) .qty-display {
-	background: #333;
-}
-
-:deep(.v-theme--dark) .qty-value {
-	color: #fff;
-}
-
-/* Dialog Size Control */
-.v-dialog {
-	align-items: center !important;
-}
-
-.v-dialog > .v-overlay__content {
-	max-height: 90vh !important;
-	overflow: hidden !important;
-}
-
-/* Compact Layout */
-.numpad-grid-redesign {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	max-height: 350px;
-}
-
-.numpad-row {
-	display: flex;
-	gap: 6px;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-	.item-edit-numpad-redesign {
-		margin: 8px;
-		max-width: calc(100vw - 16px) !important;
-		max-height: calc(100vh - 16px) !important;
-	}
-	
-	.left-panel {
-		margin-right: 8px;
-		padding: 12px;
-		max-height: 400px;
-	}
-	
-	.right-panel {
-		padding: 12px;
-	}
-	
-	.numpad-btn {
-		height: 45px !important;
-		font-size: 1rem !important;
-	}
-	
-	.qty-value {
-		font-size: 1.6rem;
-	}
-	
-	.price-value {
-		font-size: 1.3rem;
-	}
-	
-	.numpad-grid-redesign {
-		max-height: 300px;
-	}
-}
 </style>
 
 /* Item Info */
@@ -1196,11 +901,19 @@ export default {
 	}
 	
 	.left-column {
-		width: 280px;
+		width: 250px;
+		min-width: 250px;
+		max-width: 250px;
 	}
 	
 	.middle-column {
 		width: 180px;
+		min-width: 180px;
+		max-width: 180px;
+	}
+	
+	.right-column {
+		min-width: 350px;
 	}
 }
 
@@ -1213,7 +926,9 @@ export default {
 	.left-column,
 	.middle-column,
 	.right-column {
-		width: 100%;
+		width: 100% !important;
+		min-width: 100% !important;
+		max-width: 100% !important;
 		border-right: none;
 		border-bottom: 1px solid #e0e0e0;
 	}
