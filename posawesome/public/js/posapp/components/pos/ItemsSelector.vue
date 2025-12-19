@@ -44,8 +44,7 @@
 								@focus="handleSearchFocus"
 								@blur="handleSearchBlur"
 								@click:clear="clearSearch"
-								class="barcode-input"
-								:class="`search-mode-${search_mode}`"
+								class="barcode-input search-mode-barcode"
 							>
 								<!-- Mode indicator icon -->
 								<template v-slot:prepend-inner>
@@ -57,7 +56,7 @@
 								<!-- Keyboard hint -->
 								<template v-slot:append-inner>
 									<span class="keyboard-hint text-caption">
-										{{ search_mode === 'barcode' ? 'F3: Text' : 'F3: Barcode' }}
+										F3: Popup
 									</span>
 									<!-- Product Search Popup Button -->
 									<v-btn
@@ -86,15 +85,15 @@
 							<!-- Mode indicator badge -->
 							<div class="mode-indicator-badge mt-1">
 								<v-chip 
-									:color="search_mode === 'barcode' ? 'primary' : 'orange'"
+									color="primary"
 									size="x-small"
 									variant="flat"
 									class="mode-chip"
 								>
 									<v-icon size="x-small" class="mr-1">
-										{{ modeIcon }}
+										mdi-barcode-scan
 									</v-icon>
-									{{ search_mode === 'barcode' ? 'BARCODE' : 'TEXT SEARCH' }}
+									BARCODE MODE
 								</v-chip>
 							</div>
 						</v-col>
@@ -922,8 +921,8 @@ export default {
 		lastScanTime: 0,
 		scanDebounceMs: 160,
 		
-		// 🆕 Search Mode Management
-		search_mode: 'barcode', // 'barcode' | 'text'
+		// 🆕 Search Mode Management (Always Barcode)
+		search_mode: 'barcode', // Always barcode mode, F3 opens popup
 		
 		// 🆕 Keyboard State
 		f2_enabled: true,
@@ -1040,15 +1039,10 @@ export default {
 		},
 		// Automatically search and add item whenever the query changes
 		first_search: _.debounce(function (val) {
-			// Only auto-search in barcode mode or when from scanner
-			// In text mode, user must press Enter to search
-			console.log(`[WATCHER] first_search changed: "${val}", mode: ${this.search_mode}, from_scanner: ${this.search_from_scanner}`);
-			if (this.search_mode === 'barcode' || this.search_from_scanner) {
-				console.log('[WATCHER] Triggering auto-search');
-				this.queueSearch(val, this.search_from_scanner);
-			} else {
-				console.log('[WATCHER] Text mode - no auto-search, waiting for Enter');
-			}
+			// Always auto-search in barcode mode (F3 opens popup instead of text mode)
+			console.log(`[WATCHER] first_search changed: "${val}", from_scanner: ${this.search_from_scanner}`);
+			console.log('[WATCHER] Triggering auto-search');
+			this.queueSearch(val, this.search_from_scanner);
 		}, 300), // Increased debounce time to match search debounce
 
 		// Refresh item prices whenever the user changes currency
@@ -1075,58 +1069,23 @@ export default {
 		
 		// 🆕 Dynamic UI Properties
 		dynamicPlaceholder() {
-			return this.search_mode === 'barcode' 
-				? 'Quét / nhập Barcode'
-				: 'Nhập tên / SKU sản phẩm';
+			return 'Quét / nhập Barcode (F3: Popup tìm kiếm)';
 		},
 		
 		dynamicHint() {
-			return this.search_mode === 'barcode'
-				? 'F3 – Chuyển sang tìm theo Tên / SKU'
-				: 'F3 – Quay về quét Barcode';
+			return 'F3 – Mở popup tìm kiếm nâng cao';
 		},
 		
 		modeIcon() {
-			return this.search_mode === 'barcode' ? 'mdi-barcode-scan' : 'mdi-magnify';
+			return 'mdi-barcode-scan';
 		},
 		
 		modeColor() {
-			return this.search_mode === 'barcode' ? 'primary' : 'orange';
+			return 'primary';
 		},
 		
 		filtered_items() {
-			// In text mode, don't auto-filter while typing - only show all items
-			// User will search by pressing Enter which triggers handleTextSearchEnter()
-			if (this.search_mode === 'text') {
-				console.log('[TEXT_MODE] filtered_items: showing all items, no auto-filter');
-				// Show all items without filtering in text mode
-				let filtered = [];
-				if (
-					this.pos_profile.posa_show_template_items &&
-					this.pos_profile.posa_hide_variants_items
-				) {
-					filtered = this.items
-						.filter((item) => !item.variant_of)
-						.slice(0, this.itemsPerPage);
-				} else {
-					filtered = this.items.slice(0, this.itemsPerPage);
-				}
-
-				if (this.hide_zero_rate_items) {
-					filtered = filtered.filter((item) => parseFloat(item.rate) !== 0);
-				}
-
-				// Ensure quantities are defined
-				filtered.forEach((item) => {
-					if (item.actual_qty === undefined) {
-						item.actual_qty = 0;
-					}
-				});
-
-				return filtered;
-			}
-
-			// Barcode mode: continue with original logic
+			// Always use barcode mode logic (F3 opens popup instead of text mode)
 			this.search = this.get_search(this.first_search).trim();
 			
 			if (!this.pos_profile.pose_use_limit_search) {
@@ -1258,12 +1217,8 @@ export default {
 				return this.first_search;
 			},
 			set: _.debounce(function (newValue) {
-				// Only trim in barcode mode
-				if (this.search_mode === 'barcode') {
-					this.first_search = (newValue || "").trim();
-				} else {
-					this.first_search = newValue || "";
-				}
+				// Always trim in barcode mode (F3 opens popup instead of text mode)
+				this.first_search = (newValue || "").trim();
 			}, 300), // Increased debounce time to prevent rapid consecutive inputs
 		},
 		// Computed property cho hộp nhập số lượng (QTY) - fix bug xóa dấu thập phân khi nhập
@@ -1524,7 +1479,7 @@ export default {
 			console.info('[F2] Mode set to:', this.search_mode);
 		}, 200), // Debounce 200ms to prevent multiple calls
 		
-		// 🔹 F3 - SWITCH TO TEXT SEARCH MODE (SEARCH ONLY)
+		// 🔹 F3 - OPEN PRODUCT SEARCH POPUP
 		handleF3SearchToggle: _.debounce(function() {
 			console.info('[F3] handleF3SearchToggle called, f3_enabled:', this.f3_enabled);
 			if (!this.f3_enabled) {
@@ -1532,30 +1487,21 @@ export default {
 				return;
 			}
 			
-			console.info('[F3] ALWAYS switching to Text Search mode (view-only), current mode:', this.search_mode);
+			console.info('[F3] Opening Product Search Popup');
 			
-			// Hide any popups and results
+			// Hide any inline search results and popups
 			this.hideSearchResults();
 			this.hideProductConfirmation();
 			
-			// ALWAYS switch to text mode (F3 = Text Search ONLY, no toggle)
-			this.search_mode = 'text';
+			// Open the product search popup
+			this.openProductSearchPopup();
 			
-			// Clear current search
-			this.clearSearch();
-			
-			// Keep focus on input
-			this.$nextTick(() => {
-				this.focusSearchInput();
-			});
-			
-			// Show mode change feedback
+			// Show feedback
 			frappe.show_alert({
-				message: 'F3: Chế độ Tìm kiếm Text (click để chọn → xác nhận)',
+				message: 'F3: Mở popup tìm kiếm sản phẩm',
 				indicator: 'orange'
 			}, 2);
 			
-			console.info('[F3] Mode set to:', this.search_mode);
 		}, 200), // Debounce 200ms to prevent multiple calls
 		
 		// 🎯 ENTER KEY ROUTER
@@ -1563,10 +1509,9 @@ export default {
 			if (this.search_results_visible) {
 				// Có kết quả tìm kiếm đang hiển thị
 				this.selectCurrentResult();
-			} else if (this.search_mode === 'barcode') {
-				this.handleBarcodeEnter();
 			} else {
-				this.handleTextSearchEnter();
+				// Always handle as barcode mode
+				this.handleBarcodeEnter();
 			}
 		},
 		
@@ -1622,42 +1567,7 @@ export default {
 			}
 		},
 		
-		// 🔍 TEXT SEARCH MODE ENTER (WITH PRODUCT CONFIRMATION)
-		async handleTextSearchEnter() {
-			const searchTerm = this.debounce_search.trim();
-			
-			if (!searchTerm || searchTerm.length < 2) {
-				this.showError('Nhập ít nhất 2 ký tự', 'orange');
-				return;
-			}
-			
-			try {
-				console.info('[Text Mode] Searching with confirmation popup:', searchTerm);
-				
-				const results = await this.searchItemsByText(searchTerm);
-				
-				if (results.length === 0) {
-					this.showError('Không tìm thấy sản phẩm', 'orange');
-					this.selectAllSearchText();
-				} else if (results.length === 1) {
-					// ✅ Single result - show confirmation popup directly
-					console.info('[Text Mode] Single result - showing confirmation popup');
-					this.showProductConfirmation(results[0]);
-				} else {
-					// 📋 Multiple results - show list for selection
-					console.info('[Text Mode] Multiple results - showing selection list');
-					this.showSearchResults(results, false); // false = allow selection
-					frappe.show_alert({
-						message: `Tìm thấy ${results.length} sản phẩm. Click để chọn.`,
-						indicator: 'blue'
-					}, 3);
-				}
-				
-			} catch (error) {
-				console.error('[Text Mode] Error:', error);
-				this.showError('Lỗi tìm kiếm', 'orange');
-			}
-		},
+
 		
 		// Helper method để tiếp tục với normal search logic (không phải barcode)
 		continueWithNormalSearch(fromScanner) {
@@ -2863,14 +2773,8 @@ export default {
 				throw new Error("Search cancelled");
 			}
 
-			// Only trim in barcode mode or when from scanner
-			// In text mode, preserve user input exactly as typed for auto-search
-			let query;
-			if (this.search_mode === 'barcode' || fromScanner) {
-				query = (searchTerm || "").trim();
-			} else {
-				query = searchTerm || "";
-			}
+			// Always trim in barcode mode (F3 opens popup instead of text mode)
+			let query = (searchTerm || "").trim();
 
 			if (!query) {
 				this.search_from_scanner = false;
@@ -3035,31 +2939,7 @@ export default {
 			);
 		},
 
-		async searchItemsByText(searchTerm) {
-			const term = searchTerm.toLowerCase();
-			
-			// Search in item code and name
-			const results = this.items.filter(item => {
-				const codeMatch = item.item_code.toLowerCase().includes(term);
-				const nameMatch = item.item_name.toLowerCase().includes(term);
-				return codeMatch || nameMatch;
-			});
-			
-			// Sort by relevance (exact matches first)
-			return results.sort((a, b) => {
-				const aCodeExact = a.item_code.toLowerCase() === term;
-				const bCodeExact = b.item_code.toLowerCase() === term;
-				const aNameExact = a.item_name.toLowerCase() === term;
-				const bNameExact = b.item_name.toLowerCase() === term;
-				
-				if (aCodeExact && !bCodeExact) return -1;
-				if (bCodeExact && !aCodeExact) return 1;
-				if (aNameExact && !bNameExact) return -1;
-				if (bNameExact && !aNameExact) return 1;
-				
-				return a.item_name.localeCompare(b.item_name);
-			}).slice(0, 20); // Limit results
-		},
+
 		
 		restoreSearch() {
 			if (this.first_search === "") {
@@ -4383,14 +4263,7 @@ export default {
 	background-color: rgba(var(--v-theme-primary), 0.05) !important;
 }
 
-.search-mode-text :deep(.v-field__outline) {
-	border-left: 4px solid rgb(var(--v-theme-orange)) !important;
-	border-color: rgb(var(--v-theme-orange)) !important;
-}
-
-.search-mode-text :deep(.v-field) {
-	background-color: rgba(255, 152, 0, 0.05) !important;
-}
+/* Text search mode CSS removed - F3 now opens popup instead */
 
 /* Enhanced visual feedback when focused */
 .search-mode-barcode :deep(.v-field--focused .v-field__outline) {
@@ -4399,11 +4272,7 @@ export default {
 	box-shadow: 0 0 0 3px rgba(var(--v-theme-primary), 0.15) !important;
 }
 
-.search-mode-text :deep(.v-field--focused .v-field__outline) {
-	border-width: 2px !important;
-	border-color: rgb(var(--v-theme-orange)) !important;
-	box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.15) !important;
-}
+/* Text search mode focused CSS removed - F3 now opens popup instead */
 
 /* Mode indicator badge */
 .mode-indicator-badge {
