@@ -2737,15 +2737,26 @@ export default {
 			}
 			this.lastScanTime = now;
 
-			// 🆕 Force barcode mode when scanner is used
-			this.search_mode = 'barcode';
+			console.info('[Hardware Scanner] Scanned code:', sCode);
 			
-			// Hide any search results
+			// 🆕 THỐNG NHẤT: Hardware scanner chỉ điền vào input, KHÔNG tự động add
+			this.search_mode = 'barcode';
 			this.hideSearchResults();
-
-			// Thay trigger_onscan để không đụng first_search/search, không gọi enter_event
-			this.search_from_scanner = true; // chỉ để UI biết nguồn từ scanner
-			this.processScannedItem(sCode); // pipeline duy nhất
+			
+			// Điền barcode vào input và focus
+			this.first_search = sCode.trim();
+			this.search = sCode.trim();
+			
+			// Focus vào input để user có thể nhấn Enter
+			this.$nextTick(() => {
+				this.focusSearchInput();
+			});
+			
+			// Hiển thị thông báo hướng dẫn
+			frappe.show_alert({
+				message: `Hardware Scanner: ${sCode} - Nhấn Enter để thêm vào giỏ hàng`,
+				indicator: 'blue'
+			}, 3);
 		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
@@ -3444,36 +3455,38 @@ export default {
 			}
 		},
 		onBarcodeScanned(scannedCode) {
-			console.info("Barcode scanned:", scannedCode);
+			console.info("Camera Scanner - Barcode scanned:", scannedCode);
 
 			// Debounce to prevent duplicate scans within short time period
 			const now = Date.now();
 			if (now - this.lastScanTime < this.scanDebounceMs) {
-				console.log("Ignoring duplicate scan within debounce period");
+				console.log("Ignoring duplicate camera scan within debounce period");
 				return;
 			}
 			this.lastScanTime = now;
 
-			// 🆕 Force barcode mode when camera scanner is used
+			// 🆕 THỐNG NHẤT: Camera scanner chỉ điền vào input, KHÔNG tự động add
 			this.search_mode = 'barcode';
-			
-			// Hide search results
 			this.hideSearchResults();
+			
+			// Điền barcode vào input và focus
+			this.first_search = scannedCode.trim();
+			this.search = scannedCode.trim();
+			
+			// Focus vào input để user có thể nhấn Enter
+			this.$nextTick(() => {
+				this.focusSearchInput();
+			});
 
-			// Use same pipeline as hardware scanner for consistency
-			this.search_from_scanner = true;
-			this.processScannedItem(scannedCode);
-
-			// Show scanning feedback
-			frappe.show_alert(
-				{
-					message: `Scanning for: ${scannedCode}`,
-					indicator: "blue",
-				},
-				2,
-			);
+			// Show scanning feedback với hướng dẫn
+			frappe.show_alert({
+				message: `Camera Scanner: ${scannedCode} - Nhấn Enter để thêm vào giỏ hàng`,
+				indicator: "green",
+			}, 3);
 		},
-		async processScannedItem(scannedCode) {
+		// 🚫 DEPRECATED: Method này không còn được sử dụng sau khi thống nhất luồng scanner
+		// Tất cả scanner giờ đều đi qua handleBarcodeEnter() thông qua Enter key
+		async processScannedItem_DEPRECATED(scannedCode) {
 			try {
 				// CHỐT KHOÁ: chặn double add do các đường gọi trùng
 				if (this.processing_scan) return;
