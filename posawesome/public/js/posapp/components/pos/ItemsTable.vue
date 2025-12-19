@@ -771,7 +771,6 @@ export default {
 		this.highlightTimers.forEach(timer => clearTimeout(timer));
 		this.highlightTimers.clear();
 		this.highlightedItems.clear();
-		}
 	},
 	methods: {
 		getRowClass(item) {

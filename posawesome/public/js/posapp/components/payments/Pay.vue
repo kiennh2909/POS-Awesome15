@@ -291,7 +291,7 @@
 				</v-card>
 			</v-col>
 
-			<!-- Right Panel - Totals and Actions -->
+			<!-- Right Panel - Totals and Actions  -->
 			<v-col md="4" cols="12" class="pb-3">
 				<v-card
 					:class="['invoices mx-auto mt-3 p-3', isDarkTheme ? '' : 'bg-grey-lighten-5']"

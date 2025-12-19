@@ -59,11 +59,9 @@
 									<span class="keyboard-hint text-caption">
 										{{ search_mode === 'barcode' ? 'F3: Text' : 'F3: Barcode' }}
 									</span>
-								</template>
-							</v-text-field>
-								<!-- Add camera scan button if enabled -->
-								<template v-slot:append-inner v-if="pos_profile.posa_enable_camera_scanning">
+									<!-- Add camera scan button if enabled -->
 									<v-btn
+										v-if="pos_profile.posa_enable_camera_scanning"
 										icon="mdi-camera"
 										size="small"
 										color="primary"
