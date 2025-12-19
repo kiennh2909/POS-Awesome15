@@ -2677,7 +2677,7 @@ export default {
 
 			console.info('[Hardware Scanner] Scanned barcode:', sCode);
 
-			// 🆕 THỐNG NHẤT: Đưa barcode vào search input, yêu cầu nhấn Enter
+			// 🚀 AUTO-ENTER: Đưa barcode vào search input và tự động thực hiện Enter
 			this.search_mode = 'barcode';
 			this.hideSearchResults();
 			
@@ -2685,14 +2685,16 @@ export default {
 			this.debounce_search = sCode.trim();
 			this.first_search = sCode.trim();
 			
-			// Focus vào search input và highlight text
+			// Focus vào search input và tự động thực hiện Enter
 			this.$nextTick(() => {
 				this.focusSearchInput();
-				this.selectAllSearchText();
+				// 🚀 TỰ ĐỘNG THỰC HIỆN ENTER
+				setTimeout(() => {
+					this.handleBarcodeEnter();
+				}, 50); // Small delay to ensure input is updated
 			});
 			
-			// Alert removed for speed - hardware scanner should be instant
-			console.info(`[Hardware Scanner] Scanned: ${sCode}`);
+			console.info(`[Hardware Scanner] Auto-processing: ${sCode}`);
 		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
@@ -3379,7 +3381,7 @@ export default {
 			}
 			this.lastScanTime = now;
 
-			// 🆕 THỐNG NHẤT: Đưa barcode vào search input, yêu cầu nhấn Enter
+			// 🚀 AUTO-ENTER: Đưa barcode vào search input và tự động thực hiện Enter
 			this.search_mode = 'barcode';
 			this.hideSearchResults();
 			
@@ -3387,14 +3389,16 @@ export default {
 			this.debounce_search = scannedCode.trim();
 			this.first_search = scannedCode.trim();
 			
-			// Focus vào search input và highlight text
+			// Focus vào search input và tự động thực hiện Enter
 			this.$nextTick(() => {
 				this.focusSearchInput();
-				this.selectAllSearchText();
+				// 🚀 TỰ ĐỘNG THỰC HIỆN ENTER
+				setTimeout(() => {
+					this.handleBarcodeEnter();
+				}, 50); // Small delay to ensure input is updated
 			});
 			
-			// Alert removed for speed - camera scanner should be instant
-			console.info(`[Camera Scanner] Scanned: ${scannedCode}`);
+			console.info(`[Camera Scanner] Auto-processing: ${scannedCode}`);
 		},
 		// 🚫 DEPRECATED: processScannedItem - Không còn sử dụng do thống nhất luồng Enter
 		// Tất cả scanner (hardware, camera, manual) đều đưa barcode vào search input
