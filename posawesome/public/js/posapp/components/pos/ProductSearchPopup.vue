@@ -236,8 +236,9 @@ export default {
 				return this.visible;
 			},
 			set(value) {
+				// Emit close event without calling closePopup to avoid infinite loop
 				if (!value) {
-					this.closePopup();
+					this.$emit('close');
 				}
 			}
 		}
