@@ -69,7 +69,7 @@
 							<h3 class="section-title">Giá Trị Hiện Tại</h3>
 							<div class="price-display">
 								<div class="price-label">Đơn Giá ({{ selectedUom }})</div>
-								<div class="price-value">$ {{ formatPrice(currentPrice) }}</div>
+								<div class="price-value">{{ formatPrice(currentPrice) }}</div>
 							</div>
 						</div>
 					</div>
@@ -212,7 +212,8 @@ export default {
 			originalValue: '',
 			hasError: false,
 			errorMessage: '',
-			selectedUom: null
+			selectedUom: null,
+			hasUserStartedEditing: false // Track if user has started editing
 		};
 	},
 	computed: {
@@ -303,6 +304,7 @@ export default {
 			this.initializeFieldValue();
 			this.hasError = false;
 			this.errorMessage = '';
+			this.hasUserStartedEditing = false; // Reset editing flag
 		},
 		
 		initializeFieldValue() {
@@ -332,15 +334,30 @@ export default {
 				item: this.selectedItem
 			});
 			
+			// Emit event to trigger total recalculation
+			this.$emit('request-total-update');
+			
 			console.log('[NumPad] ✅ UOM update emitted to cart');
 		},
 		
 		// NumPad Input Methods
 		inputNumber(num) {
-			if (this.displayValue === '0' || this.displayValue === this.originalValue) {
+			console.log('[NumPad] Input number:', num, 'Current display:', this.displayValue, 'Original:', this.originalValue);
+			
+			// Only replace if displayValue is '0' or if user hasn't started editing yet
+			if (this.displayValue === '0') {
 				this.displayValue = String(num);
+				console.log('[NumPad] Replaced 0 with:', this.displayValue);
+			} else if (this.displayValue === this.originalValue && !this.hasUserStartedEditing) {
+				// First number input - replace original value
+				this.displayValue = String(num);
+				this.hasUserStartedEditing = true;
+				console.log('[NumPad] First edit - replaced original with:', this.displayValue);
 			} else {
+				// Append to existing value
 				this.displayValue += String(num);
+				this.hasUserStartedEditing = true;
+				console.log('[NumPad] Appended - new value:', this.displayValue);
 			}
 		},
 		
@@ -352,6 +369,7 @@ export default {
 			} else {
 				this.displayValue += '.';
 			}
+			this.hasUserStartedEditing = true;
 		},
 		
 		inputTripleZero() {
@@ -360,6 +378,7 @@ export default {
 			} else {
 				this.displayValue += '000';
 			}
+			this.hasUserStartedEditing = true;
 		},
 		
 		backspace() {
@@ -368,11 +387,15 @@ export default {
 			}
 			if (!this.displayValue) {
 				this.displayValue = '0';
+				this.hasUserStartedEditing = false; // Reset if back to empty
+			} else {
+				this.hasUserStartedEditing = true;
 			}
 		},
 		
 		clear() {
 			this.displayValue = '0';
+			this.hasUserStartedEditing = false; // Reset editing flag
 		},
 		
 		increaseValue() {

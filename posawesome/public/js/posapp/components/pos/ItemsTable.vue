@@ -640,6 +640,7 @@
 			@delete-item="handleDeleteItem"
 			@close="closeNumPad"
 			@confirmed-and-close="handleConfirmedAndClose"
+			@request-total-update="handleTotalUpdateRequest"
 		/>
 	</div>
 </template>
@@ -1195,6 +1196,19 @@ export default {
 			// Use existing onUomChange method
 			this.onUomChange(item, newUom);
 
+			// Trigger discount calculation (same as QTY update)
+			if (!this.$parent.isApplyingDiscount) {
+				console.log('[ItemsTable] 🔄 Triggering discount calculation for NumPad UOM update');
+				this.$parent.$nextTick(() => {
+					setTimeout(() => {
+						this.$parent.calculateDiscountsDebounced();
+						console.log('[ItemsTable] ✅ calculateDiscountsDebounced() called for NumPad UOM update');
+					}, 10);
+				});
+			} else {
+				console.log('[ItemsTable] ⏭️ Skipping discount calculation - isApplyingDiscount is true');
+			}
+
 			// Force UI update
 			this.$forceUpdate();
 		},
@@ -1217,6 +1231,17 @@ export default {
 		handleConfirmedAndClose() {
 			console.log('[ItemsTable] ✅ NumPad confirmed, closing and focusing F2 barcode');
 			
+			// Force final total recalculation
+			if (!this.$parent.isApplyingDiscount) {
+				console.log('[ItemsTable] 🔄 Final total recalculation after NumPad close');
+				this.$parent.$nextTick(() => {
+					setTimeout(() => {
+						this.$parent.calculateDiscountsDebounced();
+						console.log('[ItemsTable] ✅ Final calculateDiscountsDebounced() called');
+					}, 50);
+				});
+			}
+			
 			// Close NumPad first
 			this.closeNumPad();
 			
@@ -1224,8 +1249,22 @@ export default {
 			this.$nextTick(() => {
 				setTimeout(() => {
 					this.focusF2BarcodeInput();
-				}, 100);
+				}, 150); // Increased delay to allow calculation to complete
 			});
+		},
+
+		// Handle total update request from NumPad
+		handleTotalUpdateRequest() {
+			console.log('[ItemsTable] 🔄 Total update requested from NumPad');
+			
+			if (!this.$parent.isApplyingDiscount) {
+				this.$parent.$nextTick(() => {
+					setTimeout(() => {
+						this.$parent.calculateDiscountsDebounced();
+						console.log('[ItemsTable] ✅ Total recalculated from NumPad request');
+					}, 10);
+				});
+			}
 		},
 
 		// Focus F2 barcode input field
