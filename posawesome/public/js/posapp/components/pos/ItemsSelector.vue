@@ -72,6 +72,20 @@
 									</v-btn>
 								</template>
 							</v-text-field>
+							<!-- Mode indicator badge -->
+							<div class="mode-indicator-badge mt-1">
+								<v-chip 
+									:color="search_mode === 'barcode' ? 'primary' : 'orange'"
+									size="x-small"
+									variant="flat"
+									class="mode-chip"
+								>
+									<v-icon size="x-small" class="mr-1">
+										{{ modeIcon }}
+									</v-icon>
+									{{ search_mode === 'barcode' ? 'BARCODE' : 'TEXT SEARCH' }}
+								</v-chip>
+							</div>
 						</v-col>
 						<v-col cols="4" class="pb-0" v-if="pos_profile.posa_input_qty">
 							<v-text-field
@@ -735,8 +749,15 @@ export default {
 		},
 		// Automatically search and add item whenever the query changes
 		first_search: _.debounce(function (val) {
-			// Use queue system to eliminate race conditions
-			this.queueSearch(val, this.search_from_scanner);
+			// Only auto-search in barcode mode or when from scanner
+			// In text mode, user must press Enter to search
+			console.log(`[WATCHER] first_search changed: "${val}", mode: ${this.search_mode}, from_scanner: ${this.search_from_scanner}`);
+			if (this.search_mode === 'barcode' || this.search_from_scanner) {
+				console.log('[WATCHER] Triggering auto-search');
+				this.queueSearch(val, this.search_from_scanner);
+			} else {
+				console.log('[WATCHER] Text mode - no auto-search, waiting for Enter');
+			}
 		}, 300), // Increased debounce time to match search debounce
 
 		// Refresh item prices whenever the user changes currency
@@ -783,12 +804,40 @@ export default {
 		},
 		
 		filtered_items() {
-			// Only trim in barcode mode, preserve spaces in text mode
-			if (this.search_mode === 'barcode') {
-				this.search = this.get_search(this.first_search).trim();
-			} else {
-				this.search = this.get_search(this.first_search);
+			// In text mode, don't auto-filter while typing - only show all items
+			// User will search by pressing Enter which triggers handleTextSearchEnter()
+			if (this.search_mode === 'text') {
+				console.log('[TEXT_MODE] filtered_items: showing all items, no auto-filter');
+				// Show all items without filtering in text mode
+				let filtered = [];
+				if (
+					this.pos_profile.posa_show_template_items &&
+					this.pos_profile.posa_hide_variants_items
+				) {
+					filtered = this.items
+						.filter((item) => !item.variant_of)
+						.slice(0, this.itemsPerPage);
+				} else {
+					filtered = this.items.slice(0, this.itemsPerPage);
+				}
+
+				if (this.hide_zero_rate_items) {
+					filtered = filtered.filter((item) => parseFloat(item.rate) !== 0);
+				}
+
+				// Ensure quantities are defined
+				filtered.forEach((item) => {
+					if (item.actual_qty === undefined) {
+						item.actual_qty = 0;
+					}
+				});
+
+				return filtered;
 			}
+
+			// Barcode mode: continue with original logic
+			this.search = this.get_search(this.first_search).trim();
+			
 			if (!this.pos_profile.pose_use_limit_search) {
 				let filtred_list = [];
 				let filtred_group_list = this.items;
@@ -3773,13 +3822,54 @@ export default {
 	min-height: 60px !important;
 }
 
-/* Mode-specific border colors */
-.search-mode-barcode .barcode-input :deep(.v-field__outline) {
+/* Mode-specific border colors and background */
+.search-mode-barcode :deep(.v-field__outline) {
 	border-left: 4px solid rgb(var(--v-theme-primary)) !important;
+	border-color: rgb(var(--v-theme-primary)) !important;
 }
 
-.search-mode-text .barcode-input :deep(.v-field__outline) {
+.search-mode-barcode :deep(.v-field) {
+	background-color: rgba(var(--v-theme-primary), 0.05) !important;
+}
+
+.search-mode-text :deep(.v-field__outline) {
 	border-left: 4px solid rgb(var(--v-theme-orange)) !important;
+	border-color: rgb(var(--v-theme-orange)) !important;
+}
+
+.search-mode-text :deep(.v-field) {
+	background-color: rgba(255, 152, 0, 0.05) !important;
+}
+
+/* Enhanced visual feedback when focused */
+.search-mode-barcode :deep(.v-field--focused .v-field__outline) {
+	border-width: 2px !important;
+	border-color: rgb(var(--v-theme-primary)) !important;
+	box-shadow: 0 0 0 3px rgba(var(--v-theme-primary), 0.15) !important;
+}
+
+.search-mode-text :deep(.v-field--focused .v-field__outline) {
+	border-width: 2px !important;
+	border-color: rgb(var(--v-theme-orange)) !important;
+	box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.15) !important;
+}
+
+/* Mode indicator badge */
+.mode-indicator-badge {
+	display: flex;
+	justify-content: flex-start;
+	margin-top: 4px;
+}
+
+.mode-chip {
+	font-size: 0.7rem !important;
+	font-weight: 600 !important;
+	letter-spacing: 0.5px !important;
+	transition: all 0.2s ease !important;
+}
+
+.mode-chip:hover {
+	transform: scale(1.05) !important;
 }
 
 /* Keyboard hint styling */
@@ -3930,6 +4020,14 @@ export default {
 	
 	.keyboard-hint {
 		display: none; /* Hide on mobile */
+	}
+	
+	.mode-indicator-badge {
+		margin-top: 2px;
+	}
+	
+	.mode-chip {
+		font-size: 0.6rem !important;
 	}
 	
 	/* NumPad responsive */
