@@ -1689,11 +1689,10 @@ export default {
 		},
 		*/
 
-		// Method gọi API exact barcode và add item nếu tìm thấy
-		// ✅ ĐẢM BẢO: UOM và Price từ backend đã chính xác, không cần xử lý thêm
-		async fetchExactBarcodeAndAdd(rawCode) {
+		// 🆕 Method chỉ lấy item data từ API, không add (tránh double add)
+		async getItemByBarcodeExact(rawCode) {
 			try {
-				console.info("[ItemsSelector] 🔍 Checking exact barcode match for:", rawCode);
+				console.info("[ItemsSelector] 🔍 Getting exact barcode match for:", rawCode);
 
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.items.get_item_by_barcode_exact",
@@ -1724,9 +1723,8 @@ export default {
 							"[ItemsSelector] ❌ Backend returned item without UOM:",
 							item.item_code,
 						);
-						// Error alert removed for speed
 						console.error(`[Barcode] Item ${item.item_name} missing UOM`);
-						return false;
+						return null;
 					}
 
 					// ✅ VALIDATE: Đảm bảo UOM tồn tại trong item_uoms
@@ -1738,47 +1736,39 @@ export default {
 								item.uom,
 								"not in item_uoms",
 							);
-							// Error alert removed for speed
 							console.error(`[Barcode] Invalid UOM for item ${item.item_name}`);
-							return false;
+							return null;
 						}
 					}
 
-					// Check cancellation before adding item
+					// Check cancellation before returning item
 					if (this.current_search_controller && this.current_search_controller.signal.aborted) {
 						throw new Error("Search cancelled");
 					}
 
-					// ✅ Add item với UOM và Price đã được đảm bảo chính xác
-					await this.add_item(item);
-
-					// Bỏ hộp thông báo để tăng tốc độ
-					// // Show success message
-					// frappe.show_alert(
-					// 	{
-					// 		message: `Thêm giỏ hàng thành công : ${item.item_name} (${item.uom})`,
-					// 		indicator: "green",
-					// 	},
-					// 	3,
-					// );
-
-					// Clear search state
-					this.clearSearchState();
-
-					return true; // Match found and added
+					return item; // Return item data only, don't add
 				} else {
 					console.info("[ItemsSelector] ❌ No exact barcode match for:", rawCode);
-					return false; // No match found
+					return null; // No match found
 				}
 			} catch (error) {
 				if (error.name === "AbortError" || error.message === "Search cancelled") {
 					throw error; // Re-throw cancellation errors
 				}
-				console.error("[ItemsSelector] Error fetching exact barcode:", error);
-				// Don't show error alert here - let caller handle
-				return false;
+				console.error("[ItemsSelector] Error getting exact barcode:", error);
+				return null;
 			}
 		},
+
+		// 🚫 DEPRECATED: fetchExactBarcodeAndAdd - Gây double add, đã thay thế bằng getItemByBarcodeExact
+		// Method này gọi add_item() bên trong, gây ra double add khi được gọi từ handleBarcodeEnter
+		// Đã thay thế bằng getItemByBarcodeExact() chỉ trả về item data
+		/*
+		async fetchExactBarcodeAndAdd(rawCode) {
+			// DEPRECATED - causes double add
+			// Use getItemByBarcodeExact() instead
+		}
+		*/
 		adjustItemsPerPage(width, height = this.windowHeight) {
 			const cardWidth = 200; // approximate width of each item card
 			const cardHeight = 160; // approximate height including margins
@@ -2870,11 +2860,12 @@ export default {
 					return;
 				}
 
-				// Try API exact match
+				// Try API exact match (get item data only, then add via normal flow)
 				try {
-					const exactMatch = await this.fetchExactBarcodeAndAdd(trimmedQuery);
-					if (exactMatch) {
+					const exactItem = await this.getItemByBarcodeExact(trimmedQuery);
+					if (exactItem) {
 						console.info(`[ItemsSelector] ✅ Exact barcode API match found`);
+						await this.add_item(exactItem);
 						return;
 					}
 				} catch (apiError) {
@@ -2977,7 +2968,7 @@ export default {
 		async findItemByBarcode(barcode) {
 			// Try API exact match first
 			try {
-				const apiResult = await this.fetchExactBarcodeAndAdd(barcode);
+				const apiResult = await this.getItemByBarcodeExact(barcode);
 				if (apiResult) return apiResult;
 			} catch (error) {
 				console.warn('API barcode search failed:', error);
