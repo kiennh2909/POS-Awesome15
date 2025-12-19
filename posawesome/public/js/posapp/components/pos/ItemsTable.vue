@@ -24,7 +24,7 @@
 			:item-class="getRowClass"
 			:item-props="getItemProps"
 			@update:expanded="$emit('update:expanded', $event)"
-			@click:row="handleRowClick"
+
 			:search="itemSearch"
 		>
 			<!-- Name column (Tên + Mã Barcode) -->
@@ -35,10 +35,21 @@
 				</div>
 			</template>
 
-			<!-- Quantity column -->
+			<!-- Quantity column - Clickable QTY Field -->
 			<template v-slot:item.qty="{ item }">
-				<div class="amount-value">
-					{{ formatFloat(item.qty, hide_qty_decimals ? 0 : undefined) }}
+				<div 
+					class="qty-field-clickable"
+					@click.stop="handleQtyClick(item)"
+					:class="{ 'qty-selected': selectedItemForEdit?.posa_row_id === item.posa_row_id }"
+				>
+					<div class="qty-value">
+						{{ formatFloat(item.qty, hide_qty_decimals ? 0 : undefined) }}
+					</div>
+					<v-icon v-if="selectedItemForEdit?.posa_row_id === item.posa_row_id" 
+						size="small" 
+						class="qty-edit-icon">
+						mdi-calculator-variant
+					</v-icon>
 				</div>
 			</template>
 
@@ -628,6 +639,7 @@
 			@update-field="handleUpdateField"
 			@delete-item="handleDeleteItem"
 			@close="closeNumPad"
+			@confirmed-and-close="handleConfirmedAndClose"
 		/>
 	</div>
 </template>
@@ -1102,23 +1114,19 @@ export default {
 
 		// 🆕 NUMPAD INTEGRATION METHODS
 
-		// Handle row click to open NumPad
-		handleRowClick(event, { item }) {
-			console.log('[ItemsTable] 🔢 Row clicked for NumPad:', item.item_code);
-			
-			// Prevent expanding if NumPad should open
-			event.stopPropagation();
+		// Handle QTY field click to open NumPad
+		handleQtyClick(item) {
+			console.log('[ItemsTable] 🔢 QTY field clicked for NumPad:', item.item_code);
 			
 			this.selectedItemForEdit = item;
-			this.initialEditField = 'qty'; // Default to quantity (80-90% of operations)
+			this.initialEditField = 'qty'; // Always QTY since user clicked QTY field
 			this.numpadVisible = true;
 			
-			console.log('[ItemsTable] ✅ NumPad opened for item:', {
+			console.log('[ItemsTable] ✅ NumPad opened for QTY edit:', {
 				item_code: item.item_code,
 				item_name: item.item_name,
 				current_qty: item.qty,
-				current_rate: item.rate,
-				current_discount: item.discount_percentage
+				focus_field: 'qty'
 			});
 		},
 
@@ -1135,11 +1143,8 @@ export default {
 				case 'qty':
 					this.updateItemQty(item, value);
 					break;
-				case 'rate':
-					this.updateItemRate(item, value);
-					break;
-				case 'discount_percentage':
-					this.updateItemDiscount(item, value);
+				case 'uom':
+					this.updateItemUom(item, value);
 					break;
 				default:
 					console.warn('[ItemsTable] ⚠️ Unknown field:', field);
@@ -1179,33 +1184,16 @@ export default {
 			this.$forceUpdate();
 		},
 
-		// Update item rate
-		updateItemRate(item, newRate) {
-			console.log('[ItemsTable] 💰 Updating rate:', {
+		// Update item UOM
+		updateItemUom(item, newUom) {
+			console.log('[ItemsTable] 📏 Updating UOM:', {
 				item_code: item.item_code,
-				old_rate: item.rate,
-				new_rate: newRate
+				old_uom: item.uom,
+				new_uom: newUom
 			});
 
-			// Use existing setFormatedCurrency method
-			this.setFormatedCurrency(item, 'rate', null, false, { target: { value: newRate } });
-			this.calcPrices(item, newRate, { target: { value: newRate } });
-
-			// Force UI update
-			this.$forceUpdate();
-		},
-
-		// Update item discount
-		updateItemDiscount(item, newDiscount) {
-			console.log('[ItemsTable] 🏷️ Updating discount:', {
-				item_code: item.item_code,
-				old_discount: item.discount_percentage,
-				new_discount: newDiscount
-			});
-
-			// Use existing setFormatedCurrency method for discount
-			this.setFormatedCurrency(item, 'discount_percentage', null, false, { target: { value: newDiscount } });
-			this.calcPrices(item, newDiscount, { target: { value: newDiscount } });
+			// Use existing onUomChange method
+			this.onUomChange(item, newUom);
 
 			// Force UI update
 			this.$forceUpdate();
@@ -1223,6 +1211,64 @@ export default {
 			console.log('[ItemsTable] ❌ Closing NumPad');
 			this.numpadVisible = false;
 			this.selectedItemForEdit = null;
+		},
+
+		// Handle confirmed and close - Focus back to F2 barcode
+		handleConfirmedAndClose() {
+			console.log('[ItemsTable] ✅ NumPad confirmed, closing and focusing F2 barcode');
+			
+			// Close NumPad first
+			this.closeNumPad();
+			
+			// Focus back to F2 barcode input after a short delay
+			this.$nextTick(() => {
+				setTimeout(() => {
+					this.focusF2BarcodeInput();
+				}, 100);
+			});
+		},
+
+		// Focus F2 barcode input field
+		focusF2BarcodeInput() {
+			try {
+				// Try multiple selectors to find the barcode input
+				const barcodeSelectors = [
+					'input[placeholder*="barcode"]',
+					'input[placeholder*="Barcode"]', 
+					'input[placeholder*="mã vạch"]',
+					'input[placeholder*="Mã vạch"]',
+					'.barcode-input input',
+					'.search-input input',
+					'#barcode-input',
+					'input[type="text"]:first-of-type'
+				];
+				
+				let barcodeInput = null;
+				
+				for (const selector of barcodeSelectors) {
+					barcodeInput = document.querySelector(selector);
+					if (barcodeInput) {
+						console.log('[ItemsTable] 🎯 Found barcode input with selector:', selector);
+						break;
+					}
+				}
+				
+				if (barcodeInput) {
+					barcodeInput.focus();
+					barcodeInput.select(); // Select all text if any
+					console.log('[ItemsTable] ✅ F2 Barcode input focused successfully');
+					
+					// Emit event to parent components
+					this.$emit('barcode-focused');
+				} else {
+					console.warn('[ItemsTable] ⚠️ Could not find barcode input field');
+					
+					// Try to emit event to parent to handle F2 focus
+					this.$emit('request-barcode-focus');
+				}
+			} catch (error) {
+				console.error('[ItemsTable] ❌ Error focusing barcode input:', error);
+			}
 		},
 	},
 };
@@ -1774,12 +1820,84 @@ export default {
 
 /* 🆕 NUMPAD INTEGRATION STYLES */
 
-/* Row hover effect for NumPad click indication */
+/* Clickable QTY Field Styling */
+.qty-field-clickable {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 60px;
+	height: 32px;
+	padding: 4px 8px;
+	border: 2px solid #e0e0e0;
+	border-radius: 6px;
+	background: #ffffff;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	position: relative;
+	font-weight: 500;
+}
+
+.qty-field-clickable:hover {
+	border-color: #1976d2;
+	background: #f3f8ff;
+	transform: translateY(-1px);
+	box-shadow: 0 2px 8px rgba(25, 118, 210, 0.2);
+}
+
+.qty-field-clickable.qty-selected {
+	border-color: #1976d2;
+	background: #e3f2fd;
+	box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+}
+
+.qty-value {
+	font-size: 1rem;
+	font-weight: 600;
+	color: #333;
+	min-width: 30px;
+	text-align: center;
+}
+
+.qty-edit-icon {
+	margin-left: 4px;
+	color: #1976d2;
+	animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.6; }
+}
+
+/* Dark theme support for QTY field */
+:deep(.dark-theme) .qty-field-clickable,
+:deep(.v-theme--dark) .qty-field-clickable {
+	background: #2a2a2a;
+	border-color: #555;
+	color: #fff;
+}
+
+:deep(.dark-theme) .qty-field-clickable:hover,
+:deep(.v-theme--dark) .qty-field-clickable:hover {
+	border-color: #90caf9;
+	background: #1a237e;
+}
+
+:deep(.dark-theme) .qty-field-clickable.qty-selected,
+:deep(.v-theme--dark) .qty-field-clickable.qty-selected {
+	border-color: #90caf9;
+	background: #1565c0;
+}
+
+:deep(.dark-theme) .qty-value,
+:deep(.v-theme--dark) .qty-value {
+	color: #fff;
+}
+
+/* Remove row hover effect since we're using QTY click */
 .modern-items-table :deep(tr:hover) {
 	background-color: var(--table-row-hover);
-	transform: translateY(-1px);
-	box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-	cursor: pointer; /* Indicate clickable for NumPad */
+	/* Remove cursor pointer and transform since row is not clickable anymore */
 }
 
 /* Selected row for NumPad editing */
