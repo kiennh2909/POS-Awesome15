@@ -57,7 +57,7 @@
 								<!-- Keyboard hint -->
 								<template v-slot:append-inner>
 									<span class="keyboard-hint text-caption">
-										F3: Popup
+										{{ search_mode === 'barcode' ? 'F3: Text' : 'F3: Barcode' }}
 									</span>
 									<!-- Product Search Popup Button -->
 									<v-btn
@@ -1076,8 +1076,8 @@ export default {
 		
 		dynamicHint() {
 			return this.search_mode === 'barcode'
-				? 'F3 – Mở popup tìm kiếm nâng cao'
-				: 'F3 – Mở popup tìm kiếm nâng cao';
+				? 'F3 – Chuyển sang tìm theo Tên / SKU'
+				: 'F3 – Quay về quét Barcode';
 		},
 		
 		modeIcon() {
@@ -1518,7 +1518,7 @@ export default {
 			console.info('[F2] Mode set to:', this.search_mode);
 		}, 200), // Debounce 200ms to prevent multiple calls
 		
-		// 🔹 F3 - OPEN PRODUCT SEARCH POPUP (NO MODE CHANGE)
+		// 🔹 F3 - SWITCH TO TEXT SEARCH MODE (SEARCH ONLY)
 		handleF3SearchToggle: _.debounce(function() {
 			console.info('[F3] handleF3SearchToggle called, f3_enabled:', this.f3_enabled);
 			if (!this.f3_enabled) {
@@ -1526,22 +1526,30 @@ export default {
 				return;
 			}
 			
-			console.info('[F3] Opening Product Search Popup (no mode change)');
+			console.info('[F3] ALWAYS switching to Text Search mode (view-only), current mode:', this.search_mode);
 			
-			// Hide any existing results and popups
+			// Hide any popups and results
 			this.hideSearchResults();
 			this.hideProductConfirmation();
 			
-			// 🆕 OPEN POPUP instead of changing mode
-			this.openProductSearchPopup();
+			// ALWAYS switch to text mode (F3 = Text Search ONLY, no toggle)
+			this.search_mode = 'text';
 			
-			// Show feedback
+			// Clear current search
+			this.clearSearch();
+			
+			// Keep focus on input
+			this.$nextTick(() => {
+				this.focusSearchInput();
+			});
+			
+			// Show mode change feedback
 			frappe.show_alert({
-				message: 'F3: Mở popup tìm kiếm nâng cao',
-				indicator: 'blue'
+				message: 'F3: Chế độ Tìm kiếm Text (click để chọn → xác nhận)',
+				indicator: 'orange'
 			}, 2);
 			
-			console.info('[F3] Product Search Popup opened');
+			console.info('[F3] Mode set to:', this.search_mode);
 		}, 200), // Debounce 200ms to prevent multiple calls
 		
 		// 🎯 ENTER KEY ROUTER
@@ -3400,60 +3408,17 @@ export default {
 
 		// 🆕 Product Search Popup Methods
 		openProductSearchPopup() {
-			try {
-				console.info('[Popup] Opening product search popup');
-				
-				// Validate required props before opening
-				if (!this.pos_profile) {
-					console.error('[Popup] Cannot open - missing pos_profile');
-					frappe.show_alert({
-						message: 'Lỗi: Thiếu thông tin POS Profile',
-						indicator: 'red'
-					}, 3);
-					return;
-				}
-
-				if (!this.active_price_list) {
-					console.error('[Popup] Cannot open - missing price_list');
-					frappe.show_alert({
-						message: 'Lỗi: Thiếu thông tin bảng giá',
-						indicator: 'red'
-					}, 3);
-					return;
-				}
-
-				// Close any other popups first
-				this.hideSearchResults();
-				this.hideProductConfirmation();
-				
-				// Open popup
-				this.product_search_popup_visible = true;
-				console.info('[Popup] Popup opened successfully');
-			} catch (error) {
-				console.error('[Popup] Error opening popup:', error);
-				frappe.show_alert({
-					message: 'Lỗi mở popup tìm kiếm',
-					indicator: 'red'
-				}, 3);
-			}
+			console.info('[Popup] Opening product search popup');
+			this.product_search_popup_visible = true;
 		},
 
 		closeProductSearchPopup() {
-			try {
-				console.info('[Popup] Closing product search popup');
-				this.product_search_popup_visible = false;
-				
-				// Return focus to main search input with error handling
-				this.$nextTick(() => {
-					try {
-						this.focusSearchInput();
-					} catch (error) {
-						console.error('[Popup] Error focusing search input:', error);
-					}
-				});
-			} catch (error) {
-				console.error('[Popup] Error closing popup:', error);
-			}
+			console.info('[Popup] Closing product search popup');
+			this.product_search_popup_visible = false;
+			// Return focus to main search input
+			this.$nextTick(() => {
+				this.focusSearchInput();
+			});
 		},
 
 		async onPopupAddItem(item) {
