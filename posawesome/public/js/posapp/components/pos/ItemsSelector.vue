@@ -1038,18 +1038,12 @@ export default {
 				this.update_items_details(new_value);
 			}
 		},
-		// Automatically search and add item whenever the query changes
+		// 🚫 DISABLED: Auto-search watcher để thống nhất luồng - tất cả đều phải nhấn Enter
 		first_search: _.debounce(function (val) {
-			// Only auto-search in barcode mode or when from scanner
-			// In text mode, user must press Enter to search
-			console.log(`[WATCHER] first_search changed: "${val}", mode: ${this.search_mode}, from_scanner: ${this.search_from_scanner}`);
-			if (this.search_mode === 'barcode' || this.search_from_scanner) {
-				console.log('[WATCHER] Triggering auto-search');
-				this.queueSearch(val, this.search_from_scanner);
-			} else {
-				console.log('[WATCHER] Text mode - no auto-search, waiting for Enter');
-			}
-		}, 300), // Increased debounce time to match search debounce
+			console.log(`[WATCHER] first_search changed: "${val}", mode: ${this.search_mode}`);
+			console.log('[WATCHER] Auto-search DISABLED - User must press Enter for all input methods');
+			// Không còn auto-search, tất cả đều phải nhấn Enter để thống nhất workflow
+		}, 300),
 
 		// Refresh item prices whenever the user changes currency
 		selected_currency() {
@@ -1801,8 +1795,9 @@ export default {
 						throw new Error("Search cancelled");
 					}
 
-					// ✅ Add item với UOM và Price đã được đảm bảo chính xác
-					await this.add_item(item);
+					// 🚫 DISABLED: Auto-add để thống nhất luồng - tất cả đều phải nhấn Enter
+					console.info("[ItemsSelector] 🚫 AUTO-ADD DISABLED - User must press Enter to add item");
+					// await this.add_item(item);
 
 					// Bỏ hộp thông báo để tăng tốc độ
 					// // Show success message
@@ -1817,7 +1812,7 @@ export default {
 					// Clear search state
 					this.clearSearchState();
 
-					return true; // Match found and added
+					return item; // Return item data instead of boolean (không auto-add nữa)
 				} else {
 					console.info("[ItemsSelector] ❌ No exact barcode match for:", rawCode);
 					return false; // No match found
@@ -2429,13 +2424,10 @@ export default {
 			this.clearSearch();
 			this.$refs.debounce_search.focus();
 		},
+		// 🚫 DISABLED: search_onchange để thống nhất luồng - tất cả đều phải nhấn Enter
 		search_onchange: _.debounce(async function (newSearchTerm) {
-			const vm = this;
-
-			// Use queue system to eliminate race conditions completely
-			const query = typeof newSearchTerm === "string" ? newSearchTerm : vm.first_search;
-			const fromScanner = vm.search_from_scanner;
-			vm.queueSearch(query, fromScanner);
+			console.log('[search_onchange] DISABLED - User must press Enter for all searches');
+			// Không còn auto-search, tất cả đều phải nhấn Enter để thống nhất workflow
 		}, 300),
 
 		get_item_qty(first_search) {
@@ -2907,20 +2899,10 @@ export default {
 
 				if (exactItem) {
 					console.info(`[ItemsSelector] ✅ Found exact barcode match: ${exactItem.item_code}`);
-
-					// Set UOM from barcode data
-					const barcodeData = exactItem.item_barcode.find((bc) => bc.barcode === trimmedQuery);
-					if (barcodeData && barcodeData.posa_uom) {
-						exactItem.uom = barcodeData.posa_uom;
-					}
-
-					// Check cancellation before adding item
-					if (this.current_search_id !== searchId) {
-						throw new Error("Search cancelled");
-					}
-
-					await this.add_item(exactItem);
-					this.clearSearchState();
+					console.info(`[ItemsSelector] 🚫 AUTO-ADD DISABLED - User must press Enter to add item`);
+					// 🚫 DISABLED: Auto-add để thống nhất luồng - tất cả đều phải nhấn Enter
+					// await this.add_item(exactItem);
+					// this.clearSearchState();
 					return;
 				}
 
@@ -2950,10 +2932,11 @@ export default {
 			} else {
 				// Ensure qty is reset before enter_event to prevent decimal issues
 				this.qty = 1;
-				// KHÔNG auto-add khi đến từ scanner (đã xử lý trong processScannedItem)
-				if (!fromScanner && query.length >= 3) {
-					this.enter_event();
-				}
+				// 🚫 DISABLED: Auto-add để thống nhất luồng - tất cả đều phải nhấn Enter
+				console.info(`[ItemsSelector] 🚫 AUTO-ADD DISABLED - User must press Enter for all searches`);
+				// if (!fromScanner && query.length >= 3) {
+				//     this.enter_event();
+				// }
 
 				// Update item details after search
 				if (this.filtered_items && this.filtered_items.length > 0) {
