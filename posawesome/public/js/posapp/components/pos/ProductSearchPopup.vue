@@ -209,11 +209,11 @@ export default {
 		},
 		posProfile: {
 			type: Object,
-			required: true
+			default: () => ({})
 		},
 		priceList: {
 			type: String,
-			required: true
+			default: 'Standard Selling'
 		},
 		customer: {
 			type: String,
@@ -240,10 +240,38 @@ export default {
 					this.closePopup();
 				}
 			}
+		},
+		
+		// Safe props with fallbacks
+		safePosProfile() {
+			return this.posProfile && Object.keys(this.posProfile).length > 0 
+				? this.posProfile 
+				: { name: 'Default', warehouse: 'Stores', selling_price_list: 'Standard Selling' };
+		},
+		
+		safePriceList() {
+			return this.priceList || 'Standard Selling';
+		}
+	},
+	mounted() {
+		console.log('[ProductSearchPopup] Component mounted');
+		console.log('[ProductSearchPopup] Props received:', {
+			visible: this.visible,
+			posProfile: this.posProfile,
+			priceList: this.priceList,
+			customer: this.customer
+		});
+		
+		// Validate frappe availability
+		if (typeof frappe === 'undefined') {
+			console.error('[ProductSearchPopup] frappe object not available');
+		} else {
+			console.log('[ProductSearchPopup] frappe object available');
 		}
 	},
 	watch: {
 		visible(newVal) {
+			console.log('[ProductSearchPopup] Visibility changed to:', newVal);
 			if (newVal) {
 				this.resetPopup();
 				this.$nextTick(() => {
@@ -284,11 +312,15 @@ export default {
 
 		// Perform search
 		async performSearch() {
+			console.log('[ProductSearchPopup] performSearch called with:', this.searchTerm);
+			
 			if (!this.searchTerm.trim()) {
 				this.errorMessage = 'Vui lòng nhập từ khóa tìm kiếm';
+				console.warn('[ProductSearchPopup] Empty search term');
 				return;
 			}
 
+			console.log('[ProductSearchPopup] Starting search...');
 			this.isSearching = true;
 			this.errorMessage = '';
 			this.hasSearched = true;
@@ -297,33 +329,72 @@ export default {
 				const results = await this.searchProducts(this.searchTerm.trim());
 				this.searchResults = results;
 				this.selectedIndex = results.length > 0 ? 0 : -1;
+				console.log('[ProductSearchPopup] Search completed, results:', results.length);
 			} catch (error) {
-				console.error('Search error:', error);
-				this.errorMessage = 'Lỗi khi tìm kiếm sản phẩm. Vui lòng thử lại.';
+				console.error('[ProductSearchPopup] Search error:', error);
+				this.errorMessage = `Lỗi khi tìm kiếm: ${error.message}`;
 				this.searchResults = [];
 			} finally {
 				this.isSearching = false;
+				console.log('[ProductSearchPopup] Search finished, isSearching:', this.isSearching);
 			}
 		},
 
 		// Search products via API
 		async searchProducts(searchTerm) {
 			try {
+				console.log('[ProductSearchPopup] Starting API search for:', searchTerm);
+				console.log('[ProductSearchPopup] Props:', {
+					posProfile: this.posProfile,
+					priceList: this.priceList,
+					customer: this.customer
+				});
+
+				// Check if frappe is available
+				if (typeof frappe === 'undefined') {
+					throw new Error('Frappe framework chưa được load. Vui lòng refresh trang.');
+				}
+
+				// Validate props with better error messages
+				if (!this.posProfile || Object.keys(this.posProfile).length === 0) {
+					throw new Error('POS Profile chưa được load. Vui lòng kiểm tra cấu hình POS.');
+				}
+
+				if (!this.priceList) {
+					throw new Error('Price List chưa được thiết lập. Vui lòng kiểm tra cấu hình.');
+				}
+
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.items.search_items_for_popup",
 					args: {
 						search_term: searchTerm,
-						pos_profile: JSON.stringify(this.posProfile),
-						price_list: this.priceList,
+						pos_profile: JSON.stringify(this.safePosProfile),
+						price_list: this.safePriceList,
 						customer: this.customer,
 						limit: 50
 					}
 				});
 
-				return response.message || [];
+				console.log('[ProductSearchPopup] API response:', response);
+
+				if (response && response.message) {
+					console.log('[ProductSearchPopup] Found', response.message.length, 'items');
+					return response.message;
+				} else {
+					console.warn('[ProductSearchPopup] No items returned from API');
+					return [];
+				}
 			} catch (error) {
-				console.error('API search error:', error);
-				throw error;
+				console.error('[ProductSearchPopup] API search error:', error);
+				
+				// Better error messages for users
+				if (error.message.includes('Method not found')) {
+					throw new Error('API tìm kiếm chưa được cài đặt. Vui lòng liên hệ admin.');
+				} else if (error.message.includes('Permission')) {
+					throw new Error('Không có quyền truy cập. Vui lòng kiểm tra phân quyền.');
+				} else {
+					throw error;
+				}
 			}
 		},
 
