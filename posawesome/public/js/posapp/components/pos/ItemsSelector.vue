@@ -114,6 +114,7 @@
 							<v-expand-transition>
 								<v-card 
 									class="search-results-card"
+									:class="{ 'view-only-mode': search_results_view_only }"
 									elevation="4"
 								>
 									<v-card-title class="py-2">
@@ -122,7 +123,7 @@
 										</span>
 										<v-spacer></v-spacer>
 										<span class="text-caption keyboard-hint">
-											↑↓ Chọn • Enter: Thêm • Esc: Đóng
+											Click để chọn • Esc: Đóng
 										</span>
 									</v-card-title>
 									
@@ -909,6 +910,7 @@ export default {
 		search_results: [],
 		search_results_visible: false,
 		selected_result_index: 0,
+		search_results_view_only: false, // Track if results are view-only
 		
 		// 🆕 UI State
 		current_focus_element: null,
@@ -1306,18 +1308,21 @@ export default {
 
 		// 🎹 KEYBOARD EVENT HANDLERS
 		handleKeyDown(event) {
-			// Log F3 key press for debugging
-			if (event.key === 'F3') {
-				console.info('[handleKeyDown] F3 pressed');
+			// Log F2/F3 key press for debugging
+			if (event.key === 'F2' || event.key === 'F3') {
+				console.info(`[handleKeyDown] ${event.key} pressed`);
 			}
 			
-			// Prevent default for special keys
+			// Prevent default and stop propagation for special keys
 			if (['F2', 'F3', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
 				event.preventDefault();
+				event.stopPropagation();
+				event.stopImmediatePropagation();
 			}
 			
 			switch(event.key) {
 				case 'F2':
+					console.info('[handleKeyDown] Calling handleF2Reset');
 					this.handleF2Reset();
 					break;
 				case 'F3':
@@ -1347,9 +1352,9 @@ export default {
 		
 		// Global keyboard listener
 		globalKeyHandler(event) {
-			// Log F3 key press for debugging
-			if (event.key === 'F3') {
-				console.info('[Global] F3 pressed, numpad_visible:', this.numpad_visible, 
+			// Log F2/F3 key press for debugging
+			if (event.key === 'F2' || event.key === 'F3') {
+				console.info(`[Global] ${event.key} pressed, numpad_visible:`, this.numpad_visible, 
 					'product_numpad_visible:', this.product_numpad_visible,
 					'product_confirmation_visible:', this.product_confirmation_visible);
 			}
@@ -1363,6 +1368,7 @@ export default {
 			// Handle Product Confirmation popup keyboard input
 			if (this.product_confirmation_visible) {
 				event.preventDefault();
+				event.stopPropagation();
 				
 				if (event.key === 'Escape') {
 					this.hideProductConfirmation();
@@ -1384,8 +1390,10 @@ export default {
 			
 			// Handle F2/F3 globally, even when input not focused
 			if (event.key === 'F2' || event.key === 'F3') {
-				console.info('[Global] Handling F2/F3 globally');
+				console.info(`[Global] Handling ${event.key} globally - preventing default and stopping propagation`);
 				event.preventDefault();
+				event.stopPropagation();
+				event.stopImmediatePropagation();
 				this.handleKeyDown(event);
 			}
 		},
@@ -1447,14 +1455,18 @@ export default {
 			}
 		},
 		
-		// 🔹 F2 - SMART RESET TO SELLING
-		handleF2Reset() {
-			if (!this.f2_enabled) return;
+		// 🔹 F2 - RESET TO BARCODE MODE AND FOCUS
+		handleF2Reset: _.debounce(function() {
+			if (!this.f2_enabled) {
+				console.warn('[F2] F2 is disabled, ignoring');
+				return;
+			}
 			
-			console.info('[F2] Smart reset to selling mode');
+			console.info('[F2] ALWAYS reset to Barcode mode and focus, current mode:', this.search_mode);
 			
-			// 1️⃣ Hide search results (thay vì đóng popup)
+			// 1️⃣ Hide search results and popups
 			this.hideSearchResults();
+			this.hideProductConfirmation();
 			
 			// 🆕 Close NumPad if open
 			if (this.numpad_visible) {
@@ -1465,7 +1477,7 @@ export default {
 			// 2️⃣ Clear all focus states
 			this.clearAllFocus();
 			
-			// 3️⃣ Reset to barcode mode
+			// 3️⃣ ALWAYS reset to barcode mode
 			this.search_mode = 'barcode';
 			
 			// 4️⃣ Clear search input
@@ -1479,27 +1491,29 @@ export default {
 			
 			// Show feedback
 			frappe.show_alert({
-				message: 'Quay về bán hàng',
-				indicator: 'blue'
+				message: 'F2: Chế độ Barcode + Focus',
+				indicator: 'primary'
 			}, 1);
-		},
+			
+			console.info('[F2] Mode set to:', this.search_mode);
+		}, 200), // Debounce 200ms to prevent multiple calls
 		
-		// 🔹 F3 - SEARCH MODE TOGGLE
-		handleF3SearchToggle() {
+		// 🔹 F3 - SWITCH TO TEXT SEARCH MODE (SEARCH ONLY)
+		handleF3SearchToggle: _.debounce(function() {
 			console.info('[F3] handleF3SearchToggle called, f3_enabled:', this.f3_enabled);
 			if (!this.f3_enabled) {
 				console.warn('[F3] F3 is disabled, ignoring');
 				return;
 			}
 			
-			console.info('[F3] Toggling search mode from:', this.search_mode);
+			console.info('[F3] ALWAYS switching to Text Search mode (view-only), current mode:', this.search_mode);
 			
-			// Toggle mode
-			const oldMode = this.search_mode;
-			this.search_mode = this.search_mode === 'barcode' ? 'text' : 'barcode';
-			
-			// Hide search results when switching modes
+			// Hide any popups and results
 			this.hideSearchResults();
+			this.hideProductConfirmation();
+			
+			// ALWAYS switch to text mode (F3 = Text Search ONLY, no toggle)
+			this.search_mode = 'text';
 			
 			// Clear current search
 			this.clearSearch();
@@ -1510,12 +1524,13 @@ export default {
 			});
 			
 			// Show mode change feedback
-			const newModeText = this.search_mode === 'barcode' ? 'Quét Barcode' : 'Tìm kiếm Text';
 			frappe.show_alert({
-				message: `Chuyển sang: ${newModeText}`,
-				indicator: this.modeColor
+				message: 'F3: Chế độ Tìm kiếm Text (click để chọn → xác nhận)',
+				indicator: 'orange'
 			}, 2);
-		},
+			
+			console.info('[F3] Mode set to:', this.search_mode);
+		}, 200), // Debounce 200ms to prevent multiple calls
 		
 		// 🎯 ENTER KEY ROUTER
 		handleEnterKey() {
@@ -1581,7 +1596,7 @@ export default {
 			}
 		},
 		
-		// 🔍 TEXT SEARCH MODE ENTER
+		// 🔍 TEXT SEARCH MODE ENTER (WITH PRODUCT CONFIRMATION)
 		async handleTextSearchEnter() {
 			const searchTerm = this.debounce_search.trim();
 			
@@ -1591,7 +1606,7 @@ export default {
 			}
 			
 			try {
-				console.info('[Text Mode] Searching:', searchTerm);
+				console.info('[Text Mode] Searching with confirmation popup:', searchTerm);
 				
 				const results = await this.searchItemsByText(searchTerm);
 				
@@ -1599,11 +1614,17 @@ export default {
 					this.showError('Không tìm thấy sản phẩm', 'orange');
 					this.selectAllSearchText();
 				} else if (results.length === 1) {
-					// ✅ Single result - show confirmation popup
+					// ✅ Single result - show confirmation popup directly
+					console.info('[Text Mode] Single result - showing confirmation popup');
 					this.showProductConfirmation(results[0]);
 				} else {
-					// 📋 Multiple results - show list
-					this.showSearchResults(results);
+					// 📋 Multiple results - show list for selection
+					console.info('[Text Mode] Multiple results - showing selection list');
+					this.showSearchResults(results, false); // false = allow selection
+					frappe.show_alert({
+						message: `Tìm thấy ${results.length} sản phẩm. Click để chọn.`,
+						indicator: 'blue'
+					}, 3);
 				}
 				
 			} catch (error) {
@@ -2915,14 +2936,15 @@ export default {
 		},
 
 		// 📋 SEARCH RESULTS NAVIGATION
-		showSearchResults(results) {
+		showSearchResults(results, viewOnlyMode = false) {
 			this.search_results = results.slice(0, 10); // Limit to 10 results
 			this.search_results_visible = true;
 			this.selected_result_index = 0;
+			this.search_results_view_only = viewOnlyMode; // Track if this is view-only mode
 			
-			// Show navigation hint
+			// Show navigation hint - always allow selection in Text Search mode
 			frappe.show_alert({
-				message: `${results.length} kết quả. Dùng ↑↓ để chọn`,
+				message: `${results.length} kết quả. Click để chọn và xác nhận.`,
 				indicator: 'blue'
 			}, 3);
 		},
@@ -2959,7 +2981,8 @@ export default {
 			const selectedItem = this.search_results[this.selected_result_index];
 			if (!selectedItem) return;
 			
-			// 🆕 Show product confirmation popup instead of adding directly
+			// 🆕 Always show product confirmation popup when selecting from search results
+			console.info('[Text Search] Showing product confirmation for:', selectedItem.item_name);
 			this.showProductConfirmation(selectedItem);
 		},
 
@@ -2967,6 +2990,7 @@ export default {
 			this.search_results_visible = false;
 			this.search_results = [];
 			this.selected_result_index = 0;
+			this.search_results_view_only = false; // Reset view-only flag
 		},
 		
 		// 🔍 SEARCH LOGIC
