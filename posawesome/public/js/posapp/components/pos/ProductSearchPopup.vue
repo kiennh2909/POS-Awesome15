@@ -236,8 +236,9 @@ export default {
 				return this.visible;
 			},
 			set(value) {
-				// Emit close event without calling closePopup to avoid infinite loop
-				if (!value) {
+				// Only emit close when value changes to false
+				// Prevent infinite loops by not calling any methods here
+				if (!value && this.visible) {
 					this.$emit('close');
 				}
 			}
@@ -263,12 +264,17 @@ export default {
 
 		// Reset popup state
 		resetPopup() {
-			this.searchTerm = '';
-			this.searchResults = [];
-			this.selectedIndex = -1;
-			this.isSearching = false;
-			this.hasSearched = false;
-			this.errorMessage = '';
+			try {
+				this.searchTerm = '';
+				this.searchResults = [];
+				this.selectedIndex = -1;
+				this.isSearching = false;
+				this.hasSearched = false;
+				this.errorMessage = '';
+				console.log('[Popup] State reset successfully');
+			} catch (error) {
+				console.error('[Popup] Error resetting state:', error);
+			}
 		},
 
 		// Close popup
@@ -276,17 +282,23 @@ export default {
 			this.$emit('close');
 		},
 
-		// Search input handler with debounce
+		// Search input handler with debounce - DISABLED auto-search to prevent freeze
 		onSearchInput: _.debounce(function() {
-			if (this.searchTerm.trim().length >= 2) {
-				this.performSearch();
-			}
+			// Auto-search disabled to prevent popup freeze
+			// User must press Enter or click Search button
+			console.log('[Popup] Auto-search disabled - user must press Enter');
 		}, 500),
 
-		// Perform search
+		// Perform search with error boundaries
 		async performSearch() {
 			if (!this.searchTerm.trim()) {
 				this.errorMessage = 'Vui lòng nhập từ khóa tìm kiếm';
+				return;
+			}
+
+			// Prevent multiple simultaneous searches
+			if (this.isSearching) {
+				console.log('[Popup] Search already in progress, ignoring');
 				return;
 			}
 
@@ -295,11 +307,20 @@ export default {
 			this.hasSearched = true;
 
 			try {
+				console.log('[Popup] Starting search for:', this.searchTerm.trim());
 				const results = await this.searchProducts(this.searchTerm.trim());
-				this.searchResults = results;
-				this.selectedIndex = results.length > 0 ? 0 : -1;
+				
+				// Check if component is still mounted and visible
+				if (!this.visible) {
+					console.log('[Popup] Component closed during search, aborting');
+					return;
+				}
+
+				this.searchResults = results || [];
+				this.selectedIndex = this.searchResults.length > 0 ? 0 : -1;
+				console.log('[Popup] Search completed, found:', this.searchResults.length, 'items');
 			} catch (error) {
-				console.error('Search error:', error);
+				console.error('[Popup] Search error:', error);
 				this.errorMessage = 'Lỗi khi tìm kiếm sản phẩm. Vui lòng thử lại.';
 				this.searchResults = [];
 			} finally {
@@ -307,10 +328,22 @@ export default {
 			}
 		},
 
-		// Search products via API
+		// Search products via API with timeout and error handling
 		async searchProducts(searchTerm) {
 			try {
-				const response = await frappe.call({
+				console.log('[Popup] Calling API with:', {
+					searchTerm,
+					posProfile: this.posProfile?.name,
+					priceList: this.priceList,
+					customer: this.customer
+				});
+
+				// Add timeout to prevent hanging
+				const timeoutPromise = new Promise((_, reject) => {
+					setTimeout(() => reject(new Error('Search timeout')), 10000); // 10 second timeout
+				});
+
+				const apiPromise = frappe.call({
 					method: "posawesome.posawesome.api.items.search_items_for_popup",
 					args: {
 						search_term: searchTerm,
@@ -318,12 +351,15 @@ export default {
 						price_list: this.priceList,
 						customer: this.customer,
 						limit: 50
-					}
+					},
+					freeze: false // Don't freeze UI during API call
 				});
 
+				const response = await Promise.race([apiPromise, timeoutPromise]);
+				console.log('[Popup] API response received:', response.message?.length || 0, 'items');
 				return response.message || [];
 			} catch (error) {
-				console.error('API search error:', error);
+				console.error('[Popup] API search error:', error);
 				throw error;
 			}
 		},

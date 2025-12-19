@@ -41,9 +41,9 @@ closePopup() {
 }
 ```
 
-## ✅ Giải Pháp
+## ✅ Giải Pháp - Comprehensive Fixes
 
-### Fix Computed Property
+### Fix 1: Computed Property Infinite Loop (CRITICAL)
 ```javascript
 // ProductSearchPopup.vue - AFTER FIX
 computed: {
@@ -52,20 +52,78 @@ computed: {
             return this.visible;
         },
         set(value) {
-            // Emit close event directly without calling closePopup
-            if (!value) {
-                this.$emit('close'); // ← Direct emit, no method call
+            // Only emit close when value changes to false
+            // Prevent infinite loops by not calling any methods here
+            if (!value && this.visible) {
+                this.$emit('close'); // ← Conditional emit with state check
             }
         }
     }
 }
 ```
 
-### Tại Sao Fix Này Hoạt Động
-1. **Loại bỏ method call**: Không gọi `this.closePopup()` từ setter
-2. **Direct emit**: Emit event trực tiếp từ setter
-3. **Break the loop**: Ngắt vòng lặp vô hạn
-4. **Keep functionality**: Vẫn giữ nguyên chức năng đóng popup
+### Fix 2: Auto-Search Prevention
+```javascript
+// Disabled auto-search to prevent API-related freezes
+onSearchInput: _.debounce(function() {
+    // Auto-search disabled to prevent popup freeze
+    // User must press Enter or click Search button
+    console.log('[Popup] Auto-search disabled - user must press Enter');
+}, 500),
+```
+
+### Fix 3: API Timeout Protection
+```javascript
+// Added timeout to prevent hanging API calls
+const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Search timeout')), 10000);
+});
+
+const apiPromise = frappe.call({
+    method: "posawesome.posawesome.api.items.search_items_for_popup",
+    args: { /* ... */ },
+    freeze: false // Don't freeze UI during API call
+});
+
+const response = await Promise.race([apiPromise, timeoutPromise]);
+```
+
+### Fix 4: Props Validation
+```javascript
+// Validate required props before opening popup
+openProductSearchPopup() {
+    if (!this.pos_profile) {
+        console.error('[Popup] Cannot open - missing pos_profile');
+        return;
+    }
+    if (!this.active_price_list) {
+        console.error('[Popup] Cannot open - missing price_list');
+        return;
+    }
+    // ... safe to open popup
+}
+```
+
+### Fix 5: Error Boundaries
+```javascript
+// Added try-catch blocks to all critical methods
+resetPopup() {
+    try {
+        this.searchTerm = '';
+        this.searchResults = [];
+        // ... reset state
+    } catch (error) {
+        console.error('[Popup] Error resetting state:', error);
+    }
+}
+```
+
+### Tại Sao Fixes Này Hoạt Động
+1. **Conditional emit**: Chỉ emit khi state thực sự thay đổi
+2. **No auto-search**: Tránh API calls không cần thiết
+3. **API timeout**: Ngăn chặn hanging calls
+4. **Props validation**: Đảm bảo component có đủ data
+5. **Error boundaries**: Xử lý lỗi gracefully
 
 ## 🔄 Luồng Mới (Đã Fix)
 

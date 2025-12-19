@@ -3400,17 +3400,60 @@ export default {
 
 		// 🆕 Product Search Popup Methods
 		openProductSearchPopup() {
-			console.info('[Popup] Opening product search popup');
-			this.product_search_popup_visible = true;
+			try {
+				console.info('[Popup] Opening product search popup');
+				
+				// Validate required props before opening
+				if (!this.pos_profile) {
+					console.error('[Popup] Cannot open - missing pos_profile');
+					frappe.show_alert({
+						message: 'Lỗi: Thiếu thông tin POS Profile',
+						indicator: 'red'
+					}, 3);
+					return;
+				}
+
+				if (!this.active_price_list) {
+					console.error('[Popup] Cannot open - missing price_list');
+					frappe.show_alert({
+						message: 'Lỗi: Thiếu thông tin bảng giá',
+						indicator: 'red'
+					}, 3);
+					return;
+				}
+
+				// Close any other popups first
+				this.hideSearchResults();
+				this.hideProductConfirmation();
+				
+				// Open popup
+				this.product_search_popup_visible = true;
+				console.info('[Popup] Popup opened successfully');
+			} catch (error) {
+				console.error('[Popup] Error opening popup:', error);
+				frappe.show_alert({
+					message: 'Lỗi mở popup tìm kiếm',
+					indicator: 'red'
+				}, 3);
+			}
 		},
 
 		closeProductSearchPopup() {
-			console.info('[Popup] Closing product search popup');
-			this.product_search_popup_visible = false;
-			// Return focus to main search input
-			this.$nextTick(() => {
-				this.focusSearchInput();
-			});
+			try {
+				console.info('[Popup] Closing product search popup');
+				this.product_search_popup_visible = false;
+				
+				// Return focus to main search input with error handling
+				this.$nextTick(() => {
+					try {
+						this.focusSearchInput();
+					} catch (error) {
+						console.error('[Popup] Error focusing search input:', error);
+					}
+				});
+			} catch (error) {
+				console.error('[Popup] Error closing popup:', error);
+			}
 		},
 
 		async onPopupAddItem(item) {
