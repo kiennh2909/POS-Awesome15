@@ -1040,25 +1040,13 @@ export default {
 		},
 		// Automatically search and add item whenever the query changes
 		first_search: _.debounce(function (val) {
+			// Only auto-search in barcode mode or when from scanner
+			// In text mode, user must press Enter to search
 			console.log(`[WATCHER] first_search changed: "${val}", mode: ${this.search_mode}, from_scanner: ${this.search_from_scanner}`);
-			
-			if (this.search_mode === 'barcode') {
-				// 🚀 AUTO-ENTER: In barcode mode, automatically execute Enter for manual entry
-				if (!this.search_from_scanner && val && val.trim().length >= 8) {
-					// Manual barcode entry - auto-execute Enter if looks like a barcode
-					console.log('[WATCHER] Manual barcode entry detected - auto-executing Enter');
-					this.$nextTick(() => {
-						setTimeout(() => {
-							this.handleBarcodeEnter();
-						}, 100); // Small delay to ensure input is stable
-					});
-				} else if (this.search_from_scanner) {
-					// Scanner input - use existing queue system
-					console.log('[WATCHER] Scanner input - triggering auto-search');
-					this.queueSearch(val, this.search_from_scanner);
-				}
+			if (this.search_mode === 'barcode' || this.search_from_scanner) {
+				console.log('[WATCHER] Triggering auto-search');
+				this.queueSearch(val, this.search_from_scanner);
 			} else {
-				// Text mode - user must press Enter to search
 				console.log('[WATCHER] Text mode - no auto-search, waiting for Enter');
 			}
 		}, 300), // Increased debounce time to match search debounce
@@ -2689,7 +2677,7 @@ export default {
 
 			console.info('[Hardware Scanner] Scanned barcode:', sCode);
 
-			// 🆕 AUTO-ENTER: Đưa barcode vào search input và tự động thực hiện Enter
+			// 🆕 THỐNG NHẤT: Đưa barcode vào search input, yêu cầu nhấn Enter
 			this.search_mode = 'barcode';
 			this.hideSearchResults();
 			
@@ -2697,16 +2685,14 @@ export default {
 			this.debounce_search = sCode.trim();
 			this.first_search = sCode.trim();
 			
-			// Focus vào search input
+			// Focus vào search input và highlight text
 			this.$nextTick(() => {
 				this.focusSearchInput();
-				// 🚀 TỰ ĐỘNG THỰC HIỆN ENTER
-				setTimeout(() => {
-					this.handleBarcodeEnter();
-				}, 50); // Small delay to ensure input is updated
+				this.selectAllSearchText();
 			});
 			
-			console.info(`[Hardware Scanner] Auto-processing: ${sCode}`);
+			// Alert removed for speed - hardware scanner should be instant
+			console.info(`[Hardware Scanner] Scanned: ${sCode}`);
 		},
 		generateWordCombinations(inputString) {
 			const words = inputString.split(" ");
@@ -3393,7 +3379,7 @@ export default {
 			}
 			this.lastScanTime = now;
 
-			// 🆕 AUTO-ENTER: Đưa barcode vào search input và tự động thực hiện Enter
+			// 🆕 THỐNG NHẤT: Đưa barcode vào search input, yêu cầu nhấn Enter
 			this.search_mode = 'barcode';
 			this.hideSearchResults();
 			
@@ -3401,16 +3387,14 @@ export default {
 			this.debounce_search = scannedCode.trim();
 			this.first_search = scannedCode.trim();
 			
-			// Focus vào search input
+			// Focus vào search input và highlight text
 			this.$nextTick(() => {
 				this.focusSearchInput();
-				// 🚀 TỰ ĐỘNG THỰC HIỆN ENTER
-				setTimeout(() => {
-					this.handleBarcodeEnter();
-				}, 50); // Small delay to ensure input is updated
+				this.selectAllSearchText();
 			});
 			
-			console.info(`[Camera Scanner] Auto-processing: ${scannedCode}`);
+			// Alert removed for speed - camera scanner should be instant
+			console.info(`[Camera Scanner] Scanned: ${scannedCode}`);
 		},
 		// 🚫 DEPRECATED: processScannedItem - Không còn sử dụng do thống nhất luồng Enter
 		// Tất cả scanner (hardware, camera, manual) đều đưa barcode vào search input

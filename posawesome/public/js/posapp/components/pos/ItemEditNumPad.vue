@@ -26,9 +26,9 @@
 
 			<!-- Content -->
 			<v-card-text class="pa-4">
-				<v-row no-gutters>
+				<div class="content-container">
 					<!-- Left Panel: Item Info -->
-					<v-col cols="4" class="left-panel">
+					<div class="left-panel">
 						<!-- Item Information -->
 						<div class="info-section">
 							<h3 class="section-title">Thông Tin Sản Phẩm</h3>
@@ -102,10 +102,10 @@
 								<div>Current: {{ selectedUom }}</div>
 							</div>
 						</div>
-					</v-col>
+					</div>
 
 					<!-- Right Panel: NumPad -->
-					<v-col cols="8" class="right-panel">
+					<div class="right-panel">
 						<!-- Quantity Input Display -->
 						<div class="qty-input-section">
 							<div class="input-label">Nhập Số Lượng</div>
@@ -197,8 +197,8 @@
 								</v-btn>
 							</div>
 						</div>
-					</v-col>
-				</v-row>
+					</div>
+				</div>
 			</v-card-text>
 		</v-card>
 	</v-dialog>
@@ -522,7 +522,8 @@ export default {
 	background: #f8f9fa;
 	border-radius: 12px;
 	padding: 12px;
-	margin-right: 8px;
+	width: 33%;
+	flex-shrink: 0;
 	height: 400px;
 	max-height: 400px;
 	overflow-y: auto;
@@ -645,6 +646,7 @@ export default {
 .right-panel {
 	padding: 12px;
 	height: 400px;
+	flex: 1;
 	display: flex;
 	flex-direction: column;
 }
@@ -819,6 +821,13 @@ export default {
 	padding: 12px !important;
 }
 
+/* Content Container */
+.content-container {
+	display: flex;
+	height: 400px;
+	gap: 16px;
+}
+
 /* Compact Layout */
 .numpad-grid-redesign {
 	display: flex;
@@ -841,14 +850,21 @@ export default {
 		max-height: calc(100vh - 16px) !important;
 	}
 	
+	.content-container {
+		flex-direction: column;
+		height: auto;
+		gap: 12px;
+	}
+	
 	.left-panel {
-		margin-right: 8px;
-		padding: 12px;
-		max-height: 400px;
+		width: 100%;
+		height: auto;
+		max-height: 200px;
 	}
 	
 	.right-panel {
 		padding: 12px;
+		height: auto;
 	}
 	
 	.numpad-btn {
