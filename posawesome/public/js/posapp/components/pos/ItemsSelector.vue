@@ -57,7 +57,7 @@
 								<!-- Keyboard hint -->
 								<template v-slot:append-inner>
 									<span class="keyboard-hint text-caption">
-										{{ search_mode === 'barcode' ? 'F3: Text' : 'F3: Barcode' }}
+										F3: Popup
 									</span>
 									<!-- Product Search Popup Button -->
 									<v-btn
@@ -1076,8 +1076,8 @@ export default {
 		
 		dynamicHint() {
 			return this.search_mode === 'barcode'
-				? 'F3 – Chuyển sang tìm theo Tên / SKU'
-				: 'F3 – Quay về quét Barcode';
+				? 'F3 – Mở popup tìm kiếm nâng cao'
+				: 'F3 – Mở popup tìm kiếm nâng cao';
 		},
 		
 		modeIcon() {
@@ -1518,7 +1518,7 @@ export default {
 			console.info('[F2] Mode set to:', this.search_mode);
 		}, 200), // Debounce 200ms to prevent multiple calls
 		
-		// 🔹 F3 - SWITCH TO TEXT SEARCH MODE (SEARCH ONLY)
+		// 🔹 F3 - OPEN PRODUCT SEARCH POPUP (NO MODE CHANGE)
 		handleF3SearchToggle: _.debounce(function() {
 			console.info('[F3] handleF3SearchToggle called, f3_enabled:', this.f3_enabled);
 			if (!this.f3_enabled) {
@@ -1526,30 +1526,22 @@ export default {
 				return;
 			}
 			
-			console.info('[F3] ALWAYS switching to Text Search mode (view-only), current mode:', this.search_mode);
+			console.info('[F3] Opening Product Search Popup (no mode change)');
 			
-			// Hide any popups and results
+			// Hide any existing results and popups
 			this.hideSearchResults();
 			this.hideProductConfirmation();
 			
-			// ALWAYS switch to text mode (F3 = Text Search ONLY, no toggle)
-			this.search_mode = 'text';
+			// 🆕 OPEN POPUP instead of changing mode
+			this.openProductSearchPopup();
 			
-			// Clear current search
-			this.clearSearch();
-			
-			// Keep focus on input
-			this.$nextTick(() => {
-				this.focusSearchInput();
-			});
-			
-			// Show mode change feedback
+			// Show feedback
 			frappe.show_alert({
-				message: 'F3: Chế độ Tìm kiếm Text (click để chọn → xác nhận)',
-				indicator: 'orange'
+				message: 'F3: Mở popup tìm kiếm nâng cao',
+				indicator: 'blue'
 			}, 2);
 			
-			console.info('[F3] Mode set to:', this.search_mode);
+			console.info('[F3] Product Search Popup opened');
 		}, 200), // Debounce 200ms to prevent multiple calls
 		
 		// 🎯 ENTER KEY ROUTER
