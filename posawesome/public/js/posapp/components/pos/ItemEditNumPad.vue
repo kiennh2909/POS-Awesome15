@@ -1,8 +1,8 @@
 <template>
 	<v-dialog 
 		v-model="isVisible" 
-		max-width="900px"
-		max-height="600px"
+		width="800px"
+		height="500px"
 		persistent
 		@keydown="handleGlobalKeydown"
 	>
@@ -80,21 +80,26 @@
 							</div>
 						</div>
 
-						<!-- UOM Selection Buttons -->
-						<div class="uom-section" v-if="availableUoms.length > 1">
+						<!-- UOM Selection Buttons - Always Show -->
+						<div class="uom-section">
 							<h3 class="section-title">Đơn Vị Tính</h3>
 							<div class="uom-buttons">
 								<v-btn
-									v-for="uom in availableUoms"
-									:key="uom.uom"
-									:variant="selectedUom === uom.uom ? 'flat' : 'outlined'"
-									:color="selectedUom === uom.uom ? 'teal' : 'grey'"
+									v-for="(uom, index) in availableUoms"
+									:key="index"
+									:variant="selectedUom === (uom.uom || uom) ? 'flat' : 'outlined'"
+									:color="selectedUom === (uom.uom || uom) ? 'teal' : 'grey'"
 									class="uom-btn"
-									@click="selectUom(uom.uom)"
+									@click="selectUom(uom.uom || uom)"
 									size="small"
 								>
-									{{ uom.uom }}
+									{{ uom.uom || uom }}
 								</v-btn>
+							</div>
+							<!-- Debug Info (remove after testing) -->
+							<div class="debug-info text-caption mt-2">
+								<div>UOMs: {{ availableUoms.length }}</div>
+								<div>Current: {{ selectedUom }}</div>
 							</div>
 						</div>
 					</v-col>
@@ -240,10 +245,30 @@ export default {
 		
 		// Get available UOMs for this item
 		availableUoms() {
-			if (!this.selectedItem || !this.selectedItem.item_uoms) {
-				return [{ uom: this.selectedItem?.uom || 'Túi' }];
+			console.log('[NumPad] Computing availableUoms for item:', this.selectedItem);
+			
+			// If item has item_uoms array, use it
+			if (this.selectedItem?.item_uoms && Array.isArray(this.selectedItem.item_uoms) && this.selectedItem.item_uoms.length > 0) {
+				console.log('[NumPad] Using item_uoms:', this.selectedItem.item_uoms);
+				return this.selectedItem.item_uoms;
 			}
-			return this.selectedItem.item_uoms || [];
+			
+			// Fallback: create array with current UOM and some common UOMs
+			const currentUom = this.selectedItem?.uom || 'Cái';
+			const commonUoms = ['Cái', 'Túi', 'Kg', 'Thùng', 'Hộp', 'Lít'];
+			
+			// Always include current UOM first
+			const uomList = [currentUom];
+			
+			// Add other common UOMs if they're different
+			commonUoms.forEach(uom => {
+				if (uom !== currentUom) {
+					uomList.push(uom);
+				}
+			});
+			
+			console.log('[NumPad] Using fallback UOMs:', uomList);
+			return uomList.map(uom => ({ uom }));
 		}
 	},
 	watch: {
@@ -453,15 +478,19 @@ export default {
 	border-radius: 16px;
 	overflow: hidden;
 	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-	max-height: 600px;
+	height: 500px !important;
+	max-height: 500px !important;
+	display: flex;
+	flex-direction: column;
 }
 
 /* Header Styling - Teal Background */
 .numpad-header {
 	background: linear-gradient(135deg, #26a69a, #00695c) !important;
 	color: white !important;
-	padding: 16px 20px;
-	min-height: 60px;
+	padding: 12px 16px;
+	min-height: 50px;
+	flex-shrink: 0;
 }
 
 .header-content {
@@ -492,9 +521,10 @@ export default {
 .left-panel {
 	background: #f8f9fa;
 	border-radius: 12px;
-	padding: 16px;
-	margin-right: 12px;
-	max-height: 480px;
+	padding: 12px;
+	margin-right: 8px;
+	height: 400px;
+	max-height: 400px;
 	overflow-y: auto;
 }
 
@@ -585,54 +615,68 @@ export default {
 
 /* UOM Buttons */
 .uom-section {
-	margin-bottom: 16px;
+	margin-bottom: 12px;
 }
 
 .uom-buttons {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px;
+	gap: 6px;
 }
 
 .uom-btn {
-	min-width: 60px !important;
-	height: 36px !important;
-	font-size: 0.85rem !important;
+	min-width: 50px !important;
+	height: 32px !important;
+	font-size: 0.8rem !important;
 	font-weight: 600 !important;
+}
+
+/* Debug Info */
+.debug-info {
+	background: #fff3cd;
+	border: 1px solid #ffeaa7;
+	border-radius: 4px;
+	padding: 4px 8px;
+	font-size: 0.7rem;
+	color: #856404;
 }
 
 /* Right Panel */
 .right-panel {
-	padding: 16px;
+	padding: 12px;
+	height: 400px;
+	display: flex;
+	flex-direction: column;
 }
 
 /* Quantity Input Display */
 .qty-input-section {
-	margin-bottom: 16px;
+	margin-bottom: 12px;
+	flex-shrink: 0;
 }
 
 .input-label {
-	font-size: 0.9rem;
+	font-size: 0.85rem;
 	font-weight: 600;
 	color: #555;
-	margin-bottom: 6px;
+	margin-bottom: 4px;
 	text-align: center;
 }
 
 .qty-display {
 	background: white;
 	border: 3px solid #26a69a;
-	border-radius: 12px;
-	padding: 12px;
+	border-radius: 10px;
+	padding: 10px;
 	text-align: center;
-	min-height: 50px;
+	height: 45px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
 .qty-value {
-	font-size: 1.8rem;
+	font-size: 1.6rem;
 	font-weight: 700;
 	color: #333;
 }
@@ -641,10 +685,10 @@ export default {
 
 .numpad-btn {
 	flex: 1;
-	height: 50px !important;
-	font-size: 1.1rem !important;
+	height: 45px !important;
+	font-size: 1rem !important;
 	font-weight: 700 !important;
-	border-radius: 8px !important;
+	border-radius: 6px !important;
 	text-transform: none !important;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
 	transition: all 0.2s ease !important;
@@ -763,21 +807,30 @@ export default {
 }
 
 .v-dialog > .v-overlay__content {
-	max-height: 90vh !important;
+	height: 500px !important;
+	max-height: 500px !important;
 	overflow: hidden !important;
+}
+
+/* Force card content to fit */
+.item-edit-numpad-redesign .v-card-text {
+	flex: 1;
+	overflow: hidden;
+	padding: 12px !important;
 }
 
 /* Compact Layout */
 .numpad-grid-redesign {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
-	max-height: 350px;
+	gap: 4px;
+	flex: 1;
+	max-height: 300px;
 }
 
 .numpad-row {
 	display: flex;
-	gap: 6px;
+	gap: 4px;
 }
 
 /* Responsive Design */
